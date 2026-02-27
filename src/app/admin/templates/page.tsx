@@ -66,8 +66,8 @@ export default function TemplatesPage() {
 
     return (
         <AppShell>
-            <div className="max-w-6xl mx-auto px-6 py-8">
-                <div className="flex gap-2 mb-6">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+                <div className="flex gap-2 mb-6 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
                     <Link href="/admin/product-types" className="px-3 py-1.5 rounded-lg text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7] text-sm transition-colors">Product Types</Link>
                     <Link href="/admin/stages" className="px-3 py-1.5 rounded-lg text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7] text-sm transition-colors">Stages</Link>
                     <Link href="/admin/templates" className="px-3 py-1.5 rounded-lg bg-[#F4F5F7] text-[#1A1F2B] text-sm font-medium">Templates</Link>
@@ -76,7 +76,7 @@ export default function TemplatesPage() {
                 </div>
                 <div className="flex items-center justify-between mb-6">
                     <div>
-                        <h1 className="text-2xl font-bold text-[#1A1F2B]">Data Model Templates</h1>
+                        <h1 className="text-xl sm:text-2xl font-bold text-[#1A1F2B]">Data Model Templates</h1>
                         <p className="text-sm text-[#7A8599] mt-1">Define default assumptions by product type and region. Applied when creating new one-pagers.</p>
                     </div>
                     <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-[#2563EB] hover:bg-[#1D4FD7] text-white text-sm font-medium transition-colors shadow-sm">
@@ -227,7 +227,7 @@ export default function TemplatesPage() {
             {/* Add Template Dialog */}
             {showAdd && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-                    <div className="bg-white border border-[#E2E5EA] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in">
+                    <div className="bg-white border border-[#E2E5EA] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in mx-4">
                         <h2 className="text-lg font-semibold text-[#1A1F2B] mb-4">New Template</h2>
                         <div className="space-y-4">
                             <div><label className="block text-xs font-semibold text-[#4A5568] mb-1.5 uppercase tracking-wider">Template Name <span className="text-[#DC2626]">*</span></label><input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder='e.g., "DFW Garden — Standard"' className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] placeholder:text-[#A0AABB] focus:border-[#2563EB] focus:ring-2 focus:ring-[#EBF1FF] focus:outline-none" autoFocus /></div>

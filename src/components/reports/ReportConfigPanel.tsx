@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Search, ChevronDown, ChevronRight, GripVertical, X } from 'lucide-react';
 import type { ReportConfig, ReportFieldKey, ReportFilter, ReportFilterOperator, ReportDataSource } from '@/types';
 import { REPORT_FIELD_MAP, getFieldCategoriesForSource, getGroupableFieldsForSource } from '@/lib/reportFields';
@@ -45,6 +45,10 @@ export function ReportConfigPanel({ config, onChange, onClose, dataSource }: Rep
         onChange({ ...config, columns: cols });
     };
 
+    const removeColumn = (key: ReportFieldKey) => {
+        onChange({ ...config, columns: config.columns.filter(c => c !== key) });
+    };
+
     const toggleGroupBy = (key: ReportFieldKey) => {
         const groups = config.groupBy.includes(key)
             ? config.groupBy.filter(g => g !== key)
@@ -65,7 +69,6 @@ export function ReportConfigPanel({ config, onChange, onClose, dataSource }: Rep
     };
 
     const addFilter = () => {
-        // Pick the first filterable field for this source as default
         const defaultField = sourceFilterable[0]?.key ?? ('region' as ReportFieldKey);
         onChange({
             ...config,
@@ -87,6 +90,36 @@ export function ReportConfigPanel({ config, onChange, onClose, dataSource }: Rep
         if (next.has(cat)) next.delete(cat);
         else next.add(cat);
         setExpandedCategories(next);
+    };
+
+    // ── Drag-and-drop column reorder ──────────────────────────
+    const dragIdx = useRef<number | null>(null);
+    const [dropTargetIdx, setDropTargetIdx] = useState<number | null>(null);
+
+    const handleDragStart = (idx: number) => {
+        dragIdx.current = idx;
+    };
+
+    const handleDragOver = (e: React.DragEvent, idx: number) => {
+        e.preventDefault();
+        setDropTargetIdx(idx);
+    };
+
+    const handleDrop = (e: React.DragEvent, toIdx: number) => {
+        e.preventDefault();
+        setDropTargetIdx(null);
+        const fromIdx = dragIdx.current;
+        if (fromIdx === null || fromIdx === toIdx) return;
+        const newCols = [...config.columns];
+        const [moved] = newCols.splice(fromIdx, 1);
+        newCols.splice(toIdx, 0, moved);
+        onChange({ ...config, columns: newCols });
+        dragIdx.current = null;
+    };
+
+    const handleDragEnd = () => {
+        dragIdx.current = null;
+        setDropTargetIdx(null);
     };
 
     return (
@@ -183,9 +216,47 @@ export function ReportConfigPanel({ config, onChange, onClose, dataSource }: Rep
                     </button>
                 </div>
 
-                {/* ── Columns ────────────────────────────── */}
+                {/* ── Column Order ────────────────────────── */}
+                {config.columns.length > 0 && (
+                    <div className="px-4 py-3 border-b border-[#F0F1F4]">
+                        <h4 className="text-[10px] font-bold text-[#A0AABB] uppercase tracking-wider mb-2">
+                            Column Order
+                            <span className="font-normal ml-1">({config.columns.length})</span>
+                        </h4>
+                        <p className="text-[10px] text-[#C8CDD5] mb-2">Drag to reorder</p>
+                        <div className="space-y-0.5">
+                            {config.columns.map((key, idx) => {
+                                const field = REPORT_FIELD_MAP[key];
+                                return (
+                                    <div
+                                        key={key}
+                                        draggable
+                                        onDragStart={() => handleDragStart(idx)}
+                                        onDragOver={(e) => handleDragOver(e, idx)}
+                                        onDrop={(e) => handleDrop(e, idx)}
+                                        onDragEnd={handleDragEnd}
+                                        className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs cursor-grab active:cursor-grabbing transition-colors ${dropTargetIdx === idx ? 'bg-[#EBF1FF] border border-[#2563EB]/30' : 'bg-[#F4F5F7] border border-transparent hover:bg-[#EDEEF1]'
+                                            }`}
+                                    >
+                                        <GripVertical className="w-3 h-3 text-[#C8CDD5] shrink-0" />
+                                        <span className="text-[10px] text-[#A0AABB] font-mono w-4 text-center shrink-0">{idx + 1}</span>
+                                        <span className="flex-1 text-[#1A1F2B] font-medium truncate">{field?.label ?? key}</span>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); removeColumn(key); }}
+                                            className="p-0.5 rounded hover:bg-[#FEF2F2] text-[#A0AABB] hover:text-[#DC2626] shrink-0"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Add Columns ─────────────────────────── */}
                 <div className="px-4 py-3">
-                    <h4 className="text-[10px] font-bold text-[#A0AABB] uppercase tracking-wider mb-2">Columns</h4>
+                    <h4 className="text-[10px] font-bold text-[#A0AABB] uppercase tracking-wider mb-2">Add Columns</h4>
                     <div className="relative mb-3">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#C8CDD5]" />
                         <input

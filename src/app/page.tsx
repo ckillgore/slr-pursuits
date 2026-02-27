@@ -713,6 +713,17 @@ function DashboardMap({ pursuits, stages }: DashboardMapProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Re-add markers when the pursuits list changes (e.g. stage filter)
+  useEffect(() => {
+    const map = mapRef.current;
+    const mbgl = mbglRef.current;
+    if (!map || !mbgl) return;
+    // Only re-add if map is loaded (style.load already fired)
+    if (map.isStyleLoaded()) {
+      addMarkers(map, mbgl);
+    }
+  }, [locatedPursuits, addMarkers]);
+
   // Handle style change
   useEffect(() => {
     const map = mapRef.current;

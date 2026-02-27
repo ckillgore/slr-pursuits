@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
@@ -88,11 +88,15 @@ export default function PursuitDetailPage() {
     const { data: keyDates = [] } = useKeyDates(pursuitId);
 
     // AI Summary state
-    const [aiSummary, setAiSummary] = useState<string | null>(
-        (pursuit?.parcel_data as any)?.aiSummary || null
-    );
+    const [aiSummary, setAiSummary] = useState<string | null>(null);
     const [aiLoading, setAiLoading] = useState(false);
     const [aiError, setAiError] = useState<string | null>(null);
+
+    // Sync from DB once pursuit loads (useState initializer runs before data is fetched)
+    useEffect(() => {
+        const saved = (pursuit?.parcel_data as any)?.aiSummary;
+        if (saved && !aiSummary) setAiSummary(saved);
+    }, [pursuit?.parcel_data]);
 
     const generateSummary = useCallback(async () => {
         if (!pursuit) return;

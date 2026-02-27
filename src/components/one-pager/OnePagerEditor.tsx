@@ -151,6 +151,7 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
 
             const updates: Partial<OnePager> = {
                 [field]: value,
+                total_units: sortedUnitMix.reduce((s, r) => s + r.unit_count, 0),
                 calc_total_nrsf: calc.total_nrsf,
                 calc_total_gbsf: calc.total_gbsf,
                 calc_gpr: calc.gross_potential_rent,
@@ -174,8 +175,18 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
         (rowId: string, field: string, value: number | string, oldValue: unknown) => {
             pushUndo({ entity: 'unitMix', entityId: rowId, field, oldValue, newValue: value });
             upsertUnitMixRow.mutate({ id: rowId, one_pager_id: onePager.id, [field]: value });
+
+            // Persist total_units to the one_pagers row so dashboard/overview can read it
+            if (field === 'unit_count') {
+                const currentTotal = sortedUnitMix.reduce((s, r) => s + r.unit_count, 0);
+                const delta = (typeof value === 'number' ? value : 0) - (typeof oldValue === 'number' ? oldValue : 0);
+                const newTotal = currentTotal + delta;
+                const calcUpdates: Partial<OnePager> = { total_units: newTotal };
+                updateOnePagerMutation.mutate({ id: onePager.id, updates: calcUpdates });
+                save({ id: onePager.id, updates: calcUpdates });
+            }
         },
-        [upsertUnitMixRow, onePager.id, pushUndo]
+        [upsertUnitMixRow, updateOnePagerMutation, onePager.id, pushUndo, sortedUnitMix, save]
     );
 
     const handleAddPayroll = useCallback(

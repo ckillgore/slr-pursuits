@@ -1,0 +1,271 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #FAFBFC;
+  --color-foreground: #1A1F2B;
+}
+
+/* Force light mode regardless of OS dark mode preference */
+html {
+  color-scheme: light;
+}
+
+/* ============================================================
+   SLR Pursuits — Professional Light Theme
+   Clean, financial-grade UI with warm neutrals + navy accents
+   ============================================================ */
+
+:root {
+  /* Core palette */
+  --bg-primary: #FAFBFC;
+  --bg-card: #FFFFFF;
+  --bg-elevated: #F4F5F7;
+  --bg-nav: #FFFFFF;
+  --border: #E2E5EA;
+  --border-strong: #C8CDD5;
+  --text-primary: #1A1F2B;
+  --text-secondary: #4A5568;
+  --text-muted: #7A8599;
+  --text-faint: #A0AABB;
+  --accent: #2563EB;
+  --accent-hover: #1D4FD7;
+  --accent-subtle: #EBF1FF;
+  --success: #0D7A3E;
+  --success-bg: #ECFDF3;
+  --warning: #B45309;
+  --warning-bg: #FFFBEB;
+  --danger: #DC2626;
+  --danger-bg: #FEF2F2;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   Scrollbar
+   ============================================================ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+}
+
+/* ============================================================
+   Card
+   ============================================================ */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: box-shadow 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+/* Returns card — subtle gradient accent */
+.card-returns {
+  background: linear-gradient(135deg, #F8FAFF 0%, #F0F6FF 50%, #F5F9FF 100%);
+  border: 1px solid #D4E0F7;
+}
+
+/* ============================================================
+   Inline Input — Click-to-edit field
+   ============================================================ */
+.inline-input {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--text-primary);
+  text-align: right;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-variant-numeric: tabular-nums;
+}
+
+.inline-input:hover {
+  background: var(--bg-elevated);
+}
+
+.inline-input:focus {
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+  cursor: text;
+  padding: 1px 5px;
+}
+
+/* ============================================================
+   Data Table — Compact financial grid
+   ============================================================ */
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.8125rem;
+}
+
+.data-table thead th {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 6px 10px;
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+}
+
+.data-table tbody td {
+  padding: 5px 10px;
+  border-bottom: 1px solid #F0F1F4;
+  vertical-align: middle;
+}
+
+.data-table tbody tr:hover {
+  background: var(--bg-elevated);
+}
+
+.data-table tbody tr.total-row td {
+  font-weight: 700;
+  color: var(--text-primary);
+  border-top: 2px solid var(--border);
+  border-bottom: none;
+  padding-top: 8px;
+  font-size: 0.8125rem;
+}
+
+/* ============================================================
+   Stage Badge
+   ============================================================ */
+.stage-badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+/* ============================================================
+   Save Indicator
+   ============================================================ */
+.save-indicator {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.save-indicator.saving {
+  color: var(--accent);
+}
+
+.save-indicator.saved {
+  color: var(--success);
+}
+
+.save-indicator.error {
+  color: var(--danger);
+}
+
+/* ============================================================
+   Rich Text Editor (Tiptap)
+   ============================================================ */
+.rich-text-editor-content {
+  padding: 12px 16px;
+  min-height: 120px;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.rich-text-editor-content h2 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 1em 0 0.5em;
+  color: var(--text-primary);
+}
+
+.rich-text-editor-content h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0.75em 0 0.375em;
+  color: var(--text-primary);
+}
+
+.rich-text-editor-content p {
+  margin: 0.5em 0;
+}
+
+.rich-text-editor-content ul,
+.rich-text-editor-content ol {
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.rich-text-editor-content li {
+  margin: 0.25em 0;
+}
+
+.rich-text-editor-content blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 1em;
+  margin: 0.75em 0;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.rich-text-editor-content hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1em 0;
+}
+
+.rich-text-editor-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--text-faint);
+  pointer-events: none;
+  height: 0;
+}
+
+/* ============================================================
+   Animations
+   ============================================================ */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}

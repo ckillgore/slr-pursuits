@@ -464,6 +464,8 @@ export type ReportFieldKey =
   | 'calc_total_budget' | 'calc_hard_cost' | 'calc_soft_cost'
   | 'calc_total_opex' | 'calc_noi' | 'calc_yoc'
   | 'calc_cost_per_unit' | 'calc_noi_per_unit'
+  | 'unit_avg_size' | 'opex_ratio' | 'controllable_per_unit'
+  | 'land_cost_per_unit' | 'land_cost_per_sf'
   // Land Comp fields
   | 'comp_name' | 'comp_address' | 'comp_city' | 'comp_state' | 'comp_county'
   | 'comp_zip' | 'comp_site_area_sf' | 'comp_site_area_acres'

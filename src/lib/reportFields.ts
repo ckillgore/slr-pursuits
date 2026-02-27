@@ -72,6 +72,13 @@ export const REPORT_FIELDS: ReportFieldDef[] = [
     { key: 'one_pager_name', label: 'Scenario Name', category: 'One-Pager', type: 'text', groupable: false, filterable: true, getValue: (r) => r.onePager?.name ?? null, format: fmtText },
     { key: 'product_type', label: 'Product Type', category: 'One-Pager', type: 'text', groupable: true, filterable: true, getValue: (r) => r.onePager?.product_type?.name ?? null, format: fmtText },
     { key: 'total_units', label: 'Total Units', category: 'One-Pager', type: 'number', groupable: false, filterable: true, getValue: (r) => r.onePager?.total_units ?? null, format: fmtNumber },
+    {
+        key: 'unit_avg_size', label: 'Unit Avg Size (SF)', category: 'One-Pager', type: 'number', groupable: false, filterable: true, getValue: (r) => {
+            const op = r.onePager;
+            if (!op || !op.total_units || op.total_units === 0 || !op.calc_total_nrsf) return null;
+            return op.calc_total_nrsf / op.total_units;
+        }, format: fmtNumber
+    },
 
     // ── Returns ───────────────────────────────────────
     { key: 'calc_yoc', label: 'Unlevered YoC', category: 'Returns', type: 'percent', groupable: false, filterable: true, getValue: (r) => r.onePager?.calc_yoc ?? null, format: fmtPercent },
@@ -88,9 +95,38 @@ export const REPORT_FIELDS: ReportFieldDef[] = [
     { key: 'calc_soft_cost', label: 'Soft Cost', category: 'Budget', type: 'currency', groupable: false, filterable: true, getValue: (r) => r.onePager?.calc_soft_cost ?? null, format: fmtCurrency },
     { key: 'calc_cost_per_unit', label: 'Cost / Unit', category: 'Budget', type: 'currency', groupable: false, filterable: true, getValue: (r) => r.onePager?.calc_cost_per_unit ?? null, format: fmtCurrency },
     { key: 'land_cost', label: 'Land Cost', category: 'Budget', type: 'currency', groupable: false, filterable: true, getValue: (r) => r.onePager?.land_cost ?? null, format: fmtCurrency },
+    {
+        key: 'land_cost_per_unit', label: 'Land Cost / Unit', category: 'Budget', type: 'currency', groupable: false, filterable: true, getValue: (r) => {
+            const op = r.onePager;
+            if (!op || !op.land_cost || !op.total_units || op.total_units === 0) return null;
+            return op.land_cost / op.total_units;
+        }, format: fmtCurrency
+    },
+    {
+        key: 'land_cost_per_sf', label: 'Land Cost / SF (Site)', category: 'Budget', type: 'currency', groupable: false, filterable: true, getValue: (r) => {
+            const op = r.onePager;
+            if (!op || !op.land_cost || !r.pursuit.site_area_sf || r.pursuit.site_area_sf === 0) return null;
+            return op.land_cost / r.pursuit.site_area_sf;
+        }, format: fmtCurrency
+    },
 
     // ── OpEx ──────────────────────────────────────────
     { key: 'calc_total_opex', label: 'Total OpEx', category: 'OpEx', type: 'currency', groupable: false, filterable: true, getValue: (r) => r.onePager?.calc_total_opex ?? null, format: fmtCurrency },
+    {
+        key: 'opex_ratio', label: 'OpEx Ratio', category: 'OpEx', type: 'percent', groupable: false, filterable: true, getValue: (r) => {
+            const op = r.onePager;
+            if (!op || !op.calc_total_opex || !op.calc_net_revenue || op.calc_net_revenue === 0) return null;
+            return op.calc_total_opex / op.calc_net_revenue;
+        }, format: fmtPercent
+    },
+    {
+        key: 'controllable_per_unit', label: 'Controllable / Unit', category: 'OpEx', type: 'currency', groupable: false, filterable: true, getValue: (r) => {
+            const op = r.onePager as any;
+            if (!op) return null;
+            const controllable = (op.opex_utilities ?? 0) + (op.opex_repairs_maintenance ?? 0) + (op.opex_contract_services ?? 0) + (op.opex_marketing ?? 0) + (op.opex_general_admin ?? 0) + (op.opex_turnover ?? 0) + (op.opex_misc ?? 0);
+            return controllable > 0 ? controllable : null;
+        }, format: fmtCurrency
+    },
 
     // ── Assumptions ───────────────────────────────────
     { key: 'calc_total_nrsf', label: 'Total NRSF', category: 'Assumptions', type: 'number', groupable: false, filterable: true, getValue: (r) => r.onePager?.calc_total_nrsf ?? null, format: fmtNumber },

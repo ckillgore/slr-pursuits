@@ -103,3 +103,8 @@ _(Append new lessons below. Do not rewrite or delete existing entries.)_
 - **Implicit `any` in Supabase `.map()`**: Supabase's generated types don't always flow through `.map()` callbacks in strict TS mode. Add explicit `(param: any)` annotations on `.map()` callbacks when chaining off Supabase query results to prevent build failures.
 - **Seed data splitting**: For large seed datasets (100+ rows), split across multiple migration files (e.g., `005b`, `005c`) to keep files manageable and allow partial re-runs during development.
 
+## Controlled Input Jumpiness (Expanded)
+- **Root cause**: Any `<input type="text">` whose `onChange` fires a Supabase upload (via TanStack Query `.mutate()`) on every keystroke causes React re-renders that reset focus/cursor position.
+- **Fix**: Always use the shared `DebouncedTextInput` component from `src/components/shared/DebouncedTextInput.tsx`. It holds local state and only fires `onCommit` on blur or Enter key.
+- **Files fixed**: pursuit detail (Region), admin/stages (stage name), admin/key-date-types (type name x2), admin/templates (payroll role name), OnePagerEditor (soft cost line_item_name).
+- **Rule**: Never wire a text `<input>` `onChange` directly to `.mutate()`. Always use `DebouncedTextInput` or an equivalent local-state → commit-on-blur pattern.

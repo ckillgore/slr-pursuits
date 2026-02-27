@@ -49,6 +49,14 @@ export function ReportConfigPanel({ config, onChange, onClose, dataSource }: Rep
         onChange({ ...config, columns: config.columns.filter(c => c !== key) });
     };
 
+    const moveColumn = (idx: number, direction: 'up' | 'down') => {
+        const newCols = [...config.columns];
+        const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+        if (swapIdx < 0 || swapIdx >= newCols.length) return;
+        [newCols[idx], newCols[swapIdx]] = [newCols[swapIdx], newCols[idx]];
+        onChange({ ...config, columns: newCols });
+    };
+
     const toggleGroupBy = (key: ReportFieldKey) => {
         const groups = config.groupBy.includes(key)
             ? config.groupBy.filter(g => g !== key)
@@ -223,7 +231,7 @@ export function ReportConfigPanel({ config, onChange, onClose, dataSource }: Rep
                             Column Order
                             <span className="font-normal ml-1">({config.columns.length})</span>
                         </h4>
-                        <p className="text-[10px] text-[#C8CDD5] mb-2">Drag to reorder</p>
+                        <p className="text-[10px] text-[#C8CDD5] mb-2">Drag or use arrows to reorder</p>
                         <div className="space-y-0.5">
                             {config.columns.map((key, idx) => {
                                 const field = REPORT_FIELD_MAP[key];
@@ -241,6 +249,10 @@ export function ReportConfigPanel({ config, onChange, onClose, dataSource }: Rep
                                         <GripVertical className="w-3 h-3 text-[#C8CDD5] shrink-0" />
                                         <span className="text-[10px] text-[#A0AABB] font-mono w-4 text-center shrink-0">{idx + 1}</span>
                                         <span className="flex-1 text-[#1A1F2B] font-medium truncate">{field?.label ?? key}</span>
+                                        <div className="flex gap-0.5 shrink-0">
+                                            <button onClick={(e) => { e.stopPropagation(); moveColumn(idx, 'up'); }} disabled={idx === 0} className="p-0.5 rounded hover:bg-[#E2E5EA] disabled:opacity-30 text-[#7A8599]">↑</button>
+                                            <button onClick={(e) => { e.stopPropagation(); moveColumn(idx, 'down'); }} disabled={idx === config.columns.length - 1} className="p-0.5 rounded hover:bg-[#E2E5EA] disabled:opacity-30 text-[#7A8599]">↓</button>
+                                        </div>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); removeColumn(key); }}
                                             className="p-0.5 rounded hover:bg-[#FEF2F2] text-[#A0AABB] hover:text-[#DC2626] shrink-0"

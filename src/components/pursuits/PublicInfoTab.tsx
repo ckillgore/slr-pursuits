@@ -1458,8 +1458,8 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                     {/* ════════════════════ LAND ASSEMBLAGE ════════════════════ */}
                     {!hideAssemblage && (
                         <div className="card mt-6">
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-2">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-3">
+                                <div className="flex items-center gap-2 flex-wrap">
                                     <Layers className="w-4 h-4 text-[#7C3AED]" />
                                     <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider">Land Assemblage</h3>
                                     {assemblage.length > 0 && (
@@ -1469,7 +1469,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                         </span>
                                     )}
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 w-full sm:w-auto">
                                     <select
                                         value={nearbyRadius}
                                         onChange={(e) => setNearbyRadius(Number(e.target.value))}
@@ -1530,7 +1530,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                             {assemblage.length > 0 && (
                                 <div className="bg-[#7C3AED]/5 border border-[#7C3AED]/20 rounded-lg p-3 mb-3">
                                     <div className="text-[10px] font-bold text-[#7C3AED] uppercase tracking-wider mb-2">Assemblage Summary</div>
-                                    <div className="grid grid-cols-4 gap-3">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                         <div>
                                             <div className="text-[10px] text-[#7A8599]">Parcels</div>
                                             <div className="text-sm font-bold text-[#1A1F2B]">{assemblage.length + 1}</div>
@@ -1639,7 +1639,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                                         }}
                                                     >
                                                         <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center gap-1.5">
+                                                            <div className="flex flex-col sm:flex-row sm:items-center gap-1">
                                                                 <span className="text-xs font-semibold text-[#1A1F2B] truncate">
                                                                     {np.address || np.parcelNumber || 'Unknown Parcel'}
                                                                 </span>

@@ -336,7 +336,7 @@ export function AssemblageMap({
     return (
         <div
             ref={containerRef}
-            className="w-full h-[400px] rounded-lg overflow-hidden border border-[#E2E5EA]"
+            className="w-full h-[300px] sm:h-[400px] rounded-lg overflow-hidden border border-[#E2E5EA]"
         />
     );
 }

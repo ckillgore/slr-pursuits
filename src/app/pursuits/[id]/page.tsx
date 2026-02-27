@@ -472,7 +472,12 @@ export default function PursuitDetailPage() {
                             return (
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                                     {/* Primary One-Pager KPIs */}
-                                    <div className="card">
+                                    <div
+                                        className={`card ${primaryOp ? 'cursor-pointer hover:border-[#2563EB]/40 hover:shadow-md transition-all' : ''}`}
+                                        onClick={() => {
+                                            if (primaryOp) router.push(`/pursuits/${pursuitId}/one-pagers/${primaryOp.id}`);
+                                        }}
+                                    >
                                         <div className="flex items-center gap-1.5 mb-3">
                                             <FileText className="w-3.5 h-3.5 text-[#2563EB]" />
                                             <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider">Primary Scenario</h3>
@@ -509,7 +514,7 @@ export default function PursuitDetailPage() {
                                             <div className="text-center py-4">
                                                 <p className="text-xs text-[#A0AABB]">No primary scenario set</p>
                                                 <button
-                                                    onClick={() => setActiveTab('onepagers')}
+                                                    onClick={(e) => { e.stopPropagation(); setActiveTab('onepagers'); }}
                                                     className="text-xs text-[#2563EB] hover:underline mt-1"
                                                 >
                                                     Go to One-Pagers →

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -110,6 +110,40 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
         productTypeDensityLow: productType?.density_low,
         productTypeDensityHigh: productType?.density_high,
     });
+
+    // ============================================================
+    // Sync latest calc values to DB whenever they change.
+    // updateField() saves calc values, but they're from the previous render
+    // (one step behind). This effect ensures the DB always has the latest.
+    // ============================================================
+    const lastSyncedCalcRef = useRef('');
+    useEffect(() => {
+        const totalUnits = sortedUnitMix.reduce((s, r) => s + r.unit_count, 0);
+        const calcSnapshot = {
+            total_units: totalUnits,
+            calc_total_nrsf: calc.total_nrsf,
+            calc_total_gbsf: calc.total_gbsf,
+            calc_gpr: calc.gross_potential_rent,
+            calc_net_revenue: calc.net_revenue,
+            calc_total_budget: calc.total_budget,
+            calc_hard_cost: calc.hard_cost,
+            calc_soft_cost: calc.soft_cost,
+            calc_total_opex: calc.total_opex,
+            calc_noi: calc.noi,
+            calc_yoc: calc.unlevered_yield_on_cost,
+            calc_cost_per_unit: calc.cost_per_unit,
+            calc_noi_per_unit: calc.noi_per_unit,
+        };
+        const key = JSON.stringify(calcSnapshot);
+        if (key === lastSyncedCalcRef.current) return;
+        lastSyncedCalcRef.current = key;
+
+        // Debounce to avoid hammering the DB on rapid changes
+        const timer = setTimeout(() => {
+            save({ id: onePager.id, updates: calcSnapshot });
+        }, 600);
+        return () => clearTimeout(timer);
+    }, [calc, sortedUnitMix, onePager.id, save]);
 
     // ============================================================
     // Undo/Redo System

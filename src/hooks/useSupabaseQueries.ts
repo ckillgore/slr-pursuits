@@ -181,8 +181,18 @@ export function useUpdateOnePager() {
             if (ctx?.prev) qc.setQueryData(queryKeys.onePager(id), ctx.prev);
         },
         onSettled: (_, __, { id }) => {
-            // Don't refetch aggressively during auto-save — just invalidate quietly
+            // Invalidate the single one-pager (quiet — don't refetch while auto-saving)
             qc.invalidateQueries({ queryKey: queryKeys.onePager(id), refetchType: 'none' });
+
+            // Also invalidate the one-pagers list and parent pursuit so Overview KPIs
+            // and One-Pagers tab cards reflect the latest calculated fields.
+            const cached = qc.getQueryData(queryKeys.onePager(id)) as any;
+            const pursuitId = cached?.pursuit_id;
+            if (pursuitId) {
+                qc.invalidateQueries({ queryKey: queryKeys.onePagers(pursuitId) });
+                qc.invalidateQueries({ queryKey: queryKeys.pursuit(pursuitId) });
+                qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+            }
         },
     });
 }

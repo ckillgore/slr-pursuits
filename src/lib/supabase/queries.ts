@@ -21,6 +21,18 @@ import type {
     KeyDateType,
     KeyDate,
     KeyDateStatus,
+    ChecklistTemplate,
+    ChecklistTemplatePhase,
+    ChecklistTemplateTask,
+    ChecklistTemplateChecklistItem,
+    PursuitChecklistInstance,
+    PursuitMilestone,
+    PursuitChecklistPhase,
+    PursuitChecklistTask,
+    PursuitChecklistItem,
+    ChecklistTaskStatus,
+    TaskNote,
+    TaskActivityLog,
 } from '@/types';
 
 const supabase = createClient();
@@ -63,7 +75,7 @@ export async function fetchProductTypes(): Promise<ProductType[]> {
         .select('*, sub_product_types(*)')
         .order('sort_order');
     if (error) throw error;
-    return (data ?? []).map((pt) => ({
+    return (data ?? []).map((pt: any) => ({
         ...pt,
         sub_product_types: (pt.sub_product_types ?? []).sort(
             (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order
@@ -93,18 +105,31 @@ export async function deleteProductType(id: string) {
 // ============================================================
 
 export async function fetchPursuits(): Promise<Pursuit[]> {
-    const { data, error } = await supabase
-        .from('pursuits')
-        .select('*, pursuit_stages(*)')
-        .eq('is_archived', false)
-        .order('updated_at', { ascending: false });
-    if (error) throw error;
+    // Run both queries in parallel — no need to wait for pursuits before fetching one-pagers
+    const [pursuitsResult, onePagersResult] = await Promise.all([
+        supabase
+            .from('pursuits')
+            // Only select columns the dashboard actually uses — skip large JSON blobs
+            // (demographics, parcel_data, drive_time_data, income_heatmap_data,
+            //  parcel_assemblage, exec_summary, arch_notes) that are only needed on detail pages
+            .select(`
+                id, name, address, city, state, county, zip,
+                latitude, longitude, site_area_sf, stage_id,
+                stage_changed_at, region, created_by, created_at,
+                updated_at, is_archived, primary_one_pager_id,
+                pursuit_stages(*)
+            `)
+            .eq('is_archived', false)
+            .order('updated_at', { ascending: false }),
+        supabase
+            .from('one_pagers')
+            .select('id, pursuit_id, calc_yoc, total_units')
+            .eq('is_archived', false),
+    ]);
 
-    // Fetch all active one-pagers to determine primary YOC and counts
-    const { data: allOnePagers, error: opError } = await supabase
-        .from('one_pagers')
-        .select('id, pursuit_id, calc_yoc, total_units')
-        .eq('is_archived', false);
+    const { data, error } = pursuitsResult;
+    if (error) throw error;
+    const { data: allOnePagers, error: opError } = onePagersResult;
     if (opError) throw opError;
 
     // Index one-pagers by pursuit_id
@@ -115,13 +140,13 @@ export async function fetchPursuits(): Promise<Pursuit[]> {
         opsByPursuit.set(op.pursuit_id, list);
     }
 
-    return (data ?? []).map((p) => {
+    return (data ?? []).map((p: any) => {
         const pursuitOps = opsByPursuit.get(p.id) || [];
         // Determine primary one-pager YOC and units
         let primaryYoc: number | null = null;
         let primaryUnits: number | null = null;
         if (p.primary_one_pager_id) {
-            const primary = pursuitOps.find(op => op.id === p.primary_one_pager_id);
+            const primary = pursuitOps.find((op: any) => op.id === p.primary_one_pager_id);
             primaryYoc = primary?.calc_yoc ?? null;
             primaryUnits = primary?.total_units ?? null;
         } else if (pursuitOps.length === 1) {
@@ -134,7 +159,7 @@ export async function fetchPursuits(): Promise<Pursuit[]> {
             best_yoc: primaryYoc,
             primary_units: primaryUnits,
             one_pager_count: pursuitOps.length,
-        };
+        } as unknown as Pursuit;
     });
 }
 
@@ -193,7 +218,7 @@ export async function fetchOnePagersByPursuit(pursuitId: string): Promise<OnePag
         .eq('is_archived', false)
         .order('created_at');
     if (error) throw error;
-    return (data ?? []).map((op) => ({
+    return (data ?? []).map((op: any) => ({
         ...op,
         product_type: op.product_types,
     }));
@@ -624,7 +649,7 @@ export async function fetchReportData(): Promise<ReportRow[]> {
         opsByPursuit.set(mapped.pursuit_id, list);
     }
 
-    return (pursuits ?? []).map((p) => {
+    return (pursuits ?? []).map((p: any) => {
         const pursuit = { ...p, stage: p.pursuit_stages } as Pursuit;
         // Determine primary one-pager:
         // 1. Explicit primary_one_pager_id
@@ -728,9 +753,9 @@ export async function fetchAnalyticsData(): Promise<AnalyticsData> {
     if (opError) throw opError;
 
     return {
-        pursuits: (pursuits ?? []).map(p => ({ ...p, stage: p.pursuit_stages } as Pursuit)),
+        pursuits: (pursuits ?? []).map((p: any) => ({ ...p, stage: p.pursuit_stages } as Pursuit)),
         stageHistory: stageHistory ?? [],
-        onePagers: (onePagers ?? []).map(op => ({ ...op, product_type: (op as any).product_types }) as unknown as OnePager),
+        onePagers: (onePagers ?? []).map((op: any) => ({ ...op, product_type: (op as any).product_types }) as unknown as OnePager),
     };
 }
 
@@ -1138,4 +1163,301 @@ export async function fetchKeyDateReportData(): Promise<KeyDateReportRow[]> {
             overdueCount: dates.filter(d => d.status === 'overdue').length,
         };
     });
+}
+
+// ============================================================
+// Checklist Templates (Admin)
+// ============================================================
+
+export async function fetchChecklistTemplates(): Promise<ChecklistTemplate[]> {
+    const { data, error } = await supabase
+        .from('checklist_templates')
+        .select('*')
+        .order('name');
+    if (error) throw error;
+    return data ?? [];
+}
+
+export async function fetchChecklistTemplate(id: string): Promise<ChecklistTemplate> {
+    const { data, error } = await supabase
+        .from('checklist_templates')
+        .select(`
+            *,
+            checklist_template_phases(
+                *,
+                checklist_template_tasks(
+                    *,
+                    checklist_template_checklist_items(*)
+                )
+            )
+        `)
+        .eq('id', id)
+        .single();
+    if (error) throw error;
+    const template = data as any;
+    return {
+        ...template,
+        phases: (template.checklist_template_phases ?? []).map((p: any) => ({
+            ...p,
+            tasks: (p.checklist_template_tasks ?? []).map((t: any) => ({
+                ...t,
+                checklist_items: (t.checklist_template_checklist_items ?? []).sort(
+                    (a: any, b: any) => a.sort_order - b.sort_order
+                ),
+                checklist_template_checklist_items: undefined,
+            })).sort((a: any, b: any) => a.sort_order - b.sort_order),
+            checklist_template_tasks: undefined,
+        })).sort((a: any, b: any) => a.sort_order - b.sort_order),
+        checklist_template_phases: undefined,
+    } as ChecklistTemplate;
+}
+
+export async function upsertChecklistTemplate(template: Partial<ChecklistTemplate> & { id?: string }) {
+    const { phases, ...row } = template as ChecklistTemplate;
+    const { data, error } = await supabase
+        .from('checklist_templates')
+        .upsert(row)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as ChecklistTemplate;
+}
+
+export async function upsertTemplatePhase(phase: Partial<ChecklistTemplatePhase> & { template_id: string }) {
+    const { tasks, ...row } = phase as ChecklistTemplatePhase;
+    const { data, error } = await supabase
+        .from('checklist_template_phases')
+        .upsert(row)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as ChecklistTemplatePhase;
+}
+
+export async function deleteTemplatePhase(id: string) {
+    const { error } = await supabase.from('checklist_template_phases').delete().eq('id', id);
+    if (error) throw error;
+}
+
+export async function upsertTemplateTask(task: Partial<ChecklistTemplateTask> & { phase_id: string }) {
+    const { checklist_items, ...row } = task as ChecklistTemplateTask;
+    const { data, error } = await supabase
+        .from('checklist_template_tasks')
+        .upsert(row)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as ChecklistTemplateTask;
+}
+
+export async function deleteTemplateTask(id: string) {
+    const { error } = await supabase.from('checklist_template_tasks').delete().eq('id', id);
+    if (error) throw error;
+}
+
+export async function upsertTemplateChecklistItem(item: Partial<ChecklistTemplateChecklistItem> & { task_id: string }) {
+    const { data, error } = await supabase
+        .from('checklist_template_checklist_items')
+        .upsert(item)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as ChecklistTemplateChecklistItem;
+}
+
+export async function deleteTemplateChecklistItem(id: string) {
+    const { error } = await supabase.from('checklist_template_checklist_items').delete().eq('id', id);
+    if (error) throw error;
+}
+
+// ============================================================
+// Pursuit Checklist Instances
+// ============================================================
+
+export async function fetchPursuitChecklistInstance(pursuitId: string): Promise<PursuitChecklistInstance | null> {
+    const { data, error } = await supabase
+        .from('pursuit_checklist_instances')
+        .select('*')
+        .eq('pursuit_id', pursuitId)
+        .maybeSingle();
+    if (error) throw error;
+    return data as PursuitChecklistInstance | null;
+}
+
+export async function applyTemplateToPursuit(pursuitId: string, templateId: string): Promise<string> {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data, error } = await supabase.rpc('apply_template_to_pursuit', {
+        p_pursuit_id: pursuitId,
+        p_template_id: templateId,
+        p_applied_by: user?.id ?? null,
+    });
+    if (error) throw error;
+    return data as string;
+}
+
+// ============================================================
+// Pursuit Milestones
+// ============================================================
+
+export async function fetchPursuitMilestones(pursuitId: string): Promise<PursuitMilestone[]> {
+    const { data, error } = await supabase
+        .from('pursuit_milestones')
+        .select('*')
+        .eq('pursuit_id', pursuitId)
+        .order('sort_order');
+    if (error) throw error;
+    return data ?? [];
+}
+
+export async function upsertPursuitMilestone(milestone: Partial<PursuitMilestone> & { id: string }) {
+    const { data, error } = await supabase
+        .from('pursuit_milestones')
+        .update({ target_date: milestone.target_date, is_confirmed: milestone.is_confirmed })
+        .eq('id', milestone.id)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as PursuitMilestone;
+}
+
+// ============================================================
+// Pursuit Checklist — Phases & Tasks
+// ============================================================
+
+export async function fetchPursuitChecklist(pursuitId: string): Promise<PursuitChecklistPhase[]> {
+    const { data, error } = await supabase
+        .from('pursuit_checklist_phases')
+        .select(`
+            *,
+            pursuit_checklist_tasks(
+                *,
+                pursuit_checklist_items(*)
+            )
+        `)
+        .eq('pursuit_id', pursuitId)
+        .order('sort_order');
+    if (error) throw error;
+    return (data ?? []).map((p: any) => ({
+        ...p,
+        tasks: (p.pursuit_checklist_tasks ?? []).map((t: any) => ({
+            ...t,
+            checklist_items: (t.pursuit_checklist_items ?? []).sort(
+                (a: any, b: any) => a.sort_order - b.sort_order
+            ),
+            pursuit_checklist_items: undefined,
+        })).sort((a: any, b: any) => a.sort_order - b.sort_order),
+        pursuit_checklist_tasks: undefined,
+    })) as PursuitChecklistPhase[];
+}
+
+export async function updateChecklistTask(
+    taskId: string,
+    updates: Partial<Pick<PursuitChecklistTask, 'status' | 'assigned_to' | 'due_date' | 'due_date_is_manual' | 'name' | 'description'>>
+) {
+    const { data, error } = await supabase
+        .from('pursuit_checklist_tasks')
+        .update(updates)
+        .eq('id', taskId)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as PursuitChecklistTask;
+}
+
+export async function addChecklistTask(
+    phaseId: string,
+    pursuitId: string,
+    task: { name: string; sort_order: number }
+): Promise<PursuitChecklistTask> {
+    const { data, error } = await supabase
+        .from('pursuit_checklist_tasks')
+        .insert({ phase_id: phaseId, pursuit_id: pursuitId, ...task })
+        .select()
+        .single();
+    if (error) throw error;
+    return data as PursuitChecklistTask;
+}
+
+export async function deleteChecklistTask(id: string) {
+    const { error } = await supabase.from('pursuit_checklist_tasks').delete().eq('id', id);
+    if (error) throw error;
+}
+
+// ============================================================
+// Pursuit Checklist Items (Sub-checkboxes)
+// ============================================================
+
+export async function toggleChecklistItem(itemId: string, isChecked: boolean) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data, error } = await supabase
+        .from('pursuit_checklist_items')
+        .update({
+            is_checked: isChecked,
+            checked_by: isChecked ? user?.id ?? null : null,
+            checked_at: isChecked ? new Date().toISOString() : null,
+        })
+        .eq('id', itemId)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as PursuitChecklistItem;
+}
+
+export async function addChecklistItem(
+    taskId: string,
+    label: string,
+    sortOrder: number
+): Promise<PursuitChecklistItem> {
+    const { data, error } = await supabase
+        .from('pursuit_checklist_items')
+        .insert({ task_id: taskId, label, sort_order: sortOrder })
+        .select()
+        .single();
+    if (error) throw error;
+    return data as PursuitChecklistItem;
+}
+
+export async function deleteChecklistItem(id: string) {
+    const { error } = await supabase.from('pursuit_checklist_items').delete().eq('id', id);
+    if (error) throw error;
+}
+
+// ============================================================
+// Task Notes
+// ============================================================
+
+export async function fetchTaskNotes(taskId: string): Promise<TaskNote[]> {
+    const { data, error } = await supabase
+        .from('task_notes')
+        .select('*')
+        .eq('task_id', taskId)
+        .order('created_at');
+    if (error) throw error;
+    return (data ?? []) as TaskNote[];
+}
+
+export async function createTaskNote(taskId: string, content: string): Promise<TaskNote> {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data, error } = await supabase
+        .from('task_notes')
+        .insert({ task_id: taskId, author_id: user?.id ?? '', content, author_type: 'internal' })
+        .select()
+        .single();
+    if (error) throw error;
+    return data as TaskNote;
+}
+
+// ============================================================
+// Task Activity Log (Read-only — populated by triggers)
+// ============================================================
+
+export async function fetchTaskActivity(taskId: string): Promise<TaskActivityLog[]> {
+    const { data, error } = await supabase
+        .from('task_activity_log')
+        .select('*')
+        .eq('task_id', taskId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+    if (error) throw error;
+    return (data ?? []) as TaskActivityLog[];
 }

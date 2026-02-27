@@ -63,3 +63,34 @@
 - [x] Dashboard: `mx-4` on 2 modal dialogs
 - [x] Dashboard: remove unused `ArrowUpDown` import + dead `currentStyle` variable
 - [x] Fix TS error: `income_heatmap_data` type cast on pursuit detail page
+
+---
+
+# Due Diligence Checklist Feature
+
+## Phase 1 — Database & Data Layer
+- [x] Write migration `005_checklist_schema.sql` (11 tables, 3 DB functions, triggers, RLS, indexes)
+- [x] Seed default template (7 phases, 113 tasks, 98 items) in `005b` + `005c`
+- [x] Add types to `src/types/index.ts` (12 interfaces, 3 type unions)
+- [x] Add query functions to `src/lib/supabase/queries.ts` (~300 lines)
+- [x] Add React Query hooks to `src/hooks/useSupabaseQueries.ts` (20+ hooks)
+
+## Phase 2 — Pursuit Tab (Checklist UI)
+- [x] Create `ChecklistTab.tsx` with accordion phases, task cards, task detail panel
+- [x] Apply template dialog with default template selection
+- [x] Milestone bar with date entry + confirmed/estimated toggle
+- [x] Task detail panel with status toggle, checklist items, notes, activity log
+- [x] Summary stats bar (progress, overdue, in-progress counts)
+- [x] Integrate into pursuit detail page as new tab
+
+## Phase 3 — Admin Interface
+- [x] Create `/admin/checklist-templates` page with template browser
+- [x] Add "Checklists" nav link to all admin pages
+
+## Phase 4 — Polish & Verification
+- [x] Build check (`npm run build`) — no errors
+- [x] Fix 7 implicit `any` type errors in `queries.ts`
+- [ ] Run migration SQL in Supabase (user action required)
+- [ ] Manual testing via dev server
+- [ ] Checklist KPI card on pursuit Overview tab (cosmetic, deferred)
+

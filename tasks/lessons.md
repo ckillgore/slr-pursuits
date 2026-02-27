@@ -94,3 +94,12 @@ _(Append new lessons below. Do not rewrite or delete existing entries.)_
 
 ## Navigation
 - **`window.location.href` vs `router.push`**: Use `router.push` for in-app navigation (client-side, no full reload). Use `window.location.href` only when a full reload is intentional (e.g., after login to re-trigger auth middleware) or inside imperative DOM listeners (e.g., Mapbox marker clicks) where the React router isn't accessible.
+
+## Due Diligence Checklist
+- **Template-driven architecture**: Use a template → instance pattern for repeatable workflows. Templates define phases/tasks/items; `apply_template_to_pursuit` DB function deep-clones them into pursuit-specific rows. This keeps templates immutable while letting pursuits customize.
+- **Milestone-relative due dates**: Template tasks store `relative_milestone` + `relative_due_days`. A DB function (`recalculate_due_dates`) computes actual dates from milestone target dates. Only tasks without `due_date_is_manual = true` get recalculated.
+- **Activity logging via DB trigger**: Use a `BEFORE UPDATE` trigger on task rows to automatically log status changes, assignee changes, etc. to an activity table. This captures all changes regardless of which client made them.
+- **Accordion + slide-out panel UX**: For hierarchical data (phases → tasks → details), an accordion list with a slide-out detail panel is more scannable than nested modals. Keep the task list visible while editing a specific task.
+- **Implicit `any` in Supabase `.map()`**: Supabase's generated types don't always flow through `.map()` callbacks in strict TS mode. Add explicit `(param: any)` annotations on `.map()` callbacks when chaining off Supabase query results to prevent build failures.
+- **Seed data splitting**: For large seed datasets (100+ rows), split across multiple migration files (e.g., `005b`, `005c`) to keep files manageable and allow partial re-runs during development.
+

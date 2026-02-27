@@ -71,6 +71,7 @@ export default function TemplatesPage() {
                     <Link href="/admin/stages" className="px-3 py-1.5 rounded-lg text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7] text-sm transition-colors">Stages</Link>
                     <Link href="/admin/templates" className="px-3 py-1.5 rounded-lg bg-[#F4F5F7] text-[#1A1F2B] text-sm font-medium">Templates</Link>
                     <Link href="/admin/key-date-types" className="px-3 py-1.5 rounded-lg text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7] text-sm transition-colors">Key Date Types</Link>
+                    <Link href="/admin/checklist-templates" className="px-3 py-1.5 rounded-lg text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7] text-sm transition-colors">Checklists</Link>
                 </div>
                 <div className="flex items-center justify-between mb-6">
                     <div>

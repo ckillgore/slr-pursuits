@@ -22,6 +22,12 @@ export const queryKeys = {
     analyticsData: ['analytics-data'] as const,
     landComps: ['land-comps'] as const,
     landComp: (id: string) => ['land-comps', id] as const,
+    checklistTemplates: ['checklist-templates'] as const,
+    checklistTemplate: (id: string) => ['checklist-template', id] as const,
+    pursuitChecklist: (pursuitId: string) => ['pursuit-checklist', pursuitId] as const,
+    pursuitMilestones: (pursuitId: string) => ['pursuit-milestones', pursuitId] as const,
+    taskNotes: (taskId: string) => ['task-notes', taskId] as const,
+    taskActivity: (taskId: string) => ['task-activity', taskId] as const,
 };
 
 // ============================================================
@@ -743,3 +749,199 @@ export function useKeyDateReportData() {
     });
 }
 
+// ============================================================
+// Checklist Templates (Admin)
+// ============================================================
+
+export function useChecklistTemplates() {
+    return useQuery({
+        queryKey: queryKeys.checklistTemplates,
+        queryFn: queries.fetchChecklistTemplates,
+    });
+}
+
+export function useChecklistTemplate(id: string) {
+    return useQuery({
+        queryKey: queryKeys.checklistTemplate(id),
+        queryFn: () => queries.fetchChecklistTemplate(id),
+        enabled: !!id,
+    });
+}
+
+export function useUpsertChecklistTemplate() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (template: Partial<import('@/types').ChecklistTemplate> & { id?: string }) =>
+            queries.upsertChecklistTemplate(template),
+        onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.checklistTemplates }),
+    });
+}
+
+export function useUpsertTemplatePhase() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (phase: Partial<import('@/types').ChecklistTemplatePhase> & { template_id: string }) =>
+            queries.upsertTemplatePhase(phase),
+        onSuccess: (_, { template_id }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.checklistTemplate(template_id) });
+            qc.invalidateQueries({ queryKey: queryKeys.checklistTemplates });
+        },
+    });
+}
+
+export function useDeleteTemplatePhase() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, templateId }: { id: string; templateId: string }) =>
+            queries.deleteTemplatePhase(id),
+        onSuccess: (_, { templateId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.checklistTemplate(templateId) });
+        },
+    });
+}
+
+export function useUpsertTemplateTask() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ task, templateId }: { task: Partial<import('@/types').ChecklistTemplateTask> & { phase_id: string }; templateId: string }) =>
+            queries.upsertTemplateTask(task),
+        onSuccess: (_, { templateId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.checklistTemplate(templateId) });
+        },
+    });
+}
+
+export function useDeleteTemplateTask() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, templateId }: { id: string; templateId: string }) =>
+            queries.deleteTemplateTask(id),
+        onSuccess: (_, { templateId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.checklistTemplate(templateId) });
+        },
+    });
+}
+
+// ============================================================
+// Pursuit Checklist
+// ============================================================
+
+export function usePursuitChecklist(pursuitId: string) {
+    return useQuery({
+        queryKey: queryKeys.pursuitChecklist(pursuitId),
+        queryFn: () => queries.fetchPursuitChecklist(pursuitId),
+        enabled: !!pursuitId,
+    });
+}
+
+export function useApplyTemplate() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ pursuitId, templateId }: { pursuitId: string; templateId: string }) =>
+            queries.applyTemplateToPursuit(pursuitId, templateId),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitMilestones(pursuitId) });
+        },
+    });
+}
+
+export function usePursuitMilestones(pursuitId: string) {
+    return useQuery({
+        queryKey: queryKeys.pursuitMilestones(pursuitId),
+        queryFn: () => queries.fetchPursuitMilestones(pursuitId),
+        enabled: !!pursuitId,
+    });
+}
+
+export function useUpsertMilestone() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (milestone: Partial<import('@/types').PursuitMilestone> & { id: string; pursuit_id?: string }) =>
+            queries.upsertPursuitMilestone(milestone),
+        onSuccess: (data) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitMilestones(data.pursuit_id) });
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(data.pursuit_id) });
+        },
+    });
+}
+
+export function useUpdateChecklistTask() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ taskId, pursuitId, updates }: {
+            taskId: string;
+            pursuitId: string;
+            updates: Partial<Pick<import('@/types').PursuitChecklistTask, 'status' | 'assigned_to' | 'due_date' | 'due_date_is_manual' | 'name' | 'description'>>;
+        }) => queries.updateChecklistTask(taskId, updates),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
+        },
+    });
+}
+
+export function useToggleChecklistItem() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ itemId, isChecked, pursuitId }: { itemId: string; isChecked: boolean; pursuitId: string }) =>
+            queries.toggleChecklistItem(itemId, isChecked),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
+        },
+    });
+}
+
+export function useAddChecklistTask() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ phaseId, pursuitId, task }: {
+            phaseId: string; pursuitId: string; task: { name: string; sort_order: number };
+        }) => queries.addChecklistTask(phaseId, pursuitId, task),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
+        },
+    });
+}
+
+export function useDeleteChecklistTask() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, pursuitId }: { id: string; pursuitId: string }) =>
+            queries.deleteChecklistTask(id),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
+        },
+    });
+}
+
+// ============================================================
+// Task Notes & Activity
+// ============================================================
+
+export function useTaskNotes(taskId: string) {
+    return useQuery({
+        queryKey: queryKeys.taskNotes(taskId),
+        queryFn: () => queries.fetchTaskNotes(taskId),
+        enabled: !!taskId,
+    });
+}
+
+export function useCreateTaskNote() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ taskId, content }: { taskId: string; content: string }) =>
+            queries.createTaskNote(taskId, content),
+        onSuccess: (data) => {
+            qc.invalidateQueries({ queryKey: queryKeys.taskNotes(data.task_id) });
+            qc.invalidateQueries({ queryKey: queryKeys.taskActivity(data.task_id) });
+        },
+    });
+}
+
+export function useTaskActivity(taskId: string) {
+    return useQuery({
+        queryKey: queryKeys.taskActivity(taskId),
+        queryFn: () => queries.fetchTaskActivity(taskId),
+        enabled: !!taskId,
+    });
+}

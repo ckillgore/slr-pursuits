@@ -505,3 +505,164 @@ export interface ReportTemplate {
   updated_at: string;
   is_archived: boolean;
 }
+
+// --- Checklist Types ---
+
+export type ChecklistTaskStatus = 'not_started' | 'in_progress' | 'in_review' | 'complete' | 'not_applicable' | 'blocked';
+
+export type MilestoneKey = 'loi_execution' | 'dd_expiration' | 'hard_deposit' | 'closing' | 'construction_start' | 'first_unit_delivery';
+
+export type TaskActivityAction =
+  | 'status_changed' | 'assigned' | 'note_added' | 'file_linked' | 'file_removed'
+  | 'due_date_changed' | 'task_edited' | 'checklist_item_toggled';
+
+// --- Checklist Templates (Admin) ---
+
+export interface ChecklistTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  is_default: boolean;
+  is_active: boolean;
+  version: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  phases?: ChecklistTemplatePhase[];
+}
+
+export interface ChecklistTemplatePhase {
+  id: string;
+  template_id: string;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  default_milestone: string | null;
+  color: string | null;
+  // Joined
+  tasks?: ChecklistTemplateTask[];
+}
+
+export interface ChecklistTemplateTask {
+  id: string;
+  phase_id: string;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  default_status: string;
+  relative_due_days: number | null;
+  relative_milestone: string | null;
+  depends_on_task_id: string | null;
+  is_critical_path: boolean;
+  external_assignable: boolean;
+  // Joined
+  checklist_items?: ChecklistTemplateChecklistItem[];
+}
+
+export interface ChecklistTemplateChecklistItem {
+  id: string;
+  task_id: string;
+  label: string;
+  sort_order: number;
+}
+
+// --- Pursuit Checklist Instances ---
+
+export interface PursuitChecklistInstance {
+  id: string;
+  pursuit_id: string;
+  source_template_id: string | null;
+  source_template_version: number | null;
+  applied_at: string;
+  applied_by: string | null;
+}
+
+export interface PursuitMilestone {
+  id: string;
+  pursuit_id: string;
+  milestone_key: string;
+  milestone_label: string;
+  target_date: string | null; // ISO date
+  is_confirmed: boolean;
+  sort_order: number;
+}
+
+export interface PursuitChecklistPhase {
+  id: string;
+  instance_id: string;
+  pursuit_id: string;
+  source_phase_id: string | null;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  default_milestone: string | null;
+  color: string | null;
+  // Joined
+  tasks?: PursuitChecklistTask[];
+}
+
+export interface PursuitChecklistTask {
+  id: string;
+  phase_id: string;
+  pursuit_id: string;
+  source_task_id: string | null;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  status: ChecklistTaskStatus;
+  assigned_to: string | null;
+  assigned_to_type: 'internal' | 'external';
+  due_date: string | null; // ISO date
+  due_date_is_manual: boolean;
+  relative_due_days: number | null;
+  relative_milestone: string | null;
+  depends_on_task_id: string | null;
+  is_critical_path: boolean;
+  external_assignable: boolean;
+  completed_at: string | null;
+  completed_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  checklist_items?: PursuitChecklistItem[];
+  assigned_user?: UserProfile;
+}
+
+export interface PursuitChecklistItem {
+  id: string;
+  task_id: string;
+  label: string;
+  is_checked: boolean;
+  checked_by: string | null;
+  checked_at: string | null;
+  sort_order: number;
+}
+
+// --- Task Notes & Activity ---
+
+export interface TaskNote {
+  id: string;
+  task_id: string;
+  author_id: string;
+  author_type: 'internal' | 'external';
+  content: string;
+  parent_note_id: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  author?: UserProfile;
+}
+
+export interface TaskActivityLog {
+  id: string;
+  task_id: string;
+  pursuit_id: string;
+  user_id: string | null;
+  action: TaskActivityAction;
+  old_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  created_at: string;
+  // Joined
+  user?: UserProfile;
+}

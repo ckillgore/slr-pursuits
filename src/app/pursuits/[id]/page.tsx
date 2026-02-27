@@ -27,6 +27,7 @@ import { IncomeHeatMap } from '@/components/pursuits/IncomeHeatMap';
 import { PublicInfoTab } from '@/components/pursuits/PublicInfoTab';
 import { PredevBudgetTab } from '@/components/pursuits/PredevBudgetTab';
 import { KeyDatesTab } from '@/components/pursuits/KeyDatesTab';
+import ChecklistTab from '@/components/pursuits/ChecklistTab';
 import { InlineInput } from '@/components/one-pager/InlineInput';
 import {
     ChevronLeft,
@@ -77,8 +78,8 @@ export default function PursuitDetailPage() {
     const [selectedTemplateId, setSelectedTemplateId] = useState('');
     const [isEditingName, setIsEditingName] = useState(false);
     const [editName, setEditName] = useState('');
-    const [activeTab, setActiveTab] = useState<'overview' | 'onepagers' | 'demographics' | 'publicinfo' | 'predev' | 'keydates'>(
-        initialTab === 'onepagers' ? 'onepagers' : initialTab === 'predev' ? 'predev' : initialTab === 'keydates' ? 'keydates' : 'overview'
+    const [activeTab, setActiveTab] = useState<'overview' | 'onepagers' | 'demographics' | 'publicinfo' | 'predev' | 'keydates' | 'checklist'>(
+        initialTab === 'onepagers' ? 'onepagers' : initialTab === 'predev' ? 'predev' : initialTab === 'keydates' ? 'keydates' : initialTab === 'checklist' ? 'checklist' : 'overview'
     );
 
     // KPI data hooks
@@ -423,6 +424,18 @@ export default function PursuitDetailPage() {
                     >
                         Key Dates
                         {activeTab === 'keydates' && (
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2563EB] rounded-full" />
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('checklist')}
+                        className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'checklist'
+                            ? 'text-[#2563EB]'
+                            : 'text-[#7A8599] hover:text-[#4A5568]'
+                            }`}
+                    >
+                        Checklist
+                        {activeTab === 'checklist' && (
                             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2563EB] rounded-full" />
                         )}
                     </button>
@@ -926,6 +939,11 @@ export default function PursuitDetailPage() {
                 {/* ===== KEY DATES TAB ===== */}
                 {activeTab === 'keydates' && (
                     <KeyDatesTab pursuitId={pursuitId} />
+                )}
+
+                {/* ===== CHECKLIST TAB ===== */}
+                {activeTab === 'checklist' && (
+                    <ChecklistTab pursuitId={pursuitId} />
                 )}
 
                 {/* New One-Pager Dialog */}

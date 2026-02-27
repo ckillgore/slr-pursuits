@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { User } from '@supabase/supabase-js';
+import type { User, AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 export type UserRole = 'owner' | 'admin' | 'member';
 
@@ -38,12 +38,12 @@ export function useAuth() {
     return useContext(AuthContext);
 }
 
+const supabase = createClient();
+
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-
-    const supabase = createClient();
 
     // Fetch profile from user_profiles table
     const fetchProfile = async (userId: string) => {
@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Listen for auth state changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (event, session) => {
+            async (event: AuthChangeEvent, session: Session | null) => {
                 const currentUser = session?.user ?? null;
                 setUser(currentUser);
                 if (currentUser) {
@@ -97,6 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await supabase.auth.signOut();
         setUser(null);
         setProfile(null);
+        // Force a full page navigation to clear all client state
+        window.location.href = '/login';
     };
 
     const isOwner = profile?.role === 'owner';

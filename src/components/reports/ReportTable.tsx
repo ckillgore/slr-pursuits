@@ -61,7 +61,7 @@ export function ReportTable({
             {columns.map((col, ci) => (
                 <td
                     key={col.key}
-                    className={`px-3 py-2 text-xs text-[#4A5568] border-b border-[#F0F1F4] whitespace-nowrap ${ci === 0 ? '' : ''} ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right font-mono' : ''
+                    className={`px-3 py-2 text-xs text-[#4A5568] border-b border-[#F0F1F4] whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right tabular-nums' : ''
                         }`}
                     style={ci === 0 ? { paddingLeft: `${depth * 24 + 12}px` } : undefined}
                 >
@@ -104,7 +104,7 @@ export function ReportTable({
                 {columns.slice(1).map(col => (
                     <td
                         key={col.key}
-                        className={`px-3 py-2 text-[10px] text-[#7A8599] border-b border-[#E2E5EA] whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right font-mono' : ''
+                        className={`px-3 py-2 text-[10px] text-[#7A8599] border-b border-[#E2E5EA] whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right tabular-nums' : ''
                             }`}
                     >
                         {node.aggregates[col.key] !== undefined && node.aggregates[col.key] !== null
@@ -163,7 +163,7 @@ export function ReportTable({
                         {columns.map((col, ci) => (
                             <td
                                 key={col.key}
-                                className={`px-3 py-2 text-[11px] text-[#1A1F2B] border-t-2 border-[#E2E5EA] whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right font-mono' : ''
+                                className={`px-3 py-2 text-[11px] text-[#1A1F2B] border-t-2 border-[#E2E5EA] whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right tabular-nums' : ''
                                     }`}
                             >
                                 {ci === 0 && !totalAggregates[col.key]

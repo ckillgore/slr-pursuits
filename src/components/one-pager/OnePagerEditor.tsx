@@ -846,7 +846,7 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
                                     const total = calcPayrollRowTotal(row, onePager.payroll_burden_pct);
                                     return (
                                         <tr key={row.id}>
-                                            <td><input type="text" value={row.role_name} onChange={(e) => handleUpdatePayroll(row.id, 'role_name', e.target.value, row.role_name)} placeholder={row.line_type === 'employee' ? 'Role name' : 'Contract desc'} className="inline-input text-xs w-full text-left" /></td>
+                                            <td><DebouncedTextInput value={row.role_name} onCommit={(v) => handleUpdatePayroll(row.id, 'role_name', v, row.role_name)} placeholder={row.line_type === 'employee' ? 'Role name' : 'Contract desc'} className="inline-input text-xs w-full text-left" /></td>
                                             {row.line_type === 'employee' ? (
                                                 <>
                                                     <td><InlineInput value={row.headcount} onChange={(v) => handleUpdatePayroll(row.id, 'headcount', v, row.headcount)} format="number" decimals={1} className="text-xs" /></td>

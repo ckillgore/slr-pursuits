@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import Link from 'next/link';
 import {
@@ -182,7 +182,12 @@ export default function TemplatesPage() {
                                                         {payrollDefaults.sort((a, b) => a.sort_order - b.sort_order).map((pr) => (
                                                             <tr key={pr.id}>
                                                                 <td>
-                                                                    <input type="text" value={pr.role_name} onChange={(e) => upsertPayrollDefault.mutate({ id: pr.id, data_model_id: t.id, role_name: e.target.value })} placeholder="Role name" className="inline-input text-xs text-left w-full" />
+                                                                    <DebouncedTextInput
+                                                                        value={pr.role_name}
+                                                                        placeholder="Role name"
+                                                                        className="inline-input text-xs text-left w-full"
+                                                                        onCommit={(v) => upsertPayrollDefault.mutate({ id: pr.id, data_model_id: t.id, role_name: v })}
+                                                                    />
                                                                 </td>
                                                                 <td>
                                                                     <input type="number" value={pr.headcount} onChange={(e) => upsertPayrollDefault.mutate({ id: pr.id, data_model_id: t.id, headcount: Number(e.target.value) })} className="inline-input text-xs w-16" step="1" />
@@ -256,5 +261,33 @@ function TemplateField({ label, value, type, onChange }: { label: string; value:
                 className="w-full inline-input text-xs text-left"
             />
         </div>
+    );
+}
+
+/** Text input that holds local state and only fires onCommit on blur or Enter. Prevents mutation-per-keystroke jumpiness. */
+function DebouncedTextInput({ value, placeholder, className, onCommit }: { value: string; placeholder?: string; className?: string; onCommit: (v: string) => void }) {
+    const [local, setLocal] = useState(value);
+    const editingRef = useRef(false);
+
+    useEffect(() => {
+        if (!editingRef.current) setLocal(value);
+    }, [value]);
+
+    const commit = () => {
+        editingRef.current = false;
+        if (local !== value) onCommit(local);
+    };
+
+    return (
+        <input
+            type="text"
+            value={local}
+            placeholder={placeholder}
+            className={className}
+            onFocus={() => { editingRef.current = true; }}
+            onChange={(e) => { editingRef.current = true; setLocal(e.target.value); }}
+            onBlur={commit}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
+        />
     );
 }

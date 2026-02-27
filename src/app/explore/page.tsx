@@ -224,9 +224,10 @@ export default function ExplorePage() {
         map.addSource('regrid-parcels', {
             type: 'vector',
             tiles: [`${window.location.origin}/api/explore?z={z}&x={x}&y={y}`],
-            minzoom: 13,
+            minzoom: 12,
             maxzoom: 21,
-            promoteId: { parcels: 'parcelnumb' }, // Use parcel number as unique ID for feature-state
+            // Use Mapbox-generated numeric IDs for feature-state — more reliable than
+            // promoteId with parcelnumb which may be missing/null in some markets
         });
 
         // Parcel fill — transparent by default, blue on hover
@@ -235,7 +236,7 @@ export default function ExplorePage() {
             type: 'fill',
             source: 'regrid-parcels',
             'source-layer': 'parcels',
-            minzoom: 13,
+            minzoom: 12,
             paint: {
                 'fill-color': [
                     'case',
@@ -258,7 +259,7 @@ export default function ExplorePage() {
             type: 'line',
             source: 'regrid-parcels',
             'source-layer': 'parcels',
-            minzoom: 13,
+            minzoom: 12,
             paint: {
                 'line-color': [
                     'case',
@@ -575,7 +576,7 @@ export default function ExplorePage() {
     }, [panelParcel, createName, clickedLngLat, createComp]);
 
     // ── Derived ──
-    const showZoomMsg = currentZoom < 13;
+    const showZoomMsg = currentZoom < 12;
 
     return (
         <AppShell>
@@ -642,7 +643,7 @@ export default function ExplorePage() {
                         <Eye className="w-4 h-4 text-[#A0AABB]" />
                         <div>
                             <p className="text-sm font-medium text-[#4A5568]">Zoom in to see parcels</p>
-                            <p className="text-[10px] text-[#A0AABB]">Parcel boundaries appear at zoom level 13+</p>
+                            <p className="text-[10px] text-[#A0AABB]">Parcel boundaries appear at zoom level 12+</p>
                         </div>
                     </div>
                 )}

@@ -51,6 +51,9 @@ export async function GET(request: Request) {
             headers: { 'Accept': 'application/vnd.mapbox-vector-tile' },
         });
 
+        // Diagnostic logging to debug market coverage issues
+        console.log(`[Explore Tile] z=${z} x=${x} y=${y} → Regrid status=${res.status} content-type=${res.headers.get('content-type')} content-length=${res.headers.get('content-length')}`);
+
         if (!res.ok) {
             // Return empty tile for 404 (no data at this tile) — common for ocean/sparse areas
             if (res.status === 404) {
@@ -59,6 +62,8 @@ export async function GET(request: Request) {
                     headers: { 'Content-Type': 'application/vnd.mapbox-vector-tile' },
                 });
             }
+            const errBody = await res.text().catch(() => '');
+            console.error(`[Explore Tile] Regrid error z=${z} x=${x} y=${y}: status=${res.status} body=${errBody.slice(0, 500)}`);
             return NextResponse.json(
                 { error: `Regrid tile server error: ${res.status}` },
                 { status: res.status }

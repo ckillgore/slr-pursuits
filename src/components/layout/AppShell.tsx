@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Building2, Settings, Plus, LayoutDashboard, BarChart3, FileSpreadsheet, TrendingUp, Menu, X, LogOut, ChevronDown, Users, Landmark, Compass } from 'lucide-react';
+import { Building2, Settings, Plus, LayoutDashboard, BarChart3, FileSpreadsheet, TrendingUp, Menu, X, LogOut, ChevronDown, Users, Landmark, Compass, KeyRound } from 'lucide-react';
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useAuth } from '@/components/AuthProvider';
+import { createClient } from '@/lib/supabase/client';
 
 interface AppShellProps {
     children: ReactNode;
@@ -17,6 +18,46 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
+
+    // Change password state
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [passwordError, setPasswordError] = useState<string | null>(null);
+    const [passwordSuccess, setPasswordSuccess] = useState(false);
+    const [passwordLoading, setPasswordLoading] = useState(false);
+
+    const handleChangePassword = async () => {
+        setPasswordError(null);
+        if (newPassword.length < 6) {
+            setPasswordError('Password must be at least 6 characters.');
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            setPasswordError('Passwords do not match.');
+            return;
+        }
+        setPasswordLoading(true);
+        try {
+            const supabase = createClient();
+            const { error } = await supabase.auth.updateUser({ password: newPassword });
+            if (error) {
+                setPasswordError(error.message);
+            } else {
+                setPasswordSuccess(true);
+                setTimeout(() => {
+                    setShowPasswordModal(false);
+                    setNewPassword('');
+                    setConfirmPassword('');
+                    setPasswordSuccess(false);
+                }, 1500);
+            }
+        } catch (err: any) {
+            setPasswordError(err.message || 'Failed to update password.');
+        } finally {
+            setPasswordLoading(false);
+        }
+    };
 
     // Close user menu on outside click
     useEffect(() => {
@@ -173,6 +214,13 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                                         </Link>
                                     )}
                                     <button
+                                        onClick={() => { setUserMenuOpen(false); setShowPasswordModal(true); }}
+                                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#4A5568] hover:bg-[#F4F5F7] transition-colors"
+                                    >
+                                        <KeyRound className="w-4 h-4" />
+                                        Change Password
+                                    </button>
+                                    <button
                                         onClick={() => { setUserMenuOpen(false); signOut(); }}
                                         className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#DC2626] hover:bg-[#FEF2F2] transition-colors"
                                     >
@@ -236,6 +284,13 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                             <div className="text-xs text-[#7A8599]">{profile?.email}</div>
                         </div>
                         <button
+                            onClick={() => { setMobileMenuOpen(false); setShowPasswordModal(true); }}
+                            className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-[#4A5568] hover:bg-[#F4F5F7] transition-colors"
+                        >
+                            <KeyRound className="w-5 h-5" />
+                            Change Password
+                        </button>
+                        <button
                             onClick={() => { setMobileMenuOpen(false); signOut(); }}
                             className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-[#DC2626] hover:bg-[#FEF2F2] transition-colors"
                         >
@@ -250,6 +305,63 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
             <main className="flex-1">
                 {children}
             </main>
+
+            {/* Change Password Modal */}
+            {showPasswordModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+                    <div className="bg-white border border-[#E2E5EA] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in mx-4">
+                        <h2 className="text-lg font-semibold text-[#1A1F2B] mb-1">Change Password</h2>
+                        <p className="text-xs text-[#7A8599] mb-5">Enter your new password below.</p>
+
+                        {passwordSuccess ? (
+                            <div className="py-6 text-center">
+                                <div className="w-10 h-10 rounded-full bg-[#D1FAE5] flex items-center justify-center mx-auto mb-3">
+                                    <span className="text-[#059669] text-lg">✓</span>
+                                </div>
+                                <p className="text-sm font-medium text-[#059669]">Password updated!</p>
+                            </div>
+                        ) : (
+                            <>
+                                <label className="block text-xs font-medium text-[#4A5568] mb-1">New Password</label>
+                                <input
+                                    type="password"
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                    placeholder="Min 6 characters"
+                                    className="w-full px-3 py-2 text-sm rounded-lg border border-[#E2E5EA] bg-white text-[#1A1F2B] placeholder:text-[#C8CDD5] mb-3 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
+                                />
+                                <label className="block text-xs font-medium text-[#4A5568] mb-1">Confirm Password</label>
+                                <input
+                                    type="password"
+                                    value={confirmPassword}
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    placeholder="Re-enter password"
+                                    className="w-full px-3 py-2 text-sm rounded-lg border border-[#E2E5EA] bg-white text-[#1A1F2B] placeholder:text-[#C8CDD5] mb-4 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleChangePassword()}
+                                />
+                                {passwordError && (
+                                    <p className="text-xs text-[#DC2626] mb-3">{passwordError}</p>
+                                )}
+                                <div className="flex justify-end gap-3">
+                                    <button
+                                        onClick={() => { setShowPasswordModal(false); setNewPassword(''); setConfirmPassword(''); setPasswordError(null); }}
+                                        className="px-4 py-2 rounded-lg text-sm text-[#4A5568] hover:text-[#1A1F2B] hover:bg-[#F4F5F7] transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleChangePassword}
+                                        disabled={passwordLoading}
+                                        className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-[#2563EB] hover:bg-[#1D4FD7] disabled:opacity-50 transition-colors"
+                                    >
+                                        {passwordLoading ? 'Updating...' : 'Update Password'}
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

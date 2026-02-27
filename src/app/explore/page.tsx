@@ -178,6 +178,7 @@ export default function ExplorePage() {
     const mapRef = useRef<any>(null);
     const mbglRef = useRef<any>(null);
     const hoveredParcelIdRef = useRef<string | null>(null);
+    const isTouchDeviceRef = useRef(false);
 
     // Search state
     const [searchQuery, setSearchQuery] = useState('');
@@ -202,6 +203,9 @@ export default function ExplorePage() {
     const [panelParcel, setPanelParcel] = useState<ParcelData | null>(null);
     const [panelError, setPanelError] = useState<string | null>(null);
     const [clickedLngLat, setClickedLngLat] = useState<[number, number] | null>(null);
+
+    // Mobile tap popup state (shows summary before loading full details)
+    const [mobilePopup, setMobilePopup] = useState<{ data: ParcelTooltipData; lngLat: [number, number]; props: Record<string, any> } | null>(null);
 
     // Create actions
     const [showCreateDialog, setShowCreateDialog] = useState<'pursuit' | 'comp' | null>(null);
@@ -309,8 +313,15 @@ export default function ExplorePage() {
                 setCurrentZoom(Math.round(map.getZoom()));
             });
 
-            // ── Hover handlers ──
+            // Detect touch device
+            map.getCanvas().addEventListener('touchstart', () => {
+                isTouchDeviceRef.current = true;
+            }, { once: true, passive: true });
+
+            // ── Hover handlers (desktop only — touch devices use tap) ──
             map.on('mousemove', 'parcels-fill', (e: any) => {
+                // Skip hover on touch devices
+                if (isTouchDeviceRef.current) return;
                 if (!e.features?.length) return;
                 map.getCanvas().style.cursor = 'pointer';
 
@@ -367,6 +378,29 @@ export default function ExplorePage() {
                 if (!e.features?.length) return;
                 const lngLat = e.lngLat;
                 const props = e.features[0].properties || {};
+
+                // On touch devices, show mobile popup first instead of immediately loading details
+                if (isTouchDeviceRef.current) {
+                    const data: ParcelTooltipData = {
+                        address: props.address || null,
+                        owner: props.owner || null,
+                        zoning: props.zoning || null,
+                        zoningType: props.zoning_type || null,
+                        usedesc: props.usedesc || null,
+                        lotAcres: props.ll_gisacre ? parseFloat(props.ll_gisacre) : null,
+                        lotSqft: props.ll_gissqft ? parseFloat(props.ll_gissqft) : null,
+                        assessedValue: props.parval ? parseFloat(props.parval) : null,
+                        yearBuilt: props.yearbuilt ? parseInt(props.yearbuilt) : null,
+                        city: props.scity || null,
+                        state: props.state2 || null,
+                        zip: props.szip5 || null,
+                        parcelNumber: props.parcelnumb || null,
+                    };
+                    setMobilePopup({ data, lngLat: [lngLat.lng, lngLat.lat], props });
+                    return;
+                }
+
+                // Desktop: immediately load full details
                 setClickedLngLat([lngLat.lng, lngLat.lat]);
                 setTooltip(null);
 
@@ -627,10 +661,10 @@ export default function ExplorePage() {
                     </div>
                 )}
 
-                {/* Hover Tooltip */}
+                {/* Hover Tooltip (desktop only) */}
                 {tooltip && (
                     <div
-                        className="absolute z-30 pointer-events-none"
+                        className="absolute z-30 pointer-events-none hidden md:block"
                         style={{ left: tooltip.x + 12, top: tooltip.y - 8, maxWidth: 280 }}
                     >
                         <div className="bg-white/95 backdrop-blur-sm border border-[#E2E5EA] rounded-lg shadow-xl px-3 py-2.5">
@@ -676,11 +710,104 @@ export default function ExplorePage() {
                     </div>
                 )}
 
+                {/* Mobile Tap Popup — fixed at bottom of screen */}
+                {mobilePopup && (
+                    <div className="absolute bottom-0 left-0 right-0 z-30 md:hidden animate-fade-in">
+                        <div className="bg-white/95 backdrop-blur-sm border-t border-[#E2E5EA] shadow-2xl px-4 py-3 safe-area-pb">
+                            {/* Close button */}
+                            <button
+                                onClick={() => setMobilePopup(null)}
+                                className="absolute top-2 right-3 p-1 rounded-md text-[#A0AABB] hover:text-[#4A5568]"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+
+                            {mobilePopup.data.address && (
+                                <div className="text-sm font-semibold text-[#1A1F2B] mb-0.5 pr-6">{mobilePopup.data.address}</div>
+                            )}
+                            {(mobilePopup.data.city || mobilePopup.data.state) && (
+                                <div className="text-[10px] text-[#7A8599] mb-2">
+                                    {[mobilePopup.data.city, mobilePopup.data.state, mobilePopup.data.zip].filter(Boolean).join(', ')}
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] mb-3">
+                                {mobilePopup.data.owner && (
+                                    <div><span className="text-[#A0AABB]">Owner:</span> <span className="text-[#4A5568]">{mobilePopup.data.owner}</span></div>
+                                )}
+                                {mobilePopup.data.parcelNumber && (
+                                    <div><span className="text-[#A0AABB]">Parcel:</span> <span className="text-[#4A5568]">{mobilePopup.data.parcelNumber}</span></div>
+                                )}
+                                {mobilePopup.data.zoning && (
+                                    <div><span className="text-[#A0AABB]">Zoning:</span> <span className="text-[#4A5568] font-medium">{mobilePopup.data.zoning}</span></div>
+                                )}
+                                {mobilePopup.data.usedesc && (
+                                    <div><span className="text-[#A0AABB]">Use:</span> <span className="text-[#4A5568]">{mobilePopup.data.usedesc}</span></div>
+                                )}
+                                {mobilePopup.data.lotAcres != null && mobilePopup.data.lotAcres > 0 && (
+                                    <div>
+                                        <span className="text-[#A0AABB]">Size:</span>{' '}
+                                        <span className="text-[#4A5568] font-medium">
+                                            {formatNumber(mobilePopup.data.lotAcres, 2)} ac
+                                            {mobilePopup.data.lotSqft ? ` (${formatNumber(mobilePopup.data.lotSqft)} SF)` : ''}
+                                        </span>
+                                    </div>
+                                )}
+                                {mobilePopup.data.assessedValue != null && mobilePopup.data.assessedValue > 0 && (
+                                    <div><span className="text-[#A0AABB]">Value:</span> <span className="text-[#4A5568]">{formatCurrency(mobilePopup.data.assessedValue)}</span></div>
+                                )}
+                            </div>
+
+                            <button
+                                onClick={() => {
+                                    const lngLat = mobilePopup.lngLat;
+                                    const props = mobilePopup.props;
+                                    setMobilePopup(null);
+                                    setClickedLngLat(lngLat);
+
+                                    setPanelOpen(true);
+                                    setPanelLoading(true);
+                                    setPanelError(null);
+                                    setPanelParcel(null);
+
+                                    fetch('/api/regrid', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            latitude: lngLat[1],
+                                            longitude: lngLat[0],
+                                            address: props.address || undefined,
+                                        }),
+                                    })
+                                        .then((res) => res.json())
+                                        .then((data) => {
+                                            if (data.parcel) {
+                                                setPanelParcel(data.parcel);
+                                            } else {
+                                                setPanelError('No parcel data found at this location.');
+                                            }
+                                        })
+                                        .catch((err) => {
+                                            setPanelError(err.message || 'Failed to fetch parcel data');
+                                        })
+                                        .finally(() => {
+                                            setPanelLoading(false);
+                                        });
+                                }}
+                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#2563EB] hover:bg-[#1D4FD7] text-white text-sm font-medium transition-colors"
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                                View Full Details
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Detail Panel — slide-in from right */}
                 <div
                     className={`absolute top-0 right-0 h-full z-30 transition-transform duration-300 ease-in-out ${panelOpen ? 'translate-x-0' : 'translate-x-full'
                         }`}
-                    style={{ width: 380 }}
+                    style={{ width: 'min(380px, 100vw)' }}
                 >
                     <div className="h-full bg-white border-l border-[#E2E5EA] shadow-2xl flex flex-col">
                         {/* Panel Header */}

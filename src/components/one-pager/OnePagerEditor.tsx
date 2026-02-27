@@ -25,6 +25,7 @@ import { useUndoRedo } from '@/hooks/useUndoRedo';
 import { useRealtimeOnePager } from '@/hooks/useRealtimeOnePager';
 import { InlineInput } from './InlineInput';
 import { RichTextEditor } from '@/components/shared/RichTextEditor';
+import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
 import { calcUnitMixRow, calcPayrollRowTotal } from '@/lib/calculations';
 import {
     calcRentSensitivity,
@@ -697,10 +698,9 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
                                     <div className="space-y-1">
                                         {softCostDetails.map((row) => (
                                             <div key={row.id} className="flex items-center gap-2">
-                                                <input
-                                                    type="text"
+                                                <DebouncedTextInput
                                                     value={row.line_item_name}
-                                                    onChange={(e) => upsertSoftCostRow.mutate({ id: row.id, one_pager_id: onePager.id, line_item_name: e.target.value })}
+                                                    onCommit={(v) => upsertSoftCostRow.mutate({ id: row.id, one_pager_id: onePager.id, line_item_name: v })}
                                                     placeholder="Line item"
                                                     className="inline-input text-xs flex-1 text-left"
                                                 />

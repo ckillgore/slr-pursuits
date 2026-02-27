@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
+import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
 import { AppShell } from '@/components/layout/AppShell';
 import Link from 'next/link';
 import {
@@ -261,33 +262,5 @@ function TemplateField({ label, value, type, onChange }: { label: string; value:
                 className="w-full inline-input text-xs text-left"
             />
         </div>
-    );
-}
-
-/** Text input that holds local state and only fires onCommit on blur or Enter. Prevents mutation-per-keystroke jumpiness. */
-function DebouncedTextInput({ value, placeholder, className, onCommit }: { value: string; placeholder?: string; className?: string; onCommit: (v: string) => void }) {
-    const [local, setLocal] = useState(value);
-    const editingRef = useRef(false);
-
-    useEffect(() => {
-        if (!editingRef.current) setLocal(value);
-    }, [value]);
-
-    const commit = () => {
-        editingRef.current = false;
-        if (local !== value) onCommit(local);
-    };
-
-    return (
-        <input
-            type="text"
-            value={local}
-            placeholder={placeholder}
-            className={className}
-            onFocus={() => { editingRef.current = true; }}
-            onChange={(e) => { editingRef.current = true; setLocal(e.target.value); }}
-            onBlur={commit}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
-        />
     );
 }

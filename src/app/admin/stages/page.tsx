@@ -5,6 +5,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { useStages, useUpsertStage } from '@/hooks/useSupabaseQueries';
 import Link from 'next/link';
 import { Plus, GripVertical, Loader2 } from 'lucide-react';
+import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
 
 export default function StagesPage() {
     const { data: stages = [], isLoading } = useStages();
@@ -42,7 +43,7 @@ export default function StagesPage() {
                         <div key={stage.id} className="card flex items-center gap-4">
                             <GripVertical className="w-4 h-4 text-[#C8CDD5] cursor-grab" />
                             <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />
-                            <input type="text" value={stage.name} onChange={(e) => upsertMutation.mutate({ id: stage.id, name: e.target.value })} className="flex-1 inline-input text-sm text-[#1A1F2B] text-left" />
+                            <DebouncedTextInput value={stage.name} onCommit={(v) => upsertMutation.mutate({ id: stage.id, name: v })} className="flex-1 inline-input text-sm text-[#1A1F2B] text-left" />
                             <input type="color" value={stage.color} onChange={(e) => upsertMutation.mutate({ id: stage.id, color: e.target.value })} className="w-8 h-8 rounded cursor-pointer border border-[#E2E5EA] bg-transparent" />
                             <span className="text-xs text-[#A0AABB] font-mono w-16">{stage.color}</span>
                             <button onClick={() => upsertMutation.mutate({ id: stage.id, is_active: !stage.is_active })} className={`text-xs px-2 py-0.5 rounded ${stage.is_active ? 'bg-[#ECFDF3] text-[#0D7A3E]' : 'bg-[#F4F5F7] text-[#A0AABB]'}`}>

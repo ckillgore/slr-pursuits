@@ -29,6 +29,7 @@ import { PredevBudgetTab } from '@/components/pursuits/PredevBudgetTab';
 import { KeyDatesTab } from '@/components/pursuits/KeyDatesTab';
 import ChecklistTab from '@/components/pursuits/ChecklistTab';
 import { InlineInput } from '@/components/one-pager/InlineInput';
+import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
 import {
     ChevronLeft,
     Plus,
@@ -315,7 +316,7 @@ export default function PursuitDetailPage() {
                         </div>
                         <div>
                             <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold mb-1">Region</div>
-                            <input type="text" value={pursuit.region} onChange={(e) => handleUpdatePursuit({ region: e.target.value })} placeholder="e.g., DFW" className="inline-input text-sm text-[#4A5568] w-full" style={{ textAlign: 'left' }} />
+                            <DebouncedTextInput value={pursuit.region || ''} onCommit={(v) => handleUpdatePursuit({ region: v })} placeholder="e.g., DFW" className="inline-input text-sm text-[#4A5568] w-full" style={{ textAlign: 'left' }} />
                         </div>
                         <div>
                             <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold mb-1">Created</div>

@@ -224,7 +224,7 @@ export default function ExplorePage() {
         map.addSource('regrid-parcels', {
             type: 'vector',
             tiles: [`${window.location.origin}/api/explore?z={z}&x={x}&y={y}`],
-            minzoom: 12,
+            minzoom: 14,
             maxzoom: 21,
             promoteId: { parcels: 'parcelnumb' }, // Unique parcel ID for cross-tile feature-state hover
         });
@@ -235,7 +235,7 @@ export default function ExplorePage() {
             type: 'fill',
             source: 'regrid-parcels',
             'source-layer': 'parcels',
-            minzoom: 12,
+            minzoom: 14,
             paint: {
                 'fill-color': [
                     'case',
@@ -258,7 +258,7 @@ export default function ExplorePage() {
             type: 'line',
             source: 'regrid-parcels',
             'source-layer': 'parcels',
-            minzoom: 12,
+            minzoom: 14,
             paint: {
                 'line-color': [
                     'case',
@@ -575,7 +575,7 @@ export default function ExplorePage() {
     }, [panelParcel, createName, clickedLngLat, createComp]);
 
     // ── Derived ──
-    const showZoomMsg = currentZoom < 12;
+    const showZoomMsg = currentZoom < 14;
 
     return (
         <AppShell>
@@ -642,7 +642,7 @@ export default function ExplorePage() {
                         <Eye className="w-4 h-4 text-[#A0AABB]" />
                         <div>
                             <p className="text-sm font-medium text-[#4A5568]">Zoom in to see parcels</p>
-                            <p className="text-[10px] text-[#A0AABB]">Parcel boundaries appear at zoom level 12+</p>
+                            <p className="text-[10px] text-[#A0AABB]">Parcel boundaries appear at zoom level 14+</p>
                         </div>
                     </div>
                 )}

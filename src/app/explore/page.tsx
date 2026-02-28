@@ -226,8 +226,7 @@ export default function ExplorePage() {
             tiles: [`${window.location.origin}/api/explore?z={z}&x={x}&y={y}`],
             minzoom: 12,
             maxzoom: 21,
-            // Use Mapbox-generated numeric IDs for feature-state — more reliable than
-            // promoteId with parcelnumb which may be missing/null in some markets
+            promoteId: { parcels: 'parcelnumb' }, // Unique parcel ID for cross-tile feature-state hover
         });
 
         // Parcel fill — transparent by default, blue on hover

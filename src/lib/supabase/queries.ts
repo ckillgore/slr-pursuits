@@ -191,11 +191,12 @@ export async function fetchPursuitByShortId(shortId: string): Promise<Pursuit> {
 }
 
 export async function createPursuit(
-    pursuit: Omit<Pursuit, 'id' | 'short_id' | 'created_at' | 'updated_at' | 'stage' | 'one_pagers' | 'site_area_acres' | 'best_yoc' | 'primary_units' | 'one_pager_count'>
+    pursuit: Omit<Pursuit, 'id' | 'short_id' | 'created_at' | 'updated_at' | 'created_by' | 'stage' | 'one_pagers' | 'site_area_acres' | 'best_yoc' | 'primary_units' | 'one_pager_count'>
 ): Promise<Pursuit> {
+    const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase
         .from('pursuits')
-        .insert(pursuit)
+        .insert({ ...pursuit, created_by: user?.id ?? null })
         .select('*, pursuit_stages(*)')
         .single();
     if (error) throw error;
@@ -262,8 +263,9 @@ export async function fetchOnePagerByShortId(shortId: string): Promise<OnePager>
 }
 
 export async function createOnePager(
-    onePager: Omit<OnePager, 'id' | 'short_id' | 'created_at' | 'updated_at' | 'unit_mix' | 'payroll' | 'soft_cost_details' | 'product_type' | 'sub_product_type'>
+    onePager: Omit<OnePager, 'id' | 'short_id' | 'created_at' | 'updated_at' | 'created_by' | 'unit_mix' | 'payroll' | 'soft_cost_details' | 'product_type' | 'sub_product_type'>
 ): Promise<OnePager> {
+    const { data: { user } } = await supabase.auth.getUser();
     // Strip calculated fields
     const {
         calc_total_nrsf, calc_total_gbsf, calc_gpr, calc_net_revenue,
@@ -273,7 +275,7 @@ export async function createOnePager(
     } = onePager as OnePager;
     const { data, error } = await supabase
         .from('one_pagers')
-        .insert(payload)
+        .insert({ ...payload, created_by: user?.id ?? null })
         .select()
         .single();
     if (error) throw error;

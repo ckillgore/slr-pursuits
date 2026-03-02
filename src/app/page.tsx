@@ -185,7 +185,6 @@ export default function DashboardPage() {
         drive_time_data: null,
         income_heatmap_data: null,
         parcel_assemblage: null,
-        created_by: null,
         is_archived: false,
         primary_one_pager_id: null,
       });

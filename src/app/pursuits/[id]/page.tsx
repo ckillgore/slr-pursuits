@@ -184,7 +184,6 @@ export default function PursuitDetailPage() {
                 name: newName.trim(),
                 product_type_id: newProductTypeId,
                 sub_product_type_id: newSubProductTypeId || null,
-                created_by: null,
                 is_archived: false,
                 total_units: 0,
                 efficiency_ratio: tpl?.default_efficiency_ratio ?? 0.85,

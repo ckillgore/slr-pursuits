@@ -17,6 +17,7 @@ import {
     useReportData,
     useLandCompReportData,
     useKeyDateReportData,
+    useRentCompReportData,
     useStages,
 } from '@/hooks/useSupabaseQueries';
 import { useReportEngine } from '@/hooks/useReportEngine';
@@ -38,6 +39,7 @@ import {
     Building2,
     DollarSign,
     Calendar,
+    Home,
 } from 'lucide-react';
 
 const DEFAULT_PURSUIT_CONFIG: ReportConfig = {
@@ -64,11 +66,20 @@ const DEFAULT_KEY_DATES_CONFIG: ReportConfig = {
     sortBy: undefined,
 };
 
+const DEFAULT_RENT_COMP_CONFIG: ReportConfig = {
+    dataSource: 'rent_comps',
+    groupBy: ['rc_pursuit_name'],
+    columns: ['rc_pursuit_name', 'rc_property_name', 'rc_city', 'rc_state', 'rc_units', 'rc_year_built', 'rc_asking_rent', 'rc_effective_rent', 'rc_asking_psf', 'rc_effective_psf', 'rc_leased_pct'],
+    filters: [],
+    sortBy: undefined,
+};
+
 export default function ReportsPage() {
     const { data: templates = [], isLoading: loadingTemplates } = useReportTemplates();
     const { data: reportData, isLoading: loadingData } = useReportData();
     const { data: compReportData, isLoading: loadingCompData } = useLandCompReportData();
     const { data: keyDateReportData, isLoading: loadingKeyDateData } = useKeyDateReportData();
+    const { data: rentCompReportData, isLoading: loadingRentCompData } = useRentCompReportData();
     const { data: stages = [] } = useStages();
     const { user, profile, isAdminOrOwner } = useAuth();
     const createTemplate = useCreateReportTemplate();
@@ -131,7 +142,7 @@ export default function ReportsPage() {
     );
 
     // Report engine — use the appropriate data source
-    const activeData = dataSource === 'land_comps' ? compReportData : reportData;
+    const activeData = dataSource === 'land_comps' ? compReportData : dataSource === 'rent_comps' ? rentCompReportData : reportData;
     const { filteredRows, groupTree, totalAggregates, isGrouped } = useReportEngine(
         activeData,
         config,
@@ -143,6 +154,7 @@ export default function ReportsPage() {
         setSelectedTemplateId(null);
         if (source === 'land_comps') setConfig(DEFAULT_COMP_CONFIG);
         else if (source === 'key_dates') setConfig(DEFAULT_KEY_DATES_CONFIG);
+        else if (source === 'rent_comps') setConfig(DEFAULT_RENT_COMP_CONFIG);
         else if (source === 'pursuits') setConfig(DEFAULT_PURSUIT_CONFIG);
         // For predev_budgets, config panel is not used — the budget report has its own controls
     };
@@ -201,7 +213,7 @@ export default function ReportsPage() {
         }
     };
 
-    const isLoading = loadingTemplates || loadingData || loadingCompData || loadingKeyDateData;
+    const isLoading = loadingTemplates || loadingData || loadingCompData || loadingKeyDateData || loadingRentCompData;
 
     return (
         <AppShell>
@@ -236,6 +248,12 @@ export default function ReportsPage() {
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${dataSource === 'key_dates' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
                         >
                             <Calendar className="w-3.5 h-3.5" /> Key Dates
+                        </button>
+                        <button
+                            onClick={() => handleDataSourceChange('rent_comps')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${dataSource === 'rent_comps' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
+                        >
+                            <Home className="w-3.5 h-3.5" /> Rent Comps
                         </button>
                     </div>
 

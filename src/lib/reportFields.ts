@@ -11,7 +11,7 @@ export type FieldType = 'text' | 'number' | 'currency' | 'percent' | 'date';
 export interface ReportFieldDef {
     key: ReportFieldKey;
     label: string;
-    category: 'Pursuit' | 'One-Pager' | 'Returns' | 'Budget' | 'Revenue' | 'OpEx' | 'Assumptions' | 'Land Comp' | 'Key Date';
+    category: 'Pursuit' | 'One-Pager' | 'Returns' | 'Budget' | 'Revenue' | 'OpEx' | 'Assumptions' | 'Land Comp' | 'Key Date' | 'Rent Comp';
     type: FieldType;
     getValue: (row: ReportRow, stages?: PursuitStage[]) => string | number | null;
     format: (value: string | number | null) => string;
@@ -145,6 +145,7 @@ export const REPORT_FIELDS: ReportFieldDef[] = [
 const COMP_CATEGORIES = new Set(['Land Comp']);
 const PURSUIT_CATEGORIES = new Set(['Pursuit', 'One-Pager', 'Returns', 'Budget', 'Revenue', 'OpEx', 'Assumptions']);
 const KEY_DATE_CATEGORIES = new Set(['Key Date']);
+const RENT_COMP_CATEGORIES = new Set(['Rent Comp']);
 
 // ── Land comp field definitions ──
 const COMP_FIELDS: ReportFieldDef[] = [
@@ -218,6 +219,82 @@ const KEY_DATE_FIELDS: ReportFieldDef[] = [
 REPORT_FIELDS.push(...COMP_FIELDS);
 REPORT_FIELDS.push(...KEY_DATE_FIELDS);
 
+// ── Rent Comp field definitions ──
+const RENT_COMP_FIELDS: ReportFieldDef[] = [
+    { key: 'rc_pursuit_name', label: 'Pursuit', category: 'Rent Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit?.name ?? null, format: fmtText },
+    { key: 'rc_property_name', label: 'Property Name', category: 'Rent Comp', type: 'text', groupable: false, filterable: true, getValue: (r) => r.rentComp?.property?.building_name ?? null, format: fmtText },
+    { key: 'rc_address', label: 'Address', category: 'Rent Comp', type: 'text', groupable: false, filterable: true, getValue: (r) => r.rentComp?.property?.street_address ?? null, format: fmtText },
+    { key: 'rc_city', label: 'City', category: 'Rent Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.rentComp?.property?.city ?? null, format: fmtText },
+    { key: 'rc_state', label: 'State', category: 'Rent Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.rentComp?.property?.state ?? null, format: fmtText },
+    { key: 'rc_msa', label: 'MSA', category: 'Rent Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.rentComp?.property?.msa ?? null, format: fmtText },
+    { key: 'rc_comp_type', label: 'Comp Type', category: 'Rent Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.rentComp?.compType ?? null, format: fmtText },
+    { key: 'rc_year_built', label: 'Year Built', category: 'Rent Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.rentComp?.property?.year_built ?? null, format: fmtNumber },
+    { key: 'rc_units', label: 'Units', category: 'Rent Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.rentComp?.property?.number_units ?? null, format: fmtNumber },
+    {
+        key: 'rc_avg_sqft', label: 'Avg Sqft', category: 'Rent Comp', type: 'number', groupable: false, filterable: true,
+        getValue: (r) => {
+            const units = r.rentComp?.units?.filter((u: any) => u.sqft) ?? [];
+            if (units.length === 0) return null;
+            return Math.round(units.reduce((s: number, u: any) => s + (u.sqft ?? 0), 0) / units.length);
+        }, format: fmtNumber
+    },
+    { key: 'rc_quality', label: 'Quality', category: 'Rent Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => { const q = r.rentComp?.property?.building_quality; if (!q) return null; return Object.entries(q).sort((a, b) => b[1] - a[1]).map(([k]) => k).join(', ') || null; }, format: fmtText },
+    {
+        key: 'rc_asking_rent', label: 'Asking Rent', category: 'Rent Comp', type: 'currency', groupable: false, filterable: true,
+        getValue: (r) => {
+            const units = r.rentComp?.units?.filter((u: any) => u.price) ?? [];
+            if (units.length === 0) return null;
+            return Math.round(units.reduce((s: number, u: any) => s + (u.price ?? 0), 0) / units.length);
+        }, format: fmtCurrency
+    },
+    {
+        key: 'rc_effective_rent', label: 'Effective Rent', category: 'Rent Comp', type: 'currency', groupable: false, filterable: true,
+        getValue: (r) => {
+            const units = r.rentComp?.units?.filter((u: any) => u.effective_price) ?? [];
+            if (units.length === 0) return null;
+            return Math.round(units.reduce((s: number, u: any) => s + (u.effective_price ?? 0), 0) / units.length);
+        }, format: fmtCurrency
+    },
+    {
+        key: 'rc_asking_psf', label: 'Asking Rent/SF', category: 'Rent Comp', type: 'currency', groupable: false, filterable: true,
+        getValue: (r) => {
+            const units = r.rentComp?.units?.filter((u: any) => u.price && u.sqft && u.sqft > 0) ?? [];
+            if (units.length === 0) return null;
+            const totalRent = units.reduce((s: number, u: any) => s + (u.price ?? 0), 0);
+            const totalSf = units.reduce((s: number, u: any) => s + (u.sqft ?? 0), 0);
+            return totalSf > 0 ? totalRent / totalSf : null;
+        }, format: (v) => v !== null ? `$${Number(v).toFixed(2)}` : '—'
+    },
+    {
+        key: 'rc_effective_psf', label: 'Effective Rent/SF', category: 'Rent Comp', type: 'currency', groupable: false, filterable: true,
+        getValue: (r) => {
+            const units = r.rentComp?.units?.filter((u: any) => u.effective_price && u.sqft && u.sqft > 0) ?? [];
+            if (units.length === 0) return null;
+            const totalRent = units.reduce((s: number, u: any) => s + (u.effective_price ?? 0), 0);
+            const totalSf = units.reduce((s: number, u: any) => s + (u.sqft ?? 0), 0);
+            return totalSf > 0 ? totalRent / totalSf : null;
+        }, format: (v) => v !== null ? `$${Number(v).toFixed(2)}` : '—'
+    },
+    {
+        key: 'rc_leased_pct', label: 'Leased %', category: 'Rent Comp', type: 'percent', groupable: false, filterable: true,
+        getValue: (r) => {
+            const units = r.rentComp?.units ?? [];
+            if (units.length === 0) return null;
+            const leased = units.filter((u: any) => u.available !== true).length;
+            return leased / units.length;
+        }, format: fmtPercent
+    },
+    {
+        key: 'rc_concession', label: 'Concession', category: 'Rent Comp', type: 'text', groupable: false, filterable: true,
+        getValue: (r) => {
+            const concessions = r.rentComp?.concessions ?? [];
+            if (concessions.length === 0) return null;
+            return concessions.map((c: any) => c.text || c.description).filter(Boolean).join('; ') || null;
+        }, format: fmtText
+    },
+];
+REPORT_FIELDS.push(...RENT_COMP_FIELDS);
+
 // Index by key for fast lookup
 export const REPORT_FIELD_MAP: Record<ReportFieldKey, ReportFieldDef> = Object.fromEntries(
     REPORT_FIELDS.map(f => [f.key, f])
@@ -243,13 +320,15 @@ export const GROUPABLE_FIELDS = REPORT_FIELDS.filter(f => f.groupable);
 export function getFieldCategoriesForSource(source: ReportDataSource) {
     const allowedCategories = source === 'land_comps' ? COMP_CATEGORIES
         : source === 'key_dates' ? KEY_DATE_CATEGORIES
-            : PURSUIT_CATEGORIES;
+            : source === 'rent_comps' ? RENT_COMP_CATEGORIES
+                : PURSUIT_CATEGORIES;
     return REPORT_FIELD_CATEGORIES.filter(c => allowedCategories.has(c.category));
 }
 
 export function getGroupableFieldsForSource(source: ReportDataSource) {
     const allowedCategories = source === 'land_comps' ? COMP_CATEGORIES
         : source === 'key_dates' ? KEY_DATE_CATEGORIES
-            : PURSUIT_CATEGORIES;
+            : source === 'rent_comps' ? RENT_COMP_CATEGORIES
+                : PURSUIT_CATEGORIES;
     return GROUPABLE_FIELDS.filter(f => allowedCategories.has(f.category));
 }

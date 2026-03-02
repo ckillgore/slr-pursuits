@@ -33,6 +33,8 @@ import type {
     ChecklistTaskStatus,
     TaskNote,
     TaskActivityLog,
+    HellodataUnit,
+    HellodataConcession,
 } from '@/types';
 
 const supabase = createClient();
@@ -619,7 +621,13 @@ export interface ReportRow {
     pursuit: Pursuit;
     onePager: OnePager | null;
     comp?: LandComp;
-    _source: 'pursuit' | 'land_comp';
+    rentComp?: {
+        property: HellodataProperty;
+        units: HellodataUnit[];
+        concessions: HellodataConcession[];
+        compType: 'primary' | 'secondary';
+    };
+    _source: 'pursuit' | 'land_comp' | 'rent_comp';
 }
 
 export async function fetchReportData(): Promise<ReportRow[]> {
@@ -1467,6 +1475,39 @@ export async function fetchTaskActivity(taskId: string): Promise<TaskActivityLog
 // ============================================================
 
 import type { PursuitRentComp, HellodataProperty } from '@/types';
+
+/** Fetch ALL rent comps across all pursuits — for reports */
+export async function fetchAllRentComps(): Promise<ReportRow[]> {
+    const { data, error } = await supabase
+        .from('pursuit_rent_comps')
+        .select(`
+            *,
+            pursuit:pursuits!pursuit_id(id, name, region, stage_id, city, state),
+            property:hellodata_properties(
+                id, hellodata_id, building_name, street_address, city, state, zip_code,
+                lat, lon, year_built, number_units, number_stories, msa,
+                management_company, building_quality, pricing_strategy,
+                building_amenities, unit_amenities,
+                units:hellodata_units(*),
+                concessions:hellodata_concessions(*)
+            )
+        `)
+        .order('pursuit_id');
+    if (error) throw error;
+
+    return (data ?? []).map((row: any) => ({
+        pursuit: row.pursuit as Pursuit,
+        onePager: null,
+        rentComp: {
+            property: row.property as HellodataProperty,
+            units: (row.property?.units ?? []) as HellodataUnit[],
+            concessions: (row.property?.concessions ?? []) as HellodataConcession[],
+            compType: row.comp_type ?? 'primary',
+        },
+        _source: 'rent_comp' as const,
+    }));
+}
+
 
 /** Fetch rent comps linked to a pursuit, with joined property + units + concessions */
 export async function fetchPursuitRentComps(pursuitId: string): Promise<PursuitRentComp[]> {

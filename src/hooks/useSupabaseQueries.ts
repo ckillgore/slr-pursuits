@@ -532,6 +532,13 @@ export function useLandCompReportData() {
     });
 }
 
+export function useRentCompReportData() {
+    return useQuery({
+        queryKey: ['rent-comp-report-data'] as const,
+        queryFn: queries.fetchAllRentComps,
+    });
+}
+
 // ============================================================
 // Land Comps
 // ============================================================

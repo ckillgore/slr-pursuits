@@ -476,7 +476,12 @@ export type ReportFieldKey =
   | 'kd_pursuit_name' | 'kd_region' | 'kd_stage'
   | 'kd_contract_execution' | 'kd_inspection_period' | 'kd_closing_date'
   | 'kd_next_date_label' | 'kd_next_date_value' | 'kd_next_date_days'
-  | 'kd_total_dates' | 'kd_overdue_count';
+  | 'kd_total_dates' | 'kd_overdue_count'
+  // Rent Comp fields
+  | 'rc_pursuit_name' | 'rc_property_name' | 'rc_address' | 'rc_city' | 'rc_state'
+  | 'rc_msa' | 'rc_comp_type' | 'rc_year_built' | 'rc_units'
+  | 'rc_avg_sqft' | 'rc_quality' | 'rc_asking_rent' | 'rc_effective_rent'
+  | 'rc_asking_psf' | 'rc_effective_psf' | 'rc_leased_pct' | 'rc_concession';
 
 export type ReportFilterOperator = 'equals' | 'not_equals' | 'contains' | 'gt' | 'lt' | 'gte' | 'lte';
 
@@ -486,7 +491,7 @@ export interface ReportFilter {
   value: string;
 }
 
-export type ReportDataSource = 'pursuits' | 'land_comps' | 'predev_budgets' | 'key_dates';
+export type ReportDataSource = 'pursuits' | 'land_comps' | 'predev_budgets' | 'key_dates' | 'rent_comps';
 
 export interface ReportConfig {
   dataSource: ReportDataSource;

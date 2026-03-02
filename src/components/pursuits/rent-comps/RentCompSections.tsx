@@ -186,37 +186,102 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
 }
 
 // ============================================================
-// Occupancy Trends
+// Occupancy Trends — derived from availability_periods
 // ============================================================
 export function OccupancySection({ comps }: { comps: PropertyMetrics[] }) {
-    const series = useMemo((): ChartSeries[] => {
-        return comps.map((c, i) => {
-            const data = (c.property.occupancy_over_time || []).map((o: { as_of: string; leased: number; exposure: number }) => ({
-                date: o.as_of,
-                value: Math.round(o.leased * 100 * 10) / 10,
-            }));
-            return { label: c.name, color: COMP_COLORS[i % COMP_COLORS.length], data };
-        });
-    }, [comps]);
+    // Derive occupancy over time from unit availability_periods
+    const { series, summaryData } = useMemo(() => {
+        const now = new Date();
+        const todayStr = now.toISOString().slice(0, 10);
+        const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-    // Summary cards
-    const summaryData = comps.map(c => {
-        const occ = c.property.occupancy_over_time;
-        const latest = occ?.length ? occ[occ.length - 1] : null;
-        return {
-            name: c.name,
-            leased: latest ? (latest.leased * 100).toFixed(1) : '—',
-            exposure: latest ? (latest.exposure * 100).toFixed(1) : '—',
-            totalUnits: c.property.number_units ?? '—',
-            availableUnits: c.availableUnits,
-        };
-    });
+        // Build weekly occupancy for each comp using availability_periods
+        const seriesData: ChartSeries[] = comps.map((c, ci) => {
+            const totalUnits = c.property.number_units ?? 0;
+            if (totalUnits === 0) return { label: c.name, color: COMP_COLORS[ci % COMP_COLORS.length], data: [] };
+
+            // Collect all enter/exit dates across all units to build a timeline
+            const allPeriods: { enter: string; exit: string | null }[] = [];
+            c.units.forEach((u: HellodataUnit) => {
+                (u.availability_periods || []).forEach(ap => {
+                    if (ap.enter_market) {
+                        allPeriods.push({ enter: ap.enter_market, exit: ap.exit_market ?? null });
+                    }
+                });
+            });
+
+            if (allPeriods.length === 0) return { label: c.name, color: COMP_COLORS[ci % COMP_COLORS.length], data: [] };
+
+            // Find date range
+            const dates = allPeriods.map(p => p.enter);
+            const minDate = new Date(dates.sort()[0]);
+            const maxDate = now;
+
+            // Build weekly snapshots
+            const weeklyData: { date: string; value: number }[] = [];
+            const current = new Date(minDate);
+            // Start from the first Monday
+            current.setDate(current.getDate() - current.getDay() + 1);
+
+            while (current <= maxDate) {
+                const weekStr = current.toISOString().slice(0, 10);
+                // Count units on market during this week
+                let onMarket = 0;
+                for (const period of allPeriods) {
+                    const entered = period.enter <= weekStr;
+                    const notExited = !period.exit || period.exit >= weekStr;
+                    if (entered && notExited) onMarket++;
+                }
+                const leasedPct = ((totalUnits - onMarket) / totalUnits) * 100;
+                weeklyData.push({ date: weekStr, value: Math.round(leasedPct * 10) / 10 });
+                current.setDate(current.getDate() + 7);
+            }
+
+            // Keep last 52 weeks max for performance
+            return {
+                label: c.name,
+                color: COMP_COLORS[ci % COMP_COLORS.length],
+                data: weeklyData.slice(-52),
+            };
+        });
+
+        // Summary cards — current snapshot
+        const summary = comps.map(c => {
+            const totalUnits = c.property.number_units ?? 0;
+            let onMarketNow = 0;
+            let availableNext7Days = 0;
+            c.units.forEach((u: HellodataUnit) => {
+                (u.availability_periods || []).forEach(ap => {
+                    const entered = !ap.enter_market || ap.enter_market <= todayStr;
+                    const notExited = !ap.exit_market || ap.exit_market >= todayStr;
+                    if (entered && notExited) onMarketNow++;
+
+                    const entering7 = !ap.enter_market || ap.enter_market <= sevenDaysOut;
+                    const notExited7 = !ap.exit_market || ap.exit_market >= todayStr;
+                    if (entering7 && notExited7) availableNext7Days++;
+                });
+            });
+
+            const leasedPct = totalUnits > 0 ? ((totalUnits - availableNext7Days) / totalUnits) * 100 : null;
+            const exposurePct = totalUnits > 0 ? (onMarketNow / totalUnits) * 100 : null;
+
+            return {
+                name: c.name,
+                leased: leasedPct !== null ? leasedPct.toFixed(1) : '—',
+                exposure: exposurePct !== null ? exposurePct.toFixed(1) : '—',
+                totalUnits,
+                onMarket: onMarketNow,
+            };
+        });
+
+        return { series: seriesData, summaryData: summary };
+    }, [comps]);
 
     return (
         <div className="space-y-4">
             <div>
                 <h3 className="text-sm font-semibold text-[#1A1F2B]">Occupancy Trends</h3>
-                <p className="text-xs text-[#7A8599]">Leased percentage over time from HelloData occupancy tracking.</p>
+                <p className="text-xs text-[#7A8599]">Estimated leased % over time, derived from unit availability periods.</p>
             </div>
             <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-4 gap-3">
                 {summaryData.map((s, i) => (
@@ -226,13 +291,151 @@ export function OccupancySection({ comps }: { comps: PropertyMetrics[] }) {
                             <div className="flex justify-between"><span className="text-[#7A8599]">Total Units</span><span className="font-medium">{s.totalUnits}</span></div>
                             <div className="flex justify-between"><span className="text-[#7A8599]">Leased %</span><span className="font-medium">{s.leased}%</span></div>
                             <div className="flex justify-between"><span className="text-[#7A8599]">Exposure</span><span className="font-medium">{s.exposure}%</span></div>
-                            <div className="flex justify-between"><span className="text-[#7A8599]">On Market</span><span className="font-medium">{s.availableUnits} units</span></div>
+                            <div className="flex justify-between"><span className="text-[#7A8599]">On Market</span><span className="font-medium">{s.onMarket} units</span></div>
                         </div>
                     </div>
                 ))}
             </div>
             <div className="border border-[#E2E5EA] rounded-xl bg-white p-2 sm:p-4">
-                <SVGChart series={series} yLabel="Leased %" formatY={v => `${v.toFixed(0)}%`} />
+                {series.every(s => s.data.length === 0) ? (
+                    <p className="text-sm text-[#7A8599] text-center py-8">No availability period data to derive occupancy trends.</p>
+                ) : (
+                    <SVGChart series={series} yLabel="Leased %" formatY={(v: number) => `${v.toFixed(0)}%`} />
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ============================================================
+// Leasing Activity — derived from availability_periods exit dates
+// ============================================================
+export function LeasingActivitySection({ comps }: { comps: PropertyMetrics[] }) {
+    const [groupBy, setGroupBy] = useState<'property' | 'bed'>('property');
+    const trailingWeeks = 12;
+
+    const { weekLabels, rows } = useMemo(() => {
+        const now = new Date();
+        // Build trailing week buckets
+        const weeks: { start: Date; end: Date; label: string }[] = [];
+        for (let w = trailingWeeks - 1; w >= 0; w--) {
+            const end = new Date(now.getTime() - w * 7 * 24 * 60 * 60 * 1000);
+            const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+            weeks.push({
+                start,
+                end,
+                label: `${(start.getMonth() + 1)}/${start.getDate()}`,
+            });
+        }
+
+        const labels = weeks.map(w => w.label);
+
+        if (groupBy === 'property') {
+            const rowData = comps.map((c, ci) => {
+                const counts = weeks.map(week => {
+                    let leases = 0;
+                    c.units.forEach((u: HellodataUnit) => {
+                        (u.availability_periods || []).forEach(ap => {
+                            if (ap.exit_market) {
+                                const exitDate = new Date(ap.exit_market);
+                                if (exitDate >= week.start && exitDate < week.end) leases++;
+                            }
+                        });
+                    });
+                    return leases;
+                });
+                const total = counts.reduce((s, v) => s + v, 0);
+                const avg = total / weeks.length;
+                return { label: c.name, color: COMP_COLORS[ci % COMP_COLORS.length], counts, total, avg };
+            });
+            return { weekLabels: labels, rows: rowData };
+        } else {
+            // Group by bed type
+            const allBeds = new Set<number>();
+            comps.forEach(c => c.units.forEach((u: HellodataUnit) => { if (u.bed !== null) allBeds.add(u.bed); }));
+            const sortedBeds = [...allBeds].sort((a, b) => a - b);
+
+            const rowData = sortedBeds.map((bed, bi) => {
+                const counts = weeks.map(week => {
+                    let leases = 0;
+                    comps.forEach(c => {
+                        c.units.filter((u: HellodataUnit) => u.bed === bed).forEach((u: HellodataUnit) => {
+                            (u.availability_periods || []).forEach(ap => {
+                                if (ap.exit_market) {
+                                    const exitDate = new Date(ap.exit_market);
+                                    if (exitDate >= week.start && exitDate < week.end) leases++;
+                                }
+                            });
+                        });
+                    });
+                    return leases;
+                });
+                const total = counts.reduce((s, v) => s + v, 0);
+                const avg = total / weeks.length;
+                return { label: bed === 0 ? 'Studio' : `${bed} BR`, color: COMP_COLORS[bi % COMP_COLORS.length], counts, total, avg };
+            });
+            return { weekLabels: labels, rows: rowData };
+        }
+    }, [comps, groupBy]);
+
+    return (
+        <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <h3 className="text-sm font-semibold text-[#1A1F2B]">Leasing Activity</h3>
+                    <p className="text-xs text-[#7A8599]">Estimated leases per week (units exiting market) — trailing {trailingWeeks} weeks.</p>
+                </div>
+                <div className="flex rounded-lg border border-[#E2E5EA] overflow-hidden">
+                    {(['property', 'bed'] as const).map(g => (
+                        <button key={g} onClick={() => setGroupBy(g)}
+                            className={`px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-medium ${groupBy === g ? 'bg-[#2563EB] text-white' : 'text-[#7A8599] hover:bg-[#F4F5F7]'}`}>
+                            {g === 'property' ? 'By Property' : 'By Bed Type'}
+                        </button>
+                    ))}
+                </div>
+            </div>
+            <div className="overflow-x-auto border border-[#E2E5EA] rounded-xl">
+                <table className="w-full text-xs min-w-[500px]">
+                    <thead>
+                        <tr className="border-b-2 border-[#E2E5EA] bg-[#F9FAFB]">
+                            <th className="text-left py-2.5 px-3 font-semibold text-[#4A5568] sticky left-0 bg-[#F9FAFB] z-10 min-w-[100px]">{groupBy === 'property' ? 'Property' : 'Unit Type'}</th>
+                            {weekLabels.map((wl, i) => (
+                                <th key={i} className="text-center py-2.5 px-1.5 font-medium text-[#7A8599] min-w-[40px]">{wl}</th>
+                            ))}
+                            <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568] min-w-[50px] border-l-2 border-[#E2E5EA]">Total</th>
+                            <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568] min-w-[50px]">Avg/Wk</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((row, ri) => (
+                            <tr key={ri} className={`border-b border-[#F4F5F7] ${ri % 2 === 0 ? 'bg-white' : 'bg-[#FBFBFC]'}`}>
+                                <td className="py-2 px-3 font-medium text-[#4A5568] sticky left-0 bg-inherit z-10">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: row.color }} />
+                                        <span className="truncate">{row.label}</span>
+                                    </div>
+                                </td>
+                                {row.counts.map((count, wi) => (
+                                    <td key={wi} className={`py-2 px-1.5 text-center ${count > 0 ? 'text-[#1A1F2B] font-medium' : 'text-[#CBD2DC]'}`}>
+                                        {count > 0 ? count : '—'}
+                                    </td>
+                                ))}
+                                <td className="py-2 px-2 text-center font-semibold text-[#2563EB] border-l-2 border-[#E2E5EA]">{row.total}</td>
+                                <td className="py-2 px-2 text-center font-medium text-[#4A5568]">{row.avg.toFixed(1)}</td>
+                            </tr>
+                        ))}
+                        {/* Totals row */}
+                        <tr className="border-t-2 border-[#E2E5EA] bg-[#F9FAFB] font-semibold">
+                            <td className="py-2.5 px-3 text-[#4A5568] sticky left-0 bg-[#F9FAFB] z-10">Total</td>
+                            {weekLabels.map((_, wi) => {
+                                const weekTotal = rows.reduce((s, r) => s + r.counts[wi], 0);
+                                return <td key={wi} className="py-2.5 px-1.5 text-center text-[#1A1F2B]">{weekTotal > 0 ? weekTotal : '—'}</td>;
+                            })}
+                            <td className="py-2.5 px-2 text-center text-[#2563EB] border-l-2 border-[#E2E5EA]">{rows.reduce((s, r) => s + r.total, 0)}</td>
+                            <td className="py-2.5 px-2 text-center text-[#4A5568]">{(rows.reduce((s, r) => s + r.total, 0) / trailingWeeks).toFixed(1)}</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     );

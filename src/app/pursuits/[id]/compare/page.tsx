@@ -86,7 +86,8 @@ export default function ComparisonPage() {
     const pursuitId = params.id as string;
 
     const { data: pursuit, isLoading: loadingPursuit } = usePursuit(pursuitId);
-    const { data: onePagers = [], isLoading: loadingOPs } = useOnePagers(pursuitId);
+    const pursuitUuid = pursuit?.id ?? '';
+    const { data: onePagers = [], isLoading: loadingOPs } = useOnePagers(pursuitUuid);
     const { data: productTypes = [] } = useProductTypes();
 
     const activeOPs = onePagers.filter((op) => !op.is_archived);
@@ -157,7 +158,7 @@ export default function ComparisonPage() {
                                                 key={op.id}
                                                 className={`text-center py-3 px-4 border-b border-[#E2E5EA] min-w-[140px] ${isBest ? 'bg-[#EBF1FF]' : ''}`}
                                             >
-                                                <Link href={`/pursuits/${pursuitId}/one-pagers/${op.id}`} className="hover:text-[#2563EB] transition-colors">
+                                                <Link href={`/pursuits/${pursuitId}/one-pagers/${op.short_id}`} className="hover:text-[#2563EB] transition-colors">
                                                     <div className="text-sm font-semibold text-[#1A1F2B]">{op.name}</div>
                                                 </Link>
                                                 {pt && <div className="text-[10px] text-[#A0AABB] mt-0.5">{pt.name}</div>}

@@ -265,7 +265,7 @@ export default function CompDetailPage() {
                                 </button>
                             </p>
                         </div>
-                        <CommentTrigger entityType="land_comp" entityId={compId} />
+                        <CommentTrigger entityType="land_comp" entityId={comp.id} />
                     </div>
 
                     {/* Location editor */}

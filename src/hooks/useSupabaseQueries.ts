@@ -102,11 +102,12 @@ export function usePursuits() {
     });
 }
 
-export function usePursuit(id: string) {
+export function usePursuit(idOrShortId: string) {
+    const isUuid = idOrShortId.length === 36 && idOrShortId.includes('-');
     return useQuery({
-        queryKey: queryKeys.pursuit(id),
-        queryFn: () => queries.fetchPursuit(id),
-        enabled: !!id,
+        queryKey: queryKeys.pursuit(idOrShortId),
+        queryFn: () => isUuid ? queries.fetchPursuit(idOrShortId) : queries.fetchPursuitByShortId(idOrShortId),
+        enabled: !!idOrShortId,
     });
 }
 
@@ -150,11 +151,12 @@ export function useOnePagers(pursuitId: string) {
     });
 }
 
-export function useOnePager(id: string) {
+export function useOnePager(idOrShortId: string) {
+    const isUuid = idOrShortId.length === 36 && idOrShortId.includes('-');
     return useQuery({
-        queryKey: queryKeys.onePager(id),
-        queryFn: () => queries.fetchOnePager(id),
-        enabled: !!id,
+        queryKey: queryKeys.onePager(idOrShortId),
+        queryFn: () => isUuid ? queries.fetchOnePager(idOrShortId) : queries.fetchOnePagerByShortId(idOrShortId),
+        enabled: !!idOrShortId,
     });
 }
 
@@ -555,11 +557,12 @@ export function useLandComps() {
     });
 }
 
-export function useLandComp(id: string) {
+export function useLandComp(idOrShortId: string) {
+    const isUuid = idOrShortId.length === 36 && idOrShortId.includes('-');
     return useQuery({
-        queryKey: queryKeys.landComp(id),
-        queryFn: () => queries.fetchLandComp(id),
-        enabled: !!id,
+        queryKey: queryKeys.landComp(idOrShortId),
+        queryFn: () => isUuid ? queries.fetchLandComp(idOrShortId) : queries.fetchLandCompByShortId(idOrShortId),
+        enabled: !!idOrShortId,
     });
 }
 
@@ -1024,11 +1027,12 @@ export function useSaleComps() {
     });
 }
 
-export function useSaleComp(id: string) {
+export function useSaleComp(idOrShortId: string) {
+    const isUuid = idOrShortId.length === 36 && idOrShortId.includes('-');
     return useQuery({
-        queryKey: queryKeys.saleComp(id),
-        queryFn: () => queries.fetchSaleComp(id),
-        enabled: !!id,
+        queryKey: queryKeys.saleComp(idOrShortId),
+        queryFn: () => isUuid ? queries.fetchSaleComp(idOrShortId) : queries.fetchSaleCompByShortId(idOrShortId),
+        enabled: !!idOrShortId,
     });
 }
 

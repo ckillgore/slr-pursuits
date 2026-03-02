@@ -35,6 +35,7 @@ export interface SubProductType {
 
 export interface Pursuit {
   id: string;
+  short_id: string;
   name: string;
   address: string;
   city: string;
@@ -77,6 +78,7 @@ export interface Pursuit {
 
 export interface LandComp {
   id: string;
+  short_id: string;
   name: string;
   address: string;
   city: string;
@@ -164,6 +166,7 @@ export interface SoftCostDetailRow {
 
 export interface OnePager {
   id: string;
+  short_id: string;
   pursuit_id: string;
   name: string;
   product_type_id: string;
@@ -914,6 +917,7 @@ export interface EntityComment {
 
 export interface SaleComp {
   id: string;
+  short_id: string;
   name: string;
   address: string;
   city: string;

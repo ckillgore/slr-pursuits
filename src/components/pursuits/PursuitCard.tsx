@@ -15,7 +15,7 @@ export function PursuitCard({ pursuit, stages, onDelete }: PursuitCardProps) {
     const stage = pursuit.stage ?? stages.find((s) => s.id === pursuit.stage_id);
 
     return (
-        <Link href={`/pursuits/${pursuit.id}`}>
+        <Link href={`/pursuits/${pursuit.short_id}`}>
             <div className="card group cursor-pointer animate-fade-in relative">
                 {/* Delete button */}
                 {onDelete && (

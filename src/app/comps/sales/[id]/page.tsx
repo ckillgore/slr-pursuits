@@ -239,7 +239,7 @@ export default function SaleCompDetailPage() {
                                 )}
                             </p>
                         </div>
-                        <CommentTrigger entityType="sale_comp" entityId={compId} />
+                        <CommentTrigger entityType="sale_comp" entityId={comp.id} />
                     </div>
                 </div>
 

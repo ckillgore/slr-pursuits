@@ -180,8 +180,18 @@ export async function fetchPursuit(id: string): Promise<Pursuit> {
     return { ...data, stage: data.pursuit_stages };
 }
 
+export async function fetchPursuitByShortId(shortId: string): Promise<Pursuit> {
+    const { data, error } = await supabase
+        .from('pursuits')
+        .select('*, pursuit_stages(*)')
+        .eq('short_id', shortId)
+        .single();
+    if (error) throw error;
+    return { ...data, stage: data.pursuit_stages };
+}
+
 export async function createPursuit(
-    pursuit: Omit<Pursuit, 'id' | 'created_at' | 'updated_at' | 'stage' | 'one_pagers' | 'site_area_acres' | 'best_yoc' | 'primary_units' | 'one_pager_count'>
+    pursuit: Omit<Pursuit, 'id' | 'short_id' | 'created_at' | 'updated_at' | 'stage' | 'one_pagers' | 'site_area_acres' | 'best_yoc' | 'primary_units' | 'one_pager_count'>
 ): Promise<Pursuit> {
     const { data, error } = await supabase
         .from('pursuits')
@@ -241,8 +251,18 @@ export async function fetchOnePager(id: string): Promise<OnePager> {
     return { ...data, product_type: data.product_types };
 }
 
+export async function fetchOnePagerByShortId(shortId: string): Promise<OnePager> {
+    const { data, error } = await supabase
+        .from('one_pagers')
+        .select('*, product_types(*)')
+        .eq('short_id', shortId)
+        .single();
+    if (error) throw error;
+    return { ...data, product_type: data.product_types };
+}
+
 export async function createOnePager(
-    onePager: Omit<OnePager, 'id' | 'created_at' | 'updated_at' | 'unit_mix' | 'payroll' | 'soft_cost_details' | 'product_type' | 'sub_product_type'>
+    onePager: Omit<OnePager, 'id' | 'short_id' | 'created_at' | 'updated_at' | 'unit_mix' | 'payroll' | 'soft_cost_details' | 'product_type' | 'sub_product_type'>
 ): Promise<OnePager> {
     // Strip calculated fields
     const {
@@ -796,8 +816,18 @@ export async function fetchLandComp(id: string): Promise<LandComp> {
     return data;
 }
 
+export async function fetchLandCompByShortId(shortId: string): Promise<LandComp> {
+    const { data, error } = await supabase
+        .from('land_comps')
+        .select('*')
+        .eq('short_id', shortId)
+        .single();
+    if (error) throw error;
+    return data;
+}
+
 export async function createLandComp(
-    comp: Omit<LandComp, 'id' | 'created_at' | 'updated_at' | 'created_by'>
+    comp: Omit<LandComp, 'id' | 'short_id' | 'created_at' | 'updated_at' | 'created_by'>
 ): Promise<LandComp> {
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase
@@ -980,7 +1010,7 @@ export async function updateLineItemLabel(id: string, label: string) {
  */
 export interface PredevBudgetReportRow {
     budget: PredevBudget;
-    pursuit: Pick<Pursuit, 'id' | 'name' | 'region' | 'stage_id' | 'city' | 'state'>;
+    pursuit: Pick<Pursuit, 'id' | 'short_id' | 'name' | 'region' | 'stage_id' | 'city' | 'state'>;
     stage?: PursuitStage;
 }
 
@@ -990,7 +1020,7 @@ export async function fetchAllPredevBudgets(): Promise<PredevBudgetReportRow[]> 
         .select(`
             *,
             predev_budget_line_items(*),
-            pursuits!inner(id, name, region, stage_id, city, state, is_archived,
+            pursuits!inner(id, short_id, name, region, stage_id, city, state, is_archived,
                 pursuit_stages(*))
         `)
         .order('created_at', { ascending: false });
@@ -1009,6 +1039,7 @@ export async function fetchAllPredevBudgets(): Promise<PredevBudgetReportRow[]> 
             } as PredevBudget,
             pursuit: {
                 id: d.pursuits.id,
+                short_id: d.pursuits.short_id,
                 name: d.pursuits.name,
                 region: d.pursuits.region,
                 stage_id: d.pursuits.stage_id,
@@ -1697,8 +1728,18 @@ export async function fetchSaleComp(id: string): Promise<SaleComp> {
     return data as unknown as SaleComp;
 }
 
+export async function fetchSaleCompByShortId(shortId: string): Promise<SaleComp> {
+    const { data, error } = await supabase
+        .from('sale_comps')
+        .select('*, sale_transactions(*)')
+        .eq('short_id', shortId)
+        .single();
+    if (error) throw error;
+    return data as unknown as SaleComp;
+}
+
 export async function createSaleComp(
-    comp: Omit<SaleComp, 'id' | 'created_at' | 'updated_at' | 'created_by' | 'sale_transactions'>
+    comp: Omit<SaleComp, 'id' | 'short_id' | 'created_at' | 'updated_at' | 'created_by' | 'sale_transactions'>
 ): Promise<SaleComp> {
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase

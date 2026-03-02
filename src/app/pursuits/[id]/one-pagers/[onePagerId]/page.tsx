@@ -43,7 +43,7 @@ export default function OnePagerPage() {
         <AppShell>
             <div className="relative">
                 <div className="absolute top-4 right-6 z-10">
-                    <CommentTrigger entityType="pursuit" entityId={pursuitId} />
+                    <CommentTrigger entityType="pursuit" entityId={pursuit.id} />
                 </div>
                 <OnePagerEditor pursuit={pursuit} onePager={onePager} />
             </div>

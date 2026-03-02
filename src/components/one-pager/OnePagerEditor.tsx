@@ -271,7 +271,7 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
             const newOp = await duplicateOnePager.mutateAsync({ sourceId: onePager.id, newName: name });
             setShowDuplicateDialog(false);
             setDuplicateName('');
-            router.push(`/pursuits/${pursuit.id}/one-pagers/${newOp.id}`);
+            router.push(`/pursuits/${pursuit.short_id}/one-pagers/${newOp.short_id}`);
         } catch (err) {
             console.error('Duplicate failed:', err);
         }
@@ -280,7 +280,7 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
     const handleArchive = async () => {
         try {
             await archiveOnePager.mutateAsync({ id: onePager.id, pursuitId: pursuit.id });
-            router.push(`/pursuits/${pursuit.id}`);
+            router.push(`/pursuits/${pursuit.short_id}`);
         } catch (err) {
             console.error('Archive failed:', err);
         }
@@ -331,7 +331,7 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
             {/* Top bar */}
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
-                    <Link href={`/pursuits/${pursuit.id}`} className="text-sm text-[#7A8599] hover:text-[#4A5568] transition-colors">
+                    <Link href={`/pursuits/${pursuit.short_id}`} className="text-sm text-[#7A8599] hover:text-[#4A5568] transition-colors">
                         <ChevronLeft className="w-4 h-4 inline mr-1" />{pursuit.name}
                     </Link>
                     <span className="text-[#C8CDD5]">/</span>

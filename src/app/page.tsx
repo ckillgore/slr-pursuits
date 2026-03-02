@@ -318,7 +318,7 @@ export default function DashboardPage() {
                     <tr
                       key={p.id}
                       className="group border-b border-[#F0F1F4] last:border-b-0 hover:bg-[#FAFBFC] cursor-pointer transition-colors"
-                      onClick={() => router.push(`/pursuits/${p.id}`)}
+                      onClick={() => router.push(`/pursuits/${p.short_id}`)}
                     >
                       <td className="px-4 py-3">
                         <span className="font-semibold text-[#1A1F2B] hover:text-[#2563EB] transition-colors">{p.name}</span>
@@ -650,7 +650,7 @@ function DashboardMap({ pursuits, stages }: DashboardMapProps) {
         .addTo(map);
 
       el.addEventListener('click', () => {
-        window.location.href = `/pursuits/${p.id}`;
+        window.location.href = `/pursuits/${p.short_id}`;
       });
 
       markersRef.current.push(marker);

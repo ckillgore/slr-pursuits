@@ -394,7 +394,7 @@ function MonthlyGrid({
                                     <tr key={row.budget.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-[#FAFBFC]/50'} hover:bg-[#F4F5F7]/50 transition-colors`}>
                                         <td className="sticky left-0 z-10 bg-inherit px-4 py-1.5 border-r border-[#F0F1F4]">
                                             <Link
-                                                href={`/pursuits/${row.pursuit.id}?tab=predev`}
+                                                href={`/pursuits/${row.pursuit.short_id || row.pursuit.id}?tab=predev`}
                                                 className="text-xs font-medium text-[#2563EB] hover:text-[#1D4FD7] hover:underline inline-flex items-center gap-1 transition-colors"
                                             >
                                                 {row.pursuit.name}
@@ -532,7 +532,7 @@ function AnnualGrid({
                                 return (
                                     <tr key={row.budget.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-[#FAFBFC]/50'} hover:bg-[#F4F5F7]/50`}>
                                         <td className="sticky left-0 z-10 bg-inherit px-4 py-1.5 border-r border-[#F0F1F4]">
-                                            <Link href={`/pursuits/${row.pursuit.id}?tab=predev`} className="text-xs font-medium text-[#2563EB] hover:underline inline-flex items-center gap-1">
+                                            <Link href={`/pursuits/${row.pursuit.short_id || row.pursuit.id}?tab=predev`} className="text-xs font-medium text-[#2563EB] hover:underline inline-flex items-center gap-1">
                                                 {row.pursuit.name}
                                                 <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                                             </Link>

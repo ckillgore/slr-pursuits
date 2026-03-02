@@ -66,7 +66,7 @@ export function ReportTable({
                     style={ci === 0 ? { paddingLeft: `${depth * 24 + 12}px` } : undefined}
                 >
                     {col.key === 'pursuit_name' ? (
-                        <Link href={`/pursuits/${row.pursuit.id}`} className="text-[#2563EB] hover:underline font-medium">
+                        <Link href={`/pursuits/${row.pursuit.short_id || row.pursuit.id}`} className="text-[#2563EB] hover:underline font-medium">
                             {col.format(col.getValue(row, stages))}
                         </Link>
                     ) : (

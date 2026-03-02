@@ -59,14 +59,15 @@ import { RichTextEditor } from '@/components/shared/RichTextEditor';
 export default function PursuitDetailPage() {
     const params = useParams();
     const router = useRouter();
-    const pursuitId = params.id as string;
+    const pursuitId = params.id as string; // short_id from URL
     const searchParams = useSearchParams();
     const initialTab = searchParams.get('tab');
 
     const { data: pursuit, isLoading: loadingPursuit } = usePursuit(pursuitId);
+    const pursuitUuid = pursuit?.id ?? ''; // real UUID for child queries
     const { data: stages = [] } = useStages();
     const { data: productTypes = [] } = useProductTypes();
-    const { data: onePagers = [], isLoading: loadingOnePagers } = useOnePagers(pursuitId);
+    const { data: onePagers = [], isLoading: loadingOnePagers } = useOnePagers(pursuitUuid);
     const updatePursuit = useUpdatePursuit();
     const createOnePager = useCreateOnePager();
     const deleteOnePager = useDeleteOnePager();
@@ -86,8 +87,8 @@ export default function PursuitDetailPage() {
     );
 
     // KPI data hooks
-    const { data: predevBudget } = usePredevBudget(pursuitId);
-    const { data: keyDates = [] } = useKeyDates(pursuitId);
+    const { data: predevBudget } = usePredevBudget(pursuitUuid);
+    const { data: keyDates = [] } = useKeyDates(pursuitUuid);
 
     // AI Summary state
     const [aiSummary, setAiSummary] = useState<string | null>(null);
@@ -171,7 +172,7 @@ export default function PursuitDetailPage() {
     const subTypes = selectedProductType?.sub_product_types ?? [];
 
     const handleUpdatePursuit = (updates: Partial<typeof pursuit>) => {
-        updatePursuit.mutate({ id: pursuitId, updates });
+        updatePursuit.mutate({ id: pursuitUuid, updates });
     };
 
     const handleCreateOnePager = async () => {
@@ -179,7 +180,7 @@ export default function PursuitDetailPage() {
         const tpl = templates.find((t) => t.id === selectedTemplateId);
         try {
             const op = await createOnePager.mutateAsync({
-                pursuit_id: pursuitId,
+                pursuit_id: pursuitUuid,
                 name: newName.trim(),
                 product_type_id: newProductTypeId,
                 sub_product_type_id: newSubProductTypeId || null,
@@ -235,7 +236,7 @@ export default function PursuitDetailPage() {
             setNewSubProductTypeId('');
             setSelectedTemplateId('');
             setShowNewOnePagerDialog(false);
-            router.push(`/pursuits/${pursuitId}/one-pagers/${op.id}`);
+            router.push(`/pursuits/${pursuitId}/one-pagers/${op.short_id}`);
         } catch (err) {
             console.error('Failed to create one-pager:', err);
         }
@@ -306,7 +307,7 @@ export default function PursuitDetailPage() {
                                 <option key={s.id} value={s.id} style={{ background: '#fff', color: '#1A1F2B' }}>{s.name}</option>
                             ))}
                         </select>
-                        <CommentTrigger entityType="pursuit" entityId={pursuitId} />
+                        <CommentTrigger entityType="pursuit" entityId={pursuitUuid} />
                         <button
                             onClick={() => setDeletePursuitConfirm(true)}
                             className="ml-auto p-2 rounded-lg text-[#A0AABB] hover:text-[#DC2626] hover:bg-[#FEF2F2] transition-colors"
@@ -498,7 +499,7 @@ export default function PursuitDetailPage() {
                                     <div
                                         className={`card ${primaryOp ? 'cursor-pointer hover:border-[#2563EB]/40 hover:shadow-md transition-all' : ''}`}
                                         onClick={() => {
-                                            if (primaryOp) router.push(`/pursuits/${pursuitId}/one-pagers/${primaryOp.id}`);
+                                            if (primaryOp) router.push(`/pursuits/${pursuitId}/one-pagers/${primaryOp.short_id}`);
                                         }}
                                     >
                                         <div className="flex items-center gap-1.5 mb-3">
@@ -847,7 +848,7 @@ export default function PursuitDetailPage() {
                                         : onePagers.filter(o => !o.is_archived).length === 1;
                                     return (
                                         <div key={op.id} className="relative group/card">
-                                            <Link href={`/pursuits/${pursuitId}/one-pagers/${op.id}`}>
+                                            <Link href={`/pursuits/${pursuitId}/one-pagers/${op.short_id}`}>
                                                 <div className={`card group cursor-pointer ${isPrimary ? 'ring-2 ring-[#F59E0B]/40' : ''}`}>
                                                     <div className="flex items-start justify-between">
                                                         <div>
@@ -963,22 +964,22 @@ export default function PursuitDetailPage() {
 
                 {/* ===== RENT COMPS TAB ===== */}
                 {activeTab === 'rent_comps' && (
-                    <RentCompsTab pursuitId={pursuitId} />
+                    <RentCompsTab pursuitId={pursuitUuid} />
                 )}
 
                 {/* ===== PRE-DEV BUDGET TAB ===== */}
                 {activeTab === 'predev' && (
-                    <PredevBudgetTab pursuitId={pursuitId} />
+                    <PredevBudgetTab pursuitId={pursuitUuid} />
                 )}
 
                 {/* ===== KEY DATES TAB ===== */}
                 {activeTab === 'keydates' && (
-                    <KeyDatesTab pursuitId={pursuitId} />
+                    <KeyDatesTab pursuitId={pursuitUuid} />
                 )}
 
                 {/* ===== CHECKLIST TAB ===== */}
                 {activeTab === 'checklist' && (
-                    <ChecklistTab pursuitId={pursuitId} />
+                    <ChecklistTab pursuitId={pursuitUuid} />
                 )}
 
                 {/* New One-Pager Dialog */}
@@ -1046,7 +1047,7 @@ export default function PursuitDetailPage() {
                                 </button>
                                 <button
                                     onClick={async () => {
-                                        await deleteOnePager.mutateAsync({ id: deleteConfirmId, pursuitId });
+                                        await deleteOnePager.mutateAsync({ id: deleteConfirmId, pursuitId: pursuitUuid });
                                         setDeleteConfirmId(null);
                                     }}
                                     disabled={deleteOnePager.isPending}
@@ -1077,7 +1078,7 @@ export default function PursuitDetailPage() {
                                 </button>
                                 <button
                                     onClick={async () => {
-                                        await deletePursuit.mutateAsync(pursuitId);
+                                        await deletePursuit.mutateAsync(pursuitUuid);
                                         router.push('/');
                                     }}
                                     disabled={deletePursuit.isPending}

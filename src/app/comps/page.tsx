@@ -210,7 +210,7 @@ export default function CompsPage() {
             });
             setSaleName(''); setSaleAddress(''); setSaleCity(''); setSaleState(''); setSalePropertyType('');
             setShowNewSaleDialog(false);
-            router.push(`/comps/sales/${created.id}`);
+            router.push(`/comps/sales/${created.short_id}`);
         } catch (err) {
             console.error('Failed to create sale comp:', err);
         }
@@ -328,7 +328,7 @@ export default function CompsPage() {
             });
             resetForm();
             setShowNewDialog(false);
-            router.push(`/comps/${created.id}`);
+            router.push(`/comps/${created.short_id}`);
         } catch (err) {
             console.error('Failed to create comp:', err);
         }
@@ -437,7 +437,7 @@ export default function CompsPage() {
                                 <div
                                     key={comp.id}
                                     className="group relative bg-white border border-[#E2E5EA] rounded-xl p-4 hover:border-[#0D9488]/40 hover:shadow-md transition-all cursor-pointer"
-                                    onClick={() => router.push(`/comps/${comp.id}`)}
+                                    onClick={() => router.push(`/comps/${comp.short_id}`)}
                                 >
                                     {/* Delete button — admin/owner only */}
                                     {isAdminOrOwner && (
@@ -523,7 +523,7 @@ export default function CompsPage() {
                                         <tr
                                             key={c.id}
                                             className="group border-b border-[#F0F1F4] last:border-b-0 hover:bg-[#FAFBFC] cursor-pointer transition-colors"
-                                            onClick={() => router.push(`/comps/${c.id}`)}
+                                            onClick={() => router.push(`/comps/${c.short_id}`)}
                                         >
                                             <td className="px-4 py-3">
                                                 <span className="font-semibold text-[#1A1F2B] hover:text-[#0D9488] transition-colors">{c.name}</span>
@@ -640,7 +640,7 @@ export default function CompsPage() {
                                         <div
                                             key={sc.id}
                                             className="group relative bg-white border border-[#E2E5EA] rounded-xl p-4 hover:border-[#6366F1]/40 hover:shadow-md transition-all cursor-pointer"
-                                            onClick={() => router.push(`/comps/sales/${sc.id}`)}
+                                            onClick={() => router.push(`/comps/sales/${sc.short_id}`)}
                                         >
                                             {isAdminOrOwner && (
                                                 <button

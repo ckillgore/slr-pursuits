@@ -108,3 +108,23 @@ _(Append new lessons below. Do not rewrite or delete existing entries.)_
 - **Fix**: Always use the shared `DebouncedTextInput` component from `src/components/shared/DebouncedTextInput.tsx`. It holds local state and only fires `onCommit` on blur or Enter key.
 - **Files fixed**: pursuit detail (Region), admin/stages (stage name), admin/key-date-types (type name x2), admin/templates (payroll role name), OnePagerEditor (soft cost line_item_name).
 - **Rule**: Never wire a text `<input>` `onChange` directly to `.mutate()`. Always use `DebouncedTextInput` or an equivalent local-state → commit-on-blur pattern.
+
+## Report Field Aggregation
+- **Default aggregation is wrong for many fields**: Defaulting all number/currency fields to SUM causes nonsensical totals (e.g., Year Built summed across rows). Add an `aggregation?: 'sum' | 'avg' | 'none'` property to `ReportFieldDef` so each field can override the default.
+- **Rents should average, not sum**: Asking Rent, Effective Rent, Rent/SF are per-property metrics — averaging makes sense for group subtotals, summing does not.
+- **Year fields**: Year Built should either average or show nothing in subtotal/total rows. Use `aggregation: 'avg'` and round to nearest integer.
+- **Percent fields**: Leased % and similar should always average, never sum. The engine already defaults percent to avg, but verify per field.
+
+## Contextual Report Filters
+- **Generic operators don't fit text fields**: Operators like `>`, `<`, `=` are meaningless for Stage, Region, Product Type. Use field-type detection to render the right UI.
+- **Pick-list filter pattern**: For text fields, extract distinct values from the actual data, render as a checkbox list, and use an `'in'` operator with a `values: string[]` array. This is far more intuitive than typing exact-match strings.
+- **Filter search for long lists**: When a pick-list has 6+ values, show a search input above the checkboxes to help users find values quickly.
+- **Pass data to config panel**: The config panel needs the raw data to extract distinct values. Pass it as an optional `data` prop — the component should handle null/empty data gracefully.
+
+## Report Export (PDF + XLSX)
+- **ExcelJS for XLSX**: Pure data-driven, no DOM dependency. Walk the group tree to emit group header rows → data rows → subtotal rows. Apply number formats by field type.
+- **@react-pdf/renderer for PDF**: Consistent with existing one-pager PDF. Use `StyleSheet.create` for styles, `Font.register` for Inter. Column widths should be proportional based on field type (text = wider, currency = narrower).
+- **Dynamic orientation**: Auto-switch to landscape for reports with >8 columns. Also scale font size down for >10 and >14 columns to prevent text truncation.
+- **Lazy-import exports**: Use `await import(...)` in the button onClick handler to keep the export libraries out of the main bundle. Both ExcelJS and @react-pdf/renderer are heavy.
+- **Frozen header pane**: In XLSX, `ws.views = [{ state: 'frozen', ySplit: 1 }]` keeps headers visible while scrolling — essential for large exports.
+

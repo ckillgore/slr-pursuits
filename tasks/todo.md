@@ -96,6 +96,40 @@
 
 ---
 
+# Rent Comps Report Tab (3/1)
+
+- [x] Add `'rent_comps'` data source toggle to Reports page
+- [x] Define rent comp report fields (`reportFields.ts`)
+- [x] Wire rent comp data through `useRentCompReportData` hook
+- [x] Connect to `useReportEngine` + `ReportTable`
+- [x] Fix Year Built aggregation (average not sum)
+- [x] Fix rent fields aggregation (average not sum)
+- [x] Fix Leased % field to use actual data
+
+---
+
+# Report Filter Redesign (3/1)
+
+- [x] Add `'in'` operator to `ReportFilterOperator` type
+- [x] Add `values?: string[]` to `ReportFilter` interface
+- [x] Update `applyFilters` in `useReportEngine` for `'in'` operator
+- [x] Redesign `ReportConfigPanel` — text fields show multi-select checkbox pick-lists
+- [x] Numeric/currency fields keep operator-based input (≥, ≤, etc.)
+- [x] Extract distinct values from data for pick-list population
+- [x] Pass `data` prop from Reports page to `ReportConfigPanel`
+
+---
+
+# Report Export — PDF + XLSX (3/1)
+
+- [x] Create `exportReportExcel.ts` — XLSX with groups, subtotals, auto-width columns
+- [x] Create `ReportPDF.tsx` — PDF with dynamic orientation and scaled fonts
+- [x] Wire XLSX + PDF export buttons into Reports toolbar
+- [x] Lazy-import both exports for bundle optimization
+- [x] Build check — no new errors
+
+---
+
 # Hellodata Rent Comps Integration
 
 ## Phase 1 — Database & Data Layer

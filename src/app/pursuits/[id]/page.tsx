@@ -17,6 +17,7 @@ import {
     usePredevBudget,
     useKeyDates,
 } from '@/hooks/useSupabaseQueries';
+import { usePursuitRentComps } from '@/hooks/useHellodataQueries';
 import { upsertPayrollRow } from '@/lib/supabase/queries';
 import { formatCurrency, formatNumber, SF_PER_ACRE } from '@/lib/constants';
 import { LocationCard } from '@/components/pursuits/LocationCard';
@@ -89,6 +90,7 @@ export default function PursuitDetailPage() {
     // KPI data hooks
     const { data: predevBudget } = usePredevBudget(pursuitUuid);
     const { data: keyDates = [] } = useKeyDates(pursuitUuid);
+    const { data: rentComps = [] } = usePursuitRentComps(pursuitUuid);
 
     // AI Summary state
     const [aiSummary, setAiSummary] = useState<string | null>(null);
@@ -117,6 +119,30 @@ export default function PursuitDetailPage() {
                     parcelData: pursuit.parcel_data || null,
                     demographics: pursuit.demographics,
                     onePagers,
+                    rentComps: rentComps.filter(rc => rc.property).map(rc => {
+                        const p = rc.property!;
+                        return {
+                            name: p.building_name || p.street_address,
+                            address: [p.street_address, p.city, p.state, p.zip_code].filter(Boolean).join(', '),
+                            totalUnits: p.number_units,
+                            yearBuilt: p.year_built,
+                            occupancyPct: p.occupancy_over_time?.length
+                                ? (p.occupancy_over_time[p.occupancy_over_time.length - 1] as any).leased * 100
+                                : null,
+                            qualityScore: p.building_quality?.property_overall_quality,
+                            reviewScore: p.review_analysis?.avg_score,
+                            pricingStrategy: p.pricing_strategy?.is_using_rev_management ? 'Revenue Management' : 'Manual',
+                            concessions: (p.concessions || []).slice(0, 3).map((c: any) => c.concession_text).filter(Boolean),
+                            compType: rc.comp_type || 'primary',
+                            units: ((p.units || []) as any[]).slice(0, 50).map((u: any) => ({
+                                bed: u.bed,
+                                bath: u.bath,
+                                sqft: u.sqft,
+                                askingRent: u.asking_price,
+                                effectiveRent: u.effective_price,
+                            })),
+                        };
+                    }),
                 }),
             });
             const data = await res.json();
@@ -137,7 +163,7 @@ export default function PursuitDetailPage() {
         } finally {
             setAiLoading(false);
         }
-    }, [pursuit, onePagers]);
+    }, [pursuit, onePagers, rentComps]);
 
     const { data: templates = [] } = useTemplates();
     const matchingTemplates = templates.filter(

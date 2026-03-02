@@ -7,7 +7,7 @@ const MODEL = 'gemini-3-flash-preview';
 // ────────────────────────── Prompts ──────────────────────────
 
 const SUMMARIZE_PROMPT = `You are a multifamily real estate data analyst.
-Summarize the following demographic, public parcel, and market data into a comprehensive 300-400 word summary
+Summarize the following demographic, public parcel, market, and competitive rent comp data into a comprehensive 300-500 word summary
 focused on what matters for multifamily development feasibility.
 
 Cover:
@@ -17,6 +17,7 @@ Cover:
 - FEMA/flood risk
 - Property tax burden and recent sale history
 - Notable observations about owner-renter mix, vacancy, and rental market
+- If rent comp data is provided: competitive rent levels by unit type, average occupancy, concession trends, quality scores, and how the local submarket is performing
 
 RULES:
 - Use $ with commas for currency, % for percentages
@@ -47,8 +48,16 @@ If one-pager scenario data is provided:
 - Compare scenario rents to HUD FMR where relevant
 If no scenario data is provided, skip this section entirely.
 
+## Competitive Rent Landscape
+If rent comp data is provided:
+- 2-3 sentences summarizing the competitive rent environment
+- Average rents by bed type, occupancy rates, concession activity
+- How these comps inform achievable rents for a new development
+- Quality and pricing strategy trends (revenue management adoption)
+If no rent comp data is provided, skip this section entirely.
+
 ## Risk Factors
-Bullet list of 3-5 key risks: FEMA/flood risk, environmental concerns, market saturation, zoning constraints, construction cost factors, tax burden, etc. Only include risks that are supported by the data.
+Bullet list of 3-5 key risks: FEMA/flood risk, environmental concerns, market saturation, zoning constraints, construction cost factors, tax burden, competitive oversupply, etc. Only include risks that are supported by the data.
 
 ## Key Takeaway
 One sentence summarizing the development opportunity.
@@ -58,7 +67,7 @@ RULES:
 - Use % for percentages
 - Reference specific data points, don't make up numbers
 - If data is missing for a section, note it briefly and move on
-- Keep the total response under 600 words
+- Keep the total response under 700 words
 - Do NOT use the word "investment" — this is a development assessment`;
 
 // ────────────────────────── Route ──────────────────────────
@@ -72,13 +81,13 @@ export async function POST(request: Request) {
             );
         }
 
-        const { parcelData, demographics, onePagers } = await request.json();
+        const { parcelData, demographics, onePagers, rentComps } = await request.json();
 
         // Diagnostic: log data availability
-        console.log('[AI Summary] Data: parcel=%s, zoning=%s, demographics=%s (%s rings), fmr=%s, scenarios=%d',
+        console.log('[AI Summary] Data: parcel=%s, zoning=%s, demographics=%s (%s rings), fmr=%s, scenarios=%d, rentComps=%d',
             !!parcelData?.parcel, !!parcelData?.parcel?.zoning,
             !!demographics?.rings, demographics?.rings ? Object.keys(demographics.rings).join(',') : 'none',
-            !!parcelData?.fmr, onePagers?.length || 0
+            !!parcelData?.fmr, onePagers?.length || 0, rentComps?.length || 0
         );
 
         const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
@@ -247,6 +256,44 @@ export async function POST(request: Request) {
             }
         }
 
+        // Rent comps — competitive market data
+        if (rentComps && Array.isArray(rentComps) && rentComps.length > 0) {
+            pass1Context.competitiveRentComps = {
+                count: rentComps.length,
+                properties: rentComps.map((rc: any) => {
+                    // Aggregate unit-level data into bed-type averages
+                    const unitsByBed: Record<number, { rents: number[]; sqfts: number[]; count: number }> = {};
+                    for (const u of (rc.units || [])) {
+                        if (u.bed == null) continue;
+                        if (!unitsByBed[u.bed]) unitsByBed[u.bed] = { rents: [], sqfts: [], count: 0 };
+                        unitsByBed[u.bed].count++;
+                        if (u.askingRent) unitsByBed[u.bed].rents.push(u.askingRent);
+                        if (u.sqft) unitsByBed[u.bed].sqfts.push(u.sqft);
+                    }
+                    const rentsByBedType = Object.entries(unitsByBed).map(([bed, data]) => ({
+                        bedrooms: Number(bed),
+                        avgAskingRent: data.rents.length > 0 ? Math.round(data.rents.reduce((a, b) => a + b, 0) / data.rents.length) : null,
+                        avgSqft: data.sqfts.length > 0 ? Math.round(data.sqfts.reduce((a, b) => a + b, 0) / data.sqfts.length) : null,
+                        unitCount: data.count,
+                    }));
+
+                    return {
+                        name: rc.name,
+                        address: rc.address,
+                        totalUnits: rc.totalUnits,
+                        yearBuilt: rc.yearBuilt,
+                        occupancyPct: rc.occupancyPct != null ? Math.round(rc.occupancyPct * 10) / 10 : null,
+                        qualityScore: rc.qualityScore != null ? Math.round(rc.qualityScore * 100) : null,
+                        reviewScore: rc.reviewScore,
+                        pricingStrategy: rc.pricingStrategy,
+                        concessions: rc.concessions,
+                        compType: rc.compType,
+                        rentsByBedType,
+                    };
+                }),
+            };
+        }
+
         // ─── Pass 1: Summarize demographic & public data ───
 
         console.log('[AI Summary] Pass 1: %d chars context → generating summary...', JSON.stringify(pass1Context).length);
@@ -261,7 +308,7 @@ ${JSON.stringify(pass1Context, null, 2)}
 
 ---
 
-Now write the 300-400 word summary covering ALL the categories listed above. Be specific with numbers — cite actual values for income, rents, population, growth rates, zoning limits, etc.`;
+Now write the 300-500 word summary covering ALL the categories listed above. Be specific with numbers — cite actual values for income, rents, population, growth rates, zoning limits, competitive rent levels, etc.`;
 
         const pass1Response = await ai.models.generateContent({
             model: MODEL,
@@ -273,7 +320,7 @@ Now write the 300-400 word summary covering ALL the categories listed above. Be 
             ],
             config: {
                 temperature: 0.3,
-                maxOutputTokens: 3000,
+                maxOutputTokens: 4000,
             },
         });
 
@@ -339,7 +386,7 @@ Now write the 300-400 word summary covering ALL the categories listed above. Be 
             config: {
                 systemInstruction: ASSESSMENT_PROMPT,
                 temperature: 0.3,
-                maxOutputTokens: 4000,
+                maxOutputTokens: 5000,
             },
         });
 

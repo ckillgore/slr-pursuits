@@ -892,3 +892,20 @@ export interface HellodataFetchLog {
   fetched_by: string | null;
   fetched_at: string;
 }
+
+// --- Entity Comments ---
+
+export type CommentEntityType = 'pursuit' | 'land_comp';
+
+export interface EntityComment {
+  id: string;
+  entity_type: CommentEntityType;
+  entity_id: string;
+  author_id: string;
+  content: string;
+  mentions: string[];
+  created_at: string;
+  updated_at: string;
+  // Joined
+  author?: UserProfile;
+}

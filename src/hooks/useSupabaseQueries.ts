@@ -28,6 +28,9 @@ export const queryKeys = {
     pursuitMilestones: (pursuitId: string) => ['pursuit-milestones', pursuitId] as const,
     taskNotes: (taskId: string) => ['task-notes', taskId] as const,
     taskActivity: (taskId: string) => ['task-activity', taskId] as const,
+    entityComments: (entityType: string, entityId: string) => ['entity-comments', entityType, entityId] as const,
+    users: ['users'] as const,
+    myMentionCount: (userId: string) => ['my-mention-count', userId] as const,
 };
 
 // ============================================================
@@ -960,5 +963,50 @@ export function useTaskActivity(taskId: string) {
         queryKey: queryKeys.taskActivity(taskId),
         queryFn: () => queries.fetchTaskActivity(taskId),
         enabled: !!taskId,
+    });
+}
+
+// ============================================================
+// Entity Comments
+// ============================================================
+
+export function useEntityComments(entityType: import('@/types').CommentEntityType, entityId: string) {
+    return useQuery({
+        queryKey: queryKeys.entityComments(entityType, entityId),
+        queryFn: () => queries.fetchEntityComments(entityType, entityId),
+        enabled: !!entityId,
+    });
+}
+
+export function useCreateComment() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ entityType, entityId, authorId, content, mentions }: {
+            entityType: import('@/types').CommentEntityType;
+            entityId: string;
+            authorId: string;
+            content: string;
+            mentions: string[];
+        }) => queries.createEntityComment(entityType, entityId, authorId, content, mentions),
+        onSuccess: (data) => {
+            qc.invalidateQueries({ queryKey: queryKeys.entityComments(data.entity_type, data.entity_id) });
+        },
+    });
+}
+
+export function useUsers() {
+    return useQuery({
+        queryKey: queryKeys.users,
+        queryFn: queries.fetchAllUsers,
+        staleTime: 5 * 60 * 1000,
+    });
+}
+
+export function useMyMentionCount(userId: string | undefined) {
+    return useQuery({
+        queryKey: queryKeys.myMentionCount(userId ?? ''),
+        queryFn: () => queries.fetchMyMentionCount(userId!),
+        enabled: !!userId,
+        refetchInterval: 60 * 1000,
     });
 }

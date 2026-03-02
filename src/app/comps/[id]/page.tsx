@@ -12,6 +12,7 @@ import {
     User, FileText, Building2, Pencil, Check, X,
 } from 'lucide-react';
 import type { LandComp } from '@/types';
+import CommentTrigger from '@/components/shared/CommentTrigger';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 const SF_PER_ACRE = 43560;
@@ -264,6 +265,7 @@ export default function CompDetailPage() {
                                 </button>
                             </p>
                         </div>
+                        <CommentTrigger entityType="land_comp" entityId={compId} />
                     </div>
 
                     {/* Location editor */}

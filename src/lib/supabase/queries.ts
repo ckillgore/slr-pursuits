@@ -35,6 +35,9 @@ import type {
     TaskActivityLog,
     HellodataUnit,
     HellodataConcession,
+    EntityComment,
+    CommentEntityType,
+    UserProfile,
 } from '@/types';
 
 const supabase = createClient();
@@ -1609,4 +1612,61 @@ export async function updateRentCompType(
         .eq('pursuit_id', pursuitId)
         .eq('property_id', propertyId);
     if (error) throw error;
+}
+
+// ============================================================
+// Entity Comments
+// ============================================================
+
+/** Fetch all comments for a given entity (pursuit or land comp) */
+export async function fetchEntityComments(
+    entityType: CommentEntityType,
+    entityId: string
+): Promise<EntityComment[]> {
+    const { data, error } = await supabase
+        .from('entity_comments')
+        .select('*, author:user_profiles!author_id(id, full_name, email)')
+        .eq('entity_type', entityType)
+        .eq('entity_id', entityId)
+        .order('created_at', { ascending: true });
+    if (error) throw error;
+    return (data ?? []) as unknown as EntityComment[];
+}
+
+/** Create a new comment */
+export async function createEntityComment(
+    entityType: CommentEntityType,
+    entityId: string,
+    authorId: string,
+    content: string,
+    mentions: string[]
+): Promise<EntityComment> {
+    const { data, error } = await supabase
+        .from('entity_comments')
+        .insert({ entity_type: entityType, entity_id: entityId, author_id: authorId, content, mentions })
+        .select('*, author:user_profiles!author_id(id, full_name, email)')
+        .single();
+    if (error) throw error;
+    return data as unknown as EntityComment;
+}
+
+/** Count comments where the given user is mentioned */
+export async function fetchMyMentionCount(userId: string): Promise<number> {
+    const { count, error } = await supabase
+        .from('entity_comments')
+        .select('id', { count: 'exact', head: true })
+        .contains('mentions', [userId]);
+    if (error) throw error;
+    return count ?? 0;
+}
+
+/** Fetch all active user profiles (for @mention autocomplete) */
+export async function fetchAllUsers(): Promise<UserProfile[]> {
+    const { data, error } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, email, is_active')
+        .eq('is_active', true)
+        .order('full_name');
+    if (error) throw error;
+    return (data ?? []) as UserProfile[];
 }

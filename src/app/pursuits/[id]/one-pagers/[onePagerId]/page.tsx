@@ -6,6 +6,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { OnePagerEditor } from '@/components/one-pager/OnePagerEditor';
 import { usePursuit, useOnePager } from '@/hooks/useSupabaseQueries';
 import { ChevronLeft, Loader2 } from 'lucide-react';
+import CommentTrigger from '@/components/shared/CommentTrigger';
 
 export default function OnePagerPage() {
     const params = useParams();
@@ -40,7 +41,12 @@ export default function OnePagerPage() {
 
     return (
         <AppShell>
-            <OnePagerEditor pursuit={pursuit} onePager={onePager} />
+            <div className="relative">
+                <div className="absolute top-4 right-6 z-10">
+                    <CommentTrigger entityType="pursuit" entityId={pursuitId} />
+                </div>
+                <OnePagerEditor pursuit={pursuit} onePager={onePager} />
+            </div>
         </AppShell>
     );
 }

@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Building2, Settings, Plus, LayoutDashboard, BarChart3, FileSpreadsheet, TrendingUp, Menu, X, LogOut, ChevronDown, Users, Landmark, Compass, KeyRound } from 'lucide-react';
+import { Building2, Settings, Plus, LayoutDashboard, BarChart3, FileSpreadsheet, TrendingUp, Menu, X, LogOut, ChevronDown, Users, Landmark, Compass, KeyRound, Bell } from 'lucide-react';
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { createClient } from '@/lib/supabase/client';
+import { useMyMentionCount } from '@/hooks/useSupabaseQueries';
 
 interface AppShellProps {
     children: ReactNode;
@@ -18,6 +19,7 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
+    const { data: mentionCount = 0 } = useMyMentionCount(profile?.id);
 
     // Change password state
     const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -181,6 +183,16 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                         >
                             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                         </button>
+
+                        {/* Mention notification badge */}
+                        {mentionCount > 0 && (
+                            <div className="relative" title={`${mentionCount} mention${mentionCount > 1 ? 's' : ''}`}>
+                                <Bell className="w-5 h-5 text-[#7A8599]" />
+                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold text-white bg-[#DC2626] rounded-full">
+                                    {mentionCount > 99 ? '99+' : mentionCount}
+                                </span>
+                            </div>
+                        )}
 
                         {/* Desktop User Avatar + Dropdown */}
                         <div className="hidden md:block relative" ref={userMenuRef}>

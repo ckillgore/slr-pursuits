@@ -30,6 +30,7 @@ import { KeyDatesTab } from '@/components/pursuits/KeyDatesTab';
 import ChecklistTab from '@/components/pursuits/ChecklistTab';
 import RentCompsTab from '@/components/pursuits/RentCompsTab';
 import { InlineInput } from '@/components/one-pager/InlineInput';
+import CommentTrigger from '@/components/shared/CommentTrigger';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
 import {
     ChevronLeft,
@@ -305,6 +306,7 @@ export default function PursuitDetailPage() {
                                 <option key={s.id} value={s.id} style={{ background: '#fff', color: '#1A1F2B' }}>{s.name}</option>
                             ))}
                         </select>
+                        <CommentTrigger entityType="pursuit" entityId={pursuitId} />
                         <button
                             onClick={() => setDeletePursuitConfirm(true)}
                             className="ml-auto p-2 rounded-lg text-[#A0AABB] hover:text-[#DC2626] hover:bg-[#FEF2F2] transition-colors"

@@ -65,13 +65,97 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
             }
 
             mapRef.current = map;
+
+            // Once loaded, add parcel polygon layers
+            map.on('load', () => {
+                const bounds = new mbgl.LngLatBounds();
+                let hasParcels = false;
+
+                // Helper to extend bounds from nested coordinate arrays
+                const extendBounds = (coords: any[]) => {
+                    for (const item of coords) {
+                        if (typeof item[0] === 'number') bounds.extend(item as [number, number]);
+                        else extendBounds(item);
+                    }
+                };
+
+                // Primary parcel geometry
+                const primaryGeometry = (pursuit.parcel_data as any)?.parcel?.geometry;
+                if (primaryGeometry) {
+                    map.addSource('primary-parcel', {
+                        type: 'geojson',
+                        data: { type: 'Feature', geometry: primaryGeometry, properties: {} },
+                    });
+                    map.addLayer({
+                        id: 'primary-parcel-fill',
+                        type: 'fill',
+                        source: 'primary-parcel',
+                        paint: { 'fill-color': '#2563EB', 'fill-opacity': 0.15 },
+                    });
+                    map.addLayer({
+                        id: 'primary-parcel-outline',
+                        type: 'line',
+                        source: 'primary-parcel',
+                        paint: { 'line-color': '#2563EB', 'line-width': 2 },
+                    });
+                    if (primaryGeometry.coordinates) {
+                        extendBounds(primaryGeometry.coordinates);
+                        hasParcels = true;
+                    }
+                }
+
+                // Assemblage parcels
+                const assemblage = pursuit.parcel_assemblage;
+                if (assemblage && Array.isArray(assemblage) && assemblage.length > 0) {
+                    const features = assemblage
+                        .filter((p: any) => p.geometry)
+                        .map((p: any) => ({
+                            type: 'Feature' as const,
+                            geometry: p.geometry,
+                            properties: { address: p.address || 'Unknown' },
+                        }));
+
+                    if (features.length > 0) {
+                        map.addSource('assemblage-parcels', {
+                            type: 'geojson',
+                            data: { type: 'FeatureCollection', features },
+                        });
+                        map.addLayer({
+                            id: 'assemblage-fill',
+                            type: 'fill',
+                            source: 'assemblage-parcels',
+                            paint: { 'fill-color': '#7C3AED', 'fill-opacity': 0.2 },
+                        });
+                        map.addLayer({
+                            id: 'assemblage-outline',
+                            type: 'line',
+                            source: 'assemblage-parcels',
+                            paint: { 'line-color': '#7C3AED', 'line-width': 2 },
+                        });
+                        for (const f of features) {
+                            if (f.geometry?.coordinates) {
+                                extendBounds(f.geometry.coordinates);
+                                hasParcels = true;
+                            }
+                        }
+                    }
+                }
+
+                // Fit bounds if we have parcel geometries
+                if (hasParcels && hasLocation) {
+                    bounds.extend([pursuit.longitude!, pursuit.latitude!]);
+                    if (!bounds.isEmpty()) {
+                        map.fitBounds(bounds, { padding: 40, duration: 800 });
+                    }
+                }
+            });
         });
 
         return () => {
             if (map) map.remove();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [MAPBOX_TOKEN]);
+    }, [MAPBOX_TOKEN, pursuit.parcel_data, pursuit.parcel_assemblage]);
 
     // Update marker when lat/lng changes externally
     useEffect(() => {

@@ -128,3 +128,10 @@ _(Append new lessons below. Do not rewrite or delete existing entries.)_
 - **Lazy-import exports**: Use `await import(...)` in the button onClick handler to keep the export libraries out of the main bundle. Both ExcelJS and @react-pdf/renderer are heavy.
 - **Frozen header pane**: In XLSX, `ws.views = [{ state: 'frozen', ySplit: 1 }]` keeps headers visible while scrolling — essential for large exports.
 
+## Security Architecture
+- **Supabase query builder prevents SQL injection**: All `.from()`, `.eq()`, `.insert()`, `.update()`, `.delete()` calls are parameterized by PostgREST. Never use raw SQL or string interpolation in queries.
+- **Server-only API keys**: All third-party keys (Regrid, Gemini, Hellodata, ArcGIS) use `process.env.KEY_NAME` without the `NEXT_PUBLIC_` prefix. Only the Supabase URL and anon key are client-visible (by design — scoped by RLS).
+- **Admin client isolation**: `createAdminClient()` (service role) lives in a dedicated file with clear "NEVER import from client-side" documentation. It's only used in `/api/admin/*` routes that verify `profile.role === 'owner'` first.
+- **RLS as the real access control layer**: Even if someone has the anon key, RLS policies on every table restrict what they can read/write. The `NEXT_PUBLIC_SUPABASE_ANON_KEY` is safe to expose because it's powerless without matching RLS policies.
+- **Middleware auth vs API route auth**: The Next.js proxy redirects unauthenticated page requests to `/login`, but exempts `/api/*` paths. API routes that proxy external services (demographics, Regrid tiles) don't need session auth since they only return public data. Admin routes add their own auth layer.
+- **Hard deletes are a risk**: Without `deleted_at` / soft-delete columns, accidental deletions are permanent. Consider soft-delete for critical tables (pursuits, comps, key dates).

@@ -156,7 +156,22 @@
 
 ---
 
+# Security Audit (3/1)
+
+- [x] Audit all 15 API routes for injection vectors
+- [x] Verify all DB operations use parameterized Supabase query builder (no raw SQL)
+- [x] Confirm service role key isolated in `admin-client.ts` (server-only)
+- [x] Verify admin routes (`/api/admin/*`) are owner-role gated
+- [x] Confirm `.env*` in `.gitignore` and no secrets tracked in git
+- [x] Verify RLS enabled on all tables with appropriate policies
+- [x] Check `NEXT_PUBLIC_` env vars — only URL + anon key (by design)
+
+---
+
 # Future / Deferred Items
 
 - [ ] **Hellodata Market Rents/Pricing API** — AI-driven rent recommendations endpoint (costs ~$0.50/call). Deferred from initial Rent Comps integration. Endpoint: `POST /property/pricing`. Accepts subject property + settings (max_radius, listing_status, date range, include_outliers, building_ids). Returns recommended prices per unit type based on recently closed comps.
 - [ ] Checklist KPI card on pursuit Overview tab
+- [ ] **Security hardening: API route auth** — Add `getUser()` check at top of non-admin API routes to require a valid session (currently proxied routes are callable without auth, but no data leakage risk)
+- [ ] **Security hardening: Soft deletes** — Add `deleted_at` column to critical tables (pursuits, land_comps, key_dates) instead of hard deletes, to allow recovery from accidental deletion
+

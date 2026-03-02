@@ -130,6 +130,17 @@
 
 ---
 
+# Bug Fixes (3/1)
+
+- [x] AI Site Assessment persistence — summary lost on page navigation
+  - [x] Fix `onSaveParcelData` to merge with existing `parcel_data` (preserves `aiSummary` key)
+  - [x] Add `aiHydratedRef` to prevent stale closure in restore `useEffect`
+  - [x] Reset hydration ref on "Clear" so regeneration works
+- [x] Rent Comp report — Year Built column shows decimals in subtotal/total rows
+  - [x] Add `Math.round()` to `rc_year_built` format function
+
+---
+
 # Hellodata Rent Comps Integration
 
 ## Phase 1 — Database & Data Layer

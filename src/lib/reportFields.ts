@@ -230,7 +230,7 @@ const RENT_COMP_FIELDS: ReportFieldDef[] = [
     { key: 'rc_state', label: 'State', category: 'Rent Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.rentComp?.property?.state ?? null, format: fmtText },
     { key: 'rc_msa', label: 'MSA', category: 'Rent Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.rentComp?.property?.msa ?? null, format: fmtText },
     { key: 'rc_comp_type', label: 'Comp Type', category: 'Rent Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.rentComp?.compType ?? null, format: fmtText },
-    { key: 'rc_year_built', label: 'Year Built', category: 'Rent Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.rentComp?.property?.year_built ?? null, format: (v) => v !== null ? String(v) : '—', aggregation: 'avg' },
+    { key: 'rc_year_built', label: 'Year Built', category: 'Rent Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.rentComp?.property?.year_built ?? null, format: (v) => v !== null ? String(Math.round(Number(v))) : '—', aggregation: 'avg' },
     { key: 'rc_units', label: 'Units', category: 'Rent Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.rentComp?.property?.number_units ?? null, format: fmtNumber },
     {
         key: 'rc_avg_sqft', label: 'Avg Sqft', category: 'Rent Comp', type: 'number', groupable: false, filterable: true,

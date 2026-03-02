@@ -135,3 +135,10 @@ _(Append new lessons below. Do not rewrite or delete existing entries.)_
 - **RLS as the real access control layer**: Even if someone has the anon key, RLS policies on every table restrict what they can read/write. The `NEXT_PUBLIC_SUPABASE_ANON_KEY` is safe to expose because it's powerless without matching RLS policies.
 - **Middleware auth vs API route auth**: The Next.js proxy redirects unauthenticated page requests to `/login`, but exempts `/api/*` paths. API routes that proxy external services (demographics, Regrid tiles) don't need session auth since they only return public data. Admin routes add their own auth layer.
 - **Hard deletes are a risk**: Without `deleted_at` / soft-delete columns, accidental deletions are permanent. Consider soft-delete for critical tables (pursuits, comps, key dates).
+
+## JSONB Column Collisions
+- **Multiple features sharing a JSONB column**: If two features store data in the same JSONB column (e.g., `parcel_data` holding both Regrid parcel info and `aiSummary`), any write that replaces the whole column wipes the other feature's data. Always **merge** with the existing value (`{ ...existing, ...newData }`) instead of replacing. Better yet, use `useRef` to track the latest known state for concurrent-save scenarios.
+- **Hydration from DB with `useEffect`**: When restoring local state from a DB-fetched field, avoid referencing mutable state in the guard condition (e.g., `!aiSummary`). The state variable may be stale in the closure. Use a `useRef` flag (e.g., `aiHydratedRef`) to track whether hydration has occurred.
+
+## Report Aggregation Formatting
+- **Integer fields with `avg` aggregation**: Year Built, count-like fields, and similar integer data should use `Math.round()` in their `format` function. The aggregation engine computes raw `sum / count`, which produces decimals (e.g., "2018.67"). The `format` function is applied to both individual row values and aggregated subtotal/total values, so rounding is safe for both cases.

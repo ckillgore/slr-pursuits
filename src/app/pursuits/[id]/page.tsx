@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
@@ -92,11 +92,15 @@ export default function PursuitDetailPage() {
     const [aiSummary, setAiSummary] = useState<string | null>(null);
     const [aiLoading, setAiLoading] = useState(false);
     const [aiError, setAiError] = useState<string | null>(null);
+    const aiHydratedRef = useRef(false);
 
     // Sync from DB once pursuit loads (useState initializer runs before data is fetched)
     useEffect(() => {
         const saved = (pursuit?.parcel_data as any)?.aiSummary;
-        if (saved && !aiSummary) setAiSummary(saved);
+        if (saved && !aiHydratedRef.current) {
+            aiHydratedRef.current = true;
+            setAiSummary(saved);
+        }
     }, [pursuit?.parcel_data]);
 
     const generateSummary = useCallback(async () => {
@@ -680,6 +684,7 @@ export default function PursuitDetailPage() {
                                         <button
                                             onClick={() => {
                                                 setAiSummary(null);
+                                                aiHydratedRef.current = false;
                                                 handleUpdatePursuit({
                                                     parcel_data: {
                                                         ...(pursuit.parcel_data || {}),
@@ -944,7 +949,7 @@ export default function PursuitDetailPage() {
                         siteAreaSF={pursuit.site_area_sf}
                         savedParcelData={pursuit.parcel_data}
                         onSaveParcelData={(data) => handleUpdatePursuit({
-                            parcel_data: data,
+                            parcel_data: { ...(pursuit.parcel_data || {}), ...data },
                             parcel_data_updated_at: new Date().toISOString(),
                         } as any)}
                         savedAssemblage={pursuit.parcel_assemblage}

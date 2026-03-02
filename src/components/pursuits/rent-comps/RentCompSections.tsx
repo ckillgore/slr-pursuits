@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import SVGChart, { ChartSeries } from './SVGChart';
-import type { HellodataUnit } from '@/types';
+import type { HellodataUnit, HellodataConcession } from '@/types';
 import type { PropertyMetrics } from './types';
 import { getAverageAskingRent, getAverageEffectiveRent } from '@/lib/calculations/hellodataCalculations';
 
@@ -18,16 +18,16 @@ export function RentTrendsSection({ comps }: { comps: PropertyMetrics[] }) {
 
     const allBeds = useMemo(() => {
         const beds = new Set<number>();
-        comps.forEach(c => c.units.forEach(u => { if (u.bed !== null) beds.add(u.bed); }));
+        comps.forEach(c => c.units.forEach((u: HellodataUnit) => { if (u.bed !== null) beds.add(u.bed); }));
         return [...beds].sort((a, b) => a - b);
     }, [comps]);
 
     const series = useMemo((): ChartSeries[] => {
         return comps.map((comp, i) => {
-            const units = bedFilter === 'all' ? comp.units : comp.units.filter(u => u.bed === bedFilter);
+            const units = bedFilter === 'all' ? comp.units : comp.units.filter((u: HellodataUnit) => u.bed === bedFilter);
             const buckets: Record<string, number[]> = {};
 
-            units.forEach(u => {
+            units.forEach((u: HellodataUnit) => {
                 if (!u.history || !Array.isArray(u.history)) return;
                 (u.history as { from_date: string; price?: number | null; effective_price?: number | null }[]).forEach(h => {
                     if (!h.from_date) return;
@@ -100,15 +100,15 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
 
         if (groupBy === 'property') {
             comps.forEach((c, i) => {
-                const units = c.units.filter(u => u.sqft && (rentType === 'asking' ? u.price : u.effective_price));
+                const units = c.units.filter((u: HellodataUnit) => u.sqft && (rentType === 'asking' ? u.price : u.effective_price));
                 if (units.length === 0) return;
-                const avgSqft = units.reduce((s, u) => s + (u.sqft ?? 0), 0) / units.length;
+                const avgSqft = units.reduce((s: number, u: HellodataUnit) => s + (u.sqft ?? 0), 0) / units.length;
                 const avgRent = (rentType === 'asking' ? getAverageAskingRent(units) : getAverageEffectiveRent(units)) ?? 0;
                 results.push({ label: c.name, sqft: Math.round(avgSqft), rent: yAxis === 'psf' && avgSqft > 0 ? avgRent / avgSqft : avgRent, count: c.property.number_units ?? units.length, color: COMP_COLORS[i % COMP_COLORS.length] });
             });
         } else if (groupBy === 'type') {
             const bedGroups: Record<number, HellodataUnit[]> = {};
-            comps.forEach(c => c.units.forEach(u => { if (u.bed !== null) { if (!bedGroups[u.bed]) bedGroups[u.bed] = []; bedGroups[u.bed].push(u); } }));
+            comps.forEach(c => c.units.forEach((u: HellodataUnit) => { if (u.bed !== null) { if (!bedGroups[u.bed]) bedGroups[u.bed] = []; bedGroups[u.bed].push(u); } }));
             Object.entries(bedGroups).forEach(([bed, units]) => {
                 const valid = units.filter(u => u.sqft && (rentType === 'asking' ? u.price : u.effective_price));
                 if (valid.length === 0) return;
@@ -120,7 +120,7 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
         } else {
             comps.forEach((c, ci) => {
                 const fpGroups: Record<string, HellodataUnit[]> = {};
-                c.units.forEach(u => { const fp = u.floorplan_name || 'Unknown'; if (!fpGroups[fp]) fpGroups[fp] = []; fpGroups[fp].push(u); });
+                c.units.forEach((u: HellodataUnit) => { const fp = u.floorplan_name || 'Unknown'; if (!fpGroups[fp]) fpGroups[fp] = []; fpGroups[fp].push(u); });
                 Object.entries(fpGroups).forEach(([fp, units]) => {
                     const valid = units.filter(u => u.sqft && (rentType === 'asking' ? u.price : u.effective_price));
                     if (valid.length === 0) return;
@@ -191,7 +191,7 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
 export function OccupancySection({ comps }: { comps: PropertyMetrics[] }) {
     const series = useMemo((): ChartSeries[] => {
         return comps.map((c, i) => {
-            const data = (c.property.occupancy_over_time || []).map(o => ({
+            const data = (c.property.occupancy_over_time || []).map((o: { as_of: string; leased: number; exposure: number }) => ({
                 date: o.as_of,
                 value: Math.round(o.leased * 100 * 10) / 10,
             }));
@@ -249,9 +249,9 @@ export function ConcessionsSection({ comps }: { comps: PropertyMetrics[] }) {
                 <p className="text-xs text-[#7A8599]">Tracked concession periods by property.</p>
             </div>
             {comps.map((c, ci) => {
-                const concessions = c.concessions.sort((a, b) => (b.from_date || '').localeCompare(a.from_date || ''));
+                const concessions = c.concessions.sort((a: HellodataConcession, b: HellodataConcession) => (b.from_date || '').localeCompare(a.from_date || ''));
                 const latest = concessions[0];
-                const freeMonths = concessions.filter(cc => {
+                const freeMonths = concessions.filter((cc: HellodataConcession) => {
                     const items = cc.items as { free_months_count?: number }[] | null;
                     return items?.some(it => it.free_months_count && it.free_months_count > 0);
                 });

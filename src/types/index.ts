@@ -668,3 +668,218 @@ export interface TaskActivityLog {
   // Joined
   user?: UserProfile;
 }
+
+// --- Hellodata Rent Comps ---
+
+export interface HellodataProperty {
+  id: string;
+  hellodata_id: string;
+  building_name: string | null;
+  street_address: string | null;
+  city: string | null;
+  state: string | null;
+  zip_code: string | null;
+  lat: number | null;
+  lon: number | null;
+  year_built: number | null;
+  number_units: number | null;
+  number_stories: number | null;
+  msa: string | null;
+  management_company: string | null;
+  building_website: string | null;
+  building_phone: string | null;
+  is_single_family: boolean;
+  is_apartment: boolean;
+  is_condo: boolean;
+  is_senior: boolean;
+  is_student: boolean;
+  is_build_to_rent: boolean;
+  is_affordable: boolean;
+  is_lease_up: boolean;
+  building_quality: Record<string, number> | null;
+  pricing_strategy: {
+    is_using_rev_management?: boolean;
+    avg_duration?: number;
+    avg_price_change?: number;
+    avg_time_on_market?: number;
+    day_of_week_distribution?: number[];
+    count_prices?: number;
+  } | null;
+  review_analysis: {
+    avg_score?: number;
+    count_reviews?: number;
+    positive_counts?: Record<string, number>;
+    negative_counts?: Record<string, number>;
+  } | null;
+  demographics: Record<string, unknown> | null;
+  fees: Record<string, number | string> | null;
+  occupancy_over_time: { as_of: string; leased: number; exposure: number }[] | null;
+  building_amenities: string[];
+  unit_amenities: string[];
+  raw_response: Record<string, unknown> | null;
+  fetched_at: string;
+  data_as_of: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  units?: HellodataUnit[];
+  concessions?: HellodataConcession[];
+}
+
+export interface HellodataUnit {
+  id: string;
+  property_id: string;
+  hellodata_unit_id: string | null;
+  is_floorplan: boolean;
+  bed: number | null;
+  bath: number | null;
+  partial_bath: number;
+  sqft: number | null;
+  min_sqft: number | null;
+  max_sqft: number | null;
+  floorplan_name: string | null;
+  unit_name: string | null;
+  floor: number | null;
+  price: number | null;
+  min_price: number | null;
+  max_price: number | null;
+  effective_price: number | null;
+  min_effective_price: number | null;
+  max_effective_price: number | null;
+  days_on_market: number | null;
+  lease_term: number | null;
+  enter_market: string | null;
+  exit_market: string | null;
+  availability: string | null;
+  amenities: string[];
+  tags: string[];
+  history: {
+    from_date: string;
+    to_date: string;
+    price: number | null;
+    effective_price: number | null;
+    period_id: number;
+    min_price: number | null;
+    max_price: number | null;
+    min_effective_price: number | null;
+    max_effective_price: number | null;
+    lease_term: number | null;
+  }[] | null;
+  availability_periods: {
+    period_id: number;
+    enter_market: string | null;
+    exit_market: string | null;
+    days_on_market: number | null;
+    availability: string | null;
+    deposit: number | null;
+    price_plans: {
+      duration_in_months: number;
+      specials: string | null;
+      price: number | null;
+      effective_price: number | null;
+      monthly_rent: number | null;
+    }[];
+  }[] | null;
+  price_plans: {
+    duration_in_months: number;
+    specials: string | null;
+    price: number | null;
+    effective_price: number | null;
+    monthly_rent: number | null;
+  }[] | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HellodataConcession {
+  id: string;
+  property_id: string;
+  hellodata_concession_id: string | null;
+  concession_text: string | null;
+  from_date: string | null;
+  to_date: string | null;
+  items: {
+    condition_lease_term_months?: number[];
+    condition_deadline?: string;
+    condition_bedrooms?: number[];
+    condition_unit_names?: string[];
+    condition_floorplans?: string[];
+    free_weeks_count?: number;
+    free_months_count?: number;
+    free_months_until?: string;
+    one_time_dollars_off_amount?: number;
+    one_time_dollars_off_percentage?: number;
+    recurring_dollars_off_amount?: number;
+    recurring_dollars_off_percentage?: number;
+    waived_application_fee?: boolean;
+    waived_security_deposit?: boolean;
+    waived_administrative_fee?: boolean;
+    waived_move_in_fee?: boolean;
+  }[] | null;
+  created_at: string;
+}
+
+export interface PursuitRentComp {
+  id: string;
+  pursuit_id: string;
+  property_id: string;
+  added_by: string | null;
+  added_at: string;
+  notes: string | null;
+  sort_order: number;
+  comp_type: 'primary' | 'secondary';
+  // Joined
+  property?: HellodataProperty;
+}
+
+export interface HellodataSearchResult {
+  id: string;
+  lat: number;
+  lon: number;
+  building_name: string | null;
+  building_name_alias: string[];
+  street_address: string;
+  street_address_alias: string[];
+  city: string;
+  state: string;
+  zip_code: string;
+  year_built: number | null;
+  number_units: number | null;
+}
+
+export interface HellodataComparable {
+  id: string;
+  lat: number;
+  lon: number;
+  year_built: number | null;
+  number_units: number | null;
+  street_address: string;
+  street_address_alias: string[];
+  city: string;
+  state: string;
+  zip_code: string;
+  building_name: string | null;
+  building_name_alias: string[];
+  similarity_score: {
+    distance_meters: number;
+    distance_miles: number;
+    distance: number;
+    number_units: number;
+    vintage: number;
+    number_stories: number;
+    quality: number;
+    building_amenities: number;
+    unit_amenities: number;
+    unit_mix: Record<string, number>;
+    overall: number;
+  };
+}
+
+export interface HellodataFetchLog {
+  id: string;
+  hellodata_id: string;
+  endpoint: string;
+  response_status: number | null;
+  fetched_by: string | null;
+  fetched_at: string;
+}

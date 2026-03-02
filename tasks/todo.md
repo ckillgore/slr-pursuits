@@ -94,3 +94,35 @@
 - [ ] Manual testing via dev server
 - [ ] Checklist KPI card on pursuit Overview tab (cosmetic, deferred)
 
+---
+
+# Hellodata Rent Comps Integration
+
+## Phase 1 — Database & Data Layer
+- [ ] Write migration `010_hellodata_rent_comps.sql` (5 tables)
+- [ ] Add types to `src/types/index.ts`
+- [ ] Add query functions to `src/lib/supabase/queries.ts`
+- [ ] Add React Query hooks to `src/hooks/useHellodataQueries.ts`
+- [ ] Add calculation utilities `src/lib/calculations/hellodataCalculations.ts`
+
+## Phase 2 — API Routes
+- [ ] Create `/api/hellodata/search` route (proxies free search)
+- [ ] Create `/api/hellodata/property` route (smart-cache fetch)
+- [ ] Create `/api/hellodata/comparables` route (proxies free comps)
+
+## Phase 3 — Pursuit Tab (Rent Comps UI)
+- [ ] Create `RentCompsTab.tsx` with search, add, detail views
+- [ ] Integrate into pursuit detail page as new tab
+- [ ] Build unit mix / rent tables, concession timeline, occupancy charts
+
+## Phase 4 — Verification
+- [ ] Test with free dev properties (3 properties provided)
+- [ ] Verify caching prevents duplicate API calls
+- [ ] Manual testing via dev server
+
+---
+
+# Future / Deferred Items
+
+- [ ] **Hellodata Market Rents/Pricing API** — AI-driven rent recommendations endpoint (costs ~$0.50/call). Deferred from initial Rent Comps integration. Endpoint: `POST /property/pricing`. Accepts subject property + settings (max_radius, listing_status, date range, include_outliers, building_ids). Returns recommended prices per unit type based on recently closed comps.
+- [ ] Checklist KPI card on pursuit Overview tab

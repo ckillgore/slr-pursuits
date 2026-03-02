@@ -28,6 +28,7 @@ import { PublicInfoTab } from '@/components/pursuits/PublicInfoTab';
 import { PredevBudgetTab } from '@/components/pursuits/PredevBudgetTab';
 import { KeyDatesTab } from '@/components/pursuits/KeyDatesTab';
 import ChecklistTab from '@/components/pursuits/ChecklistTab';
+import RentCompsTab from '@/components/pursuits/RentCompsTab';
 import { InlineInput } from '@/components/one-pager/InlineInput';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
 import {
@@ -79,8 +80,8 @@ export default function PursuitDetailPage() {
     const [selectedTemplateId, setSelectedTemplateId] = useState('');
     const [isEditingName, setIsEditingName] = useState(false);
     const [editName, setEditName] = useState('');
-    const [activeTab, setActiveTab] = useState<'overview' | 'onepagers' | 'demographics' | 'publicinfo' | 'predev' | 'keydates' | 'checklist'>(
-        initialTab === 'onepagers' ? 'onepagers' : initialTab === 'predev' ? 'predev' : initialTab === 'keydates' ? 'keydates' : initialTab === 'checklist' ? 'checklist' : 'overview'
+    const [activeTab, setActiveTab] = useState<'overview' | 'onepagers' | 'demographics' | 'publicinfo' | 'rent_comps' | 'predev' | 'keydates' | 'checklist'>(
+        initialTab === 'onepagers' ? 'onepagers' : initialTab === 'predev' ? 'predev' : initialTab === 'keydates' ? 'keydates' : initialTab === 'checklist' ? 'checklist' : initialTab === 'rent_comps' ? 'rent_comps' : 'overview'
     );
 
     // KPI data hooks
@@ -405,6 +406,18 @@ export default function PursuitDetailPage() {
                     >
                         Public Information
                         {activeTab === 'publicinfo' && (
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2563EB] rounded-full" />
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('rent_comps')}
+                        className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'rent_comps'
+                            ? 'text-[#2563EB]'
+                            : 'text-[#7A8599] hover:text-[#4A5568]'
+                            }`}
+                    >
+                        Rent Comps
+                        {activeTab === 'rent_comps' && (
                             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2563EB] rounded-full" />
                         )}
                     </button>
@@ -939,6 +952,11 @@ export default function PursuitDetailPage() {
                             parcel_assemblage: data,
                         } as any)}
                     />
+                )}
+
+                {/* ===== RENT COMPS TAB ===== */}
+                {activeTab === 'rent_comps' && (
+                    <RentCompsTab pursuitId={pursuitId} />
                 )}
 
                 {/* ===== PRE-DEV BUDGET TAB ===== */}

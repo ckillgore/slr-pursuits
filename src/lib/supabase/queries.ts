@@ -1461,3 +1461,111 @@ export async function fetchTaskActivity(taskId: string): Promise<TaskActivityLog
     if (error) throw error;
     return (data ?? []) as TaskActivityLog[];
 }
+
+// ============================================================
+// Hellodata Rent Comps
+// ============================================================
+
+import type { PursuitRentComp, HellodataProperty } from '@/types';
+
+/** Fetch rent comps linked to a pursuit, with joined property + units + concessions */
+export async function fetchPursuitRentComps(pursuitId: string): Promise<PursuitRentComp[]> {
+    const { data, error } = await supabase
+        .from('pursuit_rent_comps')
+        .select(`
+            *,
+            property:hellodata_properties(
+                id, hellodata_id, building_name, street_address, city, state, zip_code,
+                lat, lon, year_built, number_units, number_stories, msa,
+                management_company, building_website, building_phone,
+                is_single_family, is_apartment, is_condo, is_senior, is_student,
+                is_build_to_rent, is_affordable, is_lease_up,
+                building_quality, pricing_strategy, review_analysis,
+                demographics, fees, occupancy_over_time,
+                building_amenities, unit_amenities,
+                fetched_at, data_as_of, created_at, updated_at,
+                units:hellodata_units(*),
+                concessions:hellodata_concessions(*)
+            )
+        `)
+        .eq('pursuit_id', pursuitId)
+        .order('sort_order');
+    if (error) throw error;
+    return (data ?? []) as unknown as PursuitRentComp[];
+}
+
+/** Link a Hellodata property as a rent comp for a pursuit */
+export async function linkRentCompToPursuit(
+    pursuitId: string,
+    propertyId: string,
+    notes?: string
+): Promise<PursuitRentComp> {
+    // Use getSession() instead of getUser() — getSession reads local cache,
+    // getUser makes a network call that can hang intermittently
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id ?? null;
+
+    console.log('[linkRentComp] Step A: got session, userId:', userId);
+
+    const { error } = await supabase
+        .from('pursuit_rent_comps')
+        .upsert({
+            pursuit_id: pursuitId,
+            property_id: propertyId,
+            added_by: userId,
+            notes: notes ?? null,
+        }, { onConflict: 'pursuit_id, property_id' });
+
+    console.log('[linkRentComp] Step B: upsert complete, error:', error?.message ?? 'none');
+
+    if (error) {
+        throw error;
+    }
+
+    // Return a minimal object — the full data is refetched by query invalidation
+    return {
+        id: '',
+        pursuit_id: pursuitId,
+        property_id: propertyId,
+        added_by: userId,
+        added_at: new Date().toISOString(),
+        notes: notes ?? null,
+        sort_order: 0,
+        comp_type: 'primary',
+    };
+}
+
+/** Remove a rent comp link from a pursuit (does NOT delete the cached property) */
+export async function unlinkRentCompFromPursuit(pursuitId: string, propertyId: string) {
+    const { error } = await supabase
+        .from('pursuit_rent_comps')
+        .delete()
+        .eq('pursuit_id', pursuitId)
+        .eq('property_id', propertyId);
+    if (error) throw error;
+}
+
+/** Look up a cached Hellodata property by its Hellodata ID */
+export async function fetchHellodataPropertyByHdId(hellodataId: string): Promise<HellodataProperty | null> {
+    const { data, error } = await supabase
+        .from('hellodata_properties')
+        .select('*, hellodata_units(*), hellodata_concessions(*)')
+        .eq('hellodata_id', hellodataId)
+        .maybeSingle();
+    if (error) throw error;
+    return data as unknown as HellodataProperty | null;
+}
+
+/** Update the comp_type (primary/secondary) for a pursuit rent comp */
+export async function updateRentCompType(
+    pursuitId: string,
+    propertyId: string,
+    compType: 'primary' | 'secondary'
+): Promise<void> {
+    const { error } = await supabase
+        .from('pursuit_rent_comps')
+        .update({ comp_type: compType })
+        .eq('pursuit_id', pursuitId)
+        .eq('property_id', propertyId);
+    if (error) throw error;
+}

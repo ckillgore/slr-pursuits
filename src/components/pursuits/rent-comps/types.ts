@@ -10,7 +10,7 @@ export interface PropertyMetrics {
     units: HellodataUnit[];
     /** All concessions */
     concessions: HellodataConcession[];
-    /** Count of currently available units */
+    /** Count of currently available units (vacancies) */
     availableUnits: number;
     /** Avg asking rent */
     askingRent: number | null;
@@ -18,4 +18,17 @@ export interface PropertyMetrics {
     effectiveRent: number | null;
     /** Avg rent per sqft */
     rentPSF: number | null;
+    /** Bed types present */
+    bedTypes: number[];
+    /** Primary or secondary comp */
+    compType: 'primary' | 'secondary';
+    /** Supabase property UUID */
+    propertyId: string;
+    // New Hellodata-style metrics
+    leasedPct: number | null;
+    concessionText: string;
+    avgDaysOnMarket: number | null;
+    avgDaysVacant: number | null;
+    vacancies: number;
+    concessionPct: number | null;
 }

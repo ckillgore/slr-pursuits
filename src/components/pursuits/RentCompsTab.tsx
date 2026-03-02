@@ -83,12 +83,19 @@ interface PropertyMetrics extends SharedPropertyMetrics {
     avgAskPsf: number | null;
     avgConcession: number | null;
     occupancyPct: number | null;
+    leasedPct: number | null;
     qualityLabel: string;
     reviewScore: string;
     pricingStrategy: string;
     bedTypes: number[];
     compType: 'primary' | 'secondary';
     propertyId: string;
+    // New Hellodata-style metrics
+    concessionText: string;
+    avgDaysOnMarket: number | null;
+    avgDaysVacant: number | null;
+    vacancies: number;
+    concessionPct: number | null;
 }
 
 function computeMetrics(rc: PursuitRentComp): PropertyMetrics | null {
@@ -96,9 +103,69 @@ function computeMetrics(rc: PursuitRentComp): PropertyMetrics | null {
     if (!p) return null;
     const units = filterValidUnits((p.units || []) as HellodataUnit[]);
     const concessions = (p.concessions || []) as HellodataConcession[];
-    const occupancy = p.occupancy_over_time?.length
-        ? p.occupancy_over_time[p.occupancy_over_time.length - 1].leased * 100
-        : null;
+    const totalUnits = p.number_units ?? 0;
+
+    // Leased % — Hellodata method: (total - units available within 7 days) / total
+    let leasedPct: number | null = null;
+    const now = new Date();
+    const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const todayStr = now.toISOString().slice(0, 10);
+
+    if (totalUnits > 0) {
+        // First try from occupancy_over_time (most accurate)
+        const occ = p.occupancy_over_time;
+        if (occ?.length) {
+            leasedPct = occ[occ.length - 1].leased * 100;
+        } else {
+            // Fallback: estimate from unit availability
+            let availableWithin7Days = 0;
+            for (const u of units) {
+                const periods = u.availability_periods || [];
+                const isAvailable = periods.some(ap => {
+                    const entered = !ap.enter_market || ap.enter_market <= sevenDaysOut;
+                    const notExited = !ap.exit_market || ap.exit_market >= todayStr;
+                    return entered && notExited;
+                });
+                if (isAvailable) availableWithin7Days++;
+            }
+            leasedPct = ((totalUnits - availableWithin7Days) / totalUnits) * 100;
+        }
+    }
+
+    // Vacancies — currently on-market units
+    let vacancies = 0;
+    for (const u of units) {
+        const periods = u.availability_periods || [];
+        const isOnMarket = periods.some(ap => {
+            const entered = !ap.enter_market || ap.enter_market <= todayStr;
+            const notExited = !ap.exit_market || ap.exit_market >= todayStr;
+            return entered && notExited;
+        });
+        if (isOnMarket) vacancies++;
+    }
+
+    // Days on market — average of units with data
+    const domValues = units.map(u => u.days_on_market).filter((v): v is number => v !== null && v !== undefined);
+    const avgDaysOnMarket = domValues.length > 0 ? domValues.reduce((s, v) => s + v, 0) / domValues.length : null;
+
+    // Average days vacant — approximate from availability periods  
+    const vacantDays = units.flatMap(u => (u.availability_periods || []).map(ap => ap.days_on_market)).filter((v): v is number => v !== null && v !== undefined);
+    const avgDaysVacant = vacantDays.length > 0 ? vacantDays.reduce((s, v) => s + v, 0) / vacantDays.length : null;
+
+    // Concession text — latest concession
+    const sortedConcessions = [...concessions].sort((a, b) => (b.from_date || '').localeCompare(a.from_date || ''));
+    const latestConcession = sortedConcessions[0];
+    let concessionText = '—';
+    if (latestConcession?.concession_text) {
+        concessionText = latestConcession.concession_text;
+    }
+
+    // Concession % — concession amount as percentage of asking rent
+    const askingRent = getAverageAskingRent(units);
+    const effectiveRent = getAverageEffectiveRent(units);
+    const avgConcession = getAverageConcession(units);
+    const concessionPct = (askingRent && avgConcession) ? (avgConcession / askingRent) * 100 : null;
+
     const quality = p.building_quality?.property_overall_quality;
     const bedTypes = [...new Set(units.map(u => u.bed).filter(b => b !== null))] as number[];
     bedTypes.sort((a, b) => a - b);
@@ -109,25 +176,31 @@ function computeMetrics(rc: PursuitRentComp): PropertyMetrics | null {
         property: p,
         units,
         concessions,
-        availableUnits: units.length,
-        askingRent: getAverageAskingRent(units),
-        effectiveRent: getAverageEffectiveRent(units),
+        availableUnits: vacancies,
+        askingRent,
+        effectiveRent,
         rentPSF: getAverageAskingPsf(units),
-        avgEffRent: getAverageEffectiveRent(units),
-        avgAskRent: getAverageAskingRent(units),
+        avgEffRent: effectiveRent,
+        avgAskRent: askingRent,
         avgSqft: getAverageSqft(units),
         avgEffPsf: getAverageEffectivePsf(units),
         avgAskPsf: getAverageAskingPsf(units),
-        avgConcession: getAverageConcession(units),
-        occupancyPct: occupancy,
+        avgConcession,
+        occupancyPct: leasedPct,
+        leasedPct,
         qualityLabel: quality !== undefined ? `${(quality * 100).toFixed(0)}%` : '—',
         reviewScore: p.review_analysis?.avg_score?.toFixed(1) ?? '—',
         pricingStrategy: p.pricing_strategy?.is_using_rev_management
-            ? `Rev Mgmt: Yes\nUpdates: Every ${p.pricing_strategy.avg_duration ?? '?'} days`
+            ? `Rev Mgmt: Yes\nUpdates: Every ${p.pricing_strategy.avg_duration?.toFixed(2) ?? '?'} days`
             : 'Rev Mgmt: No',
         bedTypes,
         compType: rc.comp_type || 'primary',
         propertyId: rc.property_id,
+        concessionText,
+        avgDaysOnMarket,
+        avgDaysVacant,
+        vacancies,
+        concessionPct,
     };
 }
 
@@ -493,10 +566,14 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
             avgSqft: avg(comps.map(c => c.avgSqft)),
             avgEffPsf: avg(comps.map(c => c.avgEffPsf)),
             avgAskPsf: avg(comps.map(c => c.avgAskPsf)),
-            occupancyPct: avg(comps.map(c => c.occupancyPct)),
+            leasedPct: avg(comps.map(c => c.leasedPct)),
             avgConcession: avg(comps.map(c => c.avgConcession)),
+            concessionPct: avg(comps.map(c => c.concessionPct)),
+            avgDaysOnMarket: avg(comps.map(c => c.avgDaysOnMarket)),
+            avgDaysVacant: avg(comps.map(c => c.avgDaysVacant)),
             totalUnits: comps.reduce((s, c) => s + (c.property.number_units ?? 0), 0),
             yearBuilt: avg(comps.map(c => c.property.year_built)),
+            vacancies: Math.round(comps.reduce((s, c) => s + c.vacancies, 0) / comps.length),
         };
     }, [comps]);
 
@@ -505,23 +582,28 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
         avgValue: string;
         values: (compIndex: number) => string;
         bold?: boolean;
+        multiline?: boolean;
     };
 
     const rows: Row[] = [
         { label: 'Management Company', avgValue: '—', values: (i) => comps[i].property.management_company || '—' },
         { label: 'Year Built', avgValue: compAvg.yearBuilt ? Math.round(compAvg.yearBuilt).toString() : '—', values: (i) => comps[i].property.year_built?.toString() || '—' },
         { label: '# Units', avgValue: fmtNum(compAvg.totalUnits / comps.length), values: (i) => fmtNum(comps[i].property.number_units) },
-        { label: 'Leased %', avgValue: fmtPct(compAvg.occupancyPct), values: (i) => fmtPct(comps[i].occupancyPct) },
+        { label: 'Leased %', avgValue: fmtPct(compAvg.leasedPct), values: (i) => fmtPct(comps[i].leasedPct) },
         { label: 'Quality', avgValue: '—', values: (i) => comps[i].qualityLabel },
         { label: 'Reviews', avgValue: '—', values: (i) => comps[i].reviewScore },
-        { label: 'Pricing Strategy', avgValue: '—', values: (i) => comps[i].pricingStrategy },
-        { label: 'Available Units', avgValue: fmtNum(comps.reduce((s, c) => s + c.availableUnits, 0) / comps.length), values: (i) => `${comps[i].availableUnits} units` },
+        { label: 'Pricing Strategy', avgValue: '—', values: (i) => comps[i].pricingStrategy, multiline: true },
+        { label: '# Vacancies', avgValue: `${compAvg.vacancies} vacancies`, values: (i) => `${comps[i].vacancies} vacancies` },
+        { label: 'Days on Market', avgValue: compAvg.avgDaysOnMarket !== null ? `${Math.round(compAvg.avgDaysOnMarket)} days` : '—', values: (i) => comps[i].avgDaysOnMarket !== null ? `${Math.round(comps[i].avgDaysOnMarket!)} days` : '—' },
+        { label: 'Days Vacant', avgValue: compAvg.avgDaysVacant !== null ? `${Math.round(compAvg.avgDaysVacant)} days` : '—', values: (i) => comps[i].avgDaysVacant !== null ? `${Math.round(comps[i].avgDaysVacant!)} days` : '—' },
         { label: 'Rent', avgValue: fmtCur(compAvg.avgAskRent), values: (i) => fmtCur(comps[i].avgAskRent), bold: true },
         { label: 'Average Sqft', avgValue: fmtNum(compAvg.avgSqft, 0), values: (i) => `${fmtNum(comps[i].avgSqft, 0)} ft²` },
         { label: 'NER', avgValue: `${fmtCur(compAvg.avgEffRent)} NER`, values: (i) => `${fmtCur(comps[i].avgEffRent)} NER`, bold: true },
         { label: 'Rent/ft²', avgValue: fmtCur(compAvg.avgAskPsf, 2), values: (i) => `${fmtCur(comps[i].avgAskPsf, 2)}/ft²` },
         { label: 'NER/ft²', avgValue: fmtCur(compAvg.avgEffPsf, 2), values: (i) => `${fmtCur(comps[i].avgEffPsf, 2)}/ft²`, bold: true },
-        { label: 'Concession', avgValue: fmtCur(compAvg.avgConcession), values: (i) => fmtCur(comps[i].avgConcession) },
+        { label: 'Concession %', avgValue: compAvg.concessionPct !== null ? `${compAvg.concessionPct.toFixed(1)}%` : '—', values: (i) => comps[i].concessionPct !== null ? `${comps[i].concessionPct!.toFixed(1)}%` : '0.0%' },
+        { label: 'Concession Amount', avgValue: fmtCur(compAvg.avgConcession), values: (i) => fmtCur(comps[i].avgConcession) },
+        { label: 'Concessions', avgValue: '—', values: (i) => comps[i].concessionText, multiline: true },
     ];
 
     return (
@@ -565,12 +647,15 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
                     {rows.map((row, ri) => (
                         <tr key={ri} className={`border-b border-[#F4F5F7] ${ri % 2 === 0 ? 'bg-white' : 'bg-[#FBFBFC]'}`}>
                             <td className="py-2.5 px-4 font-medium text-[#4A5568] sticky left-0 bg-inherit z-10">{row.label}</td>
-                            <td className={`py-2.5 px-3 text-center text-[#7A8599] ${row.bold ? 'font-semibold' : ''}`}>{row.avgValue}</td>
+                            <td className={`py-2.5 px-3 text-center text-[#7A8599] ${row.bold ? 'font-semibold' : ''} ${row.multiline ? 'text-left max-w-[180px]' : ''}`}>
+                                {row.multiline ? <span className="line-clamp-3 text-[11px]">{row.avgValue}</span> : row.avgValue}
+                            </td>
                             {comps.map((_, ci) => (
-                                <td key={ci} className={`py-2.5 px-3 text-center text-[#1A1F2B] ${row.bold ? 'font-semibold' : ''}`}>
-                                    {row.values(ci).split('\n').map((line, li) => (
-                                        <div key={li}>{line}</div>
-                                    ))}
+                                <td key={ci} className={`py-2.5 px-3 text-center text-[#1A1F2B] ${row.bold ? 'font-semibold' : ''} ${row.multiline ? 'text-left max-w-[180px]' : ''}`}>
+                                    {row.multiline
+                                        ? <span className="line-clamp-3 text-[11px]">{row.values(ci)}</span>
+                                        : row.values(ci).split('\n').map((line, li) => <div key={li}>{line}</div>)
+                                    }
                                 </td>
                             ))}
                         </tr>

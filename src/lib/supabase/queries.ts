@@ -38,6 +38,8 @@ import type {
     EntityComment,
     CommentEntityType,
     UserProfile,
+    SaleComp,
+    SaleTransaction,
 } from '@/types';
 
 const supabase = createClient();
@@ -630,7 +632,8 @@ export interface ReportRow {
         concessions: HellodataConcession[];
         compType: 'primary' | 'secondary';
     };
-    _source: 'pursuit' | 'land_comp' | 'rent_comp';
+    saleComp?: SaleComp;
+    _source: 'pursuit' | 'land_comp' | 'rent_comp' | 'sale_comp';
 }
 
 export async function fetchReportData(): Promise<ReportRow[]> {
@@ -1669,4 +1672,127 @@ export async function fetchAllUsers(): Promise<UserProfile[]> {
         .order('full_name');
     if (error) throw error;
     return (data ?? []) as UserProfile[];
+}
+
+// ============================================================
+// Sale Comps
+// ============================================================
+
+export async function fetchSaleComps(): Promise<SaleComp[]> {
+    const { data, error } = await supabase
+        .from('sale_comps')
+        .select('*, sale_transactions(*)')
+        .order('updated_at', { ascending: false });
+    if (error) throw error;
+    return (data ?? []) as unknown as SaleComp[];
+}
+
+export async function fetchSaleComp(id: string): Promise<SaleComp> {
+    const { data, error } = await supabase
+        .from('sale_comps')
+        .select('*, sale_transactions(*)')
+        .eq('id', id)
+        .single();
+    if (error) throw error;
+    return data as unknown as SaleComp;
+}
+
+export async function createSaleComp(
+    comp: Omit<SaleComp, 'id' | 'created_at' | 'updated_at' | 'created_by' | 'sale_transactions'>
+): Promise<SaleComp> {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data, error } = await supabase
+        .from('sale_comps')
+        .insert({ ...comp, created_by: user?.id ?? null })
+        .select('*, sale_transactions(*)')
+        .single();
+    if (error) throw error;
+    return data as unknown as SaleComp;
+}
+
+export async function updateSaleComp(id: string, updates: Partial<SaleComp>) {
+    const { sale_transactions: _, ...cleanUpdates } = updates as any;
+    const { data, error } = await supabase
+        .from('sale_comps')
+        .update(cleanUpdates)
+        .eq('id', id)
+        .select('*, sale_transactions(*)')
+        .single();
+    if (error) throw error;
+    return data as unknown as SaleComp;
+}
+
+export async function deleteSaleComp(id: string) {
+    const { error } = await supabase.from('sale_comps').delete().eq('id', id);
+    if (error) throw error;
+}
+
+// ============================================================
+// Sale Transactions (child of Sale Comps)
+// ============================================================
+
+export async function upsertSaleTransaction(
+    tx: Partial<SaleTransaction> & { sale_comp_id: string }
+): Promise<SaleTransaction> {
+    const { data, error } = await supabase
+        .from('sale_transactions')
+        .upsert(tx)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as SaleTransaction;
+}
+
+export async function deleteSaleTransaction(id: string) {
+    const { error } = await supabase.from('sale_transactions').delete().eq('id', id);
+    if (error) throw error;
+}
+
+/**
+ * Fetch sale comps as ReportRow[] for the report engine.
+ * Uses the most recent transaction's sale data for the report row.
+ */
+export async function fetchSaleCompReportData(): Promise<ReportRow[]> {
+    const comps = await fetchSaleComps();
+    return comps.map((c): ReportRow => {
+        // Use most recent transaction for report summary
+        const txs = (c.sale_transactions ?? []).sort(
+            (a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime()
+        );
+        const latest = txs[0];
+        return {
+            pursuit: {
+                id: c.id,
+                name: c.name,
+                address: c.address,
+                city: c.city,
+                state: c.state,
+                county: c.county,
+                zip: c.zip,
+                latitude: c.latitude,
+                longitude: c.longitude,
+                site_area_sf: c.lot_size_sf ?? 0,
+                region: '',
+                stage_id: null,
+                stage_changed_at: null,
+                exec_summary: null,
+                arch_notes: null,
+                demographics: null,
+                demographics_updated_at: null,
+                parcel_data: c.parcel_data,
+                parcel_data_updated_at: c.parcel_data_updated_at,
+                drive_time_data: null,
+                income_heatmap_data: null,
+                parcel_assemblage: null,
+                created_by: c.created_by,
+                created_at: c.created_at,
+                updated_at: c.updated_at,
+                is_archived: false,
+                primary_one_pager_id: null,
+            } as unknown as Pursuit,
+            onePager: null,
+            saleComp: c,
+            _source: 'sale_comp',
+        };
+    });
 }

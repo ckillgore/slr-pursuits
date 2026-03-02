@@ -495,7 +495,7 @@ export interface ReportFilter {
   values?: string[];
 }
 
-export type ReportDataSource = 'pursuits' | 'land_comps' | 'predev_budgets' | 'key_dates' | 'rent_comps';
+export type ReportDataSource = 'pursuits' | 'land_comps' | 'predev_budgets' | 'key_dates' | 'rent_comps' | 'sale_comps';
 
 export interface ReportConfig {
   dataSource: ReportDataSource;
@@ -895,7 +895,7 @@ export interface HellodataFetchLog {
 
 // --- Entity Comments ---
 
-export type CommentEntityType = 'pursuit' | 'land_comp';
+export type CommentEntityType = 'pursuit' | 'land_comp' | 'sale_comp';
 
 export interface EntityComment {
   id: string;
@@ -908,4 +908,46 @@ export interface EntityComment {
   updated_at: string;
   // Joined
   author?: UserProfile;
+}
+
+// --- Sale Comps ---
+
+export interface SaleComp {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  county: string;
+  zip: string;
+  latitude: number | null;
+  longitude: number | null;
+  property_type: string | null;
+  year_built: number | null;
+  total_units: number | null;
+  total_sf: number | null;
+  lot_size_sf: number;
+  notes: Record<string, unknown> | null;
+  parcel_data: Record<string, unknown> | null;
+  parcel_data_updated_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  sale_transactions?: SaleTransaction[];
+}
+
+export interface SaleTransaction {
+  id: string;
+  sale_comp_id: string;
+  sale_date: string | null;
+  sale_price: number | null;
+  cap_rate: number | null;
+  price_per_unit: number | null;
+  price_per_sf: number | null;
+  buyer: string | null;
+  seller: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }

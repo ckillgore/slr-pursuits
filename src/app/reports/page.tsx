@@ -18,6 +18,7 @@ import {
     useLandCompReportData,
     useKeyDateReportData,
     useRentCompReportData,
+    useSaleCompReportData,
     useStages,
 } from '@/hooks/useSupabaseQueries';
 import { useReportEngine } from '@/hooks/useReportEngine';
@@ -81,6 +82,7 @@ export default function ReportsPage() {
     const { data: compReportData, isLoading: loadingCompData } = useLandCompReportData();
     const { data: keyDateReportData, isLoading: loadingKeyDateData } = useKeyDateReportData();
     const { data: rentCompReportData, isLoading: loadingRentCompData } = useRentCompReportData();
+    const { data: saleCompReportData, isLoading: loadingSaleCompData } = useSaleCompReportData();
     const { data: stages = [] } = useStages();
     const { user, profile, isAdminOrOwner } = useAuth();
     const createTemplate = useCreateReportTemplate();
@@ -145,7 +147,7 @@ export default function ReportsPage() {
     );
 
     // Report engine — use the appropriate data source
-    const activeData = dataSource === 'land_comps' ? compReportData : dataSource === 'rent_comps' ? rentCompReportData : reportData;
+    const activeData = dataSource === 'land_comps' ? compReportData : dataSource === 'rent_comps' ? rentCompReportData : dataSource === 'sale_comps' ? saleCompReportData : reportData;
     const { filteredRows, groupTree, totalAggregates, isGrouped } = useReportEngine(
         activeData,
         config,
@@ -158,6 +160,7 @@ export default function ReportsPage() {
         if (source === 'land_comps') setConfig(DEFAULT_COMP_CONFIG);
         else if (source === 'key_dates') setConfig(DEFAULT_KEY_DATES_CONFIG);
         else if (source === 'rent_comps') setConfig(DEFAULT_RENT_COMP_CONFIG);
+        else if (source === 'sale_comps') setConfig(DEFAULT_COMP_CONFIG); // reuse comp config as starting point
         else if (source === 'pursuits') setConfig(DEFAULT_PURSUIT_CONFIG);
         // For predev_budgets, config panel is not used — the budget report has its own controls
     };
@@ -216,7 +219,7 @@ export default function ReportsPage() {
         }
     };
 
-    const isLoading = loadingTemplates || loadingData || loadingCompData || loadingKeyDateData || loadingRentCompData;
+    const isLoading = loadingTemplates || loadingData || loadingCompData || loadingKeyDateData || loadingRentCompData || loadingSaleCompData;
 
     return (
         <AppShell>
@@ -257,6 +260,12 @@ export default function ReportsPage() {
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${dataSource === 'rent_comps' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
                         >
                             <Home className="w-3.5 h-3.5" /> Rent Comps
+                        </button>
+                        <button
+                            onClick={() => handleDataSourceChange('sale_comps')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${dataSource === 'sale_comps' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
+                        >
+                            <Building2 className="w-3.5 h-3.5" /> Sale Comps
                         </button>
                     </div>
 
@@ -405,7 +414,7 @@ export default function ReportsPage() {
                                     const a = document.createElement('a');
                                     a.href = url;
                                     const dateStr = new Date().toISOString().slice(0, 10);
-                                    const src = config.dataSource === 'land_comps' ? 'Land_Comps' : config.dataSource === 'rent_comps' ? 'Rent_Comps' : 'Pursuits';
+                                    const src = config.dataSource === 'land_comps' ? 'Land_Comps' : config.dataSource === 'rent_comps' ? 'Rent_Comps' : config.dataSource === 'sale_comps' ? 'Sale_Comps' : 'Pursuits';
                                     a.download = `${src}_Report_${dateStr}.pdf`;
                                     a.click();
                                     URL.revokeObjectURL(url);

@@ -31,6 +31,8 @@ export const queryKeys = {
     entityComments: (entityType: string, entityId: string) => ['entity-comments', entityType, entityId] as const,
     users: ['users'] as const,
     myMentionCount: (userId: string) => ['my-mention-count', userId] as const,
+    saleComps: ['sale-comps'] as const,
+    saleComp: (id: string) => ['sale-comps', id] as const,
 };
 
 // ============================================================
@@ -1008,5 +1010,83 @@ export function useMyMentionCount(userId: string | undefined) {
         queryFn: () => queries.fetchMyMentionCount(userId!),
         enabled: !!userId,
         refetchInterval: 60 * 1000,
+    });
+}
+
+// ============================================================
+// Sale Comps
+// ============================================================
+
+export function useSaleComps() {
+    return useQuery({
+        queryKey: queryKeys.saleComps,
+        queryFn: queries.fetchSaleComps,
+    });
+}
+
+export function useSaleComp(id: string) {
+    return useQuery({
+        queryKey: queryKeys.saleComp(id),
+        queryFn: () => queries.fetchSaleComp(id),
+        enabled: !!id,
+    });
+}
+
+export function useCreateSaleComp() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: queries.createSaleComp,
+        onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.saleComps }),
+    });
+}
+
+export function useUpdateSaleComp() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, updates }: { id: string; updates: Partial<import('@/types').SaleComp> }) =>
+            queries.updateSaleComp(id, updates),
+        onSuccess: (_, { id }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.saleComp(id) });
+            qc.invalidateQueries({ queryKey: queryKeys.saleComps });
+        },
+    });
+}
+
+export function useDeleteSaleComp() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) => queries.deleteSaleComp(id),
+        onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.saleComps }),
+    });
+}
+
+export function useUpsertSaleTransaction() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (tx: Partial<import('@/types').SaleTransaction> & { sale_comp_id: string }) =>
+            queries.upsertSaleTransaction(tx),
+        onSuccess: (data) => {
+            qc.invalidateQueries({ queryKey: queryKeys.saleComp(data.sale_comp_id) });
+            qc.invalidateQueries({ queryKey: queryKeys.saleComps });
+        },
+    });
+}
+
+export function useDeleteSaleTransaction() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, saleCompId }: { id: string; saleCompId: string }) =>
+            queries.deleteSaleTransaction(id),
+        onSuccess: (_, { saleCompId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.saleComp(saleCompId) });
+            qc.invalidateQueries({ queryKey: queryKeys.saleComps });
+        },
+    });
+}
+
+export function useSaleCompReportData() {
+    return useQuery({
+        queryKey: ['sale-comp-report-data'] as const,
+        queryFn: queries.fetchSaleCompReportData,
     });
 }

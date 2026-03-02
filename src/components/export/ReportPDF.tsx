@@ -48,6 +48,7 @@ function sourceLabel(ds: ReportDataSource): string {
     switch (ds) {
         case 'pursuits': return 'Pursuits Report';
         case 'land_comps': return 'Land Comps Report';
+        case 'sale_comps': return 'Sale Comps Report';
         case 'rent_comps': return 'Rent Comps Report';
         case 'key_dates': return 'Key Dates Report';
         case 'predev_budgets': return 'Pre-Dev Budgets Report';

@@ -4,12 +4,12 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/components/AuthProvider';
-import { useLandComps, useCreateLandComp, useDeleteLandComp } from '@/hooks/useSupabaseQueries';
+import { useLandComps, useCreateLandComp, useDeleteLandComp, useSaleComps, useCreateSaleComp, useDeleteSaleComp } from '@/hooks/useSupabaseQueries';
 import {
     Search, Landmark, Loader2, Plus, Trash2, MapPin, Navigation, DollarSign,
-    Calendar, Ruler, LayoutGrid, List, Map,
+    Calendar, Ruler, LayoutGrid, List, Map, Building2, TrendingUp,
 } from 'lucide-react';
-import type { LandComp } from '@/types';
+import type { LandComp, SaleComp } from '@/types';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -129,6 +129,12 @@ export default function CompsPage() {
     const createComp = useCreateLandComp();
     const deleteCompMutation = useDeleteLandComp();
 
+    // Sale comps
+    const { data: saleComps = [], isLoading: loadingSaleComps } = useSaleComps();
+    const createSaleComp = useCreateSaleComp();
+    const deleteSaleCompMutation = useDeleteSaleComp();
+
+    const [activeSection, setActiveSection] = useState<'land' | 'sales'>('land');
     const [searchQuery, setSearchQuery] = useState('');
     const [sortBy, setSortBy] = useState<'newest' | 'name' | 'price'>('newest');
     const [viewMode, setViewMode] = useState<'grid' | 'list' | 'map'>('grid');
@@ -151,6 +157,64 @@ export default function CompsPage() {
     const [coordLatStr, setCoordLatStr] = useState('');
     const [coordLngStr, setCoordLngStr] = useState('');
     const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Sale comp form state
+    const [showNewSaleDialog, setShowNewSaleDialog] = useState(false);
+    const [deleteSaleCompId, setDeleteSaleCompId] = useState<string | null>(null);
+    const [saleName, setSaleName] = useState('');
+    const [saleAddress, setSaleAddress] = useState('');
+    const [saleCity, setSaleCity] = useState('');
+    const [saleState, setSaleState] = useState('');
+    const [salePropertyType, setSalePropertyType] = useState('');
+    const [saleSearchQuery, setSaleSearchQuery] = useState('');
+    const [saleSortBy, setSaleSortBy] = useState<'newest' | 'name'>('newest');
+
+    const filteredSaleComps = useMemo(() => {
+        const list = saleComps.filter((c) => {
+            if (!saleSearchQuery) return true;
+            const q = saleSearchQuery.toLowerCase();
+            return (
+                c.name.toLowerCase().includes(q) ||
+                c.address?.toLowerCase().includes(q) ||
+                c.city?.toLowerCase().includes(q) ||
+                c.property_type?.toLowerCase().includes(q)
+            );
+        });
+        switch (saleSortBy) {
+            case 'name': list.sort((a, b) => a.name.localeCompare(b.name)); break;
+            default: list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        }
+        return list;
+    }, [saleComps, saleSearchQuery, saleSortBy]);
+
+    const handleCreateSaleComp = async () => {
+        if (!saleName.trim()) return;
+        try {
+            const created = await createSaleComp.mutateAsync({
+                name: saleName.trim(),
+                address: saleAddress,
+                city: saleCity,
+                state: saleState,
+                county: '',
+                zip: '',
+                latitude: null,
+                longitude: null,
+                property_type: salePropertyType || null,
+                year_built: null,
+                total_units: null,
+                total_sf: null,
+                lot_size_sf: 0,
+                notes: null,
+                parcel_data: null,
+                parcel_data_updated_at: null,
+            });
+            setSaleName(''); setSaleAddress(''); setSaleCity(''); setSaleState(''); setSalePropertyType('');
+            setShowNewSaleDialog(false);
+            router.push(`/comps/sales/${created.id}`);
+        } catch (err) {
+            console.error('Failed to create sale comp:', err);
+        }
+    };
 
     const filtered = useMemo(() => {
         const list = comps.filter((c) => {
@@ -276,9 +340,11 @@ export default function CompsPage() {
                 {/* Header */}
                 <div className="mb-6 md:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div>
-                        <h1 className="text-xl md:text-2xl font-bold text-[#1A1F2B]">Land Comps</h1>
+                        <h1 className="text-xl md:text-2xl font-bold text-[#1A1F2B]">Comps</h1>
                         <p className="text-sm text-[#7A8599] mt-0.5">
-                            {comps.length} comp{comps.length !== 1 ? 's' : ''}
+                            {activeSection === 'land'
+                                ? `${comps.length} land comp${comps.length !== 1 ? 's' : ''}`
+                                : `${saleComps.length} sale comp${saleComps.length !== 1 ? 's' : ''}`}
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -313,197 +379,359 @@ export default function CompsPage() {
                     </div>
                 </div>
 
-                {/* Filter Bar */}
-                <div className="flex flex-wrap items-center gap-3 mb-6">
-                    <div className="flex-1 min-w-[200px] relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0AABB]" />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search comps..."
-                            className="w-full pl-10 pr-4 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] placeholder:text-[#A0AABB] focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D9488]/10 focus:outline-none transition-all"
-                        />
-                    </div>
-                    {(viewMode === 'grid' || viewMode === 'list') && (
-                        <select
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value as any)}
-                            className="px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#4A5568] focus:border-[#0D9488] focus:outline-none"
-                        >
-                            <option value="newest">Newest First</option>
-                            <option value="name">Name A→Z</option>
-                            <option value="price">Highest Price</option>
-                        </select>
-                    )}
+                {/* Tab Bar */}
+                <div className="flex gap-1 mb-6 border-b border-[#E2E5EA]">
+                    <button
+                        onClick={() => setActiveSection('land')}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${activeSection === 'land' ? 'text-[#0D9488] border-[#0D9488]' : 'text-[#7A8599] border-transparent hover:text-[#4A5568]'}`}
+                    >
+                        <Landmark className="w-4 h-4" /> Land Comps
+                    </button>
+                    <button
+                        onClick={() => setActiveSection('sales')}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${activeSection === 'sales' ? 'text-[#6366F1] border-[#6366F1]' : 'text-[#7A8599] border-transparent hover:text-[#4A5568]'}`}
+                    >
+                        <Building2 className="w-4 h-4" /> Sale Comps
+                    </button>
                 </div>
 
-                {/* Loading */}
-                {isLoading && (
-                    <div className="flex justify-center py-24">
-                        <Loader2 className="w-8 h-8 animate-spin text-[#C8CDD5]" />
-                    </div>
-                )}
+                {/* ═══ LAND COMPS SECTION ═══ */}
+                {activeSection === 'land' && (<>
 
-                {/* === GRID VIEW === */}
-                {!isLoading && viewMode === 'grid' && filtered.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {filtered.map((comp) => (
-                            <div
-                                key={comp.id}
-                                className="group relative bg-white border border-[#E2E5EA] rounded-xl p-4 hover:border-[#0D9488]/40 hover:shadow-md transition-all cursor-pointer"
-                                onClick={() => router.push(`/comps/${comp.id}`)}
+                    {/* Filter Bar */}
+                    <div className="flex flex-wrap items-center gap-3 mb-6">
+                        <div className="flex-1 min-w-[200px] relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0AABB]" />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search comps..."
+                                className="w-full pl-10 pr-4 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] placeholder:text-[#A0AABB] focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D9488]/10 focus:outline-none transition-all"
+                            />
+                        </div>
+                        {(viewMode === 'grid' || viewMode === 'list') && (
+                            <select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value as any)}
+                                className="px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#4A5568] focus:border-[#0D9488] focus:outline-none"
                             >
-                                {/* Delete button — admin/owner only */}
-                                {isAdminOrOwner && (
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setDeleteCompId(comp.id); }}
-                                        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-red-50 text-[#A0AABB] hover:text-red-500 transition-all"
-                                    >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                )}
-
-                                <div className="mb-3">
-                                    <h3 className="text-sm font-semibold text-[#1A1F2B] truncate pr-8">{comp.name}</h3>
-                                    <p className="text-xs text-[#7A8599] truncate mt-0.5">
-                                        {[comp.address, comp.city, comp.state].filter(Boolean).join(', ') || 'No address'}
-                                    </p>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-2">
-                                    {comp.sale_price != null && comp.sale_price > 0 && (
-                                        <div className="flex items-center gap-1.5">
-                                            <DollarSign className="w-3 h-3 text-[#0D9488]" />
-                                            <div>
-                                                <div className="text-[10px] text-[#A0AABB] uppercase">Sale Price</div>
-                                                <div className="text-xs font-semibold text-[#1A1F2B]">{formatCurrency(comp.sale_price)}</div>
-                                            </div>
-                                        </div>
-                                    )}
-                                    {comp.sale_price_psf != null && comp.sale_price_psf > 0 && (
-                                        <div className="flex items-center gap-1.5">
-                                            <Ruler className="w-3 h-3 text-[#0D9488]" />
-                                            <div>
-                                                <div className="text-[10px] text-[#A0AABB] uppercase">Price/SF</div>
-                                                <div className="text-xs font-semibold text-[#1A1F2B]">{formatCurrency(comp.sale_price_psf)}</div>
-                                            </div>
-                                        </div>
-                                    )}
-                                    {comp.sale_date && (
-                                        <div className="flex items-center gap-1.5">
-                                            <Calendar className="w-3 h-3 text-[#7A8599]" />
-                                            <div>
-                                                <div className="text-[10px] text-[#A0AABB] uppercase">Sale Date</div>
-                                                <div className="text-xs text-[#4A5568]">{new Date(comp.sale_date).toLocaleDateString()}</div>
-                                            </div>
-                                        </div>
-                                    )}
-                                    {comp.site_area_sf > 0 && (
-                                        <div className="flex items-center gap-1.5">
-                                            <MapPin className="w-3 h-3 text-[#7A8599]" />
-                                            <div>
-                                                <div className="text-[10px] text-[#A0AABB] uppercase">Site Area</div>
-                                                <div className="text-xs text-[#4A5568]">{formatNumber(comp.site_area_sf)} SF</div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="mt-3 pt-2 border-t border-[#F0F1F4] text-[10px] text-[#A0AABB]">
-                                    Added {new Date(comp.created_at).toLocaleDateString()}
-                                </div>
-                            </div>
-                        ))}
+                                <option value="newest">Newest First</option>
+                                <option value="name">Name A→Z</option>
+                                <option value="price">Highest Price</option>
+                            </select>
+                        )}
                     </div>
-                )}
 
-                {/* === LIST VIEW === */}
-                {!isLoading && viewMode === 'list' && filtered.length > 0 && (
-                    <div className="bg-white border border-[#E2E5EA] rounded-xl overflow-hidden">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b border-[#E2E5EA] bg-[#FAFBFC]">
-                                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider">Name</th>
-                                    <th className="text-left px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider hidden sm:table-cell">Location</th>
-                                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider">Sale Price</th>
-                                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider hidden md:table-cell">Price/SF</th>
-                                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider hidden md:table-cell">Site (SF)</th>
-                                    <th className="text-right px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider hidden lg:table-cell">Sale Date</th>
-                                    {isAdminOrOwner && <th className="w-10"></th>}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filtered.map((c) => (
-                                    <tr
-                                        key={c.id}
-                                        className="group border-b border-[#F0F1F4] last:border-b-0 hover:bg-[#FAFBFC] cursor-pointer transition-colors"
-                                        onClick={() => router.push(`/comps/${c.id}`)}
-                                    >
-                                        <td className="px-4 py-3">
-                                            <span className="font-semibold text-[#1A1F2B] hover:text-[#0D9488] transition-colors">{c.name}</span>
-                                        </td>
-                                        <td className="px-4 py-3 text-[#7A8599] hidden sm:table-cell">
-                                            {[c.city, c.state].filter(Boolean).join(', ') || '—'}
-                                        </td>
-                                        <td className="px-4 py-3 text-right font-semibold text-[#1A1F2B]">
-                                            {c.sale_price ? formatCurrency(c.sale_price) : '—'}
-                                        </td>
-                                        <td className="px-4 py-3 text-right text-[#4A5568] hidden md:table-cell">
-                                            {c.sale_price_psf ? formatCurrency(c.sale_price_psf) : '—'}
-                                        </td>
-                                        <td className="px-4 py-3 text-right text-[#4A5568] hidden md:table-cell">
-                                            {c.site_area_sf > 0 ? formatNumber(c.site_area_sf) : '—'}
-                                        </td>
-                                        <td className="px-4 py-3 text-right text-xs text-[#7A8599] hidden lg:table-cell">
-                                            {c.sale_date ? new Date(c.sale_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
-                                        </td>
-                                        {isAdminOrOwner && (
-                                            <td className="px-4 py-1 text-right">
+                    {/* Loading */}
+                    {isLoading && (
+                        <div className="flex justify-center py-24">
+                            <Loader2 className="w-8 h-8 animate-spin text-[#C8CDD5]" />
+                        </div>
+                    )}
+
+                    {/* === GRID VIEW === */}
+                    {!isLoading && viewMode === 'grid' && filtered.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {filtered.map((comp) => (
+                                <div
+                                    key={comp.id}
+                                    className="group relative bg-white border border-[#E2E5EA] rounded-xl p-4 hover:border-[#0D9488]/40 hover:shadow-md transition-all cursor-pointer"
+                                    onClick={() => router.push(`/comps/${comp.id}`)}
+                                >
+                                    {/* Delete button — admin/owner only */}
+                                    {isAdminOrOwner && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setDeleteCompId(comp.id); }}
+                                            className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-red-50 text-[#A0AABB] hover:text-red-500 transition-all"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+
+                                    <div className="mb-3">
+                                        <h3 className="text-sm font-semibold text-[#1A1F2B] truncate pr-8">{comp.name}</h3>
+                                        <p className="text-xs text-[#7A8599] truncate mt-0.5">
+                                            {[comp.address, comp.city, comp.state].filter(Boolean).join(', ') || 'No address'}
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {comp.sale_price != null && comp.sale_price > 0 && (
+                                            <div className="flex items-center gap-1.5">
+                                                <DollarSign className="w-3 h-3 text-[#0D9488]" />
+                                                <div>
+                                                    <div className="text-[10px] text-[#A0AABB] uppercase">Sale Price</div>
+                                                    <div className="text-xs font-semibold text-[#1A1F2B]">{formatCurrency(comp.sale_price)}</div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {comp.sale_price_psf != null && comp.sale_price_psf > 0 && (
+                                            <div className="flex items-center gap-1.5">
+                                                <Ruler className="w-3 h-3 text-[#0D9488]" />
+                                                <div>
+                                                    <div className="text-[10px] text-[#A0AABB] uppercase">Price/SF</div>
+                                                    <div className="text-xs font-semibold text-[#1A1F2B]">{formatCurrency(comp.sale_price_psf)}</div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {comp.sale_date && (
+                                            <div className="flex items-center gap-1.5">
+                                                <Calendar className="w-3 h-3 text-[#7A8599]" />
+                                                <div>
+                                                    <div className="text-[10px] text-[#A0AABB] uppercase">Sale Date</div>
+                                                    <div className="text-xs text-[#4A5568]">{new Date(comp.sale_date).toLocaleDateString()}</div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {comp.site_area_sf > 0 && (
+                                            <div className="flex items-center gap-1.5">
+                                                <MapPin className="w-3 h-3 text-[#7A8599]" />
+                                                <div>
+                                                    <div className="text-[10px] text-[#A0AABB] uppercase">Site Area</div>
+                                                    <div className="text-xs text-[#4A5568]">{formatNumber(comp.site_area_sf)} SF</div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="mt-3 pt-2 border-t border-[#F0F1F4] text-[10px] text-[#A0AABB]">
+                                        Added {new Date(comp.created_at).toLocaleDateString()}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* === LIST VIEW === */}
+                    {!isLoading && viewMode === 'list' && filtered.length > 0 && (
+                        <div className="bg-white border border-[#E2E5EA] rounded-xl overflow-hidden">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-b border-[#E2E5EA] bg-[#FAFBFC]">
+                                        <th className="text-left px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider">Name</th>
+                                        <th className="text-left px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider hidden sm:table-cell">Location</th>
+                                        <th className="text-right px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider">Sale Price</th>
+                                        <th className="text-right px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider hidden md:table-cell">Price/SF</th>
+                                        <th className="text-right px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider hidden md:table-cell">Site (SF)</th>
+                                        <th className="text-right px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider hidden lg:table-cell">Sale Date</th>
+                                        {isAdminOrOwner && <th className="w-10"></th>}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filtered.map((c) => (
+                                        <tr
+                                            key={c.id}
+                                            className="group border-b border-[#F0F1F4] last:border-b-0 hover:bg-[#FAFBFC] cursor-pointer transition-colors"
+                                            onClick={() => router.push(`/comps/${c.id}`)}
+                                        >
+                                            <td className="px-4 py-3">
+                                                <span className="font-semibold text-[#1A1F2B] hover:text-[#0D9488] transition-colors">{c.name}</span>
+                                            </td>
+                                            <td className="px-4 py-3 text-[#7A8599] hidden sm:table-cell">
+                                                {[c.city, c.state].filter(Boolean).join(', ') || '—'}
+                                            </td>
+                                            <td className="px-4 py-3 text-right font-semibold text-[#1A1F2B]">
+                                                {c.sale_price ? formatCurrency(c.sale_price) : '—'}
+                                            </td>
+                                            <td className="px-4 py-3 text-right text-[#4A5568] hidden md:table-cell">
+                                                {c.sale_price_psf ? formatCurrency(c.sale_price_psf) : '—'}
+                                            </td>
+                                            <td className="px-4 py-3 text-right text-[#4A5568] hidden md:table-cell">
+                                                {c.site_area_sf > 0 ? formatNumber(c.site_area_sf) : '—'}
+                                            </td>
+                                            <td className="px-4 py-3 text-right text-xs text-[#7A8599] hidden lg:table-cell">
+                                                {c.sale_date ? new Date(c.sale_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                                            </td>
+                                            {isAdminOrOwner && (
+                                                <td className="px-4 py-1 text-right">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setDeleteCompId(c.id); }}
+                                                        className="p-1.5 rounded-md text-[#A0AABB] hover:text-[#DC2626] hover:bg-[#FEF2F2] transition-all opacity-0 group-hover:opacity-100"
+                                                        title="Delete comp"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </td>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {/* === MAP VIEW === */}
+                    {!isLoading && viewMode === 'map' && (
+                        <CompsMap comps={filtered} />
+                    )}
+
+                    {/* Empty State */}
+                    {!isLoading && filtered.length === 0 && viewMode !== 'map' && (
+                        <div className="flex flex-col items-center justify-center py-24 text-center">
+                            <div className="w-16 h-16 rounded-2xl bg-[#F4F5F7] flex items-center justify-center mb-4">
+                                <Landmark className="w-8 h-8 text-[#A0AABB]" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-[#4A5568] mb-2">
+                                {comps.length === 0 ? 'No comps yet' : 'No matching comps'}
+                            </h3>
+                            <p className="text-sm text-[#7A8599] max-w-md">
+                                {comps.length === 0
+                                    ? 'Add your first land sale comparable to start tracking market data.'
+                                    : 'Try adjusting your search.'}
+                            </p>
+                            {comps.length === 0 && (
+                                <button
+                                    onClick={() => setShowNewDialog(true)}
+                                    className="mt-6 px-4 py-2 rounded-lg bg-[#0D9488] hover:bg-[#0F766E] text-white text-sm font-medium transition-colors shadow-sm"
+                                >
+                                    Add First Comp
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </>)}
+
+                {/* ═══ SALE COMPS SECTION ═══ */}
+                {activeSection === 'sales' && (
+                    <>
+                        {/* Sale Comps Controls */}
+                        <div className="flex flex-wrap items-center gap-3 mb-6">
+                            <div className="flex-1 min-w-[200px] relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0AABB]" />
+                                <input
+                                    type="text"
+                                    value={saleSearchQuery}
+                                    onChange={(e) => setSaleSearchQuery(e.target.value)}
+                                    placeholder="Search sale comps..."
+                                    className="w-full pl-10 pr-4 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] placeholder:text-[#A0AABB] focus:border-[#6366F1] focus:ring-2 focus:ring-[#6366F1]/10 focus:outline-none transition-all"
+                                />
+                            </div>
+                            <select
+                                value={saleSortBy}
+                                onChange={(e) => setSaleSortBy(e.target.value as any)}
+                                className="px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#4A5568] focus:border-[#6366F1] focus:outline-none"
+                            >
+                                <option value="newest">Newest First</option>
+                                <option value="name">Name A→Z</option>
+                            </select>
+                            <button
+                                onClick={() => setShowNewSaleDialog(true)}
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-medium transition-colors shadow-sm"
+                            >
+                                <Plus className="w-4 h-4" /> New Sale Comp
+                            </button>
+                        </div>
+
+                        {loadingSaleComps && (
+                            <div className="flex justify-center py-24">
+                                <Loader2 className="w-8 h-8 animate-spin text-[#C8CDD5]" />
+                            </div>
+                        )}
+
+                        {!loadingSaleComps && filteredSaleComps.length > 0 && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {filteredSaleComps.map((sc) => {
+                                    const txs = (sc.sale_transactions ?? []).sort(
+                                        (a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime()
+                                    );
+                                    const latest = txs[0];
+                                    return (
+                                        <div
+                                            key={sc.id}
+                                            className="group relative bg-white border border-[#E2E5EA] rounded-xl p-4 hover:border-[#6366F1]/40 hover:shadow-md transition-all cursor-pointer"
+                                            onClick={() => router.push(`/comps/sales/${sc.id}`)}
+                                        >
+                                            {isAdminOrOwner && (
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); setDeleteCompId(c.id); }}
-                                                    className="p-1.5 rounded-md text-[#A0AABB] hover:text-[#DC2626] hover:bg-[#FEF2F2] transition-all opacity-0 group-hover:opacity-100"
-                                                    title="Delete comp"
+                                                    onClick={(e) => { e.stopPropagation(); setDeleteSaleCompId(sc.id); }}
+                                                    className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-red-50 text-[#A0AABB] hover:text-red-500 transition-all"
                                                 >
                                                     <Trash2 className="w-3.5 h-3.5" />
                                                 </button>
-                                            </td>
-                                        )}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-
-                {/* === MAP VIEW === */}
-                {!isLoading && viewMode === 'map' && (
-                    <CompsMap comps={filtered} />
-                )}
-
-                {/* Empty State */}
-                {!isLoading && filtered.length === 0 && viewMode !== 'map' && (
-                    <div className="flex flex-col items-center justify-center py-24 text-center">
-                        <div className="w-16 h-16 rounded-2xl bg-[#F4F5F7] flex items-center justify-center mb-4">
-                            <Landmark className="w-8 h-8 text-[#A0AABB]" />
-                        </div>
-                        <h3 className="text-lg font-semibold text-[#4A5568] mb-2">
-                            {comps.length === 0 ? 'No comps yet' : 'No matching comps'}
-                        </h3>
-                        <p className="text-sm text-[#7A8599] max-w-md">
-                            {comps.length === 0
-                                ? 'Add your first land sale comparable to start tracking market data.'
-                                : 'Try adjusting your search.'}
-                        </p>
-                        {comps.length === 0 && (
-                            <button
-                                onClick={() => setShowNewDialog(true)}
-                                className="mt-6 px-4 py-2 rounded-lg bg-[#0D9488] hover:bg-[#0F766E] text-white text-sm font-medium transition-colors shadow-sm"
-                            >
-                                Add First Comp
-                            </button>
+                                            )}
+                                            <div className="mb-3">
+                                                <h3 className="text-sm font-semibold text-[#1A1F2B] truncate pr-8">{sc.name}</h3>
+                                                <p className="text-xs text-[#7A8599] truncate mt-0.5">
+                                                    {[sc.address, sc.city, sc.state].filter(Boolean).join(', ') || 'No address'}
+                                                </p>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {sc.property_type && (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Building2 className="w-3 h-3 text-[#6366F1]" />
+                                                        <div>
+                                                            <div className="text-[10px] text-[#A0AABB] uppercase">Type</div>
+                                                            <div className="text-xs font-semibold text-[#1A1F2B]">{sc.property_type}</div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {sc.total_units && sc.total_units > 0 && (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Landmark className="w-3 h-3 text-[#6366F1]" />
+                                                        <div>
+                                                            <div className="text-[10px] text-[#A0AABB] uppercase">Units</div>
+                                                            <div className="text-xs font-semibold text-[#1A1F2B]">{sc.total_units}</div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {latest?.sale_price && (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <DollarSign className="w-3 h-3 text-[#6366F1]" />
+                                                        <div>
+                                                            <div className="text-[10px] text-[#A0AABB] uppercase">Last Sale</div>
+                                                            <div className="text-xs font-semibold text-[#1A1F2B]">{formatCurrency(latest.sale_price)}</div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {latest?.cap_rate && (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <TrendingUp className="w-3 h-3 text-[#6366F1]" />
+                                                        <div>
+                                                            <div className="text-[10px] text-[#A0AABB] uppercase">Cap Rate</div>
+                                                            <div className="text-xs font-semibold text-[#1A1F2B]">{(latest.cap_rate * 100).toFixed(2)}%</div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="mt-3 pt-2 border-t border-[#F0F1F4] flex items-center justify-between">
+                                                <span className="text-[10px] text-[#A0AABB]">Added {new Date(sc.created_at).toLocaleDateString()}</span>
+                                                {txs.length > 0 && (
+                                                    <span className="text-[10px] bg-[#EEF2FF] text-[#6366F1] px-1.5 py-0.5 rounded-full font-medium">
+                                                        {txs.length} sale{txs.length > 1 ? 's' : ''}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         )}
-                    </div>
+
+                        {!loadingSaleComps && filteredSaleComps.length === 0 && (
+                            <div className="flex flex-col items-center justify-center py-24 text-center">
+                                <div className="w-16 h-16 rounded-2xl bg-[#F4F5F7] flex items-center justify-center mb-4">
+                                    <Building2 className="w-8 h-8 text-[#A0AABB]" />
+                                </div>
+                                <h3 className="text-lg font-semibold text-[#4A5568] mb-2">
+                                    {saleComps.length === 0 ? 'No sale comps yet' : 'No matching sale comps'}
+                                </h3>
+                                <p className="text-sm text-[#7A8599] max-w-md">
+                                    {saleComps.length === 0
+                                        ? 'Add your first building sale comparable to start tracking market data.'
+                                        : 'Try adjusting your search.'}
+                                </p>
+                                {saleComps.length === 0 && (
+                                    <button
+                                        onClick={() => setShowNewSaleDialog(true)}
+                                        className="mt-6 px-4 py-2 rounded-lg bg-[#6366F1] hover:bg-[#4F46E5] text-white text-sm font-medium transition-colors shadow-sm"
+                                    >
+                                        Add First Sale Comp
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
 
@@ -603,6 +831,101 @@ export default function CompsPage() {
                                 onClick={async () => {
                                     await deleteCompMutation.mutateAsync(deleteCompId);
                                     setDeleteCompId(null);
+                                }}
+                                className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══ Create Sale Comp Dialog ═══ */}
+            {showNewSaleDialog && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowNewSaleDialog(false)}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 mx-4" onClick={(e) => e.stopPropagation()}>
+                        <h2 className="text-lg font-bold text-[#1A1F2B] mb-4">New Sale Comp</h2>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="text-xs font-semibold text-[#7A8599] uppercase mb-1 block">Property Name *</label>
+                                <input
+                                    value={saleName}
+                                    onChange={(e) => setSaleName(e.target.value)}
+                                    placeholder="e.g. The Residences at Main"
+                                    className="w-full px-3 py-2 rounded-lg border border-[#E2E5EA] text-sm focus:border-[#6366F1] focus:outline-none"
+                                    autoFocus
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-semibold text-[#7A8599] uppercase mb-1 block">Address</label>
+                                <input
+                                    value={saleAddress}
+                                    onChange={(e) => setSaleAddress(e.target.value)}
+                                    placeholder="123 Main St"
+                                    className="w-full px-3 py-2 rounded-lg border border-[#E2E5EA] text-sm focus:border-[#6366F1] focus:outline-none"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-semibold text-[#7A8599] uppercase mb-1 block">City</label>
+                                    <input
+                                        value={saleCity}
+                                        onChange={(e) => setSaleCity(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-lg border border-[#E2E5EA] text-sm focus:border-[#6366F1] focus:outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-[#7A8599] uppercase mb-1 block">State</label>
+                                    <input
+                                        value={saleState}
+                                        onChange={(e) => setSaleState(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-lg border border-[#E2E5EA] text-sm focus:border-[#6366F1] focus:outline-none"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-xs font-semibold text-[#7A8599] uppercase mb-1 block">Property Type</label>
+                                <select
+                                    value={salePropertyType}
+                                    onChange={(e) => setSalePropertyType(e.target.value)}
+                                    className="w-full px-3 py-2 rounded-lg border border-[#E2E5EA] text-sm focus:border-[#6366F1] focus:outline-none"
+                                >
+                                    <option value="">Select type...</option>
+                                    <option value="Multifamily">Multifamily</option>
+                                    <option value="Multifamily w/ Retail">Multifamily w/ Retail</option>
+                                    <option value="Mixed-Use">Mixed-Use</option>
+                                    <option value="Land">Land</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-5">
+                            <button onClick={() => setShowNewSaleDialog(false)} className="px-4 py-2 text-sm text-[#7A8599] hover:text-[#4A5568] transition-colors">Cancel</button>
+                            <button
+                                onClick={handleCreateSaleComp}
+                                disabled={!saleName.trim() || createSaleComp.isPending}
+                                className="px-4 py-2 rounded-lg bg-[#6366F1] text-white text-sm font-medium hover:bg-[#4F46E5] disabled:opacity-50 transition-colors"
+                            >
+                                {createSaleComp.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Sale Comp'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══ Delete Sale Comp Confirm ═══ */}
+            {deleteSaleCompId && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setDeleteSaleCompId(null)}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 mx-4" onClick={(e) => e.stopPropagation()}>
+                        <h3 className="text-base font-bold text-[#1A1F2B] mb-2">Delete Sale Comp?</h3>
+                        <p className="text-sm text-[#7A8599] mb-4">This will permanently delete this sale comp and all its transactions. This action cannot be undone.</p>
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setDeleteSaleCompId(null)} className="px-4 py-2 text-sm text-[#7A8599]">Cancel</button>
+                            <button
+                                onClick={async () => {
+                                    await deleteSaleCompMutation.mutateAsync(deleteSaleCompId);
+                                    setDeleteSaleCompId(null);
                                 }}
                                 className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors"
                             >

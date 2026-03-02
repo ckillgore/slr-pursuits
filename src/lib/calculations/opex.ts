@@ -13,6 +13,7 @@ export interface OpExCalc {
     turnover_total: number;
     misc_total: number;
     insurance_total: number;
+    capex_reserves_total: number;
     opex_categories_total: number;
     payroll_total: number;
     mgmt_fee_total: number;
@@ -50,6 +51,7 @@ export function calcOpEx(
         | 'opex_turnover'
         | 'opex_misc'
         | 'opex_insurance'
+        | 'opex_capex_reserves'
         | 'mgmt_fee_pct'
         | 'payroll_burden_pct'
     >,
@@ -66,6 +68,7 @@ export function calcOpEx(
     const turnover_total = onePager.opex_turnover * totalUnits;
     const misc_total = onePager.opex_misc * totalUnits;
     const insurance_total = onePager.opex_insurance * totalUnits;
+    const capex_reserves_total = onePager.opex_capex_reserves * totalUnits;
 
     const opex_categories_total =
         utilities_total +
@@ -75,7 +78,8 @@ export function calcOpEx(
         general_admin_total +
         turnover_total +
         misc_total +
-        insurance_total;
+        insurance_total +
+        capex_reserves_total;
 
     const payroll_total = payrollRows.reduce(
         (sum, r) => sum + calcPayrollRowTotal(r, onePager.payroll_burden_pct),
@@ -99,6 +103,7 @@ export function calcOpEx(
         turnover_total,
         misc_total,
         insurance_total,
+        capex_reserves_total,
         opex_categories_total,
         payroll_total,
         mgmt_fee_total,

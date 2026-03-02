@@ -227,6 +227,7 @@ export default function PursuitDetailPage() {
                 opex_turnover: tpl?.default_opex_turnover ?? 0,
                 opex_misc: tpl?.default_opex_misc ?? 0,
                 opex_insurance: tpl?.default_opex_insurance ?? 0,
+                opex_capex_reserves: tpl?.default_opex_capex_reserves ?? 0,
                 mgmt_fee_pct: tpl?.default_mgmt_fee_pct ?? 0.03,
                 payroll_burden_pct: tpl?.default_payroll_burden_pct ?? 0.30,
                 tax_mil_rate: tpl?.default_tax_mil_rate ?? 0,

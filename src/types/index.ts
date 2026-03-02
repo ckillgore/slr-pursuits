@@ -195,6 +195,7 @@ export interface OnePager {
   opex_turnover: number;
   opex_misc: number;
   opex_insurance: number;
+  opex_capex_reserves: number;
   mgmt_fee_pct: number;
   // Payroll
   payroll_burden_pct: number;
@@ -255,6 +256,7 @@ export interface DataModel {
   default_opex_turnover: number;
   default_opex_misc: number;
   default_opex_insurance: number;
+  default_opex_capex_reserves: number;
   default_mgmt_fee_pct: number;
   default_payroll_burden_pct: number;
   default_tax_mil_rate: number;
@@ -429,6 +431,7 @@ export interface DataModelTemplate {
   default_opex_turnover: number;
   default_opex_misc: number;
   default_opex_insurance: number;
+  default_opex_capex_reserves: number;
   default_mgmt_fee_pct: number;
   default_payroll_burden_pct: number;
   default_tax_mil_rate: number;

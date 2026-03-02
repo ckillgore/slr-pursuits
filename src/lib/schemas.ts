@@ -42,6 +42,7 @@ export const onePagerSchema = z.object({
     opex_turnover: z.number().min(0).default(0),
     opex_misc: z.number().min(0).default(0),
     opex_insurance: z.number().min(0).default(0),
+    opex_capex_reserves: z.number().min(0).default(0),
     mgmt_fee_pct: z.number().min(0).max(1).default(0.03),
     // Payroll
     payroll_burden_pct: z.number().min(0).max(1).default(0.30),

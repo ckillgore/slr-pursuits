@@ -50,6 +50,7 @@ export default function TemplatesPage() {
             default_opex_turnover: 0,
             default_opex_misc: 0,
             default_opex_insurance: 0,
+            default_opex_capex_reserves: 0,
             default_mgmt_fee_pct: 0.03,
             default_payroll_burden_pct: 0.30,
             default_tax_mil_rate: 0,
@@ -150,6 +151,7 @@ export default function TemplatesPage() {
                                                 <TemplateField label="Turnover" value={t.default_opex_turnover} type="currency" onChange={(v) => updateField(t, 'default_opex_turnover', Number(v))} />
                                                 <TemplateField label="Misc" value={t.default_opex_misc} type="currency" onChange={(v) => updateField(t, 'default_opex_misc', Number(v))} />
                                                 <TemplateField label="Insurance" value={t.default_opex_insurance} type="currency" onChange={(v) => updateField(t, 'default_opex_insurance', Number(v))} />
+                                                <TemplateField label="Capex Reserves" value={t.default_opex_capex_reserves} type="currency" onChange={(v) => updateField(t, 'default_opex_capex_reserves', Number(v))} />
                                             </div>
                                         </div>
 

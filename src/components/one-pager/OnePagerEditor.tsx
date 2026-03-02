@@ -833,6 +833,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                 <td className="text-right text-xs tabular-nums text-[#7A8599]">{calc.property_tax_per_unit > 0 ? formatCurrency(calc.property_tax_per_unit) : '—'}</td>
                                 <td className="text-right text-xs tabular-nums text-[#4A5568]">{formatCurrency(calc.property_tax_total)}</td>
                             </tr>
+                            <OpExRow label="Capex Reserves" value={onePager.opex_capex_reserves} units={onePager.total_units} onChange={(v) => updateField('opex_capex_reserves', v)} editAllMode={editAllMode} noteKey="opex_capex_reserves" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
                             <tr className="total-row">
                                 <td>Total Operating Expenses</td>
                                 <td className="text-right tabular-nums">{formatCurrency(calc.opex_per_unit)}</td>

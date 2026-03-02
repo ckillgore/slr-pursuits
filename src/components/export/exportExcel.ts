@@ -122,6 +122,7 @@ export async function exportOnePagerToExcel({ onePager, pursuit, calc, productTy
     addMetricRow(ws, 'G&A', onePager.opex_general_admin, '$#,##0');
     addMetricRow(ws, 'Turnover', onePager.opex_turnover, '$#,##0');
     addMetricRow(ws, 'Insurance', onePager.opex_insurance, '$#,##0');
+    addMetricRow(ws, 'Capex Reserves', onePager.opex_capex_reserves, '$#,##0');
     addMetricRow(ws, 'Mgmt Fee', onePager.mgmt_fee_pct, '0.0%');
     addTotalRow(ws, 'Total OpEx', calc.total_opex, '$#,##0');
     addMetricRow(ws, 'OpEx / Unit', calc.opex_per_unit, '$#,##0');

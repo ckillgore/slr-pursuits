@@ -18,6 +18,8 @@ export interface PropertyMetrics {
     effectiveRent: number | null;
     /** Avg rent per sqft */
     rentPSF: number | null;
+    /** Avg sqft */
+    avgSqft: number | null;
     /** Bed types present */
     bedTypes: number[];
     /** Primary or secondary comp */

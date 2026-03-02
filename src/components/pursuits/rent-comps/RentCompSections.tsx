@@ -742,3 +742,248 @@ export function MarketContextSection({ comps }: { comps: PropertyMetrics[] }) {
         </div>
     );
 }
+
+// ============================================================
+// Rent Roll — estimated unit-level rent roll per property
+// ============================================================
+export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
+    const [selectedComp, setSelectedComp] = useState(0);
+    const [viewMode, setViewMode] = useState<'summary' | 'detail'>('summary');
+
+    const comp = comps[selectedComp];
+    if (!comp) return <p className="text-sm text-[#7A8599] text-center py-8">No comp selected</p>;
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    // Determine unit occupancy status from availability_periods
+    const getStatus = (u: HellodataUnit): 'occupied' | 'vacant' | 'notice' => {
+        const periods = u.availability_periods || [];
+        const isOnMarket = periods.some(ap => {
+            const entered = !ap.enter_market || ap.enter_market <= todayStr;
+            const notExited = !ap.exit_market || ap.exit_market >= todayStr;
+            return entered && notExited;
+        });
+        if (isOnMarket) return 'vacant';
+        // Check if exiting soon (within 30 days) — "notice"
+        const thirtyOut = new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const isNotice = periods.some(ap => {
+            if (!ap.enter_market) return false;
+            return ap.enter_market > todayStr && ap.enter_market <= thirtyOut;
+        });
+        return isNotice ? 'notice' : 'occupied';
+    };
+
+    // Summary view: group by bed/bath
+    const summaryRows = useMemo(() => {
+        const groups: Record<string, {
+            bed: number | null; bath: number | null;
+            units: HellodataUnit[]; statuses: ('occupied' | 'vacant' | 'notice')[];
+        }> = {};
+
+        comp.units.forEach((u: HellodataUnit) => {
+            const key = `${u.bed ?? 'N/A'}-${u.bath ?? 'N/A'}`;
+            if (!groups[key]) groups[key] = { bed: u.bed, bath: u.bath, units: [], statuses: [] };
+            groups[key].units.push(u);
+            groups[key].statuses.push(getStatus(u));
+        });
+
+        return Object.values(groups)
+            .sort((a, b) => (a.bed ?? -1) - (b.bed ?? -1) || (a.bath ?? -1) - (b.bath ?? -1))
+            .map(g => {
+                const count = g.units.length;
+                const occupied = g.statuses.filter(s => s === 'occupied').length;
+                const vacant = g.statuses.filter(s => s === 'vacant').length;
+                const notice = g.statuses.filter(s => s === 'notice').length;
+                const validPrices = g.units.filter(u => u.price !== null);
+                const validEff = g.units.filter(u => u.effective_price !== null);
+                const validSqft = g.units.filter(u => u.sqft !== null);
+
+                const avgRent = validPrices.length > 0 ? validPrices.reduce((s, u) => s + (u.price ?? 0), 0) / validPrices.length : null;
+                const avgEff = validEff.length > 0 ? validEff.reduce((s, u) => s + (u.effective_price ?? 0), 0) / validEff.length : null;
+                const avgSqft = validSqft.length > 0 ? validSqft.reduce((s, u) => s + (u.sqft ?? 0), 0) / validSqft.length : null;
+                const rentPsf = avgRent && avgSqft ? avgRent / avgSqft : null;
+                const effPsf = avgEff && avgSqft ? avgEff / avgSqft : null;
+                const avgDom = g.units.filter(u => u.days_on_market !== null).length > 0
+                    ? g.units.reduce((s, u) => s + (u.days_on_market ?? 0), 0) / g.units.filter(u => u.days_on_market !== null).length
+                    : null;
+
+                return {
+                    label: g.bed === null ? 'N/A' : g.bed === 0 ? 'Studio' : `${g.bed} BR / ${g.bath ?? '?'} BA`,
+                    count, occupied, vacant, notice,
+                    avgRent, avgEff, avgSqft, rentPsf, effPsf, avgDom,
+                    occupancyPct: count > 0 ? (occupied / count) * 100 : 0,
+                };
+            });
+    }, [comp]);
+
+    // Detail view: individual units
+    const detailRows = useMemo(() => {
+        return comp.units
+            .map((u: HellodataUnit) => ({
+                unit: u.unit_name || u.floorplan_name || '—',
+                bed: u.bed,
+                bath: u.bath,
+                sqft: u.sqft,
+                rent: u.price,
+                effRent: u.effective_price,
+                rentPsf: u.price && u.sqft ? u.price / u.sqft : null,
+                effPsf: u.effective_price && u.sqft ? u.effective_price / u.sqft : null,
+                dom: u.days_on_market,
+                status: getStatus(u),
+                floorplan: u.floorplan_name,
+            }))
+            .sort((a, b) => (a.bed ?? -1) - (b.bed ?? -1) || (a.unit || '').localeCompare(b.unit || ''));
+    }, [comp]);
+
+    const fmt = (v: number | null, dec = 0, prefix = '$') => v !== null ? `${prefix}${v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })}` : '—';
+
+    // Totals
+    const totalCount = summaryRows.reduce((s, r) => s + r.count, 0);
+    const totalOccupied = summaryRows.reduce((s, r) => s + r.occupied, 0);
+    const totalVacant = summaryRows.reduce((s, r) => s + r.vacant, 0);
+
+    return (
+        <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <h3 className="text-sm font-semibold text-[#1A1F2B]">Estimated Rent Roll</h3>
+                    <p className="text-xs text-[#7A8599]">Unit-level rent and occupancy data from HelloData listings.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <select value={selectedComp} onChange={e => setSelectedComp(Number(e.target.value))}
+                        className="text-[11px] sm:text-xs border border-[#E2E5EA] rounded-lg px-2 py-1.5 text-[#4A5568] bg-white">
+                        {comps.map((c, i) => <option key={i} value={i}>{c.name}</option>)}
+                    </select>
+                    <div className="flex rounded-lg border border-[#E2E5EA] overflow-hidden">
+                        {(['summary', 'detail'] as const).map(m => (
+                            <button key={m} onClick={() => setViewMode(m)}
+                                className={`px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-medium ${viewMode === m ? 'bg-[#2563EB] text-white' : 'text-[#7A8599] hover:bg-[#F4F5F7]'}`}>
+                                {m === 'summary' ? 'By Type' : 'By Unit'}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* Quick stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="rounded-lg border border-[#E2E5EA] bg-white p-2.5">
+                    <div className="text-[10px] text-[#7A8599] uppercase tracking-wider">Total Units</div>
+                    <div className="text-base font-semibold text-[#1A1F2B]">{totalCount}</div>
+                </div>
+                <div className="rounded-lg border border-[#E2E5EA] bg-white p-2.5">
+                    <div className="text-[10px] text-[#7A8599] uppercase tracking-wider">Occupied</div>
+                    <div className="text-base font-semibold text-[#10B981]">{totalOccupied} <span className="text-xs font-normal text-[#7A8599]">({totalCount > 0 ? ((totalOccupied / totalCount) * 100).toFixed(1) : 0}%)</span></div>
+                </div>
+                <div className="rounded-lg border border-[#E2E5EA] bg-white p-2.5">
+                    <div className="text-[10px] text-[#7A8599] uppercase tracking-wider">Vacant</div>
+                    <div className="text-base font-semibold text-[#EF4444]">{totalVacant}</div>
+                </div>
+                <div className="rounded-lg border border-[#E2E5EA] bg-white p-2.5">
+                    <div className="text-[10px] text-[#7A8599] uppercase tracking-wider">Avg Rent</div>
+                    <div className="text-base font-semibold text-[#1A1F2B]">{fmt(comp.askingRent)}</div>
+                </div>
+            </div>
+
+            {viewMode === 'summary' ? (
+                <div className="overflow-x-auto border border-[#E2E5EA] rounded-xl">
+                    <table className="w-full text-xs min-w-[700px]">
+                        <thead>
+                            <tr className="border-b-2 border-[#E2E5EA] bg-[#F9FAFB]">
+                                <th className="text-left py-2.5 px-3 font-semibold text-[#4A5568] sticky left-0 bg-[#F9FAFB] z-10">Unit Type</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]"># Units</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#10B981]">Occupied</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#EF4444]">Vacant</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Occ %</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Avg SF</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Market Rent</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Rent/SF</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Eff. Rent</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Eff/SF</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Avg DOM</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {summaryRows.map((row, ri) => (
+                                <tr key={ri} className={`border-b border-[#F4F5F7] ${ri % 2 === 0 ? 'bg-white' : 'bg-[#FBFBFC]'}`}>
+                                    <td className="py-2 px-3 font-medium text-[#4A5568] sticky left-0 bg-inherit z-10">{row.label}</td>
+                                    <td className="py-2 px-2 text-center font-medium">{row.count}</td>
+                                    <td className="py-2 px-2 text-center text-[#10B981] font-medium">{row.occupied}</td>
+                                    <td className="py-2 px-2 text-center text-[#EF4444] font-medium">{row.vacant}{row.notice > 0 ? <span className="text-[#F59E0B]"> +{row.notice}</span> : ''}</td>
+                                    <td className="py-2 px-2 text-center">
+                                        <span className={`font-medium ${row.occupancyPct >= 95 ? 'text-[#10B981]' : row.occupancyPct >= 90 ? 'text-[#F59E0B]' : 'text-[#EF4444]'}`}>
+                                            {row.occupancyPct.toFixed(1)}%
+                                        </span>
+                                    </td>
+                                    <td className="py-2 px-2 text-center">{row.avgSqft ? `${Math.round(row.avgSqft)} ft²` : '—'}</td>
+                                    <td className="py-2 px-2 text-center font-medium">{fmt(row.avgRent)}</td>
+                                    <td className="py-2 px-2 text-center">{fmt(row.rentPsf, 2)}/sf</td>
+                                    <td className="py-2 px-2 text-center font-medium">{fmt(row.avgEff)}</td>
+                                    <td className="py-2 px-2 text-center">{fmt(row.effPsf, 2)}/sf</td>
+                                    <td className="py-2 px-2 text-center text-[#7A8599]">{row.avgDom !== null ? `${Math.round(row.avgDom)}d` : '—'}</td>
+                                </tr>
+                            ))}
+                            {/* Totals */}
+                            <tr className="border-t-2 border-[#E2E5EA] bg-[#F9FAFB] font-semibold">
+                                <td className="py-2.5 px-3 text-[#4A5568] sticky left-0 bg-[#F9FAFB] z-10">Total / Avg</td>
+                                <td className="py-2.5 px-2 text-center">{totalCount}</td>
+                                <td className="py-2.5 px-2 text-center text-[#10B981]">{totalOccupied}</td>
+                                <td className="py-2.5 px-2 text-center text-[#EF4444]">{totalVacant}</td>
+                                <td className="py-2.5 px-2 text-center">{totalCount > 0 ? `${((totalOccupied / totalCount) * 100).toFixed(1)}%` : '—'}</td>
+                                <td className="py-2.5 px-2 text-center">{comp.avgSqft ? `${Math.round(comp.avgSqft)} ft²` : '—'}</td>
+                                <td className="py-2.5 px-2 text-center">{fmt(comp.askingRent)}</td>
+                                <td className="py-2.5 px-2 text-center">{comp.rentPSF ? `${fmt(comp.rentPSF, 2)}/sf` : '—'}</td>
+                                <td className="py-2.5 px-2 text-center">{fmt(comp.effectiveRent)}</td>
+                                <td className="py-2.5 px-2 text-center">{comp.effectiveRent && comp.avgSqft ? `${fmt(comp.effectiveRent / comp.avgSqft, 2)}/sf` : '—'}</td>
+                                <td className="py-2.5 px-2 text-center text-[#7A8599]">{comp.avgDaysOnMarket !== null ? `${Math.round(comp.avgDaysOnMarket)}d` : '—'}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            ) : (
+                <div className="overflow-x-auto border border-[#E2E5EA] rounded-xl">
+                    <table className="w-full text-xs min-w-[750px]">
+                        <thead>
+                            <tr className="border-b-2 border-[#E2E5EA] bg-[#F9FAFB]">
+                                <th className="text-left py-2.5 px-3 font-semibold text-[#4A5568] sticky left-0 bg-[#F9FAFB] z-10">Unit</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Type</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">SF</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Status</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Market Rent</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Rent/SF</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Eff. Rent</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Eff/SF</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">DOM</th>
+                                <th className="text-left py-2.5 px-2 font-semibold text-[#4A5568]">Floorplan</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {detailRows.map((row, ri) => (
+                                <tr key={ri} className={`border-b border-[#F4F5F7] ${ri % 2 === 0 ? 'bg-white' : 'bg-[#FBFBFC]'}`}>
+                                    <td className="py-1.5 px-3 font-medium text-[#4A5568] sticky left-0 bg-inherit z-10">{row.unit}</td>
+                                    <td className="py-1.5 px-2 text-center">{row.bed === null ? '—' : row.bed === 0 ? 'Studio' : `${row.bed}/${row.bath ?? '?'}`}</td>
+                                    <td className="py-1.5 px-2 text-center">{row.sqft ? `${row.sqft}` : '—'}</td>
+                                    <td className="py-1.5 px-2 text-center">
+                                        <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ${row.status === 'occupied' ? 'bg-[#ECFDF5] text-[#10B981]' :
+                                                row.status === 'notice' ? 'bg-[#FEF3C7] text-[#92400E]' :
+                                                    'bg-[#FEF2F2] text-[#EF4444]'
+                                            }`}>
+                                            {row.status === 'occupied' ? 'Leased' : row.status === 'notice' ? 'Notice' : 'Vacant'}
+                                        </span>
+                                    </td>
+                                    <td className="py-1.5 px-2 text-center font-medium">{fmt(row.rent)}</td>
+                                    <td className="py-1.5 px-2 text-center">{fmt(row.rentPsf, 2)}/sf</td>
+                                    <td className="py-1.5 px-2 text-center font-medium">{fmt(row.effRent)}</td>
+                                    <td className="py-1.5 px-2 text-center">{fmt(row.effPsf, 2)}/sf</td>
+                                    <td className="py-1.5 px-2 text-center text-[#7A8599]">{row.dom !== null ? `${row.dom}d` : '—'}</td>
+                                    <td className="py-1.5 px-2 text-left text-[#7A8599] truncate max-w-[120px]">{row.floorplan || '—'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    {detailRows.length === 0 && <p className="text-sm text-[#7A8599] text-center py-8">No unit data available</p>}
+                </div>
+            )}
+        </div>
+    );
+}

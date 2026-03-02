@@ -40,6 +40,7 @@ import {
     DollarSign,
     Calendar,
     Home,
+    FileDown,
 } from 'lucide-react';
 
 const DEFAULT_PURSUIT_CONFIG: ReportConfig = {
@@ -95,6 +96,8 @@ export default function ReportsPage() {
     const [showSaveDialog, setShowSaveDialog] = useState<'save' | 'save_as' | null>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false);
+    const [isExportingPdf, setIsExportingPdf] = useState(false);
+    const [isExportingXlsx, setIsExportingXlsx] = useState(false);
 
     // Load template config when selected
     useEffect(() => {
@@ -367,6 +370,56 @@ export default function ReportsPage() {
                         >
                             <Settings2 className="w-4 h-4" />
                             Configure
+                        </button>
+
+                        {/* Export XLSX */}
+                        <button
+                            onClick={async () => {
+                                setIsExportingXlsx(true);
+                                try {
+                                    const { exportReportToExcel } = await import('@/components/export/exportReportExcel');
+                                    await exportReportToExcel({ config, groupTree, flatRows: filteredRows, isGrouped, totalAggregates, stages });
+                                } catch (err) {
+                                    console.error('XLSX export failed:', err);
+                                }
+                                setIsExportingXlsx(false);
+                            }}
+                            disabled={isExportingXlsx || filteredRows.length === 0}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7] disabled:opacity-40 transition-colors"
+                            title="Export Excel"
+                        >
+                            {isExportingXlsx ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                            XLSX
+                        </button>
+
+                        {/* Export PDF */}
+                        <button
+                            onClick={async () => {
+                                setIsExportingPdf(true);
+                                try {
+                                    const { pdf } = await import('@react-pdf/renderer');
+                                    const { ReportPDF } = await import('@/components/export/ReportPDF');
+                                    const doc = <ReportPDF config={config} groupTree={groupTree} flatRows={filteredRows} isGrouped={isGrouped} totalAggregates={totalAggregates} stages={stages} />;
+                                    const blob = await pdf(doc).toBlob();
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    const dateStr = new Date().toISOString().slice(0, 10);
+                                    const src = config.dataSource === 'land_comps' ? 'Land_Comps' : config.dataSource === 'rent_comps' ? 'Rent_Comps' : 'Pursuits';
+                                    a.download = `${src}_Report_${dateStr}.pdf`;
+                                    a.click();
+                                    URL.revokeObjectURL(url);
+                                } catch (err) {
+                                    console.error('PDF export failed:', err);
+                                }
+                                setIsExportingPdf(false);
+                            }}
+                            disabled={isExportingPdf || filteredRows.length === 0}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7] disabled:opacity-40 transition-colors"
+                            title="Export PDF"
+                        >
+                            {isExportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                            PDF
                         </button>
 
                         {/* Share / Unshare button — visible to creator or admin/owner */}

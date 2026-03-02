@@ -57,9 +57,11 @@ import * as queries from '@/lib/supabase/queries';
 interface OnePagerEditorProps {
     pursuit: Pursuit;
     onePager: OnePager;
+    /** The URL param used to fetch this one-pager (may be short_id) */
+    queryId?: string;
 }
 
-export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
+export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorProps) {
     const router = useRouter();
     const { data: productTypes = [] } = useProductTypes();
     const { data: unitMixRows = [], isLoading: loadingUnitMix } = useUnitMix(onePager.id);
@@ -157,7 +159,7 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
             switch (action.entity) {
                 case 'onePager': {
                     const updates: Partial<OnePager> = { [action.field]: value };
-                    updateOnePagerMutation.mutate({ id: action.entityId, updates });
+                    updateOnePagerMutation.mutate({ id: action.entityId, updates, queryId });
                     save({ id: action.entityId, updates });
                     break;
                 }
@@ -201,10 +203,10 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
                 calc_cost_per_unit: calc.cost_per_unit,
                 calc_noi_per_unit: calc.noi_per_unit,
             };
-            updateOnePagerMutation.mutate({ id: onePager.id, updates });
+            updateOnePagerMutation.mutate({ id: onePager.id, updates, queryId });
             save({ id: onePager.id, updates });
         },
-        [updateOnePagerMutation, onePager, calc, save, pushUndo]
+        [updateOnePagerMutation, onePager, calc, save, pushUndo, queryId]
     );
 
     // Field-level notes helper
@@ -230,11 +232,11 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
                 const delta = (typeof value === 'number' ? value : 0) - (typeof oldValue === 'number' ? oldValue : 0);
                 const newTotal = currentTotal + delta;
                 const calcUpdates: Partial<OnePager> = { total_units: newTotal };
-                updateOnePagerMutation.mutate({ id: onePager.id, updates: calcUpdates });
+                updateOnePagerMutation.mutate({ id: onePager.id, updates: calcUpdates, queryId });
                 save({ id: onePager.id, updates: calcUpdates });
             }
         },
-        [upsertUnitMixRow, updateOnePagerMutation, onePager.id, pushUndo, sortedUnitMix, save]
+        [upsertUnitMixRow, updateOnePagerMutation, onePager.id, pushUndo, sortedUnitMix, save, queryId]
     );
 
     const handleAddPayroll = useCallback(

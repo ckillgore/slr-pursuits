@@ -173,27 +173,47 @@ export function useCreateOnePager() {
 export function useUpdateOnePager() {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: ({ id, updates }: { id: string; updates: Partial<import('@/types').OnePager> }) =>
+        mutationFn: ({ id, updates }: { id: string; updates: Partial<import('@/types').OnePager>; queryId?: string }) =>
             queries.updateOnePager(id, updates),
         // Optimistic: update cache immediately
-        onMutate: async ({ id, updates }) => {
+        onMutate: async ({ id, updates, queryId }) => {
+            // Cancel both possible query keys (UUID and short_id)
             await qc.cancelQueries({ queryKey: queryKeys.onePager(id) });
+            if (queryId && queryId !== id) {
+                await qc.cancelQueries({ queryKey: queryKeys.onePager(queryId) });
+            }
+
             const prev = qc.getQueryData(queryKeys.onePager(id));
+            const prevByQueryId = queryId && queryId !== id ? qc.getQueryData(queryKeys.onePager(queryId)) : undefined;
+
+            // Update cache for UUID key
             qc.setQueryData(queryKeys.onePager(id), (old: any) =>
                 old ? { ...old, ...updates } : old
             );
-            return { prev };
+            // Also update cache for the short_id key (the one the reading component uses)
+            if (queryId && queryId !== id) {
+                qc.setQueryData(queryKeys.onePager(queryId), (old: any) =>
+                    old ? { ...old, ...updates } : old
+                );
+            }
+            return { prev, prevByQueryId, queryId };
         },
-        onError: (_err, { id }, ctx) => {
+        onError: (_err, { id, queryId }, ctx) => {
             if (ctx?.prev) qc.setQueryData(queryKeys.onePager(id), ctx.prev);
+            if (ctx?.prevByQueryId && ctx?.queryId && ctx.queryId !== id) {
+                qc.setQueryData(queryKeys.onePager(ctx.queryId), ctx.prevByQueryId);
+            }
         },
-        onSettled: (_, __, { id }) => {
+        onSettled: (_, __, { id, queryId }) => {
             // Invalidate the single one-pager (quiet — don't refetch while auto-saving)
             qc.invalidateQueries({ queryKey: queryKeys.onePager(id), refetchType: 'none' });
+            if (queryId && queryId !== id) {
+                qc.invalidateQueries({ queryKey: queryKeys.onePager(queryId), refetchType: 'none' });
+            }
 
             // Also invalidate the one-pagers list and parent pursuit so Overview KPIs
             // and One-Pagers tab cards reflect the latest calculated fields.
-            const cached = qc.getQueryData(queryKeys.onePager(id)) as any;
+            const cached = (qc.getQueryData(queryKeys.onePager(id)) || qc.getQueryData(queryKeys.onePager(queryId || id))) as any;
             const pursuitId = cached?.pursuit_id;
             if (pursuitId) {
                 qc.invalidateQueries({ queryKey: queryKeys.onePagers(pursuitId) });

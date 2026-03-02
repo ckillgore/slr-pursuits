@@ -375,13 +375,49 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                         },
                     });
 
-                    // Fit to parcel bounds
+                    // Render assemblage parcels on initial load
+                    const asmWithGeom = assemblage.filter(p => p.geometry);
+                    if (asmWithGeom.length > 0) {
+                        const asmFeatures = asmWithGeom.map(p => ({
+                            type: 'Feature' as const,
+                            properties: { address: p.address || 'Unknown', parcelNumber: p.parcelNumber || '' },
+                            geometry: p.geometry,
+                        }));
+                        map.addSource('assemblage-parcels', {
+                            type: 'geojson',
+                            data: { type: 'FeatureCollection' as const, features: asmFeatures },
+                        });
+                        map.addLayer({
+                            id: 'assemblage-fill',
+                            type: 'fill',
+                            source: 'assemblage-parcels',
+                            paint: { 'fill-color': '#7C3AED', 'fill-opacity': 0.2 },
+                        });
+                        map.addLayer({
+                            id: 'assemblage-outline',
+                            type: 'line',
+                            source: 'assemblage-parcels',
+                            paint: { 'line-color': '#7C3AED', 'line-width': 2, 'line-opacity': 0.8 },
+                        });
+                    }
+
+                    // Fit to parcel bounds (including assemblage)
                     if (parcel.geometry.coordinates) {
                         const bounds = new mbgl.LngLatBounds();
                         const coords = parcel.geometry.type === 'MultiPolygon'
                             ? parcel.geometry.coordinates.flat(2)
                             : parcel.geometry.coordinates.flat(1);
                         coords.forEach(([lng, lat]: number[]) => bounds.extend([lng, lat]));
+                        // Include assemblage parcel coordinates
+                        for (const ap of asmWithGeom) {
+                            const flatten = (arr: any[]): void => {
+                                for (const item of arr) {
+                                    if (typeof item[0] === 'number') bounds.extend(item as [number, number]);
+                                    else flatten(item);
+                                }
+                            };
+                            if (ap.geometry?.coordinates) flatten(ap.geometry.coordinates);
+                        }
                         map.fitBounds(bounds, { padding: 60, duration: 800, maxZoom: 18 });
                     }
                 });
@@ -434,7 +470,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
             mapRef.current = null;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [parcel, buildings]);
+    }, [parcel, buildings, assemblage]);
 
     // Update assemblage parcels on the main map without recreating it
     useEffect(() => {

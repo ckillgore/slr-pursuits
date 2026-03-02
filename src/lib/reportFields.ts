@@ -17,6 +17,8 @@ export interface ReportFieldDef {
     format: (value: string | number | null) => string;
     groupable: boolean;
     filterable: boolean;
+    /** Override aggregation: 'sum' (default for number/currency), 'avg' (default for percent), or 'none' */
+    aggregation?: 'sum' | 'avg' | 'none';
     // For key date fields, we use a separate accessor
     getKeyDateValue?: (row: KeyDateReportRow, stages?: PursuitStage[]) => string | number | null;
 }
@@ -228,7 +230,7 @@ const RENT_COMP_FIELDS: ReportFieldDef[] = [
     { key: 'rc_state', label: 'State', category: 'Rent Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.rentComp?.property?.state ?? null, format: fmtText },
     { key: 'rc_msa', label: 'MSA', category: 'Rent Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.rentComp?.property?.msa ?? null, format: fmtText },
     { key: 'rc_comp_type', label: 'Comp Type', category: 'Rent Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.rentComp?.compType ?? null, format: fmtText },
-    { key: 'rc_year_built', label: 'Year Built', category: 'Rent Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.rentComp?.property?.year_built ?? null, format: (v) => v !== null ? String(v) : '—' },
+    { key: 'rc_year_built', label: 'Year Built', category: 'Rent Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.rentComp?.property?.year_built ?? null, format: (v) => v !== null ? String(v) : '—', aggregation: 'avg' },
     { key: 'rc_units', label: 'Units', category: 'Rent Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.rentComp?.property?.number_units ?? null, format: fmtNumber },
     {
         key: 'rc_avg_sqft', label: 'Avg Sqft', category: 'Rent Comp', type: 'number', groupable: false, filterable: true,
@@ -236,7 +238,7 @@ const RENT_COMP_FIELDS: ReportFieldDef[] = [
             const units = r.rentComp?.units?.filter((u: any) => u.sqft) ?? [];
             if (units.length === 0) return null;
             return Math.round(units.reduce((s: number, u: any) => s + (u.sqft ?? 0), 0) / units.length);
-        }, format: fmtNumber
+        }, format: fmtNumber, aggregation: 'avg'
     },
     { key: 'rc_quality', label: 'Quality', category: 'Rent Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => { const q = r.rentComp?.property?.building_quality; if (!q) return null; return Object.entries(q).sort((a, b) => b[1] - a[1]).map(([k]) => k).join(', ') || null; }, format: fmtText },
     {
@@ -245,7 +247,7 @@ const RENT_COMP_FIELDS: ReportFieldDef[] = [
             const units = r.rentComp?.units?.filter((u: any) => u.price) ?? [];
             if (units.length === 0) return null;
             return Math.round(units.reduce((s: number, u: any) => s + (u.price ?? 0), 0) / units.length);
-        }, format: fmtCurrency
+        }, format: fmtCurrency, aggregation: 'avg'
     },
     {
         key: 'rc_effective_rent', label: 'Effective Rent', category: 'Rent Comp', type: 'currency', groupable: false, filterable: true,
@@ -253,7 +255,7 @@ const RENT_COMP_FIELDS: ReportFieldDef[] = [
             const units = r.rentComp?.units?.filter((u: any) => u.effective_price) ?? [];
             if (units.length === 0) return null;
             return Math.round(units.reduce((s: number, u: any) => s + (u.effective_price ?? 0), 0) / units.length);
-        }, format: fmtCurrency
+        }, format: fmtCurrency, aggregation: 'avg'
     },
     {
         key: 'rc_asking_psf', label: 'Asking Rent/SF', category: 'Rent Comp', type: 'currency', groupable: false, filterable: true,
@@ -263,7 +265,7 @@ const RENT_COMP_FIELDS: ReportFieldDef[] = [
             const totalRent = units.reduce((s: number, u: any) => s + (u.price ?? 0), 0);
             const totalSf = units.reduce((s: number, u: any) => s + (u.sqft ?? 0), 0);
             return totalSf > 0 ? totalRent / totalSf : null;
-        }, format: (v) => v !== null ? `$${Number(v).toFixed(2)}` : '—'
+        }, format: (v) => v !== null ? `$${Number(v).toFixed(2)}` : '—', aggregation: 'avg'
     },
     {
         key: 'rc_effective_psf', label: 'Effective Rent/SF', category: 'Rent Comp', type: 'currency', groupable: false, filterable: true,
@@ -273,7 +275,7 @@ const RENT_COMP_FIELDS: ReportFieldDef[] = [
             const totalRent = units.reduce((s: number, u: any) => s + (u.effective_price ?? 0), 0);
             const totalSf = units.reduce((s: number, u: any) => s + (u.sqft ?? 0), 0);
             return totalSf > 0 ? totalRent / totalSf : null;
-        }, format: (v) => v !== null ? `$${Number(v).toFixed(2)}` : '—'
+        }, format: (v) => v !== null ? `$${Number(v).toFixed(2)}` : '—', aggregation: 'avg'
     },
     {
         key: 'rc_leased_pct', label: 'Leased %', category: 'Rent Comp', type: 'percent', groupable: false, filterable: true,

@@ -99,7 +99,11 @@ function computeAggregates(
     const agg: Record<string, number | null> = {};
     // We aggregate all numeric/currency/percent fields
     for (const [key, fieldDef] of Object.entries(REPORT_FIELD_MAP)) {
-        if (fieldDef.type === 'number' || fieldDef.type === 'currency') {
+        if (fieldDef.type === 'number' || fieldDef.type === 'currency' || fieldDef.type === 'percent') {
+            // Determine aggregation mode: explicit override, or default by type
+            const mode = fieldDef.aggregation ?? (fieldDef.type === 'percent' ? 'avg' : 'sum');
+            if (mode === 'none') continue;
+
             let sum = 0;
             let count = 0;
             for (const row of rows) {
@@ -109,19 +113,7 @@ function computeAggregates(
                     count++;
                 }
             }
-            agg[key] = count > 0 ? sum : null;
-        } else if (fieldDef.type === 'percent') {
-            // Average for percentage fields
-            let sum = 0;
-            let count = 0;
-            for (const row of rows) {
-                const v = fieldDef.getValue(row, stages);
-                if (v !== null && v !== '' && !isNaN(Number(v))) {
-                    sum += Number(v);
-                    count++;
-                }
-            }
-            agg[key] = count > 0 ? sum / count : null;
+            agg[key] = count > 0 ? (mode === 'avg' ? sum / count : sum) : null;
         }
     }
     agg['_count'] = rows.length;

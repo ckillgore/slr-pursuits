@@ -815,22 +815,24 @@ function BedTypeGrid({ comps, bed }: { comps: PropertyMetrics[]; bed: number }) 
 // ============================================================
 
 function PropertyRankingsSection({ comps, bedTypes }: { comps: PropertyMetrics[]; bedTypes: number[] }) {
-    const [metric, setMetric] = useState<'asking' | 'effective'>('asking');
+    const [metric, setMetric] = useState<'asking' | 'effective' | 'askingPsf' | 'effectivePsf'>('asking');
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                     <h3 className="text-sm font-semibold text-[#1A1F2B]">Property Rankings</h3>
                     <p className="text-xs text-[#7A8599]">Compare rents by bedroom count across your comp set.</p>
                 </div>
                 <select
                     value={metric}
-                    onChange={e => setMetric(e.target.value as 'asking' | 'effective')}
-                    className="text-xs border border-[#E2E5EA] rounded-lg px-3 py-1.5 text-[#4A5568] bg-white"
+                    onChange={e => setMetric(e.target.value as typeof metric)}
+                    className="text-[11px] sm:text-xs border border-[#E2E5EA] rounded-lg px-2 sm:px-3 py-1.5 text-[#4A5568] bg-white"
                 >
                     <option value="asking">Asking Rent</option>
                     <option value="effective">Effective Rent</option>
+                    <option value="askingPsf">Asking Rent / SF</option>
+                    <option value="effectivePsf">Effective Rent / SF</option>
                 </select>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -842,18 +844,24 @@ function PropertyRankingsSection({ comps, bedTypes }: { comps: PropertyMetrics[]
     );
 }
 
-function RankingColumn({ comps, bed, metric }: { comps: PropertyMetrics[]; bed: number; metric: 'asking' | 'effective' }) {
+function RankingColumn({ comps, bed, metric }: { comps: PropertyMetrics[]; bed: number; metric: 'asking' | 'effective' | 'askingPsf' | 'effectivePsf' }) {
+    const isPsf = metric === 'askingPsf' || metric === 'effectivePsf';
     // Compute per-property average rent for this bed type
     const rankings = comps
         .map(c => {
             const bedUnits = c.units.filter(u => u.bed === bed);
-            const rent = metric === 'asking' ? getAverageAskingRent(bedUnits) : getAverageEffectiveRent(bedUnits);
+            let rent: number | null = null;
+            if (metric === 'asking') rent = getAverageAskingRent(bedUnits);
+            else if (metric === 'effective') rent = getAverageEffectiveRent(bedUnits);
+            else if (metric === 'askingPsf') rent = getAverageAskingPsf(bedUnits);
+            else rent = getAverageEffectivePsf(bedUnits);
             return { name: c.name, rent };
         })
         .filter(r => r.rent !== null)
         .sort((a, b) => (b.rent ?? 0) - (a.rent ?? 0)) as { name: string; rent: number }[];
 
     const maxRent = rankings.length ? rankings[0].rent : 0;
+    const fmtVal = (v: number) => isPsf ? `$${v.toFixed(2)}/sf` : fmtCur(v);
 
     return (
         <div className="border border-[#E2E5EA] rounded-xl overflow-hidden">
@@ -878,7 +886,7 @@ function RankingColumn({ comps, bed, metric }: { comps: PropertyMetrics[]; bed: 
                                 }}
                             />
                         </div>
-                        <span className="text-xs font-medium text-[#1A1F2B] w-16 text-right shrink-0">{fmtCur(r.rent)}</span>
+                        <span className="text-xs font-medium text-[#1A1F2B] w-20 text-right shrink-0">{fmtVal(r.rent)}</span>
                     </div>
                 ))}
             </div>

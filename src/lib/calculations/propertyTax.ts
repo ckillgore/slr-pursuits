@@ -27,7 +27,7 @@ export function calcPropertyTax(
     const assessed_value =
         assessed_value_hard + assessed_value_land + assessed_value_soft;
 
-    const property_tax = (assessed_value * taxMilRate) / 1000;
+    const property_tax = assessed_value * taxMilRate;
     const property_tax_per_unit =
         totalUnits > 0 ? property_tax / totalUnits : 0;
 

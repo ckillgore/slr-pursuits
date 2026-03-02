@@ -894,7 +894,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                     <div className="card animate-fade-in">
                         <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider mb-3">Property Tax Detail</h3>
                         <div className="space-y-3">
-                            <FieldRow label="Mil Rate" noteKey="tax_mil_rate" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.tax_mil_rate} onChange={(v) => updateField('tax_mil_rate', v)} format="number" decimals={4} /></FieldRow>
+                            <FieldRow label="Tax Rate" noteKey="tax_mil_rate" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.tax_mil_rate} onChange={(v) => updateField('tax_mil_rate', v)} format="percent" decimals={4} /></FieldRow>
                             <FieldRow label="Assessed % — Hard" noteKey="tax_assessed_pct_hard" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.tax_assessed_pct_hard} onChange={(v) => updateField('tax_assessed_pct_hard', v)} format="percent" decimals={0} /></FieldRow>
                             <FieldRow label="Assessed % — Land" noteKey="tax_assessed_pct_land" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.tax_assessed_pct_land} onChange={(v) => updateField('tax_assessed_pct_land', v)} format="percent" decimals={0} /></FieldRow>
                             <FieldRow label="Assessed % — Soft" noteKey="tax_assessed_pct_soft" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.tax_assessed_pct_soft} onChange={(v) => updateField('tax_assessed_pct_soft', v)} format="percent" decimals={0} /></FieldRow>

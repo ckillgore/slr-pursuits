@@ -1487,7 +1487,7 @@ export async function fetchAllRentComps(): Promise<ReportRow[]> {
                 id, hellodata_id, building_name, street_address, city, state, zip_code,
                 lat, lon, year_built, number_units, number_stories, msa,
                 management_company, building_quality, pricing_strategy,
-                building_amenities, unit_amenities,
+                building_amenities, unit_amenities, occupancy_over_time,
                 units:hellodata_units(*),
                 concessions:hellodata_concessions(*)
             )

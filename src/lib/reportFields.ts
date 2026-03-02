@@ -228,7 +228,7 @@ const RENT_COMP_FIELDS: ReportFieldDef[] = [
     { key: 'rc_state', label: 'State', category: 'Rent Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.rentComp?.property?.state ?? null, format: fmtText },
     { key: 'rc_msa', label: 'MSA', category: 'Rent Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.rentComp?.property?.msa ?? null, format: fmtText },
     { key: 'rc_comp_type', label: 'Comp Type', category: 'Rent Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.rentComp?.compType ?? null, format: fmtText },
-    { key: 'rc_year_built', label: 'Year Built', category: 'Rent Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.rentComp?.property?.year_built ?? null, format: fmtNumber },
+    { key: 'rc_year_built', label: 'Year Built', category: 'Rent Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.rentComp?.property?.year_built ?? null, format: (v) => v !== null ? String(v) : '—' },
     { key: 'rc_units', label: 'Units', category: 'Rent Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.rentComp?.property?.number_units ?? null, format: fmtNumber },
     {
         key: 'rc_avg_sqft', label: 'Avg Sqft', category: 'Rent Comp', type: 'number', groupable: false, filterable: true,
@@ -278,10 +278,30 @@ const RENT_COMP_FIELDS: ReportFieldDef[] = [
     {
         key: 'rc_leased_pct', label: 'Leased %', category: 'Rent Comp', type: 'percent', groupable: false, filterable: true,
         getValue: (r) => {
+            const prop = r.rentComp?.property as any;
             const units = r.rentComp?.units ?? [];
-            if (units.length === 0) return null;
-            const leased = units.filter((u: any) => u.available !== true).length;
-            return leased / units.length;
+            const totalUnits = prop?.number_units ?? units.length;
+            if (totalUnits === 0) return null;
+            // Primary: occupancy_over_time (most accurate)
+            const occ = prop?.occupancy_over_time;
+            if (occ?.length) {
+                return occ[occ.length - 1].leased; // already 0-1 fraction
+            }
+            // Fallback: availability_periods on units
+            const now = new Date();
+            const sevenDaysOut = new Date(now.getTime() + 7 * 86400000).toISOString().slice(0, 10);
+            const todayStr = now.toISOString().slice(0, 10);
+            let available = 0;
+            for (const u of units) {
+                const periods = (u as any).availability_periods || [];
+                const isAvail = periods.some((ap: any) => {
+                    const entered = !ap.enter_market || ap.enter_market <= sevenDaysOut;
+                    const notExited = !ap.exit_market || ap.exit_market >= todayStr;
+                    return entered && notExited;
+                });
+                if (isAvail) available++;
+            }
+            return (totalUnits - available) / totalUnits;
         }, format: fmtPercent
     },
     {

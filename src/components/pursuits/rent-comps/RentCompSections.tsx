@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import SVGChart, { ChartSeries } from './SVGChart';
 import type { HellodataUnit, HellodataConcession } from '@/types';
 import type { PropertyMetrics } from './types';
@@ -965,8 +965,8 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                                     <td className="py-1.5 px-2 text-center">{row.sqft ? `${row.sqft}` : '—'}</td>
                                     <td className="py-1.5 px-2 text-center">
                                         <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ${row.status === 'occupied' ? 'bg-[#ECFDF5] text-[#10B981]' :
-                                                row.status === 'notice' ? 'bg-[#FEF3C7] text-[#92400E]' :
-                                                    'bg-[#FEF2F2] text-[#EF4444]'
+                                            row.status === 'notice' ? 'bg-[#FEF3C7] text-[#92400E]' :
+                                                'bg-[#FEF2F2] text-[#EF4444]'
                                             }`}>
                                             {row.status === 'occupied' ? 'Leased' : row.status === 'notice' ? 'Notice' : 'Vacant'}
                                         </span>
@@ -984,6 +984,154 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                     {detailRows.length === 0 && <p className="text-sm text-[#7A8599] text-center py-8">No unit data available</p>}
                 </div>
             )}
+        </div>
+    );
+}
+
+// ============================================================
+// Comp Map — Mapbox GL map with markers for each comp
+// ============================================================
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
+
+export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const mapInstanceRef = useRef<unknown>(null);
+    const markersRef = useRef<unknown[]>([]);
+    const [hoveredComp, setHoveredComp] = useState<number | null>(null);
+
+    // Comps with valid coordinates
+    const mappableComps = useMemo(() => comps.filter(c => c.property.lat && c.property.lon), [comps]);
+
+    const initMap = useCallback(() => {
+        if (!MAPBOX_TOKEN || !containerRef.current || mappableComps.length === 0) return;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        import('mapbox-gl').then((mapboxgl: any) => {
+            const mbgl = mapboxgl.default || mapboxgl;
+            mbgl.accessToken = MAPBOX_TOKEN;
+
+            // Compute bounds
+            const lats = mappableComps.map(c => c.property.lat!);
+            const lons = mappableComps.map(c => c.property.lon!);
+            const minLat = Math.min(...lats);
+            const maxLat = Math.max(...lats);
+            const minLon = Math.min(...lons);
+            const maxLon = Math.max(...lons);
+
+            const center: [number, number] = [(minLon + maxLon) / 2, (minLat + maxLat) / 2];
+
+            const map = new mbgl.Map({
+                container: containerRef.current!,
+                style: 'mapbox://styles/mapbox/light-v11',
+                center,
+                zoom: 12,
+                attributionControl: false,
+            });
+            mapInstanceRef.current = map;
+
+            map.on('load', () => {
+                // Fit to bounds with padding
+                if (mappableComps.length > 1) {
+                    const pad = 0.005;
+                    map.fitBounds(
+                        [[minLon - pad, minLat - pad], [maxLon + pad, maxLat + pad]],
+                        { padding: 60, maxZoom: 15 }
+                    );
+                }
+
+                // Add markers with popups
+                mappableComps.forEach((c, i) => {
+                    const color = c.compType === 'primary' ? COMP_COLORS[i % COMP_COLORS.length] : '#94A3B8';
+                    const fmtC = (v: number | null) => v !== null ? `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—';
+
+                    const popup = new mbgl.Popup({
+                        offset: 25,
+                        closeButton: false,
+                        maxWidth: '280px',
+                    }).setHTML(`
+                        <div style="font-family: system-ui, sans-serif; padding: 4px;">
+                            <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #1A1F2B;">${c.name}</div>
+                            <div style="font-size: 11px; color: #7A8599; margin-bottom: 6px;">${c.address}</div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; font-size: 11px;">
+                                <span style="color: #7A8599;">Asking:</span><span style="font-weight: 500;">${fmtC(c.askingRent)}</span>
+                                <span style="color: #7A8599;">Effective:</span><span style="font-weight: 500;">${fmtC(c.effectiveRent)}</span>
+                                <span style="color: #7A8599;">Units:</span><span style="font-weight: 500;">${c.property.number_units ?? '—'}</span>
+                                <span style="color: #7A8599;">Leased:</span><span style="font-weight: 500;">${c.leasedPct !== null ? c.leasedPct.toFixed(1) + '%' : '—'}</span>
+                            </div>
+                        </div>
+                    `);
+
+                    const marker = new mbgl.Marker({ color, scale: 0.85 })
+                        .setLngLat([c.property.lon!, c.property.lat!])
+                        .addTo(map);
+
+                    const el = marker.getElement();
+                    el.style.cursor = 'pointer';
+                    el.addEventListener('mouseenter', () => {
+                        setHoveredComp(i);
+                        popup.setLngLat([c.property.lon!, c.property.lat!]).addTo(map);
+                    });
+                    el.addEventListener('mouseleave', () => {
+                        setHoveredComp(null);
+                        popup.remove();
+                    });
+
+                    markersRef.current.push(marker);
+                });
+            });
+        });
+
+        return () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            markersRef.current.forEach((m: any) => m.remove());
+            markersRef.current = [];
+            if (mapInstanceRef.current) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (mapInstanceRef.current as any).remove();
+                mapInstanceRef.current = null;
+            }
+        };
+    }, [mappableComps]);
+
+    useEffect(() => {
+        const cleanup = initMap();
+        return () => { if (cleanup) cleanup(); };
+    }, [initMap]);
+
+    if (!MAPBOX_TOKEN) {
+        return (
+            <div className="text-center py-12 border border-dashed border-[#E2E5EA] rounded-xl bg-[#FBFBFC]">
+                <p className="text-sm text-[#7A8599]">Map requires <code className="text-[10px] bg-[#F4F5F7] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> in .env.local</p>
+            </div>
+        );
+    }
+
+    if (mappableComps.length === 0) {
+        return (
+            <div className="text-center py-12 border border-dashed border-[#E2E5EA] rounded-xl bg-[#FBFBFC]">
+                <p className="text-sm text-[#7A8599]">No comps with coordinates available for mapping.</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-3">
+            <div>
+                <h3 className="text-sm font-semibold text-[#1A1F2B]">Comp Map</h3>
+                <p className="text-xs text-[#7A8599]">Locations of comp properties. Hover markers for details.</p>
+            </div>
+            <div className="border border-[#E2E5EA] rounded-xl overflow-hidden relative" style={{ height: '420px' }}>
+                <div ref={containerRef} className="w-full h-full" />
+            </div>
+            {/* Legend */}
+            <div className="flex flex-wrap gap-3 px-1">
+                {mappableComps.map((c, i) => (
+                    <div key={i} className={`flex items-center gap-1.5 text-xs transition-opacity ${hoveredComp !== null && hoveredComp !== i ? 'opacity-40' : ''}`}>
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.compType === 'primary' ? COMP_COLORS[i % COMP_COLORS.length] : '#94A3B8' }} />
+                        <span className="text-[#4A5568] truncate max-w-[140px]">{c.name}</span>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }

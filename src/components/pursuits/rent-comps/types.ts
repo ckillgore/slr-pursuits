@@ -4,6 +4,8 @@ import type { HellodataProperty, HellodataUnit, HellodataConcession } from '@/ty
 export interface PropertyMetrics {
     /** Short display name */
     name: string;
+    /** Full address */
+    address: string;
     /** The full Hellodata property record */
     property: HellodataProperty;
     /** Units filtered to valid listings */

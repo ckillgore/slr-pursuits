@@ -120,7 +120,7 @@ export async function fetchPursuits(): Promise<Pursuit[]> {
             // (demographics, parcel_data, drive_time_data, income_heatmap_data,
             //  parcel_assemblage, exec_summary, arch_notes) that are only needed on detail pages
             .select(`
-                id, name, address, city, state, county, zip,
+                id, short_id, name, address, city, state, county, zip,
                 latitude, longitude, site_area_sf, stage_id,
                 stage_changed_at, region, created_by, created_at,
                 updated_at, is_archived, primary_one_pager_id,

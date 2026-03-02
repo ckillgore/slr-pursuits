@@ -198,7 +198,7 @@ export default function PursuitDetailPage() {
     const subTypes = selectedProductType?.sub_product_types ?? [];
 
     const handleUpdatePursuit = (updates: Partial<typeof pursuit>) => {
-        updatePursuit.mutate({ id: pursuitUuid, updates });
+        updatePursuit.mutate({ id: pursuitUuid, updates, queryId: pursuitId });
     };
 
     const handleCreateOnePager = async () => {

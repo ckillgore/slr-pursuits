@@ -153,8 +153,8 @@ export default function SaleCompDetailPage() {
 
     const updateField = useCallback((field: keyof SaleComp, value: unknown) => {
         if (!comp) return;
-        updateComp.mutate({ id: comp.id, updates: { [field]: value } as Partial<SaleComp> });
-    }, [comp, updateComp]);
+        updateComp.mutate({ id: comp.id, updates: { [field]: value } as Partial<SaleComp>, queryId: compId });
+    }, [comp, updateComp, compId]);
 
     const handleUpdateTx = useCallback((txId: string, field: keyof SaleTransaction, value: unknown) => {
         if (!comp) return;

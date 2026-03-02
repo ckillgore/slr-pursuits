@@ -115,8 +115,8 @@ export default function CompDetailPage() {
 
     const updateField = useCallback((field: keyof LandComp, value: unknown) => {
         if (!comp) return;
-        updateComp.mutate({ id: comp.id, updates: { [field]: value } as Partial<LandComp> });
-    }, [comp, updateComp]);
+        updateComp.mutate({ id: comp.id, updates: { [field]: value } as Partial<LandComp>, queryId: compId });
+    }, [comp, updateComp, compId]);
 
     // Address autocomplete for location editing
     const handleLocSearch = useCallback((query: string) => {
@@ -152,12 +152,13 @@ export default function CompDetailPage() {
                 latitude: lat,
                 longitude: lng,
             },
+            queryId: compId,
         });
         setLocSearch('');
         setLocSuggestions([]);
         setShowLocSuggestions(false);
         setEditingLocation(false);
-    }, [comp, updateComp]);
+    }, [comp, updateComp, compId]);
 
     const applyLocCoords = useCallback(() => {
         if (!comp) return;
@@ -185,14 +186,15 @@ export default function CompDetailPage() {
                                 zip: findCtx('postcode') || '',
                                 county: findCtx('district') || '',
                             },
+                            queryId: compId,
                         });
                     } else {
-                        updateComp.mutate({ id: comp.id, updates });
+                        updateComp.mutate({ id: comp.id, updates, queryId: compId });
                     }
                 })
-                .catch(() => updateComp.mutate({ id: comp.id, updates }));
+                .catch(() => updateComp.mutate({ id: comp.id, updates, queryId: compId }));
         } else {
-            updateComp.mutate({ id: comp.id, updates });
+            updateComp.mutate({ id: comp.id, updates, queryId: compId });
         }
         setEditingLocation(false);
     }, [comp, updateComp, locLatStr, locLngStr]);

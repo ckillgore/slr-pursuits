@@ -122,10 +122,13 @@ export function useCreatePursuit() {
 export function useUpdatePursuit() {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: ({ id, updates }: { id: string; updates: Partial<Pursuit> }) =>
+        mutationFn: ({ id, updates }: { id: string; updates: Partial<Pursuit>; queryId?: string }) =>
             queries.updatePursuit(id, updates),
-        onSuccess: (_, { id }) => {
+        onSuccess: (_, { id, queryId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.pursuit(id) });
+            if (queryId && queryId !== id) {
+                qc.invalidateQueries({ queryKey: queryKeys.pursuit(queryId) });
+            }
             qc.invalidateQueries({ queryKey: queryKeys.pursuits });
         },
     });
@@ -597,10 +600,13 @@ export function useCreateLandComp() {
 export function useUpdateLandComp() {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: ({ id, updates }: { id: string; updates: Partial<LandComp> }) =>
+        mutationFn: ({ id, updates }: { id: string; updates: Partial<LandComp>; queryId?: string }) =>
             queries.updateLandComp(id, updates),
-        onSuccess: (_, { id }) => {
+        onSuccess: (_, { id, queryId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.landComp(id) });
+            if (queryId && queryId !== id) {
+                qc.invalidateQueries({ queryKey: queryKeys.landComp(queryId) });
+            }
             qc.invalidateQueries({ queryKey: queryKeys.landComps });
         },
     });
@@ -1067,10 +1073,13 @@ export function useCreateSaleComp() {
 export function useUpdateSaleComp() {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: ({ id, updates }: { id: string; updates: Partial<import('@/types').SaleComp> }) =>
+        mutationFn: ({ id, updates }: { id: string; updates: Partial<import('@/types').SaleComp>; queryId?: string }) =>
             queries.updateSaleComp(id, updates),
-        onSuccess: (_, { id }) => {
+        onSuccess: (_, { id, queryId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.saleComp(id) });
+            if (queryId && queryId !== id) {
+                qc.invalidateQueries({ queryKey: queryKeys.saleComp(queryId) });
+            }
             qc.invalidateQueries({ queryKey: queryKeys.saleComps });
         },
     });

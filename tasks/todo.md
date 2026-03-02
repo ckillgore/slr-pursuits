@@ -144,26 +144,26 @@
 # Hellodata Rent Comps Integration
 
 ## Phase 1 — Database & Data Layer
-- [ ] Write migration `010_hellodata_rent_comps.sql` (5 tables)
-- [ ] Add types to `src/types/index.ts`
-- [ ] Add query functions to `src/lib/supabase/queries.ts`
-- [ ] Add React Query hooks to `src/hooks/useHellodataQueries.ts`
-- [ ] Add calculation utilities `src/lib/calculations/hellodataCalculations.ts`
+- [x] Write migration `010_hellodata_rent_comps.sql` (5 tables)
+- [x] Add types to `src/types/index.ts`
+- [x] Add query functions to `src/lib/supabase/queries.ts`
+- [x] Add React Query hooks to `src/hooks/useHellodataQueries.ts`
+- [x] Add calculation utilities `src/lib/calculations/hellodataCalculations.ts`
 
 ## Phase 2 — API Routes
-- [ ] Create `/api/hellodata/search` route (proxies free search)
-- [ ] Create `/api/hellodata/property` route (smart-cache fetch)
-- [ ] Create `/api/hellodata/comparables` route (proxies free comps)
+- [x] Create `/api/hellodata/search` route (proxies free search)
+- [x] Create `/api/hellodata/property` route (smart-cache fetch)
+- [x] Create `/api/hellodata/comparables` route (proxies free comps)
 
 ## Phase 3 — Pursuit Tab (Rent Comps UI)
-- [ ] Create `RentCompsTab.tsx` with search, add, detail views
-- [ ] Integrate into pursuit detail page as new tab
-- [ ] Build unit mix / rent tables, concession timeline, occupancy charts
+- [x] Create `RentCompsTab.tsx` with search, add, detail views
+- [x] Integrate into pursuit detail page as new tab
+- [x] Build unit mix / rent tables, concession timeline, occupancy charts
 
 ## Phase 4 — Verification
-- [ ] Test with free dev properties (3 properties provided)
-- [ ] Verify caching prevents duplicate API calls
-- [ ] Manual testing via dev server
+- [x] Test with free dev properties (3 properties provided)
+- [x] Verify caching prevents duplicate API calls
+- [x] Manual testing via dev server
 
 ---
 
@@ -179,10 +179,40 @@
 
 ---
 
+# Activity Tracking Fix (3/2)
+
+- [x] Diagnose `created_by` null values for pursuits and one-pagers
+- [x] Fix `createPursuit` to auto-set `created_by` from auth user
+- [x] Fix `createOnePager` to auto-set `created_by` from auth user
+- [x] Remove explicit `created_by: null` from 3 callers (dashboard, pursuit detail, explore)
+
+---
+
+# AI Site Assessment — Rent Comp Integration (3/2)
+
+- [x] Load `usePursuitRentComps` on pursuit detail page
+- [x] Send rent comp data (property names, units, rents by bed type, occupancy, concessions, quality) to `/api/ai-summary`
+- [x] Aggregate unit-level rent data into bed-type averages in API route
+- [x] Update Pass 1 prompt to include competitive rent analysis
+- [x] Add "Competitive Rent Landscape" section to Pass 2 assessment prompt
+- [x] Increase token limits for expanded analysis
+
+---
+
+# Assemblage Parcels on Maps (3/2)
+
+- [x] Render assemblage parcels (purple polygons) on pursuit overview LocationCard map
+- [x] Render assemblage parcels (purple polygons) on Public Info tab main map
+- [x] Auto-fit map bounds to encompass primary + assemblage parcels
+- [x] Map re-renders when assemblage changes
+
+---
+
 # Future / Deferred Items
 
 - [ ] **Hellodata Market Rents/Pricing API** — AI-driven rent recommendations endpoint (costs ~$0.50/call). Deferred from initial Rent Comps integration. Endpoint: `POST /property/pricing`. Accepts subject property + settings (max_radius, listing_status, date range, include_outliers, building_ids). Returns recommended prices per unit type based on recently closed comps.
 - [ ] Checklist KPI card on pursuit Overview tab
 - [ ] **Security hardening: API route auth** — Add `getUser()` check at top of non-admin API routes to require a valid session (currently proxied routes are callable without auth, but no data leakage risk)
 - [ ] **Security hardening: Soft deletes** — Add `deleted_at` column to critical tables (pursuits, land_comps, key_dates) instead of hard deletes, to allow recovery from accidental deletion
+- [ ] **Backfill `created_by`** — Write SQL to set `created_by` on existing pursuits/one-pagers with null values (historical data won't show activity without this)
 

@@ -142,3 +142,19 @@ _(Append new lessons below. Do not rewrite or delete existing entries.)_
 
 ## Report Aggregation Formatting
 - **Integer fields with `avg` aggregation**: Year Built, count-like fields, and similar integer data should use `Math.round()` in their `format` function. The aggregation engine computes raw `sum / count`, which produces decimals (e.g., "2018.67"). The `format` function is applied to both individual row values and aggregated subtotal/total values, so rounding is safe for both cases.
+
+## Server-Side `created_by` Pattern
+- **Always set `created_by` server-side**: Any `create*` function that inserts a row with a `created_by` column should call `getUser()` and set it automatically inside the function. Never rely on callers to pass it — callers inevitably pass `null` or forget to include it.
+- **Add to `Omit` type**: When auto-setting `created_by`, add it to the function's `Omit<Entity, ...>` type so callers can't override it.
+- **Audit pattern**: Check all `create*` functions against `createLandComp` / `createSaleComp` (which did this correctly from the start) to find any that are missing the pattern.
+
+## AI Multi-Pass Context Enrichment
+- **Feed rent comps into AI site assessment**: The 2-pass AI pipeline (data summary → assessment) benefits from competitive rent data. Aggregate unit-level rents into bed-type averages server-side before adding to context — avoids sending 50+ raw unit records to the LLM.
+- **Token limits scale with context**: When adding new data sources to the AI prompt, increase `maxOutputTokens` proportionally. The model needs room for the new section (e.g., "Competitive Rent Landscape").
+- **Prompt sections should be conditional**: Use "If X data is provided... If not, skip this section entirely" phrasing so the model handles missing data gracefully without hallucinating.
+
+## Mapbox Polygon Rendering Across Views
+- **Same data, multiple maps**: When parcel geometry needs to show on multiple maps (LocationCard, PublicInfoTab), render it independently in each component's `map.on('load')` handler. Don't try to share map instances.
+- **Assemblage on initial load**: If assemblage parcels exist when the map first loads, render them in the init `useEffect`'s load handler — not just in a separate "update" `useEffect`. The update effect may not fire if the assemblage hasn't changed since mount.
+- **Dependency array for map recreation**: Add `assemblage` (or the relevant parcel data) to the main map `useEffect` deps so the map re-creates with current data. The separate "update" `useEffect` then handles incremental changes.
+- **Consistent color convention**: Primary parcel = component's brand color (amber on PublicInfo, blue on LocationCard). Assemblage parcels = purple (`#7C3AED`) everywhere for visual consistency.

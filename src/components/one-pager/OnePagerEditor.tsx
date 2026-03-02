@@ -24,6 +24,7 @@ import { useAutoSave } from '@/hooks/useAutoSave';
 import { useUndoRedo } from '@/hooks/useUndoRedo';
 import { useRealtimeOnePager } from '@/hooks/useRealtimeOnePager';
 import { InlineInput } from './InlineInput';
+import FieldNoteButton from './FieldNoteButton';
 import { RichTextEditor } from '@/components/shared/RichTextEditor';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
 import { calcUnitMixRow, calcPayrollRowTotal } from '@/lib/calculations';
@@ -204,6 +205,18 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
             save({ id: onePager.id, updates });
         },
         [updateOnePagerMutation, onePager, calc, save, pushUndo]
+    );
+
+    // Field-level notes helper
+    const fieldNotes = onePager.field_notes ?? {};
+    const updateFieldNote = useCallback(
+        (fieldKey: string, note: string) => {
+            const updated = { ...fieldNotes, [fieldKey]: note };
+            // Remove empty notes to keep the JSONB clean
+            if (!note.trim()) delete updated[fieldKey];
+            updateField('field_notes', updated as unknown as string);
+        },
+        [fieldNotes, updateField]
     );
 
     const handleUnitMixChange = useCallback(
@@ -483,7 +496,7 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
                 <div className="card">
                     <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider mb-4">Site & Density</h3>
                     <div className="space-y-3">
-                        <FieldRow label="Site Area (SF)" value={formatNumber(pursuit.site_area_sf)} display />
+                        <FieldRow label="Site Area (SF)" value={formatNumber(pursuit.site_area_sf)} display noteKey="site_area_sf" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
                         <FieldRow label="Site Area (Acres)" value={formatNumber(pursuit.site_area_sf / SF_PER_ACRE, 2)} display />
                         <FieldRow label="Total Units" value={formatNumber(sortedUnitMix.reduce((sum, r) => sum + r.unit_count, 0))} display />
                         <FieldRow label="Density (Units/Acre)" value={formatNumber(calc.density_units_per_acre, 1)} display />
@@ -504,7 +517,7 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
                                 </span>
                             </div>
                         )}
-                        <FieldRow label="Efficiency Ratio"><InlineInput value={onePager.efficiency_ratio} onChange={(v) => updateField('efficiency_ratio', v)} format="percent" decimals={1} editAllMode={editAllMode} /></FieldRow>
+                        <FieldRow label="Efficiency Ratio" noteKey="efficiency_ratio" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.efficiency_ratio} onChange={(v) => updateField('efficiency_ratio', v)} format="percent" decimals={1} editAllMode={editAllMode} /></FieldRow>
                         <FieldRow label="Total NRSF" value={formatNumber(calc.total_nrsf)} display />
                         <FieldRow label="Total GBSF" value={formatNumber(calc.total_gbsf)} display />
                         {pursuit.site_area_sf > 0 && calc.total_gbsf > 0 && (
@@ -518,10 +531,10 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
                     <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider mb-4">Revenue</h3>
                     <div className="space-y-3">
                         <FieldRow label="Gross Potential Rent" value={formatCurrency(calc.gross_potential_rent)} display />
-                        <FieldRow label="Other Income ($/unit/mo)"><InlineInput value={onePager.other_income_per_unit_month} onChange={(v) => updateField('other_income_per_unit_month', v)} format="currency" editAllMode={editAllMode} /></FieldRow>
+                        <FieldRow label="Other Income ($/unit/mo)" noteKey="other_income_per_unit_month" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.other_income_per_unit_month} onChange={(v) => updateField('other_income_per_unit_month', v)} format="currency" editAllMode={editAllMode} /></FieldRow>
                         <FieldRow label="Other Income (Annual)" value={formatCurrency(calc.other_income)} display />
                         <FieldRow label="Gross Potential Revenue" value={formatCurrency(calc.gross_potential_revenue)} display />
-                        <FieldRow label="Vacancy & Loss"><InlineInput value={onePager.vacancy_rate} onChange={(v) => updateField('vacancy_rate', v)} format="percent" decimals={1} editAllMode={editAllMode} /></FieldRow>
+                        <FieldRow label="Vacancy & Loss" noteKey="vacancy_rate" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.vacancy_rate} onChange={(v) => updateField('vacancy_rate', v)} format="percent" decimals={1} editAllMode={editAllMode} /></FieldRow>
                         <FieldRow label="Vacancy Amount" value={`(${formatCurrency(calc.vacancy_loss)})`} display className="text-[#DC2626]" />
                         <div className="pt-2 border-t border-[#F0F1F4]">
                             <FieldRow label="Net Revenue" value={formatCurrency(calc.net_revenue)} display className="font-bold text-[#1A1F2B]" />
@@ -672,7 +685,7 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
                             <tbody>
                                 <tr>
                                     <td className="text-[#4A5568] text-xs font-medium">Land Cost</td>
-                                    <td><InlineInput value={onePager.land_cost} onChange={(v) => updateField('land_cost', v)} format="currency" decimals={0} className="text-xs" editAllMode={editAllMode} /></td>
+                                    <td className="relative group/note"><span className="absolute -left-4 top-1/2 -translate-y-1/2"><FieldNoteButton fieldKey="land_cost" note={fieldNotes['land_cost']} onNoteChange={updateFieldNote} /></span><InlineInput value={onePager.land_cost} onChange={(v) => updateField('land_cost', v)} format="currency" decimals={0} className="text-xs" editAllMode={editAllMode} /></td>
                                     <td className="text-right text-xs tabular-nums text-[#7A8599]">{calc.land_cost_per_unit > 0 ? formatCurrency(calc.land_cost_per_unit) : '—'}</td>
                                     <td className="text-right text-xs tabular-nums text-[#7A8599]">{calc.total_nrsf > 0 ? formatCurrency(onePager.land_cost / calc.total_nrsf, 2) : '—'}</td>
                                 </tr>
@@ -680,7 +693,7 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
                                     <td className="text-[#4A5568] text-xs font-medium">Hard Cost</td>
                                     <td className="text-right text-xs tabular-nums text-[#1A1F2B]">{calc.hard_cost > 0 ? formatCurrency(calc.hard_cost) : '—'}</td>
                                     <td className="text-right text-xs tabular-nums text-[#7A8599]">{calc.cost_per_unit > 0 ? formatCurrency(calc.hard_cost / Math.max(onePager.total_units, 1)) : '—'}</td>
-                                    <td><InlineInput value={onePager.hard_cost_per_nrsf} onChange={(v) => updateField('hard_cost_per_nrsf', v)} format="currency" decimals={2} className="text-xs" editAllMode={editAllMode} /></td>
+                                    <td className="relative group/note"><span className="absolute -left-4 top-1/2 -translate-y-1/2"><FieldNoteButton fieldKey="hard_cost_per_nrsf" note={fieldNotes['hard_cost_per_nrsf']} onNoteChange={updateFieldNote} /></span><InlineInput value={onePager.hard_cost_per_nrsf} onChange={(v) => updateField('hard_cost_per_nrsf', v)} format="currency" decimals={2} className="text-xs" editAllMode={editAllMode} /></td>
                                 </tr>
                                 <tr>
                                     <td className="text-[#4A5568] text-xs font-medium">
@@ -716,7 +729,7 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
                         {/* Soft cost controls below table */}
                         {!onePager.use_detailed_soft_costs && (
                             <div className="mt-3">
-                                <FieldRow label="Soft Cost (% of HC)"><InlineInput value={onePager.soft_cost_pct} onChange={(v) => updateField('soft_cost_pct', v)} format="percent" decimals={1} editAllMode={editAllMode} /></FieldRow>
+                                <FieldRow label="Soft Cost (% of HC)" noteKey="soft_cost_pct" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.soft_cost_pct} onChange={(v) => updateField('soft_cost_pct', v)} format="percent" decimals={1} editAllMode={editAllMode} /></FieldRow>
                             </div>
                         )}
                         {onePager.use_detailed_soft_costs && (
@@ -779,13 +792,13 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
                     <table className="data-table">
                         <thead><tr><th>Category</th><th className="text-right">$/Unit/Yr</th><th className="text-right">Annual Total</th></tr></thead>
                         <tbody>
-                            <OpExRow label="Utilities" value={onePager.opex_utilities} units={onePager.total_units} onChange={(v) => updateField('opex_utilities', v)} editAllMode={editAllMode} />
-                            <OpExRow label="Repairs & Maint." value={onePager.opex_repairs_maintenance} units={onePager.total_units} onChange={(v) => updateField('opex_repairs_maintenance', v)} editAllMode={editAllMode} />
-                            <OpExRow label="Contract Svcs" value={onePager.opex_contract_services} units={onePager.total_units} onChange={(v) => updateField('opex_contract_services', v)} editAllMode={editAllMode} />
-                            <OpExRow label="Marketing" value={onePager.opex_marketing} units={onePager.total_units} onChange={(v) => updateField('opex_marketing', v)} editAllMode={editAllMode} />
-                            <OpExRow label="G&A" value={onePager.opex_general_admin} units={onePager.total_units} onChange={(v) => updateField('opex_general_admin', v)} editAllMode={editAllMode} />
-                            <OpExRow label="Turnover" value={onePager.opex_turnover} units={onePager.total_units} onChange={(v) => updateField('opex_turnover', v)} editAllMode={editAllMode} />
-                            <OpExRow label="Miscellaneous" value={onePager.opex_misc} units={onePager.total_units} onChange={(v) => updateField('opex_misc', v)} editAllMode={editAllMode} />
+                            <OpExRow label="Utilities" value={onePager.opex_utilities} units={onePager.total_units} onChange={(v) => updateField('opex_utilities', v)} editAllMode={editAllMode} noteKey="opex_utilities" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
+                            <OpExRow label="Repairs & Maint." value={onePager.opex_repairs_maintenance} units={onePager.total_units} onChange={(v) => updateField('opex_repairs_maintenance', v)} editAllMode={editAllMode} noteKey="opex_repairs_maintenance" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
+                            <OpExRow label="Contract Svcs" value={onePager.opex_contract_services} units={onePager.total_units} onChange={(v) => updateField('opex_contract_services', v)} editAllMode={editAllMode} noteKey="opex_contract_services" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
+                            <OpExRow label="Marketing" value={onePager.opex_marketing} units={onePager.total_units} onChange={(v) => updateField('opex_marketing', v)} editAllMode={editAllMode} noteKey="opex_marketing" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
+                            <OpExRow label="G&A" value={onePager.opex_general_admin} units={onePager.total_units} onChange={(v) => updateField('opex_general_admin', v)} editAllMode={editAllMode} noteKey="opex_general_admin" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
+                            <OpExRow label="Turnover" value={onePager.opex_turnover} units={onePager.total_units} onChange={(v) => updateField('opex_turnover', v)} editAllMode={editAllMode} noteKey="opex_turnover" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
+                            <OpExRow label="Miscellaneous" value={onePager.opex_misc} units={onePager.total_units} onChange={(v) => updateField('opex_misc', v)} editAllMode={editAllMode} noteKey="opex_misc" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
                             <tr>
                                 <td><button onClick={() => setPayrollExpanded(!payrollExpanded)} className="flex items-center gap-1 text-[#2563EB] hover:text-[#1D4FD7] text-sm font-medium">
                                     {payrollExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />} Payroll & Related
@@ -805,7 +818,7 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
                                     </tr>
                                 );
                             })()}
-                            <OpExRow label="Insurance" value={onePager.opex_insurance} units={onePager.total_units} onChange={(v) => updateField('opex_insurance', v)} editAllMode={editAllMode} />
+                            <OpExRow label="Insurance" value={onePager.opex_insurance} units={onePager.total_units} onChange={(v) => updateField('opex_insurance', v)} editAllMode={editAllMode} noteKey="opex_insurance" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
                             <tr>
                                 <td className="text-[#4A5568] text-xs">Mgmt Fee</td>
                                 <td><InlineInput value={onePager.mgmt_fee_pct} onChange={(v) => updateField('mgmt_fee_pct', v)} format="percent" decimals={1} className="text-xs" editAllMode={editAllMode} /></td>
@@ -879,10 +892,10 @@ export function OnePagerEditor({ pursuit, onePager }: OnePagerEditorProps) {
                     <div className="card animate-fade-in">
                         <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider mb-3">Property Tax Detail</h3>
                         <div className="space-y-3">
-                            <FieldRow label="Mil Rate"><InlineInput value={onePager.tax_mil_rate} onChange={(v) => updateField('tax_mil_rate', v)} format="number" decimals={4} /></FieldRow>
-                            <FieldRow label="Assessed % — Hard"><InlineInput value={onePager.tax_assessed_pct_hard} onChange={(v) => updateField('tax_assessed_pct_hard', v)} format="percent" decimals={0} /></FieldRow>
-                            <FieldRow label="Assessed % — Land"><InlineInput value={onePager.tax_assessed_pct_land} onChange={(v) => updateField('tax_assessed_pct_land', v)} format="percent" decimals={0} /></FieldRow>
-                            <FieldRow label="Assessed % — Soft"><InlineInput value={onePager.tax_assessed_pct_soft} onChange={(v) => updateField('tax_assessed_pct_soft', v)} format="percent" decimals={0} /></FieldRow>
+                            <FieldRow label="Mil Rate" noteKey="tax_mil_rate" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.tax_mil_rate} onChange={(v) => updateField('tax_mil_rate', v)} format="number" decimals={4} /></FieldRow>
+                            <FieldRow label="Assessed % — Hard" noteKey="tax_assessed_pct_hard" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.tax_assessed_pct_hard} onChange={(v) => updateField('tax_assessed_pct_hard', v)} format="percent" decimals={0} /></FieldRow>
+                            <FieldRow label="Assessed % — Land" noteKey="tax_assessed_pct_land" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.tax_assessed_pct_land} onChange={(v) => updateField('tax_assessed_pct_land', v)} format="percent" decimals={0} /></FieldRow>
+                            <FieldRow label="Assessed % — Soft" noteKey="tax_assessed_pct_soft" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.tax_assessed_pct_soft} onChange={(v) => updateField('tax_assessed_pct_soft', v)} format="percent" decimals={0} /></FieldRow>
                             <div className="pt-2 border-t border-[#F0F1F4]">
                                 <FieldRow label="Assessed Value" value={formatCurrency(calc.assessed_value)} display />
                                 <FieldRow label="Annual Property Tax" value={formatCurrency(calc.property_tax_total)} display className="font-bold" />
@@ -1117,19 +1130,31 @@ function MetricCell({ label, value, format, decimals = 0 }: { label: string; val
     );
 }
 
-function FieldRow({ label, value, display, className, children }: { label: string; value?: string; display?: boolean; className?: string; children?: React.ReactNode; }) {
+function FieldRow({ label, value, display, className, children, noteKey, fieldNotes, onNoteChange }: { label: string; value?: string; display?: boolean; className?: string; children?: React.ReactNode; noteKey?: string; fieldNotes?: Record<string, string>; onNoteChange?: (key: string, note: string) => void; }) {
     return (
-        <div className="flex items-center justify-between gap-4">
-            <span className="text-xs text-[#7A8599] whitespace-nowrap">{label}</span>
+        <div className="flex items-center justify-between gap-4 group/note">
+            <span className="text-xs text-[#7A8599] whitespace-nowrap flex items-center gap-1">
+                {label}
+                {noteKey && fieldNotes && onNoteChange && (
+                    <FieldNoteButton fieldKey={noteKey} note={fieldNotes[noteKey]} onNoteChange={onNoteChange} />
+                )}
+            </span>
             {display ? <span className={`text-xs tabular-nums text-[#1A1F2B] ${className || ''}`}>{value}</span> : <div className="w-28">{children}</div>}
         </div>
     );
 }
 
-function OpExRow({ label, value, units, onChange, editAllMode }: { label: string; value: number; units: number; onChange: (v: number) => void; editAllMode?: boolean; }) {
+function OpExRow({ label, value, units, onChange, editAllMode, noteKey, fieldNotes, onNoteChange }: { label: string; value: number; units: number; onChange: (v: number) => void; editAllMode?: boolean; noteKey?: string; fieldNotes?: Record<string, string>; onNoteChange?: (key: string, note: string) => void; }) {
     return (
         <tr>
-            <td className="text-[#7A8599] text-xs">{label}</td>
+            <td className="text-[#7A8599] text-xs group/note">
+                <span className="flex items-center gap-1">
+                    {label}
+                    {noteKey && fieldNotes && onNoteChange && (
+                        <FieldNoteButton fieldKey={noteKey} note={fieldNotes[noteKey]} onNoteChange={onNoteChange} />
+                    )}
+                </span>
+            </td>
             <td><InlineInput value={value} onChange={onChange} format="currency" decimals={0} className="text-xs" editAllMode={editAllMode} /></td>
             <td className="text-right text-xs tabular-nums text-[#1A1F2B]">{units > 0 ? formatCurrency(value * units) : '—'}</td>
         </tr>

@@ -225,11 +225,44 @@ export function useUpdateCompType() {
     return useMutation<
         void,
         Error,
-        { pursuitId: string; propertyId: string; compType: 'primary' | 'secondary' }
+        { pursuitId: string; propertyId: string; compType: 'primary' | 'secondary' },
+        { previous: PursuitRentComp[] | undefined; pursuitId: string }
     >({
         mutationFn: ({ pursuitId, propertyId, compType }) =>
             queries.updateRentCompType(pursuitId, propertyId, compType),
-        onSuccess: (_, { pursuitId }) => {
+        onMutate: async ({ pursuitId, propertyId, compType }) => {
+            // Cancel any outgoing refetches so they don't overwrite our optimistic update
+            await queryClient.cancelQueries({ queryKey: hellodataKeys.rentComps(pursuitId) });
+
+            // Snapshot previous value for rollback
+            const previous = queryClient.getQueryData<PursuitRentComp[]>(
+                hellodataKeys.rentComps(pursuitId)
+            );
+
+            // Optimistically update the cache immediately
+            queryClient.setQueryData<PursuitRentComp[]>(
+                hellodataKeys.rentComps(pursuitId),
+                (old) =>
+                    old?.map((rc) =>
+                        rc.property_id === propertyId
+                            ? { ...rc, comp_type: compType }
+                            : rc
+                    ) ?? []
+            );
+
+            return { previous, pursuitId };
+        },
+        onError: (_err, { pursuitId }, context) => {
+            // Roll back to the previous value on failure
+            if (context?.previous) {
+                queryClient.setQueryData(
+                    hellodataKeys.rentComps(pursuitId),
+                    context.previous
+                );
+            }
+        },
+        onSettled: (_, __, { pursuitId }) => {
+            // Always refetch after mutation settles to ensure server state is in sync
             queryClient.invalidateQueries({ queryKey: hellodataKeys.rentComps(pursuitId) });
         },
     });

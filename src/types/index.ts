@@ -217,6 +217,8 @@ export interface OnePager {
   calc_yoc?: number;
   calc_cost_per_unit?: number;
   calc_noi_per_unit?: number;
+  // Field-level inline notes/comments
+  field_notes: Record<string, string>;
   // Joined child tables
   unit_mix?: UnitMixRow[];
   payroll?: PayrollRow[];

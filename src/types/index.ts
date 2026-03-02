@@ -483,12 +483,14 @@ export type ReportFieldKey =
   | 'rc_avg_sqft' | 'rc_quality' | 'rc_asking_rent' | 'rc_effective_rent'
   | 'rc_asking_psf' | 'rc_effective_psf' | 'rc_leased_pct' | 'rc_concession';
 
-export type ReportFilterOperator = 'equals' | 'not_equals' | 'contains' | 'gt' | 'lt' | 'gte' | 'lte';
+export type ReportFilterOperator = 'equals' | 'not_equals' | 'contains' | 'gt' | 'lt' | 'gte' | 'lte' | 'in';
 
 export interface ReportFilter {
   field: ReportFieldKey;
   operator: ReportFilterOperator;
   value: string;
+  /** For 'in' operator: list of selected values */
+  values?: string[];
 }
 
 export type ReportDataSource = 'pursuits' | 'land_comps' | 'predev_budgets' | 'key_dates' | 'rent_comps';

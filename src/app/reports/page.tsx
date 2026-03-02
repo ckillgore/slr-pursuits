@@ -437,6 +437,7 @@ export default function ReportsPage() {
                             onChange={setConfig}
                             onClose={() => setShowConfig(false)}
                             dataSource={dataSource}
+                            data={activeData}
                         />
                     )}
 

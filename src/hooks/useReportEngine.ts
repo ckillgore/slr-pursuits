@@ -40,6 +40,10 @@ function applyFilters(rows: ReportRow[], config: ReportConfig, stages?: PursuitS
                 case 'lt': return Number(rawValue) < Number(filter.value);
                 case 'gte': return Number(rawValue) >= Number(filter.value);
                 case 'lte': return Number(rawValue) <= Number(filter.value);
+                case 'in': {
+                    const vals = (filter.values ?? []).map(v => v.toLowerCase());
+                    return vals.length === 0 || vals.includes(strValue);
+                }
                 default: return true;
             }
         });

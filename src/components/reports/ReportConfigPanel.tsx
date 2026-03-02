@@ -1,20 +1,24 @@
 'use client';
 
 import { useState, useMemo, useRef } from 'react';
-import { Search, ChevronDown, ChevronRight, GripVertical, X } from 'lucide-react';
+import { Search, ChevronDown, ChevronRight, GripVertical, X, Filter } from 'lucide-react';
 import type { ReportConfig, ReportFieldKey, ReportFilter, ReportFilterOperator, ReportDataSource } from '@/types';
 import { REPORT_FIELD_MAP, getFieldCategoriesForSource, getGroupableFieldsForSource } from '@/lib/reportFields';
 import type { ReportFieldDef } from '@/lib/reportFields';
+import type { ReportRow } from '@/lib/supabase/queries';
 
 interface ReportConfigPanelProps {
     config: ReportConfig;
     onChange: (config: ReportConfig) => void;
     onClose: () => void;
     dataSource: ReportDataSource;
+    data?: ReportRow[];
 }
 
-export function ReportConfigPanel({ config, onChange, onClose, dataSource }: ReportConfigPanelProps) {
+export function ReportConfigPanel({ config, onChange, onClose, dataSource, data }: ReportConfigPanelProps) {
     const [search, setSearch] = useState('');
+    const [expandedFilter, setExpandedFilter] = useState<number | null>(null);
+    const [filterSearch, setFilterSearch] = useState('');
 
     const sourceCategories = useMemo(() => getFieldCategoriesForSource(dataSource), [dataSource]);
     const sourceGroupable = useMemo(() => getGroupableFieldsForSource(dataSource), [dataSource]);
@@ -37,6 +41,23 @@ export function ReportConfigPanel({ config, onChange, onClose, dataSource }: Rep
             }))
             .filter(cat => cat.fields.length > 0);
     }, [search, sourceCategories]);
+
+    // Extract distinct values for text fields from the actual data
+    const distinctValues = useMemo(() => {
+        if (!data || data.length === 0) return {};
+        const result: Record<string, string[]> = {};
+        for (const field of sourceFilterable) {
+            if (field.type === 'text') {
+                const vals = new Set<string>();
+                for (const row of data) {
+                    const v = field.getValue(row);
+                    if (v !== null && v !== '' && v !== undefined) vals.add(String(v));
+                }
+                result[field.key] = Array.from(vals).sort((a, b) => a.localeCompare(b));
+            }
+        }
+        return result;
+    }, [data, sourceFilterable]);
 
     const toggleColumn = (key: ReportFieldKey) => {
         const cols = config.columns.includes(key)
@@ -76,12 +97,15 @@ export function ReportConfigPanel({ config, onChange, onClose, dataSource }: Rep
         onChange({ ...config, groupBy: newGroups });
     };
 
-    const addFilter = () => {
-        const defaultField = sourceFilterable[0]?.key ?? ('region' as ReportFieldKey);
-        onChange({
-            ...config,
-            filters: [...config.filters, { field: defaultField, operator: 'equals', value: '' }],
-        });
+    const addFilter = (fieldKey: ReportFieldKey) => {
+        const fieldDef = REPORT_FIELD_MAP[fieldKey];
+        const isText = fieldDef?.type === 'text';
+        const newFilter: ReportFilter = isText
+            ? { field: fieldKey, operator: 'in', value: '', values: [] }
+            : { field: fieldKey, operator: 'gte', value: '' };
+        const newFilters = [...config.filters, newFilter];
+        onChange({ ...config, filters: newFilters });
+        setExpandedFilter(newFilters.length - 1);
     };
 
     const updateFilter = (idx: number, updates: Partial<ReportFilter>) => {
@@ -89,8 +113,18 @@ export function ReportConfigPanel({ config, onChange, onClose, dataSource }: Rep
         onChange({ ...config, filters: newFilters });
     };
 
+    const toggleFilterValue = (idx: number, val: string) => {
+        const filter = config.filters[idx];
+        const current = filter.values ?? [];
+        const newVals = current.includes(val)
+            ? current.filter(v => v !== val)
+            : [...current, val];
+        updateFilter(idx, { values: newVals });
+    };
+
     const removeFilter = (idx: number) => {
         onChange({ ...config, filters: config.filters.filter((_, i) => i !== idx) });
+        if (expandedFilter === idx) setExpandedFilter(null);
     };
 
     const toggleCategory = (cat: string) => {
@@ -129,6 +163,11 @@ export function ReportConfigPanel({ config, onChange, onClose, dataSource }: Rep
         dragIdx.current = null;
         setDropTargetIdx(null);
     };
+
+    // Which filterable fields are NOT yet used in a filter
+    const availableFilterFields = sourceFilterable.filter(
+        f => !config.filters.some(flt => flt.field === f.key)
+    );
 
     return (
         <div className="h-full flex flex-col bg-white border-r border-[#E2E5EA] w-80 min-w-80">
@@ -183,45 +222,131 @@ export function ReportConfigPanel({ config, onChange, onClose, dataSource }: Rep
                 {/* ── Filters ────────────────────────────── */}
                 <div className="px-4 py-3 border-b border-[#F0F1F4]">
                     <h4 className="text-[10px] font-bold text-[#A0AABB] uppercase tracking-wider mb-2">Filters</h4>
-                    {config.filters.map((filter, idx) => (
-                        <div key={idx} className="flex items-center gap-1 mb-2">
-                            <select
-                                value={filter.field}
-                                onChange={(e) => updateFilter(idx, { field: e.target.value as ReportFieldKey })}
-                                className="flex-1 min-w-0 px-1.5 py-1 text-[11px] rounded border border-[#E2E5EA] bg-white text-[#1A1F2B]"
-                            >
-                                {sourceFilterable.map(f => (
-                                    <option key={f.key} value={f.key}>{f.label}</option>
-                                ))}
-                            </select>
-                            <select
-                                value={filter.operator}
-                                onChange={(e) => updateFilter(idx, { operator: e.target.value as ReportFilterOperator })}
-                                className="w-16 px-1 py-1 text-[11px] rounded border border-[#E2E5EA] bg-white text-[#1A1F2B]"
-                            >
-                                <option value="equals">=</option>
-                                <option value="not_equals">≠</option>
-                                <option value="contains">∋</option>
-                                <option value="gt">&gt;</option>
-                                <option value="lt">&lt;</option>
-                                <option value="gte">≥</option>
-                                <option value="lte">≤</option>
-                            </select>
-                            <input
-                                type="text"
-                                value={filter.value}
-                                onChange={(e) => updateFilter(idx, { value: e.target.value })}
-                                placeholder="Value"
-                                className="flex-1 min-w-0 px-1.5 py-1 text-[11px] rounded border border-[#E2E5EA] bg-white text-[#1A1F2B] placeholder:text-[#C8CDD5]"
-                            />
-                            <button onClick={() => removeFilter(idx)} className="p-1 rounded hover:bg-[#FEF2F2] text-[#A0AABB] hover:text-[#DC2626]">
-                                <X className="w-3 h-3" />
-                            </button>
-                        </div>
-                    ))}
-                    <button onClick={addFilter} className="text-[11px] text-[#2563EB] hover:text-[#1D4FD7] font-medium">
-                        + Add Filter
-                    </button>
+
+                    {config.filters.length === 0 && (
+                        <p className="text-[11px] text-[#A0AABB] mb-2">No filters applied</p>
+                    )}
+
+                    {config.filters.map((filter, idx) => {
+                        const fieldDef = REPORT_FIELD_MAP[filter.field];
+                        const isText = fieldDef?.type === 'text';
+                        const isExpanded = expandedFilter === idx;
+                        const dv = distinctValues[filter.field] ?? [];
+                        const selectedCount = filter.values?.length ?? 0;
+
+                        return (
+                            <div key={idx} className="mb-2 rounded-md border border-[#E2E5EA] overflow-hidden">
+                                {/* Filter header — click to expand */}
+                                <div
+                                    className="flex items-center gap-1.5 px-2.5 py-2 bg-[#F8F9FA] cursor-pointer hover:bg-[#F0F1F4] transition-colors"
+                                    onClick={() => setExpandedFilter(isExpanded ? null : idx)}
+                                >
+                                    <Filter className="w-3 h-3 text-[#7A8599] shrink-0" />
+                                    <span className="flex-1 text-[11px] font-medium text-[#1A1F2B] truncate">
+                                        {fieldDef?.label ?? filter.field}
+                                    </span>
+                                    {isText && selectedCount > 0 && (
+                                        <span className="text-[10px] font-medium text-[#2563EB] bg-[#EBF1FF] px-1.5 py-0.5 rounded-full">
+                                            {selectedCount}
+                                        </span>
+                                    )}
+                                    {!isText && filter.value && (
+                                        <span className="text-[10px] text-[#7A8599]">
+                                            {filter.operator === 'gte' ? '≥' : filter.operator === 'lte' ? '≤' : filter.operator === 'gt' ? '>' : filter.operator === 'lt' ? '<' : '='} {filter.value}
+                                        </span>
+                                    )}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); removeFilter(idx); }}
+                                        className="p-0.5 rounded hover:bg-[#FEF2F2] text-[#A0AABB] hover:text-[#DC2626] shrink-0"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+
+                                {/* Expanded filter content */}
+                                {isExpanded && (
+                                    <div className="px-2.5 py-2 border-t border-[#E2E5EA] bg-white">
+                                        {isText ? (
+                                            /* Multi-select checkbox list for text fields */
+                                            <div>
+                                                {dv.length > 6 && (
+                                                    <input
+                                                        type="text"
+                                                        value={filterSearch}
+                                                        onChange={(e) => setFilterSearch(e.target.value)}
+                                                        placeholder="Search values..."
+                                                        className="w-full px-2 py-1 text-[11px] rounded border border-[#E2E5EA] bg-white text-[#1A1F2B] placeholder:text-[#C8CDD5] mb-1.5 focus:border-[#2563EB] focus:outline-none"
+                                                    />
+                                                )}
+                                                <div className="max-h-40 overflow-y-auto space-y-0.5">
+                                                    {(filterSearch
+                                                        ? dv.filter(v => v.toLowerCase().includes(filterSearch.toLowerCase()))
+                                                        : dv
+                                                    ).map(val => (
+                                                        <label key={val} className="flex items-center gap-2 px-1 py-0.5 rounded hover:bg-[#F4F5F7] cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={filter.values?.includes(val) ?? false}
+                                                                onChange={() => toggleFilterValue(idx, val)}
+                                                                className="w-3 h-3 rounded border-[#E2E5EA] text-[#2563EB] focus:ring-[#2563EB]"
+                                                            />
+                                                            <span className="text-[11px] text-[#4A5568] truncate">{val}</span>
+                                                        </label>
+                                                    ))}
+                                                    {dv.length === 0 && (
+                                                        <p className="text-[10px] text-[#A0AABB] py-1">No values found</p>
+                                                    )}
+                                                </div>
+                                                {selectedCount > 0 && (
+                                                    <button
+                                                        onClick={() => updateFilter(idx, { values: [] })}
+                                                        className="mt-1.5 text-[10px] text-[#2563EB] hover:text-[#1D4FD7] font-medium"
+                                                    >
+                                                        Clear all
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            /* Operator + value input for numeric fields */
+                                            <div className="flex items-center gap-1.5">
+                                                <select
+                                                    value={filter.operator}
+                                                    onChange={(e) => updateFilter(idx, { operator: e.target.value as ReportFilterOperator })}
+                                                    className="w-14 px-1 py-1 text-[11px] rounded border border-[#E2E5EA] bg-white text-[#1A1F2B]"
+                                                >
+                                                    <option value="gte">≥</option>
+                                                    <option value="lte">≤</option>
+                                                    <option value="gt">&gt;</option>
+                                                    <option value="lt">&lt;</option>
+                                                    <option value="equals">=</option>
+                                                    <option value="not_equals">≠</option>
+                                                </select>
+                                                <input
+                                                    type="text"
+                                                    value={filter.value}
+                                                    onChange={(e) => updateFilter(idx, { value: e.target.value })}
+                                                    placeholder="Value"
+                                                    className="flex-1 min-w-0 px-2 py-1 text-[11px] rounded border border-[#E2E5EA] bg-white text-[#1A1F2B] placeholder:text-[#C8CDD5] focus:border-[#2563EB] focus:outline-none"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+
+                    {/* Add filter dropdown */}
+                    <select
+                        value=""
+                        onChange={(e) => { if (e.target.value) addFilter(e.target.value as ReportFieldKey); }}
+                        className="w-full px-2 py-1.5 text-xs rounded-md border border-[#E2E5EA] text-[#7A8599] bg-white mt-1"
+                    >
+                        <option value="">+ Add filter...</option>
+                        {availableFilterFields.map(f => (
+                            <option key={f.key} value={f.key}>{f.label} ({f.type === 'text' ? 'pick values' : 'numeric'})</option>
+                        ))}
+                    </select>
                 </div>
 
                 {/* ── Column Order ────────────────────────── */}
@@ -314,3 +439,4 @@ export function ReportConfigPanel({ config, onChange, onClose, dataSource }: Rep
         </div>
     );
 }
+

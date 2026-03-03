@@ -531,15 +531,43 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                 {/* ===== REVENUE ===== */}
                 <div className="card">
                     <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider mb-4">Revenue</h3>
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                         <FieldRow label="Gross Potential Rent" value={formatCurrency(calc.gross_potential_rent)} display />
-                        <FieldRow label="Other Income ($/unit/mo)" noteKey="other_income_per_unit_month" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.other_income_per_unit_month} onChange={(v) => updateField('other_income_per_unit_month', v)} format="currency" editAllMode={editAllMode} /></FieldRow>
-                        <FieldRow label="Other Income (Annual)" value={formatCurrency(calc.other_income)} display />
-                        <FieldRow label="Gross Potential Revenue" value={formatCurrency(calc.gross_potential_revenue)} display />
-                        <FieldRow label="Vacancy & Loss" noteKey="vacancy_rate" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.vacancy_rate} onChange={(v) => updateField('vacancy_rate', v)} format="percent" decimals={1} editAllMode={editAllMode} /></FieldRow>
-                        <FieldRow label="Vacancy Amount" value={`(${formatCurrency(calc.vacancy_loss)})`} display className="text-[#DC2626]" />
-                        <div className="pt-2 border-t border-[#F0F1F4]">
-                            <FieldRow label="Net Revenue" value={formatCurrency(calc.net_revenue)} display className="font-bold text-[#1A1F2B]" />
+
+                        {/* Other Income — inline: assumption left, amount right */}
+                        <div className="flex items-center justify-between py-1">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-[#7A8599]">Other Income</span>
+                                <FieldNoteButton fieldKey="other_income_per_unit_month" note={fieldNotes['other_income_per_unit_month']} onNoteChange={updateFieldNote} />
+                                <InlineInput value={onePager.other_income_per_unit_month} onChange={(v) => updateField('other_income_per_unit_month', v)} format="currency" className="text-xs w-20" editAllMode={editAllMode} />
+                                <span className="text-[10px] text-[#A0AABB]">/unit/mo</span>
+                            </div>
+                            <span className="text-xs tabular-nums text-[#4A5568]">{formatCurrency(calc.other_income)}</span>
+                        </div>
+
+                        <div className="border-t border-[#F0F1F4] pt-1">
+                            <FieldRow label="Gross Potential Revenue" value={formatCurrency(calc.gross_potential_revenue)} display />
+                        </div>
+
+                        {/* Vacancy — inline: assumption left, amount right */}
+                        <div className="flex items-center justify-between py-1">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-[#7A8599]">Vacancy & Loss</span>
+                                <FieldNoteButton fieldKey="vacancy_rate" note={fieldNotes['vacancy_rate']} onNoteChange={updateFieldNote} />
+                                <InlineInput value={onePager.vacancy_rate} onChange={(v) => updateField('vacancy_rate', v)} format="percent" decimals={1} className="text-xs w-16" editAllMode={editAllMode} />
+                            </div>
+                            <span className="text-xs tabular-nums text-[#DC2626]">{calc.vacancy_loss > 0 ? `(${formatCurrency(calc.vacancy_loss)})` : '—'}</span>
+                        </div>
+
+                        <div className="pt-2 border-t-2 border-[#E2E5EA]">
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm font-bold text-[#1A1F2B]">Net Revenue</span>
+                                <span className="text-sm font-bold tabular-nums text-[#1A1F2B]">{formatCurrency(calc.net_revenue)}</span>
+                            </div>
+                            <div className="flex gap-4 mt-1.5">
+                                <span className="text-[10px] text-[#A0AABB]">$/Unit: <span className="text-[#4A5568] font-medium">{onePager.total_units > 0 ? formatCurrency(calc.net_revenue / onePager.total_units) : '—'}</span></span>
+                                <span className="text-[10px] text-[#A0AABB]">$/SF: <span className="text-[#4A5568] font-medium">{calc.total_nrsf > 0 ? formatCurrency(calc.net_revenue / calc.total_nrsf, 2) : '—'}</span></span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -621,7 +649,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                         <td className="text-right tabular-nums">{calc.total_nrsf > 0 ? formatNumber(calc.total_nrsf) : '—'}</td>
                                         <td className="text-right tabular-nums">{calc.total_nrsf > 0 ? '100%' : '—'}</td>
                                         <td className="text-right tabular-nums">{calc.weighted_avg_rent_per_sf > 0 ? formatCurrency(calc.weighted_avg_rent_per_sf, 2) : '—'}</td>
-                                        <td className="text-right tabular-nums">—</td>
+                                        <td className="text-right tabular-nums">{onePager.total_units > 0 && calc.gross_potential_rent > 0 ? formatCurrency(calc.gross_potential_rent / onePager.total_units / 12) : '—'}</td>
                                         <td className="text-right tabular-nums">{calc.gross_potential_rent > 0 ? formatCurrency(calc.gross_potential_rent) : '—'}</td>
                                     </tr>
                                 </tbody>
@@ -678,7 +706,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                         <table className="data-table">
                             <thead>
                                 <tr>
-                                    <th>Uses</th>
+                                    <th className="text-left">Uses</th>
                                     <th className="text-right">Total</th>
                                     <th className="text-right">$/Unit</th>
                                     <th className="text-right">$/NRSF</th>
@@ -792,7 +820,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                 <div className="card">
                     <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider mb-4">Operating Expenses</h3>
                     <table className="data-table">
-                        <thead><tr><th>Category</th><th className="text-right">$/Unit/Yr</th><th className="text-right">Annual Total</th></tr></thead>
+                        <thead><tr><th className="text-left">Category</th><th className="text-right">$/Unit/Yr</th><th className="text-right">Annual Total</th></tr></thead>
                         <tbody>
                             <OpExRow label="Utilities" value={onePager.opex_utilities} units={onePager.total_units} onChange={(v) => updateField('opex_utilities', v)} editAllMode={editAllMode} noteKey="opex_utilities" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
                             <OpExRow label="Repairs & Maint." value={onePager.opex_repairs_maintenance} units={onePager.total_units} onChange={(v) => updateField('opex_repairs_maintenance', v)} editAllMode={editAllMode} noteKey="opex_repairs_maintenance" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />

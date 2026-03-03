@@ -158,3 +158,27 @@ _(Append new lessons below. Do not rewrite or delete existing entries.)_
 - **Assemblage on initial load**: If assemblage parcels exist when the map first loads, render them in the init `useEffect`'s load handler — not just in a separate "update" `useEffect`. The update effect may not fire if the assemblage hasn't changed since mount.
 - **Dependency array for map recreation**: Add `assemblage` (or the relevant parcel data) to the main map `useEffect` deps so the map re-creates with current data. The separate "update" `useEffect` then handles incremental changes.
 - **Consistent color convention**: Primary parcel = component's brand color (amber on PublicInfo, blue on LocationCard). Assemblage parcels = purple (`#7C3AED`) everywhere for visual consistency.
+
+## Adding a New Expense Line Item (Pattern)
+- **Checklist**: Types (OnePager + all template interfaces) → schema (Zod) → calculation engine (add to `OpExCalc` interface + total) → UI (`OpExRow` in `OnePagerEditor`) → exports (Excel + PDF) → pursuit creation defaults → admin template defaults + UI → DB migration (ALTER TABLE on both `one_pagers` and `data_model_templates`).
+- **Template type duplication**: `DataModelTemplate` may have multiple type definitions (interface + DB row type). Search for ALL occurrences of the sibling field (e.g., `default_opex_insurance`) and add the new field next to each one.
+- **Table name accuracy in migrations**: The template table is `data_model_templates`, not `data_models`. Always verify actual table names from the initial schema migration before writing ALTER TABLE statements.
+
+## Property Tax / Mil Rate Input Convention
+- **User mental model matters**: The user thinks of the tax rate as a percentage (e.g., 1.2748 = 1.2748%). Don't apply millage convention (÷1000) or percentage convention (÷100) unless the user explicitly wants it. In this case: `assessed_value × rate_input` with no division.
+- **Label should match the math**: If the input works as a straight percentage, label it "Tax Rate" with `format="percent"`, not "Mil Rate" (which implies ÷1000).
+
+## Revenue Card UX
+- **Inline assumption + result pattern**: For inputs that produce a calculated amount (e.g., Other Income $/unit/mo → annual total, Vacancy % → vacancy $), show the assumption input inline on the left and the calculated result on the right. This collapses 2–3 rows into one compact row.
+- **Sub-metrics under totals**: Display $/Unit and $/SF below key totals (Net Revenue, etc.) as small secondary text. These are high-value metrics that don't need their own full row.
+
+## Mobile Responsiveness — Tables
+- **`min-width` on data tables**: Set `min-width: 480px` (or appropriate) on `.data-table` CSS class so tables maintain readability on narrow screens. Combined with `overflow-x: auto` on the parent `.card`, this gives horizontal scroll instead of squishing columns.
+- **Card overflow on mobile**: Use `overflow-x: auto` on `.card` at mobile breakpoint only. Revert to `overflow-x: visible` on `sm:` and up so popups (notes, tooltips) aren't clipped on desktop.
+- **Responsive card padding**: Reduce card padding on mobile (14px vs 20px) to maximize content area.
+- **KPI headers**: Convert rigid `flex` + `grid-cols-N` layouts to stacking `flex-col lg:flex-row` with secondary metrics in a responsive grid. On mobile, show key metrics in a compact 3-col grid below the headline number.
+
+## Mobile Responsiveness — Toolbar Restructuring
+- **Two-row toolbar pattern**: When a toolbar has too many controls for one row (toggle group + selector + action buttons), split into two rows: top row = title + actions, bottom row = toggle group (scrollable).
+- **Abbreviated toggle labels**: Use `<span className="hidden sm:inline">Full Label</span><span className="sm:hidden">Abbr</span>` for data source toggle buttons. Shows full text on desktop, abbreviated on mobile.
+- **Div nesting discipline**: When restructuring a complex toolbar from one row to multi-row, add `{/* end X */}` comments on closing `</div>` tags. Mismatched nesting creates invisible layout bugs (large white space gaps) that are hard to spot visually.

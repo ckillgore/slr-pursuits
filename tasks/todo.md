@@ -208,6 +208,67 @@
 
 ---
 
+# One-Pager Fixes & Enhancements (3/2)
+
+## Bug Fixes
+- [x] Property tax calculation — change divisor so mil rate is treated as percentage (no divide)
+- [x] Rename "Mil Rate" label → "Tax Rate" with `format="percent"`
+- [x] Investigate payroll "+ Employee" / "+ Contract" button unresponsiveness (cache keys verified consistent; likely fixed by prior optimistic update fixes)
+- [x] Investigate one-pager inline input values not updating in view (confirmed saving correctly; reactivity issue resolved by prior cache invalidation fixes)
+
+## Capex Reserves Expense Line
+- [x] Add `opex_capex_reserves` to `types/index.ts` (OnePager + 2 template types)
+- [x] Add to `schemas.ts` Zod validation
+- [x] Add to `opex.ts` calculation engine (`capex_reserves_total` in `OpExCalc`)
+- [x] Add `OpExRow` for "Capex Reserves" in `OnePagerEditor.tsx` (below Property Tax)
+- [x] Add to `exportExcel.ts` and `OnePagerPDF.tsx` exports
+- [x] Add to pursuit creation defaults and admin template defaults
+- [x] Write migration `20260302_capex_reserves.sql` (columns on `one_pagers` + `data_model_templates`)
+
+## Revenue Card Redesign
+- [x] Compact inline layout: Other Income (input + /unit/mo label → annual amount)
+- [x] Compact inline layout: Vacancy & Loss (input % → red vacancy amount)
+- [x] Add $/Unit and $/SF metrics under Net Revenue
+- [x] Remove separate "Other Income (Annual)" and "Vacancy Amount" rows
+
+## Unit Mix Total Row
+- [x] Add weighted avg MO. RENT calculation (total annual rev ÷ total units ÷ 12)
+
+## Table Header Alignment
+- [x] Left-align "Uses" header in Development Budget table
+- [x] Left-align "Category" header in Operating Expenses table
+
+---
+
+# Mobile Responsiveness — One-Pager (3/2)
+
+- [x] Responsive outer padding (`px-3 sm:px-6`, `py-4 sm:py-6`)
+- [x] Top bar wraps vertically on mobile (`flex-col sm:flex-row`)
+- [x] Toolbar horizontally scrollable (`overflow-x-auto`)
+- [x] KPI header stacks vertically on mobile; key metrics in 3-col grid
+- [x] Card CSS: `overflow-x: auto` on mobile, compact padding (14px vs 20px)
+- [x] `data-table` CSS: `min-width: 480px` triggers horizontal scroll on narrow screens
+- [x] Unit mix table wrapper: `overflow-x-auto`
+
+---
+
+# Mobile Responsiveness — Reports Tab (3/2)
+
+- [x] Toolbar restructured into two rows (title+actions top, data source toggle bottom)
+- [x] Data source toggle: abbreviated labels on mobile, horizontally scrollable
+- [x] Template selector: reduced min-width on mobile
+- [x] Responsive padding (`px-3 sm:px-4 md:px-6`)
+- [x] Fix broken div nesting that caused large white space between toolbar and content
+
+---
+
+# Vercel Analytics (3/2)
+
+- [x] Install `@vercel/analytics` package
+- [x] Add `<Analytics />` component to root layout
+
+---
+
 # Future / Deferred Items
 
 - [ ] **Hellodata Market Rents/Pricing API** — AI-driven rent recommendations endpoint (costs ~$0.50/call). Deferred from initial Rent Comps integration. Endpoint: `POST /property/pricing`. Accepts subject property + settings (max_radius, listing_status, date range, include_outliers, building_ids). Returns recommended prices per unit type based on recently closed comps.

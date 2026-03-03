@@ -347,11 +347,9 @@ export default function ReportsPage() {
                                 </span>
                             )}
                         </div>
-                    </div>
-                </div>
 
-                    {/* Action buttons */}
-                    <div className="flex items-center gap-1 ml-auto">
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-1 ml-auto">
                         <button
                             onClick={() => setShowConfig(!showConfig)}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${showConfig
@@ -461,10 +459,10 @@ export default function ReportsPage() {
                                 <Trash2 className="w-4 h-4" />
                             </button>
                         )}
-                    </div>
-                    </div>
+                    </div>{/* end action buttons */}
+                    </div>{/* end top row */}
 
-                    {/* Bottom row: data source toggle + template selector */}
+                    {/* Bottom row: data source toggle */}
                     <div className="flex items-center gap-2 overflow-x-auto pb-0.5 -mb-0.5">
                         {/* Data Source Toggle */}
                         <div className="flex items-center rounded-lg bg-[#F4F5F7] p-0.5 shrink-0">
@@ -505,6 +503,8 @@ export default function ReportsPage() {
                                 <Building2 className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Sale Comps</span><span className="sm:hidden">Sales</span>
                             </button>
                         </div>
+                    </div>{/* end bottom row */}
+                </div>{/* end toolbar */}
 
                 {/* ── Read-only banner for shared templates the user can't edit ── */}
                 {selectedTemplate && selectedTemplate.is_shared && !canEditTemplate && (

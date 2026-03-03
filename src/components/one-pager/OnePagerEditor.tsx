@@ -329,9 +329,9 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     }
 
     return (
-        <div className="max-w-[1600px] mx-auto px-6 py-6">
+        <div className="max-w-[1600px] mx-auto px-3 sm:px-6 py-4 sm:py-6">
             {/* Top bar */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
                 <div className="flex items-center gap-3">
                     <Link href={`/pursuits/${pursuit.short_id}`} className="text-sm text-[#7A8599] hover:text-[#4A5568] transition-colors">
                         <ChevronLeft className="w-4 h-4 inline mr-1" />{pursuit.name}
@@ -357,7 +357,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                 </div>
 
                 {/* Actions Toolbar */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1">
                     {/* Edit All Toggle */}
                     <button
                         onClick={() => setEditAllMode(!editAllMode)}
@@ -460,23 +460,26 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" style={{ gridAutoFlow: 'dense' }}>
                 {/* ===== RETURNS SUMMARY ===== */}
                 <div className="lg:col-span-3 card-returns card">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-8">
-                            <div>
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                        <div className="flex items-center gap-4 sm:gap-8">
+                            <div className="flex-shrink-0">
                                 <div className="text-[10px] text-[#7A8599] uppercase tracking-wider font-semibold mb-1">Unlevered Yield on Cost</div>
-                                <div className="text-4xl font-bold text-[#2563EB]">
+                                <div className="text-3xl sm:text-4xl font-bold text-[#2563EB]">
                                     {calc.unlevered_yield_on_cost > 0 ? formatPercent(calc.unlevered_yield_on_cost) : '—'}
                                 </div>
                             </div>
-                            <div className="h-12 w-px bg-[#E2E5EA]" />
-                            <div className="grid grid-cols-4 gap-6">
+                            <div className="hidden sm:block h-12 w-px bg-[#E2E5EA]" />
+                            <div className="hidden sm:grid grid-cols-4 gap-6">
                                 <MetricCell label="NOI" value={calc.noi} format="currency" />
                                 <MetricCell label="NOI / Unit" value={calc.noi_per_unit} format="currency" />
                                 <MetricCell label="Total Budget" value={calc.total_budget} format="currency" />
                                 <MetricCell label="Cost / Unit" value={calc.cost_per_unit} format="currency" />
                             </div>
                         </div>
-                        <div className="grid grid-cols-3 gap-6">
+                        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-3 sm:gap-6">
+                            <div className="sm:hidden"><MetricCell label="NOI" value={calc.noi} format="currency" /></div>
+                            <div className="sm:hidden"><MetricCell label="Total Budget" value={calc.total_budget} format="currency" /></div>
+                            <div className="sm:hidden"><MetricCell label="Cost / Unit" value={calc.cost_per_unit} format="currency" /></div>
                             <MetricCell label="Rent / SF" value={calc.weighted_avg_rent_per_sf} format="currency" decimals={2} />
                             <MetricCell label="OpEx Ratio" value={calc.opex_ratio} format="percent" />
                             <MetricCell label="Cost / NRSF" value={calc.cost_per_nrsf} format="currency" />
@@ -598,7 +601,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                 <Plus className="w-3.5 h-3.5" /> Add Row
                             </button>
                         </div>
-                        <div className="-mx-5">
+                        <div className="-mx-5 overflow-x-auto">
                             <table className="data-table">
                                 <thead><tr><th className="text-left">Type</th><th className="text-right"># Units</th><th className="text-right">Avg SF</th><th className="text-right">Total SF</th><th className="text-right">% of Total</th><th className="text-right">Rent/SF</th><th className="text-right">Mo. Rent</th><th className="text-right">Annual Rev</th></tr></thead>
                                 <tbody>

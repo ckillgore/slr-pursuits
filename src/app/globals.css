@@ -73,9 +73,17 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 20px;
+  padding: 14px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
   transition: box-shadow 0.2s ease;
+  overflow-x: auto;
+}
+
+@media (min-width: 640px) {
+  .card {
+    padding: 20px;
+    overflow-x: visible;
+  }
 }
 
 .card:hover {
@@ -121,6 +129,7 @@ body {
    ============================================================ */
 .data-table {
   width: 100%;
+  min-width: 480px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.8125rem;

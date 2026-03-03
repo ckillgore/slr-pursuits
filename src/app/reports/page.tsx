@@ -225,55 +225,33 @@ export default function ReportsPage() {
         <AppShell>
             <div className="flex flex-col h-[calc(100vh-56px)]">
                 {/* ── Toolbar ────────────────────────────── */}
-                <div className="flex items-center gap-3 px-4 md:px-6 py-3 border-b border-[#E2E5EA] bg-white shrink-0">
-                    <FileSpreadsheet className="w-5 h-5 text-[#7A8599]" />
-                    <h1 className="text-lg font-semibold text-[#1A1F2B] mr-2">Reports</h1>
+                <div className="flex flex-col gap-2 px-3 sm:px-4 md:px-6 py-3 border-b border-[#E2E5EA] bg-white shrink-0">
+                    {/* Top row: title + action buttons */}
+                    <div className="flex items-center gap-3">
+                        <FileSpreadsheet className="w-5 h-5 text-[#7A8599] shrink-0" />
+                        <h1 className="text-lg font-semibold text-[#1A1F2B] mr-2 whitespace-nowrap">Reports</h1>
 
-                    {/* Data Source Toggle */}
-                    <div className="flex items-center rounded-lg bg-[#F4F5F7] p-0.5 mr-2">
-                        <button
-                            onClick={() => handleDataSourceChange('pursuits')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${dataSource === 'pursuits' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
-                        >
-                            <Building2 className="w-3.5 h-3.5" /> Pursuits
-                        </button>
-                        <button
-                            onClick={() => handleDataSourceChange('land_comps')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${dataSource === 'land_comps' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
-                        >
-                            <Landmark className="w-3.5 h-3.5" /> Land Comps
-                        </button>
-                        <button
-                            onClick={() => handleDataSourceChange('predev_budgets')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${dataSource === 'predev_budgets' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
-                        >
-                            <DollarSign className="w-3.5 h-3.5" /> Pre-Dev Budgets
-                        </button>
-                        <button
-                            onClick={() => handleDataSourceChange('key_dates')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${dataSource === 'key_dates' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
-                        >
-                            <Calendar className="w-3.5 h-3.5" /> Key Dates
-                        </button>
-                        <button
-                            onClick={() => handleDataSourceChange('rent_comps')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${dataSource === 'rent_comps' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
-                        >
-                            <Home className="w-3.5 h-3.5" /> Rent Comps
-                        </button>
-                        <button
-                            onClick={() => handleDataSourceChange('sale_comps')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${dataSource === 'sale_comps' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
-                        >
-                            <Building2 className="w-3.5 h-3.5" /> Sale Comps
-                        </button>
-                    </div>
+                        {/* Shared badge — inline on desktop, hidden on mobile (shown below) */}
+                        <div className="hidden sm:block">
+                            {selectedTemplate && (
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${selectedTemplate.is_shared
+                                    ? 'bg-[#EBF1FF] text-[#2563EB]'
+                                    : 'bg-[#F4F5F7] text-[#7A8599]'
+                                    }`}>
+                                    {selectedTemplate.is_shared ? (
+                                        <><Globe className="w-3 h-3" /> Shared</>
+                                    ) : (
+                                        <><Lock className="w-3 h-3" /> Personal</>
+                                    )}
+                                </span>
+                            )}
+                        </div>
 
-                    {/* Template Selector */}
-                    <div className="relative">
-                        <button
-                            onClick={() => setTemplateDropdownOpen(!templateDropdownOpen)}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#E2E5EA] text-sm text-[#4A5568] hover:border-[#C8CDD5] transition-colors bg-white min-w-[180px]"
+                        {/* Template Selector */}
+                        <div className="relative shrink-0">
+                            <button
+                                onClick={() => setTemplateDropdownOpen(!templateDropdownOpen)}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#E2E5EA] text-sm text-[#4A5568] hover:border-[#C8CDD5] transition-colors bg-white min-w-[140px] sm:min-w-[180px]"
                         >
                             <span className="truncate flex items-center gap-1.5">
                                 {selectedTemplate ? (
@@ -352,21 +330,25 @@ export default function ReportsPage() {
                                 )}
                             </div>
                         )}
-                    </div>
+                        </div>
 
-                    {/* Shared badge */}
-                    {selectedTemplate && (
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${selectedTemplate.is_shared
-                            ? 'bg-[#EBF1FF] text-[#2563EB]'
-                            : 'bg-[#F4F5F7] text-[#7A8599]'
-                            }`}>
-                            {selectedTemplate.is_shared ? (
-                                <><Globe className="w-3 h-3" /> Shared</>
-                            ) : (
-                                <><Lock className="w-3 h-3" /> Personal</>
+                        {/* Shared badge — mobile only */}
+                        <div className="sm:hidden">
+                            {selectedTemplate && (
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap ${selectedTemplate.is_shared
+                                    ? 'bg-[#EBF1FF] text-[#2563EB]'
+                                    : 'bg-[#F4F5F7] text-[#7A8599]'
+                                    }`}>
+                                    {selectedTemplate.is_shared ? (
+                                        <><Globe className="w-3 h-3" /> Shared</>
+                                    ) : (
+                                        <><Lock className="w-3 h-3" /> Personal</>
+                                    )}
+                                </span>
                             )}
-                        </span>
-                    )}
+                        </div>
+                    </div>
+                </div>
 
                     {/* Action buttons */}
                     <div className="flex items-center gap-1 ml-auto">
@@ -480,7 +462,49 @@ export default function ReportsPage() {
                             </button>
                         )}
                     </div>
-                </div>
+                    </div>
+
+                    {/* Bottom row: data source toggle + template selector */}
+                    <div className="flex items-center gap-2 overflow-x-auto pb-0.5 -mb-0.5">
+                        {/* Data Source Toggle */}
+                        <div className="flex items-center rounded-lg bg-[#F4F5F7] p-0.5 shrink-0">
+                            <button
+                                onClick={() => handleDataSourceChange('pursuits')}
+                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'pursuits' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
+                            >
+                                <Building2 className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Pursuits</span><span className="sm:hidden">Purs.</span>
+                            </button>
+                            <button
+                                onClick={() => handleDataSourceChange('land_comps')}
+                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'land_comps' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
+                            >
+                                <Landmark className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Land Comps</span><span className="sm:hidden">Land</span>
+                            </button>
+                            <button
+                                onClick={() => handleDataSourceChange('predev_budgets')}
+                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'predev_budgets' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
+                            >
+                                <DollarSign className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Pre-Dev</span><span className="sm:hidden">Pre-D</span>
+                            </button>
+                            <button
+                                onClick={() => handleDataSourceChange('key_dates')}
+                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'key_dates' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
+                            >
+                                <Calendar className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Key Dates</span><span className="sm:hidden">Dates</span>
+                            </button>
+                            <button
+                                onClick={() => handleDataSourceChange('rent_comps')}
+                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'rent_comps' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
+                            >
+                                <Home className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Rent Comps</span><span className="sm:hidden">Rent</span>
+                            </button>
+                            <button
+                                onClick={() => handleDataSourceChange('sale_comps')}
+                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'sale_comps' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
+                            >
+                                <Building2 className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Sale Comps</span><span className="sm:hidden">Sales</span>
+                            </button>
+                        </div>
 
                 {/* ── Read-only banner for shared templates the user can't edit ── */}
                 {selectedTemplate && selectedTemplate.is_shared && !canEditTemplate && (

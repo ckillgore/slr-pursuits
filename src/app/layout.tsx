@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import { cookies } from 'next/headers';
 import './globals.css';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Providers } from '@/components/Providers';
@@ -17,16 +16,28 @@ export const metadata: Metadata = {
   description: 'Multifamily development feasibility analysis platform — Streetlight Residential',
 };
 
-export default async function RootLayout({
+/**
+ * Inline script that runs before React hydration to apply the
+ * persisted theme from the cookie. This prevents FOUT (flash of
+ * un-themed content) without using `cookies()` which would make
+ * every route dynamic and break client-side navigation.
+ *
+ * suppressHydrationWarning on <html> silences the attribute
+ * mismatch warning since the server always renders without
+ * data-theme but the script may set it before hydration.
+ */
+const themeScript = `(function(){try{var m=document.cookie.match(/(?:^|;)\\s*slr-theme=([^;]*)/);if(m&&m[1]==='dark'){document.documentElement.setAttribute('data-theme','dark')}}catch(e){}})()`;
+
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const cookieStore = await cookies();
-  const theme = cookieStore.get('slr-theme')?.value === 'dark' ? 'dark' : 'light';
-
   return (
-    <html lang="en" className={inter.variable} data-theme={theme} suppressHydrationWarning>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] antialiased">
         <Providers>{children}</Providers>
         <Analytics />

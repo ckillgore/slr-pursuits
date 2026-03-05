@@ -42,7 +42,7 @@ export function ReportTable({
 
     if (columns.length === 0) {
         return (
-            <div className="flex items-center justify-center py-16 text-sm text-[#A0AABB]">
+            <div className="flex items-center justify-center py-16 text-sm text-[var(--text-faint)]">
                 Select columns from the configuration panel to build your report.
             </div>
         );
@@ -57,16 +57,16 @@ export function ReportTable({
 
     // Render a data row
     const renderRow = (row: ReportRow, depth: number, idx: number) => (
-        <tr key={`row-${row.pursuit.id}-${idx}`} className="hover:bg-[#F8F9FB] transition-colors">
+        <tr key={`row-${row.pursuit.id}-${idx}`} className="hover:bg-[var(--bg-primary)] transition-colors">
             {columns.map((col, ci) => (
                 <td
                     key={col.key}
-                    className={`px-3 py-2 text-xs text-[#4A5568] border-b border-[#F0F1F4] whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right tabular-nums' : ''
+                    className={`px-3 py-2 text-xs text-[var(--text-secondary)] border-b border-[var(--table-row-border)] whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right tabular-nums' : ''
                         }`}
                     style={ci === 0 ? { paddingLeft: `${depth * 24 + 12}px` } : undefined}
                 >
                     {col.key === 'pursuit_name' ? (
-                        <Link href={`/pursuits/${row.pursuit.short_id || row.pursuit.id}`} className="text-[#2563EB] hover:underline font-medium">
+                        <Link href={`/pursuits/${row.pursuit.short_id || row.pursuit.id}`} className="text-[var(--accent)] hover:underline font-medium">
                             {col.format(col.getValue(row, stages))}
                         </Link>
                     ) : (
@@ -88,23 +88,23 @@ export function ReportTable({
 
         // Group header row
         elements.push(
-            <tr key={`group-${path}`} className="bg-[#F8F9FB] hover:bg-[#F0F1F4] cursor-pointer transition-colors" onClick={() => toggleCollapse(path)}>
+            <tr key={`group-${path}`} className="bg-[var(--bg-primary)] hover:bg-[var(--table-row-border)] cursor-pointer transition-colors" onClick={() => toggleCollapse(path)}>
                 <td
-                    className="px-3 py-2 text-xs font-semibold text-[#1A1F2B] border-b border-[#E2E5EA] whitespace-nowrap"
+                    className="px-3 py-2 text-xs font-semibold text-[var(--text-primary)] border-b border-[var(--border)] whitespace-nowrap"
                     style={{ paddingLeft: `${depth * 24 + 8}px` }}
                     colSpan={1}
                 >
                     <span className="inline-flex items-center gap-1.5">
-                        {isCollapsed ? <ChevronRight className="w-3.5 h-3.5 text-[#7A8599]" /> : <ChevronDown className="w-3.5 h-3.5 text-[#7A8599]" />}
-                        <span className="text-[10px] text-[#A0AABB] font-normal uppercase">{fieldLabel}:</span>
+                        {isCollapsed ? <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" /> : <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
+                        <span className="text-[10px] text-[var(--text-faint)] font-normal uppercase">{fieldLabel}:</span>
                         {node.label}
-                        <span className="text-[10px] text-[#A0AABB] font-normal ml-1">({count})</span>
+                        <span className="text-[10px] text-[var(--text-faint)] font-normal ml-1">({count})</span>
                     </span>
                 </td>
                 {columns.slice(1).map(col => (
                     <td
                         key={col.key}
-                        className={`px-3 py-2 text-[10px] text-[#7A8599] border-b border-[#E2E5EA] whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right tabular-nums' : ''
+                        className={`px-3 py-2 text-[10px] text-[var(--text-muted)] border-b border-[var(--border)] whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right tabular-nums' : ''
                             }`}
                     >
                         {node.aggregates[col.key] !== undefined && node.aggregates[col.key] !== null
@@ -130,21 +130,21 @@ export function ReportTable({
     };
 
     return (
-        <div className="overflow-auto rounded-lg border border-[#E2E5EA]">
+        <div className="overflow-auto rounded-lg border border-[var(--border)]">
             <table className="w-full min-w-max">
                 <thead className="sticky top-0 z-10">
-                    <tr className="bg-[#FAFBFC]">
+                    <tr className="bg-[var(--bg-primary)]">
                         {columns.map(col => (
                             <th
                                 key={col.key}
-                                className={`px-3 py-2.5 text-[10px] font-bold text-[#7A8599] uppercase tracking-wider border-b border-[#E2E5EA] whitespace-nowrap cursor-pointer hover:text-[#4A5568] transition-colors select-none ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right' : 'text-left'
+                                className={`px-3 py-2.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border)] whitespace-nowrap cursor-pointer hover:text-[var(--text-secondary)] transition-colors select-none ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right' : 'text-left'
                                     }`}
                                 onClick={() => onSort(col.key)}
                             >
                                 <span className="inline-flex items-center gap-1">
                                     {col.label}
                                     {config.sortBy?.field === col.key && (
-                                        <ArrowUpDown className="w-3 h-3 text-[#2563EB]" />
+                                        <ArrowUpDown className="w-3 h-3 text-[var(--accent)]" />
                                     )}
                                 </span>
                             </th>
@@ -159,11 +159,11 @@ export function ReportTable({
                     )}
 
                     {/* Totals row */}
-                    <tr className="bg-[#F4F5F7] font-semibold">
+                    <tr className="bg-[var(--bg-elevated)] font-semibold">
                         {columns.map((col, ci) => (
                             <td
                                 key={col.key}
-                                className={`px-3 py-2 text-[11px] text-[#1A1F2B] border-t-2 border-[#E2E5EA] whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right tabular-nums' : ''
+                                className={`px-3 py-2 text-[11px] text-[var(--text-primary)] border-t-2 border-[var(--border)] whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right tabular-nums' : ''
                                     }`}
                             >
                                 {ci === 0 && !totalAggregates[col.key]

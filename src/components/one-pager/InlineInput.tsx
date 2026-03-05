@@ -138,7 +138,7 @@ export function InlineInput({
                 onKeyDown={handleKeyDown}
                 step={step}
                 className={cn(
-                    'w-full px-1.5 py-0.5 rounded bg-[#EBF1FF] border border-[#2563EB] text-[#1A1F2B] text-xs tabular-nums focus:outline-none',
+                    'w-full px-1.5 py-0.5 rounded bg-[var(--accent-subtle)] border border-[var(--accent)] text-[var(--text-primary)] text-xs tabular-nums focus:outline-none',
                     align === 'right' ? 'text-right' : 'text-left',
                     className
                 )}
@@ -154,10 +154,10 @@ export function InlineInput({
             onClick={startEditing}
             disabled={disabled}
             className={cn(
-                'w-full px-1.5 py-0.5 rounded text-[#1A1F2B] tabular-nums text-xs transition-colors',
+                'w-full px-1.5 py-0.5 rounded text-[var(--text-primary)] tabular-nums text-xs transition-colors',
                 editAllMode
-                    ? 'border border-dashed border-[#93B4F5] bg-[#F8FAFF] hover:border-[#2563EB] hover:bg-[#EBF1FF]'
-                    : 'border border-transparent hover:border-[#E2E5EA] hover:bg-[#FAFBFC]',
+                    ? 'border border-dashed border-[#93B4F5] bg-[var(--bg-primary)] hover:border-[var(--accent)] hover:bg-[var(--accent-subtle)]'
+                    : 'border border-transparent hover:border-[var(--border)] hover:bg-[var(--bg-primary)]',
                 align === 'right' ? 'text-right' : 'text-left',
                 !disabled && 'cursor-pointer',
                 disabled && 'cursor-default opacity-60',

@@ -45,6 +45,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
     const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+    // Track latest profile in a ref so event listeners never read stale closure values
+    const profileRef = useRef<UserProfile | null>(null);
+    useEffect(() => { profileRef.current = profile; }, [profile]);
+
     // Fetch profile with retry (up to 3 attempts with exponential backoff)
     const fetchProfile = useCallback(async (userId: string, attempt = 0): Promise<UserProfile | null> => {
         try {
@@ -104,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     return;
                 }
 
+                console.log('[Auth] Session initialized for:', currentUser?.email ?? 'no user');
                 setUser(currentUser);
                 if (currentUser) {
                     const p = await fetchProfile(currentUser.id);
@@ -129,9 +134,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event: AuthChangeEvent, session: Session | null) => {
                 if (!mounted) return;
+                console.log('[Auth] State change:', event);
                 const currentUser = session?.user ?? null;
 
                 if (event === 'SIGNED_OUT' || !currentUser) {
+                    console.log('[Auth] Signed out or no user');
                     setUser(null);
                     setProfile(null);
                     return;
@@ -141,15 +148,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 // unless it's missing (prevents unnecessary DB calls)
                 if (event === 'TOKEN_REFRESHED') {
                     setUser(currentUser);
-                    // Only re-fetch profile if it's currently null (recovery)
-                    if (!profile) {
+                    // Use ref to read current profile — avoids stale closure
+                    if (!profileRef.current) {
+                        console.log('[Auth] Token refreshed, profile missing — recovering...');
                         const p = await fetchProfile(currentUser.id);
-                        if (mounted && p) setProfile(p);
+                        if (mounted && p) {
+                            setProfile(p);
+                            console.log('[Auth] Profile recovered on token refresh:', p.email);
+                        }
+                    } else {
+                        console.log('[Auth] Token refreshed, profile intact');
                     }
                     return;
                 }
 
                 // SIGNED_IN or INITIAL_SESSION
+                console.log('[Auth] Sign-in event, fetching profile...');
                 setUser(currentUser);
                 const p = await fetchProfile(currentUser.id);
                 if (mounted) {
@@ -160,16 +174,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
         );
 
+        // Session health check: verify session when tab becomes visible again.
+        // If the user's session expired while the tab was in the background,
+        // this catches it immediately instead of leaving a broken UI.
+        const handleVisibilityChange = async () => {
+            if (document.visibilityState !== 'visible' || !mounted) return;
+
+            try {
+                const { error } = await supabase.auth.getUser();
+                if (error) {
+                    console.warn('[Auth] Session health check failed:', error.message);
+                    // Session is invalid — clear state, let the proxy handle the redirect
+                    // on next navigation, or redirect now if profile was loaded
+                    if (profileRef.current) {
+                        setUser(null);
+                        setProfile(null);
+                        window.location.href = '/login';
+                    }
+                }
+            } catch {
+                // Network error — don't redirect, just log
+                console.warn('[Auth] Session health check: network error');
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
         return () => {
             mounted = false;
             subscription.unsubscribe();
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
             if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const signOut = async () => {
-        await supabase.auth.signOut();
+        try {
+            await supabase.auth.signOut();
+        } catch (err) {
+            // signOut can fail if the session is already invalid.
+            // That's fine — we still want to clear local state and redirect.
+            console.warn('[Auth] signOut error (clearing state anyway):', err);
+        }
         setUser(null);
         setProfile(null);
         // Force a full page navigation to clear all client state

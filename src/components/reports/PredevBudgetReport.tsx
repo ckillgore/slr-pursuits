@@ -147,7 +147,7 @@ export function PredevBudgetReport() {
     if (isLoading) {
         return (
             <div className="flex justify-center py-24">
-                <Loader2 className="w-8 h-8 animate-spin text-[#C8CDD5]" />
+                <Loader2 className="w-8 h-8 animate-spin text-[var(--border-strong)]" />
             </div>
         );
     }
@@ -155,9 +155,9 @@ export function PredevBudgetReport() {
     if (!rows || rows.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-24 text-center">
-                <DollarSign className="w-12 h-12 text-[#C8CDD5] mb-3" />
-                <p className="text-sm text-[#7A8599] mb-1">No pre-dev budgets found</p>
-                <p className="text-xs text-[#A0AABB]">
+                <DollarSign className="w-12 h-12 text-[var(--border-strong)] mb-3" />
+                <p className="text-sm text-[var(--text-muted)] mb-1">No pre-dev budgets found</p>
+                <p className="text-xs text-[var(--text-faint)]">
                     Create a pre-dev budget on a pursuit to see portfolio-level data here.
                 </p>
             </div>
@@ -175,17 +175,17 @@ export function PredevBudgetReport() {
             {/* Controls */}
             <div className="flex items-center gap-3 flex-wrap">
                 {/* View Mode Toggle */}
-                <div className="flex items-center rounded-lg bg-[#F4F5F7] p-0.5">
+                <div className="flex items-center rounded-lg bg-[var(--bg-elevated)] p-0.5">
                     <button
                         onClick={() => setViewMode('monthly')}
-                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${viewMode === 'monthly' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599]'
+                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${viewMode === 'monthly' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)]'
                             }`}
                     >
                         Monthly
                     </button>
                     <button
                         onClick={() => setViewMode('annual')}
-                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${viewMode === 'annual' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599]'
+                        className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${viewMode === 'annual' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)]'
                             }`}
                     >
                         Annual
@@ -194,11 +194,11 @@ export function PredevBudgetReport() {
 
                 {/* Group By */}
                 <div className="flex items-center gap-1.5 text-xs">
-                    <span className="text-[#7A8599]">Group by:</span>
+                    <span className="text-[var(--text-muted)]">Group by:</span>
                     <select
                         value={groupBy}
                         onChange={(e) => setGroupBy(e.target.value as 'none' | 'region')}
-                        className="px-2 py-1 rounded-md border border-[#E2E5EA] text-xs text-[#1A1F2B] bg-white"
+                        className="px-2 py-1 rounded-md border border-[var(--border)] text-xs text-[var(--text-primary)] bg-[var(--bg-card)]"
                     >
                         <option value="none">None</option>
                         <option value="region">Region</option>
@@ -210,8 +210,8 @@ export function PredevBudgetReport() {
                     <button
                         onClick={() => setShowFilterDropdown(!showFilterDropdown)}
                         className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors border ${lineItemFilter
-                                ? 'bg-[#EBF1FF] border-[#2563EB]/30 text-[#2563EB]'
-                                : 'border-[#E2E5EA] text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7]'
+                                ? 'bg-[var(--accent-subtle)] border-[var(--accent)]/30 text-[var(--accent)]'
+                                : 'border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
                             }`}
                     >
                         <Filter className="w-3 h-3" />
@@ -221,15 +221,15 @@ export function PredevBudgetReport() {
                     </button>
 
                     {showFilterDropdown && (
-                        <div className="absolute top-full mt-1 left-0 w-72 bg-white border border-[#E2E5EA] rounded-xl shadow-xl py-1 z-30 animate-fade-in max-h-80 overflow-y-auto">
-                            <div className="flex items-center justify-between px-3 py-2 border-b border-[#F0F1F4]">
-                                <span className="text-[10px] font-bold text-[#A0AABB] uppercase tracking-wider">
+                        <div className="absolute top-full mt-1 left-0 w-72 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl shadow-xl py-1 z-30 animate-fade-in max-h-80 overflow-y-auto">
+                            <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--table-row-border)]">
+                                <span className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">
                                     Line Item Categories
                                 </span>
                                 {lineItemFilter && (
                                     <button
                                         onClick={clearFilters}
-                                        className="text-[10px] text-[#2563EB] hover:text-[#1D4FD7] font-medium"
+                                        className="text-[10px] text-[var(--accent)] hover:text-[var(--accent-hover)] font-medium"
                                     >
                                         Clear all
                                     </button>
@@ -238,21 +238,21 @@ export function PredevBudgetReport() {
                             {allLineItemLabels.map((label) => (
                                 <label
                                     key={label}
-                                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-[#F4F5F7] cursor-pointer transition-colors"
+                                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--bg-elevated)] cursor-pointer transition-colors"
                                 >
                                     <input
                                         type="checkbox"
                                         checked={selectedLineItems.has(label)}
                                         onChange={() => toggleLineItemFilter(label)}
-                                        className="w-3.5 h-3.5 rounded border-[#E2E5EA] text-[#2563EB] focus:ring-[#2563EB]"
+                                        className="w-3.5 h-3.5 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
                                     />
-                                    <span className="text-xs text-[#4A5568]">{label}</span>
+                                    <span className="text-xs text-[var(--text-secondary)]">{label}</span>
                                 </label>
                             ))}
-                            <div className="px-3 py-2 border-t border-[#F0F1F4]">
+                            <div className="px-3 py-2 border-t border-[var(--table-row-border)]">
                                 <button
                                     onClick={() => setShowFilterDropdown(false)}
-                                    className="w-full px-3 py-1.5 rounded-lg bg-[#F4F5F7] text-xs text-[#4A5568] hover:bg-[#E2E5EA] transition-colors font-medium"
+                                    className="w-full px-3 py-1.5 rounded-lg bg-[var(--bg-elevated)] text-xs text-[var(--text-secondary)] hover:bg-[var(--border)] transition-colors font-medium"
                                 >
                                     Done
                                 </button>
@@ -267,10 +267,10 @@ export function PredevBudgetReport() {
                         {Array.from(selectedLineItems).map((label) => (
                             <span
                                 key={label}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#EBF1FF] text-[10px] font-medium text-[#2563EB]"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--accent-subtle)] text-[10px] font-medium text-[var(--accent)]"
                             >
                                 {label}
-                                <button onClick={() => toggleLineItemFilter(label)} className="hover:text-[#1D4FD7]">
+                                <button onClick={() => toggleLineItemFilter(label)} className="hover:text-[var(--accent-hover)]">
                                     <X className="w-2.5 h-2.5" />
                                 </button>
                             </span>
@@ -278,7 +278,7 @@ export function PredevBudgetReport() {
                     </div>
                 )}
 
-                <div className="ml-auto flex items-center gap-1.5 text-xs text-[#7A8599]">
+                <div className="ml-auto flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
                     <CalendarDays className="w-3.5 h-3.5" />
                     {rows.length} pursuit{rows.length !== 1 ? 's' : ''} · {monthKeys.length} months
                 </div>
@@ -339,16 +339,16 @@ function MonthlyGrid({
     return (
         <table className="w-full border-collapse" style={{ minWidth: `${240 + monthKeys.length * 95 + 110}px` }}>
             <thead>
-                <tr className="bg-[#FAFBFC]">
-                    <th className="sticky left-0 z-20 bg-[#FAFBFC] text-left px-4 py-2.5 text-[10px] font-bold text-[#7A8599] uppercase tracking-wider border-b border-r border-[#E2E5EA]" style={{ minWidth: 240 }}>
+                <tr className="bg-[var(--bg-primary)]">
+                    <th className="sticky left-0 z-20 bg-[var(--bg-primary)] text-left px-4 py-2.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-r border-[var(--border)]" style={{ minWidth: 240 }}>
                         Pursuit
                     </th>
                     {monthKeys.map((mk) => (
-                        <th key={mk} className="text-center px-1 py-2.5 text-[10px] font-bold text-[#7A8599] uppercase tracking-wider border-b border-[#E2E5EA]" style={{ minWidth: 95 }}>
+                        <th key={mk} className="text-center px-1 py-2.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border)]" style={{ minWidth: 95 }}>
                             {formatMonthLabel(mk)}
                         </th>
                     ))}
-                    <th className="sticky right-0 z-20 bg-[#FAFBFC] text-right px-4 py-2.5 text-[10px] font-bold text-[#7A8599] uppercase tracking-wider border-b border-l border-[#E2E5EA]" style={{ minWidth: 110 }}>
+                    <th className="sticky right-0 z-20 bg-[var(--bg-primary)] text-right px-4 py-2.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-l border-[var(--border)]" style={{ minWidth: 110 }}>
                         Total
                     </th>
                 </tr>
@@ -363,25 +363,25 @@ function MonthlyGrid({
                             {/* Group header row */}
                             {isGrouped && (
                                 <tr
-                                    className="bg-[#F4F5F7] cursor-pointer hover:bg-[#ECEEF1] transition-colors"
+                                    className="bg-[var(--bg-elevated)] cursor-pointer hover:bg-[#ECEEF1] transition-colors"
                                     onClick={() => onToggleGroup(groupKey)}
                                 >
-                                    <td className="sticky left-0 z-10 bg-inherit px-4 py-2 border-r border-[#E2E5EA] text-xs font-bold text-[#1A1F2B]" colSpan={1}>
+                                    <td className="sticky left-0 z-10 bg-inherit px-4 py-2 border-r border-[var(--border)] text-xs font-bold text-[var(--text-primary)]" colSpan={1}>
                                         <div className="flex items-center gap-1.5">
                                             {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                                             {groupKey}
-                                            <span className="text-[#A0AABB] font-normal">({groupRows.length})</span>
+                                            <span className="text-[var(--text-faint)] font-normal">({groupRows.length})</span>
                                         </div>
                                     </td>
                                     {monthKeys.map((mk) => {
                                         const gt = groupRows.reduce((s, r) => s + pursuitMonthTotal(r.budget, mk, lineItemFilter), 0);
                                         return (
-                                            <td key={mk} className="px-2 py-2 text-right text-xs font-semibold tabular-nums text-[#4A5568]">
+                                            <td key={mk} className="px-2 py-2 text-right text-xs font-semibold tabular-nums text-[var(--text-secondary)]">
                                                 {gt === 0 ? '—' : formatCurrency(gt, 0)}
                                             </td>
                                         );
                                     })}
-                                    <td className="sticky right-0 z-10 bg-inherit px-3 py-2 border-l border-[#E2E5EA] text-right text-xs font-bold tabular-nums text-[#1A1F2B]">
+                                    <td className="sticky right-0 z-10 bg-inherit px-3 py-2 border-l border-[var(--border)] text-right text-xs font-bold tabular-nums text-[var(--text-primary)]">
                                         {formatCurrency(groupRows.reduce((s, r) => s + pursuitGrandTotal(r.budget, monthKeys, lineItemFilter), 0), 0)}
                                     </td>
                                 </tr>
@@ -391,16 +391,16 @@ function MonthlyGrid({
                             {isExpanded && groupRows.map((row, idx) => {
                                 const pt = pursuitGrandTotal(row.budget, monthKeys, lineItemFilter);
                                 return (
-                                    <tr key={row.budget.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-[#FAFBFC]/50'} hover:bg-[#F4F5F7]/50 transition-colors`}>
-                                        <td className="sticky left-0 z-10 bg-inherit px-4 py-1.5 border-r border-[#F0F1F4]">
+                                    <tr key={row.budget.id} className={`${idx % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]/50'} hover:bg-[var(--bg-elevated)]/50 transition-colors`}>
+                                        <td className="sticky left-0 z-10 bg-inherit px-4 py-1.5 border-r border-[var(--table-row-border)]">
                                             <Link
                                                 href={`/pursuits/${row.pursuit.short_id || row.pursuit.id}?tab=predev`}
-                                                className="text-xs font-medium text-[#2563EB] hover:text-[#1D4FD7] hover:underline inline-flex items-center gap-1 transition-colors"
+                                                className="text-xs font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] hover:underline inline-flex items-center gap-1 transition-colors"
                                             >
                                                 {row.pursuit.name}
                                                 <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                                             </Link>
-                                            <div className="text-[10px] text-[#A0AABB]">
+                                            <div className="text-[10px] text-[var(--text-faint)]">
                                                 {row.pursuit.city}{row.pursuit.state ? `, ${row.pursuit.state}` : ''}
                                                 {row.stage ? ` · ${row.stage.name}` : ''}
                                             </div>
@@ -408,13 +408,13 @@ function MonthlyGrid({
                                         {monthKeys.map((mk) => {
                                             const val = pursuitMonthTotal(row.budget, mk, lineItemFilter);
                                             return (
-                                                <td key={mk} className="px-2 py-1.5 text-right text-xs font-mono tabular-nums text-[#1A1F2B]">
-                                                    {val === 0 ? <span className="text-[#C8CDD5]">—</span> : formatCurrency(val, 0)}
+                                                <td key={mk} className="px-2 py-1.5 text-right text-xs font-mono tabular-nums text-[var(--text-primary)]">
+                                                    {val === 0 ? <span className="text-[var(--border-strong)]">—</span> : formatCurrency(val, 0)}
                                                 </td>
                                             );
                                         })}
-                                        <td className="sticky right-0 z-10 bg-inherit px-3 py-1.5 border-l border-[#F0F1F4] text-right">
-                                            <span className={`text-xs font-semibold tabular-nums ${pt === 0 ? 'text-[#C8CDD5]' : 'text-[#1A1F2B]'}`}>
+                                        <td className="sticky right-0 z-10 bg-inherit px-3 py-1.5 border-l border-[var(--table-row-border)] text-right">
+                                            <span className={`text-xs font-semibold tabular-nums ${pt === 0 ? 'text-[var(--border-strong)]' : 'text-[var(--text-primary)]'}`}>
                                                 {pt === 0 ? '—' : formatCurrency(pt, 0)}
                                             </span>
                                         </td>
@@ -426,21 +426,21 @@ function MonthlyGrid({
                 })}
 
                 {/* Grand total row */}
-                <tr className="bg-[#1A1F2B]">
-                    <td className="sticky left-0 z-10 bg-[#1A1F2B] px-4 py-2 border-r border-[#2A3040] text-xs font-bold text-white uppercase tracking-wider">
+                <tr className="bg-[var(--text-primary)]">
+                    <td className="sticky left-0 z-10 bg-[var(--text-primary)] px-4 py-2 border-r border-[#2A3040] text-xs font-bold text-white uppercase tracking-wider">
                         Portfolio Total
                     </td>
                     {monthKeys.map((mk) => {
                         const gt = grandTotalByMonth(mk);
                         return (
                             <td key={mk} className="px-2 py-2 text-right">
-                                <span className={`text-xs font-bold tabular-nums ${gt === 0 ? 'text-[#4A5568]' : 'text-white'}`}>
+                                <span className={`text-xs font-bold tabular-nums ${gt === 0 ? 'text-[var(--text-secondary)]' : 'text-white'}`}>
                                     {gt === 0 ? '—' : formatCurrency(gt, 0)}
                                 </span>
                             </td>
                         );
                     })}
-                    <td className="sticky right-0 z-10 bg-[#1A1F2B] px-3 py-2 border-l border-[#2A3040] text-right">
+                    <td className="sticky right-0 z-10 bg-[var(--text-primary)] px-3 py-2 border-l border-[#2A3040] text-right">
                         <span className="text-xs font-bold text-white tabular-nums">
                             {overallGrandTotal === 0 ? '—' : formatCurrency(overallGrandTotal, 0)}
                         </span>
@@ -486,16 +486,16 @@ function AnnualGrid({
     return (
         <table className="w-full border-collapse" style={{ minWidth: `${240 + yearGroups.length * 120 + 110}px` }}>
             <thead>
-                <tr className="bg-[#FAFBFC]">
-                    <th className="sticky left-0 z-20 bg-[#FAFBFC] text-left px-4 py-2.5 text-[10px] font-bold text-[#7A8599] uppercase tracking-wider border-b border-r border-[#E2E5EA]" style={{ minWidth: 240 }}>
+                <tr className="bg-[var(--bg-primary)]">
+                    <th className="sticky left-0 z-20 bg-[var(--bg-primary)] text-left px-4 py-2.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-r border-[var(--border)]" style={{ minWidth: 240 }}>
                         Pursuit
                     </th>
                     {yearGroups.map(({ year }) => (
-                        <th key={year} className="text-center px-2 py-2.5 text-[10px] font-bold text-[#7A8599] uppercase tracking-wider border-b border-[#E2E5EA]" style={{ minWidth: 120 }}>
+                        <th key={year} className="text-center px-2 py-2.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border)]" style={{ minWidth: 120 }}>
                             {year}
                         </th>
                     ))}
-                    <th className="sticky right-0 z-20 bg-[#FAFBFC] text-right px-4 py-2.5 text-[10px] font-bold text-[#7A8599] uppercase tracking-wider border-b border-l border-[#E2E5EA]" style={{ minWidth: 110 }}>
+                    <th className="sticky right-0 z-20 bg-[var(--bg-primary)] text-right px-4 py-2.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-l border-[var(--border)]" style={{ minWidth: 110 }}>
                         Total
                     </th>
                 </tr>
@@ -507,22 +507,22 @@ function AnnualGrid({
                     return (
                         <React.Fragment key={groupKey}>
                             {isGrouped && (
-                                <tr className="bg-[#F4F5F7] cursor-pointer hover:bg-[#ECEEF1]" onClick={() => onToggleGroup(groupKey)}>
-                                    <td className="sticky left-0 z-10 bg-inherit px-4 py-2 border-r border-[#E2E5EA] text-xs font-bold text-[#1A1F2B]">
+                                <tr className="bg-[var(--bg-elevated)] cursor-pointer hover:bg-[#ECEEF1]" onClick={() => onToggleGroup(groupKey)}>
+                                    <td className="sticky left-0 z-10 bg-inherit px-4 py-2 border-r border-[var(--border)] text-xs font-bold text-[var(--text-primary)]">
                                         <div className="flex items-center gap-1.5">
                                             {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                                            {groupKey} <span className="text-[#A0AABB] font-normal">({groupRows.length})</span>
+                                            {groupKey} <span className="text-[var(--text-faint)] font-normal">({groupRows.length})</span>
                                         </div>
                                     </td>
                                     {yearGroups.map(({ year, months }) => {
                                         const yt = groupRows.reduce((s, r) => s + yearTotal(r.budget, months), 0);
                                         return (
-                                            <td key={year} className="px-2 py-2 text-right text-xs font-semibold tabular-nums text-[#4A5568]">
+                                            <td key={year} className="px-2 py-2 text-right text-xs font-semibold tabular-nums text-[var(--text-secondary)]">
                                                 {yt === 0 ? '—' : formatCurrency(yt, 0)}
                                             </td>
                                         );
                                     })}
-                                    <td className="sticky right-0 z-10 bg-inherit px-3 py-2 border-l border-[#E2E5EA] text-right text-xs font-bold tabular-nums text-[#1A1F2B]">
+                                    <td className="sticky right-0 z-10 bg-inherit px-3 py-2 border-l border-[var(--border)] text-right text-xs font-bold tabular-nums text-[var(--text-primary)]">
                                         {formatCurrency(groupRows.reduce((s, r) => s + pursuitGrandTotal(r.budget, monthKeys, lineItemFilter), 0), 0)}
                                     </td>
                                 </tr>
@@ -530,26 +530,26 @@ function AnnualGrid({
                             {isExpanded && groupRows.map((row, idx) => {
                                 const pt = pursuitGrandTotal(row.budget, monthKeys, lineItemFilter);
                                 return (
-                                    <tr key={row.budget.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-[#FAFBFC]/50'} hover:bg-[#F4F5F7]/50`}>
-                                        <td className="sticky left-0 z-10 bg-inherit px-4 py-1.5 border-r border-[#F0F1F4]">
-                                            <Link href={`/pursuits/${row.pursuit.short_id || row.pursuit.id}?tab=predev`} className="text-xs font-medium text-[#2563EB] hover:underline inline-flex items-center gap-1">
+                                    <tr key={row.budget.id} className={`${idx % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]/50'} hover:bg-[var(--bg-elevated)]/50`}>
+                                        <td className="sticky left-0 z-10 bg-inherit px-4 py-1.5 border-r border-[var(--table-row-border)]">
+                                            <Link href={`/pursuits/${row.pursuit.short_id || row.pursuit.id}?tab=predev`} className="text-xs font-medium text-[var(--accent)] hover:underline inline-flex items-center gap-1">
                                                 {row.pursuit.name}
                                                 <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                                             </Link>
-                                            <div className="text-[10px] text-[#A0AABB]">
+                                            <div className="text-[10px] text-[var(--text-faint)]">
                                                 {row.pursuit.city}{row.pursuit.state ? `, ${row.pursuit.state}` : ''}
                                             </div>
                                         </td>
                                         {yearGroups.map(({ year, months }) => {
                                             const val = yearTotal(row.budget, months);
                                             return (
-                                                <td key={year} className="px-2 py-1.5 text-right text-xs font-mono tabular-nums text-[#1A1F2B]">
-                                                    {val === 0 ? <span className="text-[#C8CDD5]">—</span> : formatCurrency(val, 0)}
+                                                <td key={year} className="px-2 py-1.5 text-right text-xs font-mono tabular-nums text-[var(--text-primary)]">
+                                                    {val === 0 ? <span className="text-[var(--border-strong)]">—</span> : formatCurrency(val, 0)}
                                                 </td>
                                             );
                                         })}
-                                        <td className="sticky right-0 z-10 bg-inherit px-3 py-1.5 border-l border-[#F0F1F4] text-right">
-                                            <span className={`text-xs font-semibold tabular-nums ${pt === 0 ? 'text-[#C8CDD5]' : 'text-[#1A1F2B]'}`}>
+                                        <td className="sticky right-0 z-10 bg-inherit px-3 py-1.5 border-l border-[var(--table-row-border)] text-right">
+                                            <span className={`text-xs font-semibold tabular-nums ${pt === 0 ? 'text-[var(--border-strong)]' : 'text-[var(--text-primary)]'}`}>
                                                 {pt === 0 ? '—' : formatCurrency(pt, 0)}
                                             </span>
                                         </td>
@@ -559,21 +559,21 @@ function AnnualGrid({
                         </React.Fragment>
                     );
                 })}
-                <tr className="bg-[#1A1F2B]">
-                    <td className="sticky left-0 z-10 bg-[#1A1F2B] px-4 py-2 border-r border-[#2A3040] text-xs font-bold text-white uppercase tracking-wider">
+                <tr className="bg-[var(--text-primary)]">
+                    <td className="sticky left-0 z-10 bg-[var(--text-primary)] px-4 py-2 border-r border-[#2A3040] text-xs font-bold text-white uppercase tracking-wider">
                         Portfolio Total
                     </td>
                     {yearGroups.map(({ year, months }) => {
                         const yt = allYearTotal(months);
                         return (
                             <td key={year} className="px-2 py-2 text-right">
-                                <span className={`text-xs font-bold tabular-nums ${yt === 0 ? 'text-[#4A5568]' : 'text-white'}`}>
+                                <span className={`text-xs font-bold tabular-nums ${yt === 0 ? 'text-[var(--text-secondary)]' : 'text-white'}`}>
                                     {yt === 0 ? '—' : formatCurrency(yt, 0)}
                                 </span>
                             </td>
                         );
                     })}
-                    <td className="sticky right-0 z-10 bg-[#1A1F2B] px-3 py-2 border-l border-[#2A3040] text-right">
+                    <td className="sticky right-0 z-10 bg-[var(--text-primary)] px-3 py-2 border-l border-[#2A3040] text-right">
                         <span className="text-xs font-bold text-white tabular-nums">
                             {overallTotal === 0 ? '—' : formatCurrency(overallTotal, 0)}
                         </span>

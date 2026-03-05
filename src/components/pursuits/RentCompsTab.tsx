@@ -302,8 +302,8 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-16">
-                <Loader2 className="w-6 h-6 animate-spin text-[#2563EB]" />
-                <span className="ml-3 text-sm text-[#7A8599]">Loading rent comps...</span>
+                <Loader2 className="w-6 h-6 animate-spin text-[var(--accent)]" />
+                <span className="ml-3 text-sm text-[var(--text-muted)]">Loading rent comps...</span>
             </div>
         );
     }
@@ -313,8 +313,8 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="min-w-0">
-                    <h2 className="text-lg font-semibold text-[#1A1F2B]">Rent Comps</h2>
-                    <p className="text-xs sm:text-sm text-[#7A8599] mt-0.5 truncate">
+                    <h2 className="text-lg font-semibold text-[var(--text-primary)]">Rent Comps</h2>
+                    <p className="text-xs sm:text-sm text-[var(--text-muted)] mt-0.5 truncate">
                         {allCompMetrics.length} propert{allCompMetrics.length === 1 ? 'y' : 'ies'} tracked
                         {primaryCount > 0 && secondaryCount > 0 && (
                             <span> · {primaryCount} primary, {secondaryCount} secondary</span>
@@ -324,10 +324,10 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
                 <div className="flex items-center gap-2 shrink-0">
                     {/* Primary / All Filter */}
                     {secondaryCount > 0 && (
-                        <div className="flex rounded-lg border border-[#E2E5EA] overflow-hidden">
+                        <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
                             {(['all', 'primary'] as const).map(f => (
                                 <button key={f} onClick={() => setCompFilter(f)}
-                                    className={`px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-medium ${compFilter === f ? 'bg-[#2563EB] text-white' : 'text-[#7A8599] hover:bg-[#F4F5F7]'}`}>
+                                    className={`px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-medium ${compFilter === f ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]'}`}>
                                     {f === 'all' ? `All (${allCompMetrics.length})` : `Primary (${primaryCount})`}
                                 </button>
                             ))}
@@ -335,7 +335,7 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
                     )}
                     <button
                         onClick={() => setShowSearch(true)}
-                        className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs sm:text-sm font-medium transition-colors shadow-sm"
+                        className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[#1D4ED8] text-white text-xs sm:text-sm font-medium transition-colors shadow-sm"
                     >
                         <Plus className="w-4 h-4" />
                         <span className="hidden sm:inline">Add Comp</span>
@@ -359,22 +359,22 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
 
             {/* Add error display */}
             {addError && (
-                <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-[#FEF2F2] border border-[#FECACA] text-sm text-[#DC2626]">
+                <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-[var(--danger-bg)] border border-[var(--danger)] text-sm text-[var(--danger)]">
                     <span>{addError}</span>
-                    <button onClick={() => setAddError(null)} className="text-[#DC2626] hover:underline text-xs ml-4">Dismiss</button>
+                    <button onClick={() => setAddError(null)} className="text-[var(--danger)] hover:underline text-xs ml-4">Dismiss</button>
                 </div>
             )}
             {/* Empty State */}
             {compMetrics.length === 0 && !showSearch && (
-                <div className="text-center py-16 border border-dashed border-[#E2E5EA] rounded-xl bg-[#FBFBFC]">
+                <div className="text-center py-16 border border-dashed border-[var(--border)] rounded-xl bg-[#FBFBFC]">
                     <Building2 className="w-10 h-10 text-[#CBD2DC] mx-auto mb-3" />
-                    <h3 className="text-sm font-semibold text-[#4A5568] mb-1">No rent comps yet</h3>
-                    <p className="text-xs text-[#7A8599] mb-4 max-w-xs mx-auto">
+                    <h3 className="text-sm font-semibold text-[var(--text-secondary)] mb-1">No rent comps yet</h3>
+                    <p className="text-xs text-[var(--text-muted)] mb-4 max-w-xs mx-auto">
                         Search and add competitive properties to track rents, occupancy, and concessions.
                     </p>
                     <button
                         onClick={() => setShowSearch(true)}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-sm font-medium transition-colors shadow-sm"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[#1D4ED8] text-white text-sm font-medium transition-colors shadow-sm"
                     >
                         <Search className="w-4 h-4" /> Search Properties
                     </button>
@@ -385,7 +385,7 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
             {compMetrics.length > 0 && (
                 <>
                     {/* Section Tabs */}
-                    <div className="flex items-center gap-0.5 border-b border-[#E2E5EA] overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
+                    <div className="flex items-center gap-0.5 border-b border-[var(--border)] overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
                         {([
                             { key: 'overview' as SectionKey, label: 'Overview' },
                             { key: 'map' as SectionKey, label: 'Map' },
@@ -406,13 +406,13 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
                                 key={tab.key}
                                 onClick={() => setActiveSection(tab.key)}
                                 className={`px-2 sm:px-3 py-2 sm:py-2.5 text-[11px] sm:text-xs font-medium transition-colors relative whitespace-nowrap shrink-0 ${activeSection === tab.key
-                                    ? 'text-[#2563EB]'
-                                    : 'text-[#7A8599] hover:text-[#4A5568]'
+                                    ? 'text-[var(--accent)]'
+                                    : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                                     }`}
                             >
                                 {tab.label}
                                 {activeSection === tab.key && (
-                                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2563EB] rounded-full" />
+                                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
                                 )}
                             </button>
                         ))}
@@ -455,7 +455,7 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
                         <AmenitiesGrid comps={compMetrics} />
                     )}
 
-                    <p className="text-[11px] text-[#A0AABB] text-center">
+                    <p className="text-[11px] text-[var(--text-faint)] text-center">
                         Data refreshed weekly for active pursuits · Cache TTL: {HELLODATA_CACHE_TTL_DAYS} days · Source: HelloData
                     </p>
                 </>
@@ -463,18 +463,18 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
 
             {/* Unlink Confirmation */}
             {unlinkConfirmId && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-                    <div className="bg-white border border-[#E2E5EA] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in mx-4">
-                        <h2 className="text-lg font-semibold text-[#1A1F2B] mb-2">Remove Comp</h2>
-                        <p className="text-sm text-[#7A8599] mb-6">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
+                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in mx-4">
+                        <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Remove Comp</h2>
+                        <p className="text-sm text-[var(--text-muted)] mb-6">
                             Remove this property from this pursuit&apos;s comp set?
                         </p>
                         <div className="flex justify-end gap-3">
-                            <button onClick={() => setUnlinkConfirmId(null)} className="px-4 py-2 rounded-lg text-sm text-[#4A5568] hover:bg-[#F4F5F7]">Cancel</button>
+                            <button onClick={() => setUnlinkConfirmId(null)} className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]">Cancel</button>
                             <button
                                 onClick={() => handleUnlink(unlinkConfirmId)}
                                 disabled={unlinkComp.isPending}
-                                className="px-4 py-2 rounded-lg bg-[#DC2626] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium"
+                                className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium"
                             >
                                 {unlinkComp.isPending ? 'Removing...' : 'Remove'}
                             </button>
@@ -503,34 +503,34 @@ function SearchPanel({
     onClose: () => void;
 }) {
     return (
-        <div className="border border-[#E2E5EA] rounded-xl bg-white p-4 shadow-sm animate-fade-in">
+        <div className="border border-[var(--border)] rounded-xl bg-[var(--bg-card)] p-4 shadow-sm animate-fade-in">
             <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-[#1A1F2B]">Search HelloData Properties</h3>
-                <button onClick={onClose} className="p-1 rounded hover:bg-[#F4F5F7] text-[#7A8599]"><X className="w-4 h-4" /></button>
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Search HelloData Properties</h3>
+                <button onClick={onClose} className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-muted)]"><X className="w-4 h-4" /></button>
             </div>
             <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0AABB]" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
                 <input
                     type="text"
                     value={searchQuery}
                     onChange={e => onSearch(e.target.value)}
                     placeholder="Search by property name, address, city, or zip..."
-                    className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-[#F9FAFB] border border-[#E2E5EA] text-sm text-[#1A1F2B] placeholder:text-[#A0AABB] focus:border-[#2563EB] focus:ring-2 focus:ring-[#EBF1FF] focus:outline-none"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-subtle)] focus:outline-none"
                     autoFocus
                 />
-                {isSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-[#2563EB]" />}
+                {isSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-[var(--accent)]" />}
             </div>
-            {searchError && <p className="mt-2 text-xs text-[#DC2626]">{searchError}</p>}
+            {searchError && <p className="mt-2 text-xs text-[var(--danger)]">{searchError}</p>}
             {searchResults.length > 0 && (
                 <div className="mt-3 max-h-80 overflow-y-auto space-y-1">
                     {searchResults.map(r => {
                         const isLinked = linkedHdIds.has(r.id);
                         const isAdding = addingPropertyId === r.id;
                         return (
-                            <div key={r.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-[#F4F5F7]">
+                            <div key={r.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-[var(--bg-elevated)]">
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-[#1A1F2B] truncate">{r.building_name || r.street_address}</p>
-                                    <p className="text-xs text-[#7A8599] truncate">
+                                    <p className="text-sm font-medium text-[var(--text-primary)] truncate">{r.building_name || r.street_address}</p>
+                                    <p className="text-xs text-[var(--text-muted)] truncate">
                                         {r.street_address}, {r.city}, {r.state} {r.zip_code}
                                         {r.year_built ? ` · ${r.year_built}` : ''}
                                         {r.number_units ? ` · ${r.number_units} units` : ''}
@@ -539,7 +539,7 @@ function SearchPanel({
                                 {isLinked ? (
                                     <span className="ml-3 text-xs text-[#10B981] font-medium px-2 py-1 bg-[#ECFDF5] rounded-full shrink-0">Added</span>
                                 ) : (
-                                    <button onClick={() => onAdd(r.id)} disabled={isAdding} className="ml-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#EBF1FF] text-[#2563EB] text-xs font-medium hover:bg-[#DBEAFE] disabled:opacity-50 shrink-0">
+                                    <button onClick={() => onAdd(r.id)} disabled={isAdding} className="ml-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent-subtle)] text-[var(--accent)] text-xs font-medium hover:bg-[var(--badge-owner-bg)] disabled:opacity-50 shrink-0">
                                         {isAdding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
                                         {isAdding ? 'Adding...' : 'Add'}
                                     </button>
@@ -550,7 +550,7 @@ function SearchPanel({
                 </div>
             )}
             {searchQuery.length >= 2 && !isSearching && searchResults.length === 0 && !searchError && (
-                <p className="mt-3 text-sm text-[#7A8599] text-center py-4">No properties found</p>
+                <p className="mt-3 text-sm text-[var(--text-muted)] text-center py-4">No properties found</p>
             )}
         </div>
     );
@@ -614,25 +614,25 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
     ];
 
     return (
-        <div className="overflow-x-auto border border-[#E2E5EA] rounded-xl">
+        <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
             <table className="w-full text-xs min-w-[600px]">
                 <thead>
-                    <tr className="border-b-2 border-[#E2E5EA] bg-[#F9FAFB]">
-                        <th className="text-left py-3 px-4 font-semibold text-[#4A5568] sticky left-0 bg-[#F9FAFB] z-10 min-w-[140px]"></th>
-                        <th className="text-center py-3 px-3 font-semibold text-[#7A8599] min-w-[100px]">
+                    <tr className="border-b-2 border-[var(--border)] bg-[var(--bg-primary)]">
+                        <th className="text-left py-3 px-4 font-semibold text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10 min-w-[140px]"></th>
+                        <th className="text-center py-3 px-3 font-semibold text-[var(--text-muted)] min-w-[100px]">
                             <div className="text-[10px] uppercase tracking-wider">Comp Avg</div>
-                            <div className="text-[10px] text-[#A0AABB]">{comps.length} Properties</div>
+                            <div className="text-[10px] text-[var(--text-faint)]">{comps.length} Properties</div>
                         </th>
                         {comps.map((c, i) => (
                             <th key={i} className="text-center py-3 px-3 min-w-[140px]">
-                                <div className="text-sm font-semibold text-[#2563EB] truncate">{c.name}</div>
-                                <div className="text-[10px] text-[#7A8599] truncate">{c.property.street_address}</div>
+                                <div className="text-sm font-semibold text-[var(--accent)] truncate">{c.name}</div>
+                                <div className="text-[10px] text-[var(--text-muted)] truncate">{c.property.street_address}</div>
                                 <div className="flex items-center justify-center gap-2 mt-1">
                                     <button
                                         onClick={() => onToggleType(c.propertyId, c.compType)}
                                         className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${c.compType === 'primary'
                                             ? 'bg-[#FEF3C7] text-[#92400E] hover:bg-[#FDE68A]'
-                                            : 'bg-[#F4F5F7] text-[#7A8599] hover:bg-[#E2E5EA]'
+                                            : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:bg-[var(--border)]'
                                             }`}
                                         title={`Click to switch to ${c.compType === 'primary' ? 'secondary' : 'primary'}`}
                                     >
@@ -641,7 +641,7 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
                                     </button>
                                     <button
                                         onClick={() => onRemove(c.property.id)}
-                                        className="text-[10px] text-[#DC2626] hover:underline"
+                                        className="text-[10px] text-[var(--danger)] hover:underline"
                                     >
                                         remove
                                     </button>
@@ -652,13 +652,13 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
                 </thead>
                 <tbody>
                     {rows.map((row, ri) => (
-                        <tr key={ri} className={`border-b border-[#F4F5F7] ${ri % 2 === 0 ? 'bg-white' : 'bg-[#FBFBFC]'}`}>
-                            <td className="py-2.5 px-4 font-medium text-[#4A5568] sticky left-0 bg-inherit z-10">{row.label}</td>
-                            <td className={`py-2.5 px-3 text-center text-[#7A8599] ${row.bold ? 'font-semibold' : ''} ${row.multiline ? 'text-left max-w-[180px]' : ''}`}>
+                        <tr key={ri} className={`border-b border-[var(--bg-elevated)] ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[#FBFBFC]'}`}>
+                            <td className="py-2.5 px-4 font-medium text-[var(--text-secondary)] sticky left-0 bg-inherit z-10">{row.label}</td>
+                            <td className={`py-2.5 px-3 text-center text-[var(--text-muted)] ${row.bold ? 'font-semibold' : ''} ${row.multiline ? 'text-left max-w-[180px]' : ''}`}>
                                 {row.multiline ? <span className="line-clamp-3 text-[11px]">{row.avgValue}</span> : row.avgValue}
                             </td>
                             {comps.map((_, ci) => (
-                                <td key={ci} className={`py-2.5 px-3 text-center text-[#1A1F2B] ${row.bold ? 'font-semibold' : ''} ${row.multiline ? 'text-left max-w-[180px]' : ''}`}>
+                                <td key={ci} className={`py-2.5 px-3 text-center text-[var(--text-primary)] ${row.bold ? 'font-semibold' : ''} ${row.multiline ? 'text-left max-w-[180px]' : ''}`}>
                                     {row.multiline
                                         ? <span className="line-clamp-3 text-[11px]">{row.values(ci)}</span>
                                         : row.values(ci).split('\n').map((line, li) => <div key={li}>{line}</div>)
@@ -696,19 +696,19 @@ function UnitBreakdownSection({ comps, bedTypes }: { comps: PropertyMetrics[]; b
                         : null;
 
                     return (
-                        <div key={bed} className="rounded-xl border border-[#E2E5EA] bg-white overflow-hidden">
+                        <div key={bed} className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] overflow-hidden">
                             <div className="h-1" style={{ backgroundColor: bedColor(bed) }} />
                             <div className="p-3">
                                 <div className="flex items-center justify-between mb-2">
-                                    <h4 className="text-sm font-semibold text-[#1A1F2B]">{bedLabel(bed)}</h4>
-                                    <span className="text-[10px] text-[#A0AABB]">Trailing 1 Month</span>
+                                    <h4 className="text-sm font-semibold text-[var(--text-primary)]">{bedLabel(bed)}</h4>
+                                    <span className="text-[10px] text-[var(--text-faint)]">Trailing 1 Month</span>
                                 </div>
                                 <div className="space-y-1.5 text-xs">
-                                    <div className="flex justify-between"><span className="text-[#7A8599]"># Listings</span><span className="font-medium text-[#1A1F2B]">{allUnits.length}</span></div>
-                                    <div className="flex justify-between"><span className="text-[#7A8599]">Days on Market</span><span className="font-medium text-[#1A1F2B]">{avgDom !== null ? Math.round(avgDom) : '—'}</span></div>
-                                    <div className="flex justify-between"><span className="text-[#7A8599]">Avg Sqft</span><span className="font-medium text-[#1A1F2B]">{fmtNum(avgSqft)} ft²</span></div>
-                                    <div className="flex justify-between"><span className="text-[#7A8599]">Asking Rent / PSF</span><span className="font-medium text-[#1A1F2B]">{fmtCur(askRent)} / {fmtCur(askPsf, 2)}</span></div>
-                                    <div className="flex justify-between"><span className="text-[#7A8599]">Effective Rent / PSF</span><span className="font-medium text-[#1A1F2B]">{fmtCur(effRent)} / {fmtCur(effPsf, 2)}</span></div>
+                                    <div className="flex justify-between"><span className="text-[var(--text-muted)]"># Listings</span><span className="font-medium text-[var(--text-primary)]">{allUnits.length}</span></div>
+                                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">Days on Market</span><span className="font-medium text-[var(--text-primary)]">{avgDom !== null ? Math.round(avgDom) : '—'}</span></div>
+                                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">Avg Sqft</span><span className="font-medium text-[var(--text-primary)]">{fmtNum(avgSqft)} ft²</span></div>
+                                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">Asking Rent / PSF</span><span className="font-medium text-[var(--text-primary)]">{fmtCur(askRent)} / {fmtCur(askPsf, 2)}</span></div>
+                                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">Effective Rent / PSF</span><span className="font-medium text-[var(--text-primary)]">{fmtCur(effRent)} / {fmtCur(effPsf, 2)}</span></div>
                                 </div>
                             </div>
                         </div>
@@ -718,16 +718,16 @@ function UnitBreakdownSection({ comps, bedTypes }: { comps: PropertyMetrics[]; b
 
             {/* Detailed per-bed comparison grid */}
             {bedTypes.map(bed => (
-                <div key={bed} className="border border-[#E2E5EA] rounded-xl overflow-hidden">
+                <div key={bed} className="border border-[var(--border)] rounded-xl overflow-hidden">
                     <button
                         onClick={() => setExpandedBed(expandedBed === bed ? null : bed)}
-                        className="w-full flex items-center justify-between px-4 py-3 bg-[#F9FAFB] hover:bg-[#F4F5F7] transition-colors"
+                        className="w-full flex items-center justify-between px-4 py-3 bg-[var(--bg-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
                     >
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: bedColor(bed) }} />
-                            <h4 className="text-sm font-semibold text-[#1A1F2B]">{bedLabel(bed)}</h4>
+                            <h4 className="text-sm font-semibold text-[var(--text-primary)]">{bedLabel(bed)}</h4>
                         </div>
-                        {expandedBed === bed ? <ChevronUp className="w-4 h-4 text-[#7A8599]" /> : <ChevronDown className="w-4 h-4 text-[#7A8599]" />}
+                        {expandedBed === bed ? <ChevronUp className="w-4 h-4 text-[var(--text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--text-muted)]" />}
                     </button>
                     {expandedBed === bed && (
                         <div className="overflow-x-auto">
@@ -790,21 +790,21 @@ function BedTypeGrid({ comps, bed }: { comps: PropertyMetrics[]; bed: number }) 
     return (
         <table className="w-full text-xs min-w-[500px]">
             <thead>
-                <tr className="border-b border-[#E2E5EA] bg-[#FBFBFC]">
-                    <th className="text-left py-2 px-4 font-semibold text-[#7A8599] min-w-[120px]">{bedLabel(bed)}</th>
-                    <th className="text-center py-2 px-3 font-semibold text-[#7A8599] min-w-[90px]">Comp Avg</th>
+                <tr className="border-b border-[var(--border)] bg-[#FBFBFC]">
+                    <th className="text-left py-2 px-4 font-semibold text-[var(--text-muted)] min-w-[120px]">{bedLabel(bed)}</th>
+                    <th className="text-center py-2 px-3 font-semibold text-[var(--text-muted)] min-w-[90px]">Comp Avg</th>
                     {perComp.map((c, i) => (
-                        <th key={i} className="text-center py-2 px-3 font-semibold text-[#1A1F2B] min-w-[110px] truncate">{c.name}</th>
+                        <th key={i} className="text-center py-2 px-3 font-semibold text-[var(--text-primary)] min-w-[110px] truncate">{c.name}</th>
                     ))}
                 </tr>
             </thead>
             <tbody>
                 {rows.map((row, ri) => (
-                    <tr key={ri} className={`border-b border-[#F4F5F7] ${ri % 2 === 0 ? 'bg-white' : 'bg-[#FBFBFC]'}`}>
-                        <td className="py-2 px-4 font-medium text-[#4A5568]">{row.label}</td>
-                        <td className={`py-2 px-3 text-center text-[#7A8599] ${row.bold ? 'font-semibold' : ''}`}>{row.avgValue}</td>
+                    <tr key={ri} className={`border-b border-[var(--bg-elevated)] ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[#FBFBFC]'}`}>
+                        <td className="py-2 px-4 font-medium text-[var(--text-secondary)]">{row.label}</td>
+                        <td className={`py-2 px-3 text-center text-[var(--text-muted)] ${row.bold ? 'font-semibold' : ''}`}>{row.avgValue}</td>
                         {row.values.map((v, vi) => (
-                            <td key={vi} className={`py-2 px-3 text-center text-[#1A1F2B] ${row.bold ? 'font-semibold' : ''}`}>{v}</td>
+                            <td key={vi} className={`py-2 px-3 text-center text-[var(--text-primary)] ${row.bold ? 'font-semibold' : ''}`}>{v}</td>
                         ))}
                     </tr>
                 ))}
@@ -824,13 +824,13 @@ function PropertyRankingsSection({ comps, bedTypes }: { comps: PropertyMetrics[]
         <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <h3 className="text-sm font-semibold text-[#1A1F2B]">Property Rankings</h3>
-                    <p className="text-xs text-[#7A8599]">Compare rents by bedroom count across your comp set.</p>
+                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Property Rankings</h3>
+                    <p className="text-xs text-[var(--text-muted)]">Compare rents by bedroom count across your comp set.</p>
                 </div>
                 <select
                     value={metric}
                     onChange={e => setMetric(e.target.value as typeof metric)}
-                    className="text-[11px] sm:text-xs border border-[#E2E5EA] rounded-lg px-2 sm:px-3 py-1.5 text-[#4A5568] bg-white"
+                    className="text-[11px] sm:text-xs border border-[var(--border)] rounded-lg px-2 sm:px-3 py-1.5 text-[var(--text-secondary)] bg-[var(--bg-card)]"
                 >
                     <option value="asking">Asking Rent</option>
                     <option value="effective">Effective Rent</option>
@@ -867,19 +867,19 @@ function RankingColumn({ comps, bed, metric }: { comps: PropertyMetrics[]; bed: 
     const fmtVal = (v: number) => isPsf ? `$${v.toFixed(2)}/sf` : fmtCur(v);
 
     return (
-        <div className="border border-[#E2E5EA] rounded-xl overflow-hidden">
+        <div className="border border-[var(--border)] rounded-xl overflow-hidden">
             <div className="px-4 py-2.5 border-b" style={{ borderBottomColor: bedColor(bed) }}>
                 <div className="h-1 rounded-full mb-2" style={{ backgroundColor: bedColor(bed) }} />
-                <h4 className="text-sm font-semibold text-[#1A1F2B]">{bedLabel(bed)}</h4>
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">{bedLabel(bed)}</h4>
             </div>
             <div className="p-3 space-y-2">
                 {rankings.length === 0 && (
-                    <p className="text-xs text-[#7A8599] text-center py-4">No data</p>
+                    <p className="text-xs text-[var(--text-muted)] text-center py-4">No data</p>
                 )}
                 {rankings.map((r, i) => (
                     <div key={i} className="flex items-center gap-2">
-                        <span className="text-xs text-[#4A5568] truncate w-24 shrink-0" title={r.name}>{r.name}</span>
-                        <div className="flex-1 h-4 bg-[#F4F5F7] rounded-full overflow-hidden">
+                        <span className="text-xs text-[var(--text-secondary)] truncate w-24 shrink-0" title={r.name}>{r.name}</span>
+                        <div className="flex-1 h-4 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
                             <div
                                 className="h-full rounded-full transition-all"
                                 style={{
@@ -889,7 +889,7 @@ function RankingColumn({ comps, bed, metric }: { comps: PropertyMetrics[]; bed: 
                                 }}
                             />
                         </div>
-                        <span className="text-xs font-medium text-[#1A1F2B] w-20 text-right shrink-0">{fmtVal(r.rent)}</span>
+                        <span className="text-xs font-medium text-[var(--text-primary)] w-20 text-right shrink-0">{fmtVal(r.rent)}</span>
                     </div>
                 ))}
             </div>
@@ -918,32 +918,32 @@ function AmenitiesGrid({ comps }: { comps: PropertyMetrics[] }) {
         <div className="space-y-3">
             <div className="flex items-center justify-between">
                 <div>
-                    <h3 className="text-sm font-semibold text-[#1A1F2B]">
+                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                         {type === 'building' ? 'Building' : 'Unit'} Amenities
                     </h3>
-                    <p className="text-xs text-[#7A8599]">Benchmark amenities against competitors.</p>
+                    <p className="text-xs text-[var(--text-muted)]">Benchmark amenities against competitors.</p>
                 </div>
                 <select
                     value={type}
                     onChange={e => setType(e.target.value as 'building' | 'unit')}
-                    className="text-xs border border-[#E2E5EA] rounded-lg px-3 py-1.5 text-[#4A5568] bg-white"
+                    className="text-xs border border-[var(--border)] rounded-lg px-3 py-1.5 text-[var(--text-secondary)] bg-[var(--bg-card)]"
                 >
                     <option value="building">Building Amenities</option>
                     <option value="unit">Unit Amenities</option>
                 </select>
             </div>
             {allAmenities.length === 0 ? (
-                <p className="text-sm text-[#7A8599] text-center py-8">No amenity data available</p>
+                <p className="text-sm text-[var(--text-muted)] text-center py-8">No amenity data available</p>
             ) : (
-                <div className="overflow-x-auto border border-[#E2E5EA] rounded-xl">
+                <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
                     <table className="w-full text-xs">
                         <thead>
-                            <tr className="border-b border-[#E2E5EA] bg-[#F9FAFB]">
-                                <th className="text-left py-2.5 px-4 font-semibold text-[#4A5568] sticky left-0 bg-[#F9FAFB] z-10 min-w-[140px]">
+                            <tr className="border-b border-[var(--border)] bg-[var(--bg-primary)]">
+                                <th className="text-left py-2.5 px-4 font-semibold text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10 min-w-[140px]">
                                     {type === 'building' ? 'Building' : 'Unit'} Amenities
                                 </th>
                                 {allAmenities.map(a => (
-                                    <th key={a} className="text-center py-2.5 px-2 font-medium text-[#7A8599] min-w-[80px] max-w-[120px]">
+                                    <th key={a} className="text-center py-2.5 px-2 font-medium text-[var(--text-muted)] min-w-[80px] max-w-[120px]">
                                         <span className="block truncate text-[10px]">{a}</span>
                                     </th>
                                 ))}
@@ -953,8 +953,8 @@ function AmenitiesGrid({ comps }: { comps: PropertyMetrics[] }) {
                             {comps.map((c, i) => {
                                 const amenities = type === 'building' ? c.property.building_amenities : c.property.unit_amenities;
                                 return (
-                                    <tr key={i} className={`border-b border-[#F4F5F7] ${i % 2 === 0 ? 'bg-white' : 'bg-[#FBFBFC]'}`}>
-                                        <td className="py-2 px-4 font-medium text-[#2563EB] sticky left-0 bg-inherit z-10 truncate">{c.name}</td>
+                                    <tr key={i} className={`border-b border-[var(--bg-elevated)] ${i % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[#FBFBFC]'}`}>
+                                        <td className="py-2 px-4 font-medium text-[var(--accent)] sticky left-0 bg-inherit z-10 truncate">{c.name}</td>
                                         {allAmenities.map(a => (
                                             <td key={a} className="py-2 px-2 text-center">
                                                 {amenities.includes(a) ? (

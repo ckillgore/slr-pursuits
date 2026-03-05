@@ -86,7 +86,7 @@ export function KeyDateReport() {
     if (isLoading) {
         return (
             <div className="flex justify-center py-24">
-                <Loader2 className="w-8 h-8 animate-spin text-[#C8CDD5]" />
+                <Loader2 className="w-8 h-8 animate-spin text-[var(--border-strong)]" />
             </div>
         );
     }
@@ -94,9 +94,9 @@ export function KeyDateReport() {
     if (rows.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-24 text-center">
-                <Calendar className="w-12 h-12 text-[#C8CDD5] mb-3" />
-                <p className="text-sm text-[#7A8599] mb-1">No key dates found</p>
-                <p className="text-xs text-[#A0AABB]">Add key dates to your pursuits to see them in reports.</p>
+                <Calendar className="w-12 h-12 text-[var(--border-strong)] mb-3" />
+                <p className="text-sm text-[var(--text-muted)] mb-1">No key dates found</p>
+                <p className="text-xs text-[var(--text-faint)]">Add key dates to your pursuits to see them in reports.</p>
             </div>
         );
     }
@@ -109,7 +109,7 @@ export function KeyDateReport() {
         .sort((a, b) => new Date(a.nextDate!.date).getTime() - new Date(b.nextDate!.date).getTime())[0]?.nextDate;
 
     const renderRow = (row: KeyDateReportRow) => (
-        <tr key={row.pursuit.id} className="border-b border-[#F0F1F4] hover:bg-[#F8F9FB] transition-colors">
+        <tr key={row.pursuit.id} className="border-b border-[var(--table-row-border)] hover:bg-[var(--bg-primary)] transition-colors">
             {DEFAULT_COLUMNS.map(colKey => {
                 const field = REPORT_FIELD_MAP[colKey];
                 if (!field) return <td key={colKey} />;
@@ -120,7 +120,7 @@ export function KeyDateReport() {
                 if (colKey === 'kd_overdue_count' && val && Number(val) > 0) {
                     return (
                         <td key={colKey} className="px-3 py-2">
-                            <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-[#FEF2F2] text-[#DC2626]">
+                            <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-[var(--danger-bg)] text-[var(--danger)]">
                                 {formatted}
                             </span>
                         </td>
@@ -132,9 +132,9 @@ export function KeyDateReport() {
                     const days = Number(val);
                     return (
                         <td key={colKey} className="px-3 py-2">
-                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${days <= 7 ? 'bg-[#FEF2F2] text-[#DC2626]' :
+                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${days <= 7 ? 'bg-[var(--danger-bg)] text-[var(--danger)]' :
                                     days <= 30 ? 'bg-[#FFF8E1] text-[#CA8A04]' :
-                                        'bg-[#EBF1FF] text-[#2563EB]'
+                                        'bg-[var(--accent-subtle)] text-[var(--accent)]'
                                 }`}>
                                 {days === 0 ? 'Today' : `${formatted}d`}
                             </span>
@@ -143,7 +143,7 @@ export function KeyDateReport() {
                 }
 
                 return (
-                    <td key={colKey} className={`px-3 py-2 text-xs ${field.type === 'text' ? 'text-[#1A1F2B]' : 'text-[#4A5568] font-mono tabular-nums'}`}>
+                    <td key={colKey} className={`px-3 py-2 text-xs ${field.type === 'text' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] font-mono tabular-nums'}`}>
                         {formatted}
                     </td>
                 );
@@ -156,20 +156,20 @@ export function KeyDateReport() {
             {/* Summary cards */}
             <div className="grid grid-cols-4 gap-4 mb-6">
                 <div className="card text-center">
-                    <p className="text-xs text-[#7A8599] uppercase tracking-wider mb-1">Pursuits</p>
-                    <p className="text-2xl font-bold text-[#1A1F2B]">{rows.length}</p>
+                    <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-1">Pursuits</p>
+                    <p className="text-2xl font-bold text-[var(--text-primary)]">{rows.length}</p>
                 </div>
                 <div className="card text-center">
-                    <p className="text-xs text-[#7A8599] uppercase tracking-wider mb-1">Total Dates</p>
-                    <p className="text-2xl font-bold text-[#1A1F2B]">{totalDates}</p>
+                    <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-1">Total Dates</p>
+                    <p className="text-2xl font-bold text-[var(--text-primary)]">{totalDates}</p>
                 </div>
                 <div className="card text-center">
-                    <p className="text-xs text-[#7A8599] uppercase tracking-wider mb-1">Overdue</p>
-                    <p className={`text-2xl font-bold ${totalOverdue > 0 ? 'text-[#DC2626]' : 'text-[#0D7A3E]'}`}>{totalOverdue}</p>
+                    <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-1">Overdue</p>
+                    <p className={`text-2xl font-bold ${totalOverdue > 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'}`}>{totalOverdue}</p>
                 </div>
                 <div className="card text-center">
-                    <p className="text-xs text-[#7A8599] uppercase tracking-wider mb-1">Next Upcoming</p>
-                    <p className="text-sm font-bold text-[#1A1F2B]">
+                    <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-1">Next Upcoming</p>
+                    <p className="text-sm font-bold text-[var(--text-primary)]">
                         {nextUpcoming ? `${nextUpcoming.label} (${nextUpcoming.daysUntil}d)` : '—'}
                     </p>
                 </div>
@@ -180,7 +180,7 @@ export function KeyDateReport() {
                 <select
                     value={groupBy}
                     onChange={(e) => setGroupBy(e.target.value as any)}
-                    className="px-3 py-1.5 rounded-lg border border-[#E2E5EA] text-xs text-[#4A5568] focus:border-[#2563EB] focus:outline-none"
+                    className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
                 >
                     <option value="none">No Grouping</option>
                     <option value="region">Group by Region</option>
@@ -189,22 +189,22 @@ export function KeyDateReport() {
                 <select
                     value={filterRegion}
                     onChange={(e) => setFilterRegion(e.target.value)}
-                    className="px-3 py-1.5 rounded-lg border border-[#E2E5EA] text-xs text-[#4A5568] focus:border-[#2563EB] focus:outline-none"
+                    className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
                 >
                     <option value="">All Regions</option>
                     {regions.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
-                <span className="ml-auto text-xs text-[#A0AABB]">
+                <span className="ml-auto text-xs text-[var(--text-faint)]">
                     {filtered.length} pursuit{filtered.length !== 1 ? 's' : ''}
                 </span>
             </div>
 
             {/* Table */}
-            <div className="rounded-xl border border-[#E2E5EA] overflow-hidden bg-white">
+            <div className="rounded-xl border border-[var(--border)] overflow-hidden bg-[var(--bg-card)]">
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
-                            <tr className="bg-[#F4F5F7]">
+                            <tr className="bg-[var(--bg-elevated)]">
                                 {DEFAULT_COLUMNS.map(colKey => {
                                     const field = REPORT_FIELD_MAP[colKey];
                                     if (!field) return <th key={colKey} />;
@@ -213,7 +213,7 @@ export function KeyDateReport() {
                                         <th
                                             key={colKey}
                                             onClick={() => handleSort(colKey)}
-                                            className="px-3 py-2 text-left text-[10px] font-bold text-[#7A8599] uppercase tracking-wider cursor-pointer hover:text-[#4A5568] transition-colors whitespace-nowrap"
+                                            className="px-3 py-2 text-left text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider cursor-pointer hover:text-[var(--text-secondary)] transition-colors whitespace-nowrap"
                                         >
                                             <span className="flex items-center gap-1">
                                                 {field.label}
@@ -235,9 +235,9 @@ export function KeyDateReport() {
                                 Array.from(grouped.entries()).map(([groupName, groupRows]) => (
                                     <tr key={groupName}>
                                         <td colSpan={DEFAULT_COLUMNS.length}>
-                                            <div className="px-3 py-2 bg-[#F8F9FB] border-b border-[#E2E5EA]">
-                                                <span className="text-xs font-bold text-[#4A5568] uppercase">{groupName}</span>
-                                                <span className="ml-2 text-xs text-[#A0AABB]">({groupRows.length})</span>
+                                            <div className="px-3 py-2 bg-[var(--bg-primary)] border-b border-[var(--border)]">
+                                                <span className="text-xs font-bold text-[var(--text-secondary)] uppercase">{groupName}</span>
+                                                <span className="ml-2 text-xs text-[var(--text-faint)]">({groupRows.length})</span>
                                             </div>
                                             <table className="w-full">
                                                 <tbody>
@@ -258,7 +258,7 @@ export function KeyDateReport() {
             {/* Timeline across all pursuits */}
             {sorted.length > 0 && (
                 <div className="mt-6 card">
-                    <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider mb-4">Portfolio Timeline</h3>
+                    <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4">Portfolio Timeline</h3>
                     <div className="space-y-3">
                         {sorted
                             .filter(r => r.nextDate)
@@ -268,22 +268,22 @@ export function KeyDateReport() {
                                 const days = r.nextDate!.daysUntil;
                                 return (
                                     <div key={r.pursuit.id} className="flex items-center gap-3">
-                                        <span className="w-36 truncate text-xs text-[#1A1F2B] font-medium">{r.pursuit.name}</span>
-                                        <div className="flex-1 h-1.5 bg-[#F4F5F7] rounded-full overflow-hidden">
+                                        <span className="w-36 truncate text-xs text-[var(--text-primary)] font-medium">{r.pursuit.name}</span>
+                                        <div className="flex-1 h-1.5 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
                                             <div
-                                                className={`h-full rounded-full ${days <= 7 ? 'bg-[#DC2626]' :
+                                                className={`h-full rounded-full ${days <= 7 ? 'bg-[var(--danger)]' :
                                                         days <= 30 ? 'bg-[#CA8A04]' :
-                                                            'bg-[#2563EB]'
+                                                            'bg-[var(--accent)]'
                                                     }`}
                                                 style={{ width: `${Math.max(5, Math.min(100, 100 - days))}%` }}
                                             />
                                         </div>
-                                        <span className="text-[10px] text-[#7A8599] font-mono w-28 text-right">
+                                        <span className="text-[10px] text-[var(--text-muted)] font-mono w-28 text-right">
                                             {r.nextDate!.label}
                                         </span>
-                                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded w-12 text-center ${days <= 7 ? 'bg-[#FEF2F2] text-[#DC2626]' :
+                                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded w-12 text-center ${days <= 7 ? 'bg-[var(--danger-bg)] text-[var(--danger)]' :
                                                 days <= 30 ? 'bg-[#FFF8E1] text-[#CA8A04]' :
-                                                    'bg-[#EBF1FF] text-[#2563EB]'
+                                                    'bg-[var(--accent-subtle)] text-[var(--accent)]'
                                             }`}>
                                             {days === 0 ? 'Today' : `${days}d`}
                                         </span>

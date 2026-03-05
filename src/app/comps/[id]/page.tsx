@@ -61,10 +61,10 @@ function EditableField({ label, value, onSave, format = 'text', icon: Icon }: {
     })();
 
     return (
-        <div className="flex items-start gap-3 py-2.5 border-b border-[#F4F5F7] last:border-0 group">
-            {Icon && <Icon className="w-3.5 h-3.5 mt-1 flex-shrink-0 text-[#A0AABB]" />}
+        <div className="flex items-start gap-3 py-2.5 border-b border-[var(--bg-elevated)] last:border-0 group">
+            {Icon && <Icon className="w-3.5 h-3.5 mt-1 flex-shrink-0 text-[var(--text-faint)]" />}
             <div className="flex-1 min-w-0">
-                <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold">{label}</div>
+                <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">{label}</div>
                 {editing ? (
                     <div className="flex items-center gap-1.5 mt-0.5">
                         <input
@@ -75,12 +75,12 @@ function EditableField({ label, value, onSave, format = 'text', icon: Icon }: {
                             autoFocus
                             onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
                         />
-                        <button onClick={save} className="p-1 rounded hover:bg-[#ECFDF3] text-[#0D9488]"><Check className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => setEditing(false)} className="p-1 rounded hover:bg-red-50 text-[#A0AABB]"><X className="w-3.5 h-3.5" /></button>
+                        <button onClick={save} className="p-1 rounded hover:bg-[var(--success-bg)] text-[#0D9488]"><Check className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => setEditing(false)} className="p-1 rounded hover:bg-red-50 text-[var(--text-faint)]"><X className="w-3.5 h-3.5" /></button>
                     </div>
                 ) : (
                     <div
-                        className="text-sm text-[#4A5568] cursor-pointer hover:text-[#0D9488] transition-colors mt-0.5"
+                        className="text-sm text-[var(--text-secondary)] cursor-pointer hover:text-[#0D9488] transition-colors mt-0.5"
                         onClick={startEdit}
                     >
                         {displayValue}
@@ -225,7 +225,7 @@ export default function CompDetailPage() {
             <div className="max-w-5xl mx-auto px-4 md:px-6 py-6">
                 {/* Back + Title */}
                 <div className="mb-6">
-                    <Link href="/comps" className="inline-flex items-center gap-1 text-sm text-[#7A8599] hover:text-[#4A5568] transition-colors mb-3">
+                    <Link href="/comps" className="inline-flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors mb-3">
                         <ChevronLeft className="w-4 h-4" /> Back to Comps
                     </Link>
                     <div className="flex items-start justify-between">
@@ -235,29 +235,29 @@ export default function CompDetailPage() {
                                     <input
                                         value={editName}
                                         onChange={(e) => setEditName(e.target.value)}
-                                        className="text-xl font-bold text-[#1A1F2B] border-b-2 border-[#0D9488] focus:outline-none bg-transparent"
+                                        className="text-xl font-bold text-[var(--text-primary)] border-b-2 border-[#0D9488] focus:outline-none bg-transparent"
                                         autoFocus
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter') { updateField('name', editName.trim()); setIsEditingName(false); }
                                             if (e.key === 'Escape') setIsEditingName(false);
                                         }}
                                     />
-                                    <button onClick={() => { updateField('name', editName.trim()); setIsEditingName(false); }} className="p-1 rounded hover:bg-[#ECFDF3] text-[#0D9488]"><Check className="w-4 h-4" /></button>
-                                    <button onClick={() => setIsEditingName(false)} className="p-1 rounded hover:bg-red-50 text-[#A0AABB]"><X className="w-4 h-4" /></button>
+                                    <button onClick={() => { updateField('name', editName.trim()); setIsEditingName(false); }} className="p-1 rounded hover:bg-[var(--success-bg)] text-[#0D9488]"><Check className="w-4 h-4" /></button>
+                                    <button onClick={() => setIsEditingName(false)} className="p-1 rounded hover:bg-red-50 text-[var(--text-faint)]"><X className="w-4 h-4" /></button>
                                 </div>
                             ) : (
                                 <h1
-                                    className="text-xl font-bold text-[#1A1F2B] cursor-pointer hover:text-[#0D9488] transition-colors group"
+                                    className="text-xl font-bold text-[var(--text-primary)] cursor-pointer hover:text-[#0D9488] transition-colors group"
                                     onClick={() => { setEditName(comp.name); setIsEditingName(true); }}
                                 >
                                     {comp.name}
                                     <Pencil className="w-3.5 h-3.5 inline ml-2 opacity-0 group-hover:opacity-100 transition-opacity" />
                                 </h1>
                             )}
-                            <p className="text-sm text-[#7A8599] mt-0.5">
+                            <p className="text-sm text-[var(--text-muted)] mt-0.5">
                                 {[comp.address, comp.city, comp.state, comp.zip].filter(Boolean).join(', ') || 'No address set'}
                                 {comp.latitude && comp.longitude && (
-                                    <span className="text-[10px] text-[#A0AABB] ml-2">({comp.latitude.toFixed(4)}, {comp.longitude.toFixed(4)})</span>
+                                    <span className="text-[10px] text-[var(--text-faint)] ml-2">({comp.latitude.toFixed(4)}, {comp.longitude.toFixed(4)})</span>
                                 )}
                                 <button
                                     onClick={() => setEditingLocation(!editingLocation)}
@@ -272,30 +272,30 @@ export default function CompDetailPage() {
 
                     {/* Location editor */}
                     {editingLocation && (
-                        <div className="mt-3 p-3 bg-[#F9FAFB] border border-[#E2E5EA] rounded-lg space-y-2">
+                        <div className="mt-3 p-3 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg space-y-2">
                             <div className="flex gap-2">
-                                <button onClick={() => setLocMode('search')} className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium ${locMode === 'search' ? 'bg-[#0D9488]/10 text-[#0D9488] border border-[#0D9488]/30' : 'text-[#7A8599] border border-[#E2E5EA]'}`}>
+                                <button onClick={() => setLocMode('search')} className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium ${locMode === 'search' ? 'bg-[#0D9488]/10 text-[#0D9488] border border-[#0D9488]/30' : 'text-[var(--text-muted)] border border-[var(--border)]'}`}>
                                     <MapPin className="w-3 h-3" /> Address
                                 </button>
-                                <button onClick={() => setLocMode('coords')} className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium ${locMode === 'coords' ? 'bg-[#0D9488]/10 text-[#0D9488] border border-[#0D9488]/30' : 'text-[#7A8599] border border-[#E2E5EA]'}`}>
+                                <button onClick={() => setLocMode('coords')} className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium ${locMode === 'coords' ? 'bg-[#0D9488]/10 text-[#0D9488] border border-[#0D9488]/30' : 'text-[var(--text-muted)] border border-[var(--border)]'}`}>
                                     <Navigation className="w-3 h-3" /> Coords
                                 </button>
                             </div>
                             {locMode === 'search' ? (
                                 <div className="relative">
-                                    <input value={locSearch} onChange={(e) => handleLocSearch(e.target.value)} placeholder="Search address..." className="w-full px-3 py-2 rounded border border-[#E2E5EA] text-sm focus:border-[#0D9488] focus:outline-none" autoFocus />
+                                    <input value={locSearch} onChange={(e) => handleLocSearch(e.target.value)} placeholder="Search address..." className="w-full px-3 py-2 rounded border border-[var(--border)] text-sm focus:border-[#0D9488] focus:outline-none" autoFocus />
                                     {showLocSuggestions && locSuggestions.length > 0 && (
-                                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E2E5EA] rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+                                        <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
                                             {locSuggestions.map((s: any) => (
-                                                <button key={s.id} onClick={() => selectLocSuggestion(s)} className="w-full text-left px-3 py-2 text-sm text-[#4A5568] hover:bg-[#F4F5F7]">{s.place_name}</button>
+                                                <button key={s.id} onClick={() => selectLocSuggestion(s)} className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]">{s.place_name}</button>
                                             ))}
                                         </div>
                                     )}
                                 </div>
                             ) : (
                                 <div className="flex gap-2">
-                                    <input value={locLatStr} onChange={(e) => setLocLatStr(e.target.value)} placeholder="Latitude" className="flex-1 px-3 py-2 rounded border border-[#E2E5EA] text-sm" />
-                                    <input value={locLngStr} onChange={(e) => setLocLngStr(e.target.value)} placeholder="Longitude" className="flex-1 px-3 py-2 rounded border border-[#E2E5EA] text-sm" />
+                                    <input value={locLatStr} onChange={(e) => setLocLatStr(e.target.value)} placeholder="Latitude" className="flex-1 px-3 py-2 rounded border border-[var(--border)] text-sm" />
+                                    <input value={locLngStr} onChange={(e) => setLocLngStr(e.target.value)} placeholder="Longitude" className="flex-1 px-3 py-2 rounded border border-[var(--border)] text-sm" />
                                     <button onClick={applyLocCoords} className="px-3 py-2 rounded bg-[#0D9488] text-white text-sm font-medium">Apply</button>
                                 </div>
                             )}
@@ -304,7 +304,7 @@ export default function CompDetailPage() {
                 </div>
 
                 {/* Tabs */}
-                <div className="flex gap-1 mb-6 border-b border-[#E2E5EA]">
+                <div className="flex gap-1 mb-6 border-b border-[var(--border)]">
                     {[
                         { id: 'details' as const, label: 'Sale Details' },
                         { id: 'public' as const, label: 'Public Information' },
@@ -314,7 +314,7 @@ export default function CompDetailPage() {
                             onClick={() => setActiveTab(tab.id)}
                             className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab.id
                                 ? 'text-[#0D9488] border-[#0D9488]'
-                                : 'text-[#7A8599] border-transparent hover:text-[#4A5568]'
+                                : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
                                 }`}
                         >
                             {tab.label}
@@ -327,7 +327,7 @@ export default function CompDetailPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Sale Information */}
                         <div className="card">
-                            <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider mb-3">Sale Information</h3>
+                            <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Sale Information</h3>
                             <div>
                                 <EditableField label="Sale Price" value={comp.sale_price} onSave={(v) => updateField('sale_price', v)} format="currency" icon={DollarSign} />
                                 <EditableField label="Price per SF" value={comp.sale_price_psf} onSave={(v) => updateField('sale_price_psf', v)} format="currency" icon={Ruler} />
@@ -339,14 +339,14 @@ export default function CompDetailPage() {
 
                         {/* Site Information */}
                         <div className="card">
-                            <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider mb-3">Site Information</h3>
+                            <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Site Information</h3>
                             <div>
                                 <EditableField label="Site Area (SF)" value={comp.site_area_sf || null} onSave={(v) => updateField('site_area_sf', v ?? 0)} format="number" icon={Ruler} />
-                                <div className="flex items-start gap-3 py-2.5 border-b border-[#F4F5F7]">
-                                    <MapPin className="w-3.5 h-3.5 mt-1 flex-shrink-0 text-[#A0AABB]" />
+                                <div className="flex items-start gap-3 py-2.5 border-b border-[var(--bg-elevated)]">
+                                    <MapPin className="w-3.5 h-3.5 mt-1 flex-shrink-0 text-[var(--text-faint)]" />
                                     <div>
-                                        <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold">Site Area (Acres)</div>
-                                        <div className="text-sm text-[#4A5568] mt-0.5">{comp.site_area_sf > 0 ? formatNumber(comp.site_area_sf / SF_PER_ACRE, 2) : '—'}</div>
+                                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Site Area (Acres)</div>
+                                        <div className="text-sm text-[var(--text-secondary)] mt-0.5">{comp.site_area_sf > 0 ? formatNumber(comp.site_area_sf / SF_PER_ACRE, 2) : '—'}</div>
                                     </div>
                                 </div>
                                 <EditableField label="Zoning" value={comp.zoning} onSave={(v) => updateField('zoning', v)} icon={Building2} />
@@ -356,7 +356,7 @@ export default function CompDetailPage() {
 
                         {/* Notes — full width */}
                         <div className="card md:col-span-2">
-                            <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider mb-3">Notes</h3>
+                            <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Notes</h3>
                             <RichTextEditor
                                 content={comp.notes}
                                 onChange={(json) => updateField('notes', json)}

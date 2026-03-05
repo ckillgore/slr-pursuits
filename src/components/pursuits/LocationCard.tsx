@@ -324,11 +324,11 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
     return (
         <div className="card">
             <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider">Location</h3>
+                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Location</h3>
                 {!isEditingAddress && (
                     <button
                         onClick={startEditing}
-                        className="p-1 rounded text-[#A0AABB] hover:text-[#2563EB] hover:bg-[#EBF1FF] transition-colors"
+                        className="p-1 rounded text-[var(--text-faint)] hover:text-[var(--accent)] hover:bg-[var(--accent-subtle)] transition-colors"
                         title="Edit address"
                     >
                         <Pencil className="w-3.5 h-3.5" />
@@ -340,30 +340,30 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
             {isEditingAddress ? (
                 <div className="mb-3 space-y-2" ref={suggestionsRef}>
                     <div className="relative">
-                        <label className="block text-[10px] text-[#A0AABB] uppercase font-semibold mb-0.5">Street Address</label>
+                        <label className="block text-[10px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">Street Address</label>
                         <div className="relative flex items-center">
-                            <Search className="absolute left-2 w-3 h-3 text-[#A0AABB] pointer-events-none" />
+                            <Search className="absolute left-2 w-3 h-3 text-[var(--text-faint)] pointer-events-none" />
                             <input
                                 type="text"
                                 value={editAddress}
                                 onChange={(e) => handleAddressChange(e.target.value)}
                                 placeholder="Start typing an address..."
-                                className="w-full pl-7 pr-2 py-1.5 rounded-md border border-[#E2E5EA] text-xs text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none"
+                                className="w-full pl-7 pr-2 py-1.5 rounded-md border border-[var(--border)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                                 autoFocus
                                 onKeyDown={(e) => { if (e.key === 'Enter') { saveEdits(); } if (e.key === 'Escape') cancelEdits(); }}
                             />
                         </div>
                         {/* Autocomplete dropdown */}
                         {showSuggestions && suggestions.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white border border-[#E2E5EA] rounded-lg shadow-lg overflow-hidden">
+                            <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg shadow-lg overflow-hidden">
                                 {suggestions.map((s: any) => (
                                     <button
                                         key={s.id}
                                         onClick={() => selectSuggestion(s)}
-                                        className="w-full text-left px-3 py-2 text-sm text-[#1A1F2B] hover:bg-[#EBF1FF] transition-colors border-b border-[#F0F1F4] last:border-b-0"
+                                        className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--accent-subtle)] transition-colors border-b border-[var(--table-row-border)] last:border-b-0"
                                     >
                                         <div className="font-medium text-xs">{s.text}</div>
-                                        <div className="text-[10px] text-[#7A8599] mt-0.5">{s.place_name}</div>
+                                        <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{s.place_name}</div>
                                     </button>
                                 ))}
                             </div>
@@ -371,61 +371,61 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                         <div>
-                            <label className="block text-[10px] text-[#A0AABB] uppercase font-semibold mb-0.5">City</label>
+                            <label className="block text-[10px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">City</label>
                             <input
                                 type="text"
                                 value={editCity}
                                 onChange={(e) => setEditCity(e.target.value)}
                                 placeholder="City"
-                                className="w-full px-2 py-1.5 rounded-md border border-[#E2E5EA] text-xs text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none"
+                                className="w-full px-2 py-1.5 rounded-md border border-[var(--border)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                                 onKeyDown={(e) => { if (e.key === 'Enter') saveEdits(); if (e.key === 'Escape') cancelEdits(); }}
                             />
                         </div>
                         <div>
-                            <label className="block text-[10px] text-[#A0AABB] uppercase font-semibold mb-0.5">State</label>
+                            <label className="block text-[10px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">State</label>
                             <input
                                 type="text"
                                 value={editState}
                                 onChange={(e) => setEditState(e.target.value)}
                                 placeholder="TX"
-                                className="w-full px-2 py-1.5 rounded-md border border-[#E2E5EA] text-xs text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none"
+                                className="w-full px-2 py-1.5 rounded-md border border-[var(--border)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                                 onKeyDown={(e) => { if (e.key === 'Enter') saveEdits(); if (e.key === 'Escape') cancelEdits(); }}
                             />
                         </div>
                         <div>
-                            <label className="block text-[10px] text-[#A0AABB] uppercase font-semibold mb-0.5">Zip</label>
+                            <label className="block text-[10px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">Zip</label>
                             <input
                                 type="text"
                                 value={editZip}
                                 onChange={(e) => setEditZip(e.target.value)}
                                 placeholder="75201"
-                                className="w-full px-2 py-1.5 rounded-md border border-[#E2E5EA] text-xs text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none"
+                                className="w-full px-2 py-1.5 rounded-md border border-[var(--border)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                                 onKeyDown={(e) => { if (e.key === 'Enter') saveEdits(); if (e.key === 'Escape') cancelEdits(); }}
                             />
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                         <div>
-                            <label className="block text-[10px] text-[#A0AABB] uppercase font-semibold mb-0.5">Latitude</label>
+                            <label className="block text-[10px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">Latitude</label>
                             <input
                                 type="number"
                                 step="any"
                                 value={editLat}
                                 onChange={(e) => setEditLat(e.target.value)}
                                 placeholder="e.g., 30.267"
-                                className="w-full px-2 py-1.5 rounded-md border border-[#E2E5EA] text-xs text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none"
+                                className="w-full px-2 py-1.5 rounded-md border border-[var(--border)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                                 onKeyDown={(e) => { if (e.key === 'Enter') saveEdits(); if (e.key === 'Escape') cancelEdits(); }}
                             />
                         </div>
                         <div>
-                            <label className="block text-[10px] text-[#A0AABB] uppercase font-semibold mb-0.5">Longitude</label>
+                            <label className="block text-[10px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">Longitude</label>
                             <input
                                 type="number"
                                 step="any"
                                 value={editLng}
                                 onChange={(e) => setEditLng(e.target.value)}
                                 placeholder="e.g., -97.743"
-                                className="w-full px-2 py-1.5 rounded-md border border-[#E2E5EA] text-xs text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none"
+                                className="w-full px-2 py-1.5 rounded-md border border-[var(--border)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                                 onKeyDown={(e) => { if (e.key === 'Enter') saveEdits(); if (e.key === 'Escape') cancelEdits(); }}
                             />
                         </div>
@@ -433,28 +433,28 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                     <div className="flex items-center justify-end gap-1.5 pt-1">
                         <button
                             onClick={cancelEdits}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7] transition-colors"
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
                         >
                             <X className="w-3 h-3" /> Cancel
                         </button>
                         <button
                             onClick={saveEdits}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#2563EB] text-white text-xs font-medium hover:bg-[#1D4FD7] transition-colors"
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[var(--accent)] text-white text-xs font-medium hover:bg-[var(--accent-hover)] transition-colors"
                         >
                             <Check className="w-3 h-3" /> Update & Geocode
                         </button>
                     </div>
                 </div>
             ) : (
-                <div className="flex items-start gap-2 mb-3 text-xs text-[#4A5568] group cursor-pointer hover:text-[#2563EB] transition-colors" onClick={startEditing}>
-                    <MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[#A0AABB] group-hover:text-[#2563EB]" />
+                <div className="flex items-start gap-2 mb-3 text-xs text-[var(--text-secondary)] group cursor-pointer hover:text-[var(--accent)] transition-colors" onClick={startEditing}>
+                    <MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[var(--text-faint)] group-hover:text-[var(--accent)]" />
                     <div>
                         <div>{addressDisplay}</div>
                         {pursuit.county && (
-                            <div className="text-[10px] text-[#A0AABB] mt-0.5">{pursuit.county} County</div>
+                            <div className="text-[10px] text-[var(--text-faint)] mt-0.5">{pursuit.county} County</div>
                         )}
                         {hasLocation && (
-                            <div className="text-[10px] text-[#A0AABB] mt-0.5">
+                            <div className="text-[10px] text-[var(--text-faint)] mt-0.5">
                                 {pursuit.latitude!.toFixed(6)}, {pursuit.longitude!.toFixed(6)}
                             </div>
                         )}
@@ -466,14 +466,14 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
             {MAPBOX_TOKEN ? (
                 <div
                     ref={mapContainerRef}
-                    className="w-full h-56 rounded-lg overflow-hidden border border-[#E2E5EA]"
+                    className="w-full h-56 rounded-lg overflow-hidden border border-[var(--border)]"
                     style={{ minHeight: 224 }}
                 />
             ) : (
-                <div className="w-full h-56 rounded-lg border border-[#E2E5EA] bg-[#FAFBFC] flex items-center justify-center">
+                <div className="w-full h-56 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] flex items-center justify-center">
                     <div className="text-center">
-                        <MapPin className="w-6 h-6 text-[#C8CDD5] mx-auto mb-2" />
-                        <p className="text-xs text-[#A0AABB]">Add <code className="text-[10px] bg-[#F4F5F7] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env.local</p>
+                        <MapPin className="w-6 h-6 text-[var(--border-strong)] mx-auto mb-2" />
+                        <p className="text-xs text-[var(--text-faint)]">Add <code className="text-[10px] bg-[var(--bg-elevated)] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env.local</p>
                     </div>
                 </div>
             )}

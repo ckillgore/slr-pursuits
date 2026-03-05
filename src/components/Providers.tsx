@@ -1,8 +1,24 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { AuthProvider } from '@/components/AuthProvider';
+import { useThemeStore } from '@/store/useThemeStore';
+
+/**
+ * Applies the persisted theme to the DOM on mount.
+ * The store also applies it eagerly on creation, but this
+ * useEffect ensures hydration is correct after SSR.
+ */
+function ThemeInitializer() {
+    const theme = useThemeStore((s) => s.theme);
+
+    useEffect(() => {
+        document.documentElement.setAttribute('data-theme', theme);
+    }, [theme]);
+
+    return null;
+}
 
 export function Providers({ children }: { children: ReactNode }) {
     const [queryClient] = useState(
@@ -20,6 +36,7 @@ export function Providers({ children }: { children: ReactNode }) {
     return (
         <AuthProvider>
             <QueryClientProvider client={queryClient}>
+                <ThemeInitializer />
                 {children}
             </QueryClientProvider>
         </AuthProvider>

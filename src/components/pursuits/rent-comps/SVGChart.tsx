@@ -105,7 +105,7 @@ export default function SVGChart({ series, width = 700, height = 260, yLabel, fo
     const handleMouseLeave = useCallback(() => setHoverX(null), []);
 
     if (!computed || series.every(s => s.data.length === 0)) {
-        return <p className="text-sm text-[#7A8599] text-center py-8">No trend data available</p>;
+        return <p className="text-sm text-[var(--text-muted)] text-center py-8">No trend data available</p>;
     }
 
     return (
@@ -117,8 +117,8 @@ export default function SVGChart({ series, width = 700, height = 260, yLabel, fo
                     const y = computed.scaleY(tick);
                     return (
                         <g key={i}>
-                            <line x1={padding.left} x2={width - padding.right} y1={padding.top + y} y2={padding.top + y} stroke="#F4F5F7" strokeWidth={1} />
-                            <text x={padding.left - 8} y={padding.top + y + 4} textAnchor="end" fill="#7A8599" fontSize={10}>{formatY(tick)}</text>
+                            <line x1={padding.left} x2={width - padding.right} y1={padding.top + y} y2={padding.top + y} stroke="var(--bg-elevated)" strokeWidth={1} />
+                            <text x={padding.left - 8} y={padding.top + y + 4} textAnchor="end" fill="var(--text-muted)" fontSize={10}>{formatY(tick)}</text>
                         </g>
                     );
                 })}
@@ -127,7 +127,7 @@ export default function SVGChart({ series, width = 700, height = 260, yLabel, fo
                 {computed.xLabels.map((label, i) => {
                     const x = computed.scaleX(label + '-15');
                     return (
-                        <text key={i} x={padding.left + x} y={height - 8} textAnchor="middle" fill="#7A8599" fontSize={10}>
+                        <text key={i} x={padding.left + x} y={height - 8} textAnchor="middle" fill="var(--text-muted)" fontSize={10}>
                             {new Date(label + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}
                         </text>
                     );
@@ -135,7 +135,7 @@ export default function SVGChart({ series, width = 700, height = 260, yLabel, fo
 
                 {/* Y-axis label */}
                 {yLabel && (
-                    <text x={12} y={height / 2} textAnchor="middle" fill="#7A8599" fontSize={10} transform={`rotate(-90, 12, ${height / 2})`}>{yLabel}</text>
+                    <text x={12} y={height / 2} textAnchor="middle" fill="var(--text-muted)" fontSize={10} transform={`rotate(-90, 12, ${height / 2})`}>{yLabel}</text>
                 )}
 
                 {/* Lines */}
@@ -171,12 +171,12 @@ export default function SVGChart({ series, width = 700, height = 260, yLabel, fo
                             return (
                                 <g>
                                     <rect x={tooltipX} y={tooltipY} width={tooltipW} height={tooltipH} rx={6}
-                                        fill="white" stroke="#E2E5EA" strokeWidth={1} filter="drop-shadow(0 1px 3px rgba(0,0,0,0.08))" />
-                                    <text x={tooltipX + 8} y={tooltipY + 14} fill="#7A8599" fontSize={10} fontWeight={500}>{hoverData.dateLabel}</text>
+                                        fill="white" stroke="var(--border)" strokeWidth={1} filter="drop-shadow(0 1px 3px rgba(0,0,0,0.08))" />
+                                    <text x={tooltipX + 8} y={tooltipY + 14} fill="var(--text-muted)" fontSize={10} fontWeight={500}>{hoverData.dateLabel}</text>
                                     {validPts.map((pt, i) => (
                                         <g key={i}>
                                             <circle cx={tooltipX + 12} cy={tooltipY + 28 + i * 16} r={3} fill={series[pt!.seriesIndex].color} />
-                                            <text x={tooltipX + 20} y={tooltipY + 32 + i * 16} fill="#4A5568" fontSize={10}>
+                                            <text x={tooltipX + 20} y={tooltipY + 32 + i * 16} fill="var(--text-secondary)" fontSize={10}>
                                                 <tspan>{series[pt!.seriesIndex].label.slice(0, 12)}</tspan>
                                                 <tspan fontWeight={600} dx={4}>{formatY(pt!.value)}</tspan>
                                             </text>
@@ -194,7 +194,7 @@ export default function SVGChart({ series, width = 700, height = 260, yLabel, fo
             {/* Legend */}
             <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center mt-2">
                 {series.filter(s => s.data.length > 0).map((s, i) => (
-                    <div key={i} className="flex items-center gap-1 text-[11px] sm:text-xs text-[#4A5568]">
+                    <div key={i} className="flex items-center gap-1 text-[11px] sm:text-xs text-[var(--text-secondary)]">
                         <div className="w-3 h-0.5 rounded-full" style={{ backgroundColor: s.color }} />
                         <span className="truncate max-w-[80px] sm:max-none">{s.label}</span>
                     </div>

@@ -174,7 +174,7 @@ export default function PursuitDetailPage() {
         return (
             <AppShell>
                 <div className="flex justify-center py-24">
-                    <Loader2 className="w-8 h-8 animate-spin text-[#C8CDD5]" />
+                    <Loader2 className="w-8 h-8 animate-spin text-[var(--border-strong)]" />
                 </div>
             </AppShell>
         );
@@ -184,8 +184,8 @@ export default function PursuitDetailPage() {
         return (
             <AppShell>
                 <div className="max-w-4xl mx-auto px-6 py-16 text-center">
-                    <h2 className="text-xl text-[#4A5568]">Pursuit not found</h2>
-                    <Link href="/" className="text-[#2563EB] text-sm mt-2 inline-block hover:underline">
+                    <h2 className="text-xl text-[var(--text-secondary)]">Pursuit not found</h2>
+                    <Link href="/" className="text-[var(--accent)] text-sm mt-2 inline-block hover:underline">
                         Back to Dashboard
                     </Link>
                 </div>
@@ -274,7 +274,7 @@ export default function PursuitDetailPage() {
                 {/* Breadcrumb */}
                 <Link
                     href="/"
-                    className="inline-flex items-center gap-1.5 text-sm text-[#7A8599] hover:text-[#4A5568] transition-colors mb-6"
+                    className="inline-flex items-center gap-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors mb-6"
                 >
                     <ChevronLeft className="w-4 h-4" />
                     Back to Dashboard
@@ -300,12 +300,12 @@ export default function PursuitDetailPage() {
                                         }
                                         if (e.key === 'Escape') setIsEditingName(false);
                                     }}
-                                    className="text-2xl font-bold text-[#1A1F2B] bg-transparent border-b-2 border-[#2563EB] outline-none w-full"
+                                    className="text-2xl font-bold text-[var(--text-primary)] bg-transparent border-b-2 border-[var(--accent)] outline-none w-full"
                                     autoFocus
                                 />
                             ) : (
                                 <h1
-                                    className="text-2xl font-bold text-[#1A1F2B] cursor-pointer hover:text-[#2563EB] transition-colors group flex items-center gap-2"
+                                    className="text-2xl font-bold text-[var(--text-primary)] cursor-pointer hover:text-[var(--accent)] transition-colors group flex items-center gap-2"
                                     onClick={() => { setEditName(pursuit.name); setIsEditingName(true); }}
                                 >
                                     {pursuit.name}
@@ -313,7 +313,7 @@ export default function PursuitDetailPage() {
                                 </h1>
                             )}
                             {(pursuit.city || pursuit.state) && (
-                                <div className="flex items-center gap-1.5 mt-2 text-[#7A8599] text-sm">
+                                <div className="flex items-center gap-1.5 mt-2 text-[var(--text-muted)] text-sm">
                                     <MapPin className="w-3.5 h-3.5" />
                                     {[pursuit.address, pursuit.city, pursuit.state].filter(Boolean).join(', ')}
                                 </div>
@@ -324,40 +324,40 @@ export default function PursuitDetailPage() {
                             onChange={(e) => handleUpdatePursuit({ stage_id: e.target.value, stage_changed_at: new Date().toISOString() })}
                             className="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors"
                             style={{
-                                backgroundColor: stage ? `${stage.color}10` : '#F4F5F7',
-                                color: stage?.color ?? '#4A5568',
-                                borderColor: stage ? `${stage.color}30` : '#E2E5EA',
+                                backgroundColor: stage ? `${stage.color}10` : 'var(--bg-elevated)',
+                                color: stage?.color ?? 'var(--text-secondary)',
+                                borderColor: stage ? `${stage.color}30` : 'var(--border)',
                             }}
                         >
                             {stages.filter((s) => s.is_active).map((s) => (
-                                <option key={s.id} value={s.id} style={{ background: '#fff', color: '#1A1F2B' }}>{s.name}</option>
+                                <option key={s.id} value={s.id} style={{ background: '#fff', color: 'var(--text-primary)' }}>{s.name}</option>
                             ))}
                         </select>
                         <CommentTrigger entityType="pursuit" entityId={pursuitUuid} />
                         <button
                             onClick={() => setDeletePursuitConfirm(true)}
-                            className="ml-auto p-2 rounded-lg text-[#A0AABB] hover:text-[#DC2626] hover:bg-[#FEF2F2] transition-colors"
+                            className="ml-auto p-2 rounded-lg text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-colors"
                             title="Delete pursuit"
                         >
                             <Trash2 className="w-4 h-4" />
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6 pt-4 border-t border-[#F0F1F4]">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6 pt-4 border-t border-[var(--table-row-border)]">
                         <div>
-                            <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold mb-1">Site Area (SF)</div>
+                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Site Area (SF)</div>
                             <InlineInput value={pursuit.site_area_sf} onChange={(val) => handleUpdatePursuit({ site_area_sf: val })} format="number" decimals={0} align="left" className="text-lg font-semibold" />
                         </div>
                         <div>
-                            <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold mb-1">Site Area (Acres)</div>
-                            <div className="text-lg font-semibold text-[#4A5568]">{pursuit.site_area_sf > 0 ? formatNumber(pursuit.site_area_sf / SF_PER_ACRE, 2) : '—'}</div>
+                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Site Area (Acres)</div>
+                            <div className="text-lg font-semibold text-[var(--text-secondary)]">{pursuit.site_area_sf > 0 ? formatNumber(pursuit.site_area_sf / SF_PER_ACRE, 2) : '—'}</div>
                         </div>
                         <div>
-                            <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold mb-1">Region</div>
-                            <DebouncedTextInput value={pursuit.region || ''} onCommit={(v) => handleUpdatePursuit({ region: v })} placeholder="e.g., DFW" className="inline-input text-sm text-[#4A5568] w-full" style={{ textAlign: 'left' }} />
+                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Region</div>
+                            <DebouncedTextInput value={pursuit.region || ''} onCommit={(v) => handleUpdatePursuit({ region: v })} placeholder="e.g., DFW" className="inline-input text-sm text-[var(--text-secondary)] w-full" style={{ textAlign: 'left' }} />
                         </div>
                         <div>
-                            <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold mb-1">Created</div>
+                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Created</div>
                             <input
                                 type="date"
                                 value={pursuit.created_at ? new Date(pursuit.created_at).toISOString().split('T')[0] : ''}
@@ -366,12 +366,12 @@ export default function PursuitDetailPage() {
                                         handleUpdatePursuit({ created_at: new Date(e.target.value + 'T12:00:00').toISOString() });
                                     }
                                 }}
-                                className="inline-input text-sm text-[#7A8599] w-full cursor-pointer"
+                                className="inline-input text-sm text-[var(--text-muted)] w-full cursor-pointer"
                                 style={{ textAlign: 'left' }}
                             />
                         </div>
                         <div>
-                            <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold mb-1">Stage Since</div>
+                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Stage Since</div>
                             <input
                                 type="date"
                                 value={pursuit.stage_changed_at ? new Date(pursuit.stage_changed_at).toISOString().split('T')[0] : ''}
@@ -380,7 +380,7 @@ export default function PursuitDetailPage() {
                                         handleUpdatePursuit({ stage_changed_at: new Date(e.target.value + 'T12:00:00').toISOString() });
                                     }
                                 }}
-                                className="inline-input text-sm text-[#7A8599] w-full cursor-pointer"
+                                className="inline-input text-sm text-[var(--text-muted)] w-full cursor-pointer"
                                 style={{ textAlign: 'left' }}
                             />
                         </div>
@@ -388,106 +388,106 @@ export default function PursuitDetailPage() {
                 </div>
 
                 {/* Tab Bar */}
-                <div className="flex items-center gap-1 mb-6 border-b border-[#E2E5EA] overflow-x-auto">
+                <div className="flex items-center gap-1 mb-6 border-b border-[var(--border)] overflow-x-auto">
                     <button
                         onClick={() => setActiveTab('overview')}
                         className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'overview'
-                            ? 'text-[#2563EB]'
-                            : 'text-[#7A8599] hover:text-[#4A5568]'
+                            ? 'text-[var(--accent)]'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                             }`}
                     >
                         Overview
                         {activeTab === 'overview' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2563EB] rounded-full" />
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
                         )}
                     </button>
                     <button
                         onClick={() => setActiveTab('onepagers')}
                         className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'onepagers'
-                            ? 'text-[#2563EB]'
-                            : 'text-[#7A8599] hover:text-[#4A5568]'
+                            ? 'text-[var(--accent)]'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                             }`}
                     >
                         One-Pagers
                         {onePagers.filter(op => !op.is_archived).length > 0 && (
-                            <span className="ml-1.5 text-[10px] bg-[#EBF1FF] text-[#2563EB] px-1.5 py-0.5 rounded-full font-medium">
+                            <span className="ml-1.5 text-[10px] bg-[var(--accent-subtle)] text-[var(--accent)] px-1.5 py-0.5 rounded-full font-medium">
                                 {onePagers.filter(op => !op.is_archived).length}
                             </span>
                         )}
                         {activeTab === 'onepagers' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2563EB] rounded-full" />
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
                         )}
                     </button>
                     <button
                         onClick={() => setActiveTab('demographics')}
                         className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'demographics'
-                            ? 'text-[#2563EB]'
-                            : 'text-[#7A8599] hover:text-[#4A5568]'
+                            ? 'text-[var(--accent)]'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                             }`}
                     >
                         Demographic Data
                         {activeTab === 'demographics' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2563EB] rounded-full" />
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
                         )}
                     </button>
                     <button
                         onClick={() => setActiveTab('publicinfo')}
                         className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'publicinfo'
-                            ? 'text-[#2563EB]'
-                            : 'text-[#7A8599] hover:text-[#4A5568]'
+                            ? 'text-[var(--accent)]'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                             }`}
                     >
                         Public Information
                         {activeTab === 'publicinfo' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2563EB] rounded-full" />
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
                         )}
                     </button>
                     <button
                         onClick={() => setActiveTab('rent_comps')}
                         className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'rent_comps'
-                            ? 'text-[#2563EB]'
-                            : 'text-[#7A8599] hover:text-[#4A5568]'
+                            ? 'text-[var(--accent)]'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                             }`}
                     >
                         Rent Comps
                         {activeTab === 'rent_comps' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2563EB] rounded-full" />
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
                         )}
                     </button>
                     <button
                         onClick={() => setActiveTab('predev')}
                         className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'predev'
-                            ? 'text-[#2563EB]'
-                            : 'text-[#7A8599] hover:text-[#4A5568]'
+                            ? 'text-[var(--accent)]'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                             }`}
                     >
                         Pre-Dev Budget
                         {activeTab === 'predev' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2563EB] rounded-full" />
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
                         )}
                     </button>
                     <button
                         onClick={() => setActiveTab('keydates')}
                         className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'keydates'
-                            ? 'text-[#2563EB]'
-                            : 'text-[#7A8599] hover:text-[#4A5568]'
+                            ? 'text-[var(--accent)]'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                             }`}
                     >
                         Key Dates
                         {activeTab === 'keydates' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2563EB] rounded-full" />
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
                         )}
                     </button>
                     <button
                         onClick={() => setActiveTab('checklist')}
                         className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'checklist'
-                            ? 'text-[#2563EB]'
-                            : 'text-[#7A8599] hover:text-[#4A5568]'
+                            ? 'text-[var(--accent)]'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                             }`}
                     >
                         Checklist
                         {activeTab === 'checklist' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2563EB] rounded-full" />
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
                         )}
                     </button>
                 </div>
@@ -523,14 +523,14 @@ export default function PursuitDetailPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                                     {/* Primary One-Pager KPIs */}
                                     <div
-                                        className={`card ${primaryOp ? 'cursor-pointer hover:border-[#2563EB]/40 hover:shadow-md transition-all' : ''}`}
+                                        className={`card ${primaryOp ? 'cursor-pointer hover:border-[var(--accent)]/40 hover:shadow-md transition-all' : ''}`}
                                         onClick={() => {
                                             if (primaryOp) router.push(`/pursuits/${pursuitId}/one-pagers/${primaryOp.short_id}`);
                                         }}
                                     >
                                         <div className="flex items-center gap-1.5 mb-3">
-                                            <FileText className="w-3.5 h-3.5 text-[#2563EB]" />
-                                            <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider">Primary Scenario</h3>
+                                            <FileText className="w-3.5 h-3.5 text-[var(--accent)]" />
+                                            <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Primary Scenario</h3>
                                             {primaryOp && (
                                                 <span className="text-[9px] bg-[#F59E0B]/10 text-[#F59E0B] px-1.5 py-0.5 rounded-full font-medium ml-auto">
                                                     <Star className="w-2.5 h-2.5 inline fill-current -mt-px" /> {primaryOp.name}
@@ -540,32 +540,32 @@ export default function PursuitDetailPage() {
                                         {primaryOp ? (
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div>
-                                                    <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold">Units</div>
-                                                    <div className="text-xl font-bold text-[#1A1F2B]">{primaryOp.total_units || '—'}</div>
+                                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Units</div>
+                                                    <div className="text-xl font-bold text-[var(--text-primary)]">{primaryOp.total_units || '—'}</div>
                                                 </div>
                                                 <div>
-                                                    <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold">YOC</div>
-                                                    <div className="text-xl font-bold text-[#0D7A3E]">{primaryOp.calc_yoc ? `${(primaryOp.calc_yoc * 100).toFixed(2)}%` : '—'}</div>
+                                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">YOC</div>
+                                                    <div className="text-xl font-bold text-[var(--success)]">{primaryOp.calc_yoc ? `${(primaryOp.calc_yoc * 100).toFixed(2)}%` : '—'}</div>
                                                 </div>
                                                 <div>
-                                                    <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold">Total Budget</div>
-                                                    <div className="text-sm font-semibold text-[#1A1F2B]">{primaryOp.calc_total_budget ? formatCurrency(primaryOp.calc_total_budget, 0) : '—'}</div>
+                                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Total Budget</div>
+                                                    <div className="text-sm font-semibold text-[var(--text-primary)]">{primaryOp.calc_total_budget ? formatCurrency(primaryOp.calc_total_budget, 0) : '—'}</div>
                                                 </div>
                                                 <div>
-                                                    <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold">NOI</div>
-                                                    <div className="text-sm font-semibold text-[#1A1F2B]">{primaryOp.calc_noi ? formatCurrency(primaryOp.calc_noi, 0) : '—'}</div>
+                                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">NOI</div>
+                                                    <div className="text-sm font-semibold text-[var(--text-primary)]">{primaryOp.calc_noi ? formatCurrency(primaryOp.calc_noi, 0) : '—'}</div>
                                                 </div>
-                                                <div className="col-span-2 pt-2 border-t border-[#F0F1F4]">
-                                                    <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold">Cost / Unit</div>
-                                                    <div className="text-sm font-semibold text-[#1A1F2B]">{primaryOp.calc_cost_per_unit ? formatCurrency(primaryOp.calc_cost_per_unit, 0) : '—'}</div>
+                                                <div className="col-span-2 pt-2 border-t border-[var(--table-row-border)]">
+                                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Cost / Unit</div>
+                                                    <div className="text-sm font-semibold text-[var(--text-primary)]">{primaryOp.calc_cost_per_unit ? formatCurrency(primaryOp.calc_cost_per_unit, 0) : '—'}</div>
                                                 </div>
                                             </div>
                                         ) : (
                                             <div className="text-center py-4">
-                                                <p className="text-xs text-[#A0AABB]">No primary scenario set</p>
+                                                <p className="text-xs text-[var(--text-faint)]">No primary scenario set</p>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); setActiveTab('onepagers'); }}
-                                                    className="text-xs text-[#2563EB] hover:underline mt-1"
+                                                    className="text-xs text-[var(--accent)] hover:underline mt-1"
                                                 >
                                                     Go to One-Pagers →
                                                 </button>
@@ -576,36 +576,36 @@ export default function PursuitDetailPage() {
                                     {/* Pre-Dev Budget KPIs */}
                                     <div className="card">
                                         <div className="flex items-center gap-1.5 mb-3">
-                                            <DollarSign className="w-3.5 h-3.5 text-[#0D7A3E]" />
-                                            <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider">Pre-Dev Budget</h3>
+                                            <DollarSign className="w-3.5 h-3.5 text-[var(--success)]" />
+                                            <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Pre-Dev Budget</h3>
                                         </div>
                                         {predevBudget && budgetItems.length > 0 ? (
                                             <div className="space-y-3">
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <div>
-                                                        <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold">Projected</div>
-                                                        <div className="text-xl font-bold text-[#1A1F2B]">{formatCurrency(totalProjected, 0)}</div>
+                                                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Projected</div>
+                                                        <div className="text-xl font-bold text-[var(--text-primary)]">{formatCurrency(totalProjected, 0)}</div>
                                                     </div>
                                                     <div>
-                                                        <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold">Actual</div>
-                                                        <div className="text-xl font-bold text-[#1A1F2B]">{formatCurrency(totalActual, 0)}</div>
+                                                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Actual</div>
+                                                        <div className="text-xl font-bold text-[var(--text-primary)]">{formatCurrency(totalActual, 0)}</div>
                                                     </div>
                                                 </div>
-                                                <div className="pt-2 border-t border-[#F0F1F4]">
-                                                    <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold">Variance (Under / Over)</div>
-                                                    <div className={`text-sm font-semibold flex items-center gap-1 ${budgetVariance >= 0 ? 'text-[#0D7A3E]' : 'text-[#DC2626]'}`}>
+                                                <div className="pt-2 border-t border-[var(--table-row-border)]">
+                                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Variance (Under / Over)</div>
+                                                    <div className={`text-sm font-semibold flex items-center gap-1 ${budgetVariance >= 0 ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
                                                         {budgetVariance >= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
                                                         {formatCurrency(Math.abs(budgetVariance), 0)}
-                                                        <span className="text-[10px] font-normal text-[#7A8599] ml-1">{budgetVariance >= 0 ? 'under' : 'over'}</span>
+                                                        <span className="text-[10px] font-normal text-[var(--text-muted)] ml-1">{budgetVariance >= 0 ? 'under' : 'over'}</span>
                                                     </div>
                                                 </div>
                                             </div>
                                         ) : (
                                             <div className="text-center py-4">
-                                                <p className="text-xs text-[#A0AABB]">No pre-dev budget yet</p>
+                                                <p className="text-xs text-[var(--text-faint)]">No pre-dev budget yet</p>
                                                 <button
                                                     onClick={() => setActiveTab('predev')}
-                                                    className="text-xs text-[#2563EB] hover:underline mt-1"
+                                                    className="text-xs text-[var(--accent)] hover:underline mt-1"
                                                 >
                                                     Set Up Budget →
                                                 </button>
@@ -617,9 +617,9 @@ export default function PursuitDetailPage() {
                                     <div className="card">
                                         <div className="flex items-center gap-1.5 mb-3">
                                             <Calendar className="w-3.5 h-3.5 text-[#8B5CF6]" />
-                                            <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider">Key Dates</h3>
+                                            <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Key Dates</h3>
                                             {overdueDates.length > 0 && (
-                                                <span className="text-[9px] bg-[#DC2626]/10 text-[#DC2626] px-1.5 py-0.5 rounded-full font-medium ml-auto">
+                                                <span className="text-[9px] bg-[var(--danger)]/10 text-[var(--danger)] px-1.5 py-0.5 rounded-full font-medium ml-auto">
                                                     {overdueDates.length} overdue
                                                 </span>
                                             )}
@@ -628,43 +628,43 @@ export default function PursuitDetailPage() {
                                             <div className="space-y-3">
                                                 {nextDate ? (
                                                     <div>
-                                                        <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold">Next Upcoming</div>
-                                                        <div className="text-sm font-semibold text-[#1A1F2B] mt-0.5">
+                                                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Next Upcoming</div>
+                                                        <div className="text-sm font-semibold text-[var(--text-primary)] mt-0.5">
                                                             {nextDate.key_date_type?.name || nextDate.custom_label || 'Date'}
                                                         </div>
                                                         <div className="flex items-center gap-1.5 mt-1">
-                                                            <Clock className="w-3 h-3 text-[#7A8599]" />
-                                                            <span className="text-xs text-[#4A5568]">
+                                                            <Clock className="w-3 h-3 text-[var(--text-muted)]" />
+                                                            <span className="text-xs text-[var(--text-secondary)]">
                                                                 {new Date(nextDate.date_value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                                             </span>
-                                                            <span className="text-[10px] text-[#7A8599]">
+                                                            <span className="text-[10px] text-[var(--text-muted)]">
                                                                 ({Math.ceil((new Date(nextDate.date_value).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))} days)
                                                             </span>
                                                         </div>
                                                     </div>
                                                 ) : (
                                                     <div>
-                                                        <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold">Next Upcoming</div>
-                                                        <div className="text-xs text-[#7A8599] mt-0.5">No upcoming dates</div>
+                                                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Next Upcoming</div>
+                                                        <div className="text-xs text-[var(--text-muted)] mt-0.5">No upcoming dates</div>
                                                     </div>
                                                 )}
-                                                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-[#F0F1F4]">
+                                                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-[var(--table-row-border)]">
                                                     <div>
-                                                        <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold">Total Dates</div>
-                                                        <div className="text-sm font-semibold text-[#1A1F2B]">{keyDates.length}</div>
+                                                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Total Dates</div>
+                                                        <div className="text-sm font-semibold text-[var(--text-primary)]">{keyDates.length}</div>
                                                     </div>
                                                     <div>
-                                                        <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-semibold">Completed</div>
-                                                        <div className="text-sm font-semibold text-[#0D7A3E]">{keyDates.filter(kd => kd.status === 'completed').length}</div>
+                                                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Completed</div>
+                                                        <div className="text-sm font-semibold text-[var(--success)]">{keyDates.filter(kd => kd.status === 'completed').length}</div>
                                                     </div>
                                                 </div>
                                             </div>
                                         ) : (
                                             <div className="text-center py-4">
-                                                <p className="text-xs text-[#A0AABB]">No key dates tracked</p>
+                                                <p className="text-xs text-[var(--text-faint)]">No key dates tracked</p>
                                                 <button
                                                     onClick={() => setActiveTab('keydates')}
-                                                    className="text-xs text-[#2563EB] hover:underline mt-1"
+                                                    className="text-xs text-[var(--accent)] hover:underline mt-1"
                                                 >
                                                     Add Key Dates →
                                                 </button>
@@ -678,7 +678,7 @@ export default function PursuitDetailPage() {
                         {/* Location + Notes side by side */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
                             <div className="card">
-                                <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider mb-3">Pursuit Notes</h3>
+                                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Pursuit Notes</h3>
                                 <RichTextEditor
                                     content={pursuit.exec_summary}
                                     onChange={(json) => handleUpdatePursuit({ exec_summary: json })}
@@ -690,11 +690,11 @@ export default function PursuitDetailPage() {
 
                         {/* AI Site Assessment Card */}
                         <div className="card relative overflow-hidden">
-                            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#8B5CF6] via-[#6366F1] to-[#2563EB]" />
+                            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#8B5CF6] via-[#6366F1] to-[var(--accent)]" />
                             <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-center gap-1.5">
                                     <Sparkles className="w-3.5 h-3.5 text-[#8B5CF6]" />
-                                    <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider">AI Site Assessment</h3>
+                                    <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">AI Site Assessment</h3>
                                     {onePagers.length > 0 && (
                                         <span className="text-[9px] bg-[#8B5CF6]/10 text-[#8B5CF6] px-1.5 py-0.5 rounded-full font-medium">
                                             {onePagers.length} scenario{onePagers.length !== 1 ? 's' : ''} included
@@ -709,7 +709,7 @@ export default function PursuitDetailPage() {
                                         >
                                             <RefreshCw className="w-3 h-3" /> Regenerate
                                         </button>
-                                        <span className="text-[#E2E5EA]">|</span>
+                                        <span className="text-[var(--border)]">|</span>
                                         <button
                                             onClick={() => {
                                                 setAiSummary(null);
@@ -721,7 +721,7 @@ export default function PursuitDetailPage() {
                                                     },
                                                 } as any);
                                             }}
-                                            className="flex items-center gap-1 text-[10px] text-[#A0AABB] hover:text-red-500 font-medium transition-colors"
+                                            className="flex items-center gap-1 text-[10px] text-[var(--text-faint)] hover:text-red-500 font-medium transition-colors"
                                         >
                                             <X className="w-3 h-3" /> Clear
                                         </button>
@@ -732,13 +732,13 @@ export default function PursuitDetailPage() {
                             {aiLoading ? (
                                 <div className="flex items-center justify-center py-8">
                                     <Sparkles className="w-5 h-5 animate-pulse text-[#8B5CF6] mr-2" />
-                                    <span className="text-sm text-[#7A8599]">Generating site assessment...</span>
+                                    <span className="text-sm text-[var(--text-muted)]">Generating site assessment...</span>
                                 </div>
                             ) : aiError ? (
                                 <div className="flex items-center gap-2 py-4 text-sm text-red-600">
                                     <AlertCircle className="w-4 h-4" />
                                     <span>{aiError}</span>
-                                    <button onClick={generateSummary} className="ml-auto text-[10px] text-[#2563EB] hover:underline">Retry</button>
+                                    <button onClick={generateSummary} className="ml-auto text-[10px] text-[var(--accent)] hover:underline">Retry</button>
                                 </div>
                             ) : aiSummary ? (
                                 <div className="max-h-[500px] overflow-y-auto">
@@ -786,7 +786,7 @@ export default function PursuitDetailPage() {
                                         flushBullets();
 
                                         const renderInline = (text: string) =>
-                                            text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-[#1A1F2B] font-semibold">$1</strong>');
+                                            text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-[var(--text-primary)] font-semibold">$1</strong>');
 
                                         return (
                                             <div className="space-y-1">
@@ -795,7 +795,7 @@ export default function PursuitDetailPage() {
                                                         return (
                                                             <div key={i} className="flex items-center gap-2 pt-3 pb-1 first:pt-0">
                                                                 <div className="w-1 h-4 rounded-full bg-gradient-to-b from-[#8B5CF6] to-[#6366F1]" />
-                                                                <h4 className="text-[13px] font-bold text-[#1A1F2B] tracking-tight">{block.content}</h4>
+                                                                <h4 className="text-[13px] font-bold text-[var(--text-primary)] tracking-tight">{block.content}</h4>
                                                             </div>
                                                         );
                                                     }
@@ -803,7 +803,7 @@ export default function PursuitDetailPage() {
                                                         return (
                                                             <ul key={i} className="space-y-1.5 pl-3 py-1">
                                                                 {block.content.split('\n').map((item, j) => (
-                                                                    <li key={j} className="flex items-start gap-2 text-[12px] leading-relaxed text-[#4A5568]">
+                                                                    <li key={j} className="flex items-start gap-2 text-[12px] leading-relaxed text-[var(--text-secondary)]">
                                                                         <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#8B5CF6]/40 flex-shrink-0" />
                                                                         <span dangerouslySetInnerHTML={{ __html: renderInline(item) }} />
                                                                     </li>
@@ -812,7 +812,7 @@ export default function PursuitDetailPage() {
                                                         );
                                                     }
                                                     return (
-                                                        <p key={i} className="text-[12px] leading-relaxed text-[#4A5568] pl-3"
+                                                        <p key={i} className="text-[12px] leading-relaxed text-[var(--text-secondary)] pl-3"
                                                             dangerouslySetInnerHTML={{ __html: renderInline(block.content) }}
                                                         />
                                                     );
@@ -830,7 +830,7 @@ export default function PursuitDetailPage() {
                                         <Sparkles className="w-4 h-4" />
                                         Generate Site Assessment
                                     </button>
-                                    <p className="text-[10px] text-[#A0AABB] mt-2">
+                                    <p className="text-[10px] text-[var(--text-faint)] mt-2">
                                         Powered by Gemini · Analyzes parcel, zoning, tax, FMR, demographics{onePagers.length > 0 ? ' & scenarios' : ''}
                                     </p>
                                 </div>
@@ -844,26 +844,26 @@ export default function PursuitDetailPage() {
                     <>
                         {/* One-Pagers */}
                         <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-semibold text-[#1A1F2B]">One-Pagers</h2>
+                            <h2 className="text-lg font-semibold text-[var(--text-primary)]">One-Pagers</h2>
                             <div className="flex items-center gap-2">
                                 {onePagers.filter(op => !op.is_archived).length >= 2 && (
                                     <Link
                                         href={`/pursuits/${pursuitId}/compare`}
-                                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg border border-[#E2E5EA] text-[#4A5568] hover:text-[#2563EB] hover:border-[#2563EB] text-sm font-medium transition-colors"
+                                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--accent)] hover:border-[var(--accent)] text-sm font-medium transition-colors"
                                     >
                                         <BarChart3 className="w-4 h-4" /> Compare
                                     </Link>
                                 )}
                                 <button
                                     onClick={() => setShowNewOnePagerDialog(true)}
-                                    className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-[#2563EB] hover:bg-[#1D4FD7] text-white text-sm font-medium transition-colors shadow-sm"
+                                    className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors shadow-sm"
                                 >
                                     <Plus className="w-4 h-4" /> New One-Pager
                                 </button>
                             </div>
                         </div>
 
-                        {loadingOnePagers && <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-[#C8CDD5]" /></div>}
+                        {loadingOnePagers && <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-[var(--border-strong)]" /></div>}
 
                         {!loadingOnePagers && onePagers.length > 0 && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -878,7 +878,7 @@ export default function PursuitDetailPage() {
                                                 <div className={`card group cursor-pointer ${isPrimary ? 'ring-2 ring-[#F59E0B]/40' : ''}`}>
                                                     <div className="flex items-start justify-between">
                                                         <div>
-                                                            <h3 className="text-base font-semibold text-[#1A1F2B] group-hover:text-[#2563EB] transition-colors flex items-center gap-1.5">
+                                                            <h3 className="text-base font-semibold text-[var(--text-primary)] group-hover:text-[var(--accent)] transition-colors flex items-center gap-1.5">
                                                                 {op.name}
                                                                 <button
                                                                     onClick={(e) => {
@@ -888,30 +888,30 @@ export default function PursuitDetailPage() {
                                                                     }}
                                                                     className={`p-0.5 rounded transition-all ${isPrimary
                                                                         ? 'text-[#F59E0B] opacity-100'
-                                                                        : 'text-[#A0AABB] opacity-0 group-hover/card:opacity-100 hover:text-[#F59E0B]'
+                                                                        : 'text-[var(--text-faint)] opacity-0 group-hover/card:opacity-100 hover:text-[#F59E0B]'
                                                                         }`}
                                                                     title={isPrimary ? 'Primary scenario (used in reports)' : 'Set as primary scenario'}
                                                                 >
                                                                     <Star className={`w-3.5 h-3.5 ${isPrimary ? 'fill-current' : ''}`} />
                                                                 </button>
                                                             </h3>
-                                                            {pt && <span className="text-xs text-[#7A8599] mt-1 inline-block">{pt.name}</span>}
+                                                            {pt && <span className="text-xs text-[var(--text-muted)] mt-1 inline-block">{pt.name}</span>}
                                                         </div>
                                                         <div className="text-right">
-                                                            <div className="text-[10px] text-[#A0AABB] uppercase tracking-wider font-medium">YOC</div>
-                                                            <div className="text-lg font-bold text-[#0D7A3E]">{op.calc_yoc ? `${(op.calc_yoc * 100).toFixed(2)}%` : '—'}</div>
+                                                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-medium">YOC</div>
+                                                            <div className="text-lg font-bold text-[var(--success)]">{op.calc_yoc ? `${(op.calc_yoc * 100).toFixed(2)}%` : '—'}</div>
                                                         </div>
                                                     </div>
-                                                    <div className="grid grid-cols-3 gap-3 mt-4 pt-3 border-t border-[#F0F1F4]">
-                                                        <div><div className="text-[10px] text-[#A0AABB] font-medium uppercase">Units</div><div className="text-sm font-semibold text-[#1A1F2B]">{op.total_units || '—'}</div></div>
-                                                        <div><div className="text-[10px] text-[#A0AABB] font-medium uppercase">Budget</div><div className="text-sm font-semibold text-[#1A1F2B]">{op.calc_total_budget ? formatCurrency(op.calc_total_budget, 0) : '—'}</div></div>
-                                                        <div><div className="text-[10px] text-[#A0AABB] font-medium uppercase">NOI</div><div className="text-sm font-semibold text-[#1A1F2B]">{op.calc_noi ? formatCurrency(op.calc_noi, 0) : '—'}</div></div>
+                                                    <div className="grid grid-cols-3 gap-3 mt-4 pt-3 border-t border-[var(--table-row-border)]">
+                                                        <div><div className="text-[10px] text-[var(--text-faint)] font-medium uppercase">Units</div><div className="text-sm font-semibold text-[var(--text-primary)]">{op.total_units || '—'}</div></div>
+                                                        <div><div className="text-[10px] text-[var(--text-faint)] font-medium uppercase">Budget</div><div className="text-sm font-semibold text-[var(--text-primary)]">{op.calc_total_budget ? formatCurrency(op.calc_total_budget, 0) : '—'}</div></div>
+                                                        <div><div className="text-[10px] text-[var(--text-faint)] font-medium uppercase">NOI</div><div className="text-sm font-semibold text-[var(--text-primary)]">{op.calc_noi ? formatCurrency(op.calc_noi, 0) : '—'}</div></div>
                                                     </div>
                                                 </div>
                                             </Link>
                                             <button
                                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteConfirmId(op.id); }}
-                                                className="absolute bottom-3 right-3 p-1.5 rounded-md opacity-0 group-hover/card:opacity-100 text-[#A0AABB] hover:text-[#DC2626] hover:bg-[#FEF2F2] transition-all z-10"
+                                                className="absolute bottom-3 right-3 p-1.5 rounded-md opacity-0 group-hover/card:opacity-100 text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-all z-10"
                                                 title="Delete one-pager"
                                             >
                                                 <Trash2 className="w-3.5 h-3.5" />
@@ -924,8 +924,8 @@ export default function PursuitDetailPage() {
 
                         {!loadingOnePagers && onePagers.length === 0 && (
                             <div className="card flex flex-col items-center py-12 text-center">
-                                <FileText className="w-10 h-10 text-[#C8CDD5] mb-3" />
-                                <p className="text-sm text-[#7A8599]">No one-pagers yet. Create one to start your feasibility analysis.</p>
+                                <FileText className="w-10 h-10 text-[var(--border-strong)] mb-3" />
+                                <p className="text-sm text-[var(--text-muted)]">No one-pagers yet. Create one to start your feasibility analysis.</p>
                             </div>
                         )}
                     </>
@@ -1010,25 +1010,25 @@ export default function PursuitDetailPage() {
 
                 {/* New One-Pager Dialog */}
                 {showNewOnePagerDialog && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-                        <div className="bg-white border border-[#E2E5EA] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in mx-4">
-                            <h2 className="text-lg font-semibold text-[#1A1F2B] mb-4">New One-Pager</h2>
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
+                        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in mx-4">
+                            <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">New One-Pager</h2>
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-xs font-semibold text-[#4A5568] mb-1.5 uppercase tracking-wider">Scenario Name <span className="text-[#DC2626]">*</span></label>
-                                    <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder='e.g., "Scheme A — 4-Story Wrap"' className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] placeholder:text-[#A0AABB] focus:border-[#2563EB] focus:ring-2 focus:ring-[#EBF1FF] focus:outline-none" autoFocus />
+                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Scenario Name <span className="text-[var(--danger)]">*</span></label>
+                                    <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder='e.g., "Scheme A — 4-Story Wrap"' className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-subtle)] focus:outline-none" autoFocus />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-semibold text-[#4A5568] mb-1.5 uppercase tracking-wider">Product Type <span className="text-[#DC2626]">*</span></label>
-                                    <select value={newProductTypeId} onChange={(e) => { setNewProductTypeId(e.target.value); setNewSubProductTypeId(''); }} className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none">
+                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Product Type <span className="text-[var(--danger)]">*</span></label>
+                                    <select value={newProductTypeId} onChange={(e) => { setNewProductTypeId(e.target.value); setNewSubProductTypeId(''); }} className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none">
                                         <option value="">Select product type...</option>
                                         {productTypes.filter((pt) => pt.is_active).map((pt) => <option key={pt.id} value={pt.id}>{pt.name}</option>)}
                                     </select>
                                 </div>
                                 {subTypes.length > 0 && (
                                     <div>
-                                        <label className="block text-xs font-semibold text-[#4A5568] mb-1.5 uppercase tracking-wider">Sub-Product Type</label>
-                                        <select value={newSubProductTypeId} onChange={(e) => setNewSubProductTypeId(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none">
+                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Sub-Product Type</label>
+                                        <select value={newSubProductTypeId} onChange={(e) => setNewSubProductTypeId(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none">
                                             <option value="">None</option>
                                             {subTypes.filter((st: { is_active: boolean }) => st.is_active).map((st: { id: string; name: string }) => <option key={st.id} value={st.id}>{st.name}</option>)}
                                         </select>
@@ -1036,20 +1036,20 @@ export default function PursuitDetailPage() {
                                 )}
                                 {matchingTemplates.length > 0 && (
                                     <div>
-                                        <label className="block text-xs font-semibold text-[#4A5568] mb-1.5 uppercase tracking-wider">Load Defaults From Template</label>
-                                        <select value={selectedTemplateId} onChange={(e) => setSelectedTemplateId(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none">
+                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Load Defaults From Template</label>
+                                        <select value={selectedTemplateId} onChange={(e) => setSelectedTemplateId(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none">
                                             <option value="">None — start from scratch</option>
                                             {matchingTemplates.map((t) => <option key={t.id} value={t.id}>{t.name}{t.region ? ` (${t.region})` : ''}</option>)}
                                         </select>
                                         {selectedTemplateId && (
-                                            <p className="text-[10px] text-[#7A8599] mt-1">Template defaults will be applied to the new one-pager.</p>
+                                            <p className="text-[10px] text-[var(--text-muted)] mt-1">Template defaults will be applied to the new one-pager.</p>
                                         )}
                                     </div>
                                 )}
                             </div>
                             <div className="flex justify-end gap-3 mt-6">
-                                <button onClick={() => setShowNewOnePagerDialog(false)} className="px-4 py-2 rounded-lg text-sm text-[#4A5568] hover:text-[#1A1F2B] hover:bg-[#F4F5F7] transition-colors">Cancel</button>
-                                <button onClick={handleCreateOnePager} disabled={!newName.trim() || !newProductTypeId || createOnePager.isPending} className="px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-[#1D4FD7] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors shadow-sm">{createOnePager.isPending ? 'Creating...' : 'Create & Open'}</button>
+                                <button onClick={() => setShowNewOnePagerDialog(false)} className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors">Cancel</button>
+                                <button onClick={handleCreateOnePager} disabled={!newName.trim() || !newProductTypeId || createOnePager.isPending} className="px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors shadow-sm">{createOnePager.isPending ? 'Creating...' : 'Create & Open'}</button>
                             </div>
                         </div>
                     </div>
@@ -1057,17 +1057,17 @@ export default function PursuitDetailPage() {
 
                 {/* Delete Confirmation Dialog */}
                 {deleteConfirmId && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-                        <div className="bg-white border border-[#E2E5EA] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in mx-4">
-                            <h2 className="text-lg font-semibold text-[#1A1F2B] mb-2">Delete One-Pager</h2>
-                            <p className="text-sm text-[#7A8599] mb-1">
-                                Are you sure you want to permanently delete <span className="font-medium text-[#1A1F2B]">{onePagers.find(op => op.id === deleteConfirmId)?.name}</span>?
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
+                        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in mx-4">
+                            <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Delete One-Pager</h2>
+                            <p className="text-sm text-[var(--text-muted)] mb-1">
+                                Are you sure you want to permanently delete <span className="font-medium text-[var(--text-primary)]">{onePagers.find(op => op.id === deleteConfirmId)?.name}</span>?
                             </p>
-                            <p className="text-xs text-[#DC2626] mb-6">This action cannot be undone.</p>
+                            <p className="text-xs text-[var(--danger)] mb-6">This action cannot be undone.</p>
                             <div className="flex justify-end gap-3">
                                 <button
                                     onClick={() => setDeleteConfirmId(null)}
-                                    className="px-4 py-2 rounded-lg text-sm text-[#4A5568] hover:text-[#1A1F2B] hover:bg-[#F4F5F7] transition-colors"
+                                    className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
                                 >
                                     Cancel
                                 </button>
@@ -1077,7 +1077,7 @@ export default function PursuitDetailPage() {
                                         setDeleteConfirmId(null);
                                     }}
                                     disabled={deleteOnePager.isPending}
-                                    className="px-4 py-2 rounded-lg bg-[#DC2626] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
+                                    className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
                                 >
                                     {deleteOnePager.isPending ? 'Deleting...' : 'Delete'}
                                 </button>
@@ -1088,17 +1088,17 @@ export default function PursuitDetailPage() {
 
                 {/* Delete Pursuit Confirmation Dialog */}
                 {deletePursuitConfirm && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-                        <div className="bg-white border border-[#E2E5EA] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in mx-4">
-                            <h2 className="text-lg font-semibold text-[#1A1F2B] mb-2">Delete Pursuit</h2>
-                            <p className="text-sm text-[#7A8599] mb-1">
-                                Are you sure you want to permanently delete <span className="font-medium text-[#1A1F2B]">{pursuit.name}</span> and all its one-pagers?
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
+                        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in mx-4">
+                            <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Delete Pursuit</h2>
+                            <p className="text-sm text-[var(--text-muted)] mb-1">
+                                Are you sure you want to permanently delete <span className="font-medium text-[var(--text-primary)]">{pursuit.name}</span> and all its one-pagers?
                             </p>
-                            <p className="text-xs text-[#DC2626] mb-6">This action cannot be undone.</p>
+                            <p className="text-xs text-[var(--danger)] mb-6">This action cannot be undone.</p>
                             <div className="flex justify-end gap-3">
                                 <button
                                     onClick={() => setDeletePursuitConfirm(false)}
-                                    className="px-4 py-2 rounded-lg text-sm text-[#4A5568] hover:text-[#1A1F2B] hover:bg-[#F4F5F7] transition-colors"
+                                    className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
                                 >
                                     Cancel
                                 </button>
@@ -1108,7 +1108,7 @@ export default function PursuitDetailPage() {
                                         router.push('/');
                                     }}
                                     disabled={deletePursuit.isPending}
-                                    className="px-4 py-2 rounded-lg bg-[#DC2626] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
+                                    className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
                                 >
                                     {deletePursuit.isPending ? 'Deleting...' : 'Delete Pursuit'}
                                 </button>

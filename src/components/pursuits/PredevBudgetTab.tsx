@@ -109,7 +109,7 @@ function EditableCell({
                     if (e.key === 'Enter') handleBlur();
                     if (e.key === 'Escape') setEditing(false);
                 }}
-                className="w-full h-full px-2 py-1 text-right text-xs font-mono bg-transparent outline-none border-2 border-[#2563EB] rounded"
+                className="w-full h-full px-2 py-1 text-right text-xs font-mono bg-transparent outline-none border-2 border-[var(--accent)] rounded"
             />
         );
     }
@@ -117,7 +117,7 @@ function EditableCell({
     return (
         <div
             onClick={handleStartEdit}
-            className={`px-2 py-1.5 text-right text-xs font-mono cursor-text tabular-nums hover:bg-[#F4F5F7] transition-colors rounded ${value === 0 ? 'text-[#C8CDD5]' : isActual ? 'text-[#0D7A3E] font-semibold' : 'text-[#1A1F2B]'
+            className={`px-2 py-1.5 text-right text-xs font-mono cursor-text tabular-nums hover:bg-[var(--bg-elevated)] transition-colors rounded ${value === 0 ? 'text-[var(--border-strong)]' : isActual ? 'text-[var(--success)] font-semibold' : 'text-[var(--text-primary)]'
                 }`}
         >
             {value === 0 ? '—' : formatCurrency(value, 0)}
@@ -280,7 +280,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
     if (isLoading) {
         return (
             <div className="flex justify-center py-24">
-                <Loader2 className="w-8 h-8 animate-spin text-[#C8CDD5]" />
+                <Loader2 className="w-8 h-8 animate-spin text-[var(--border-strong)]" />
             </div>
         );
     }
@@ -291,17 +291,17 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
         return (
             <>
                 <div className="card flex flex-col items-center py-16 text-center">
-                    <div className="w-14 h-14 rounded-2xl bg-[#EBF1FF] flex items-center justify-center mb-4">
-                        <DollarSign className="w-7 h-7 text-[#2563EB]" />
+                    <div className="w-14 h-14 rounded-2xl bg-[var(--accent-subtle)] flex items-center justify-center mb-4">
+                        <DollarSign className="w-7 h-7 text-[var(--accent)]" />
                     </div>
-                    <h3 className="text-lg font-semibold text-[#1A1F2B] mb-2">Pre-Development Budget</h3>
-                    <p className="text-sm text-[#7A8599] max-w-md mb-6">
+                    <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Pre-Development Budget</h3>
+                    <p className="text-sm text-[var(--text-muted)] max-w-md mb-6">
                         Track forward cost projections for pre-development items like land cost, design fees,
                         engineering, permits, and more. Set a budget timeline and manage projected vs. actual spend.
                     </p>
                     <button
                         onClick={() => setShowCreateDialog(true)}
-                        className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#2563EB] hover:bg-[#1D4FD7] text-white text-sm font-semibold transition-colors shadow-sm"
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-semibold transition-colors shadow-sm"
                     >
                         <Plus className="w-4 h-4" />
                         Create Pre-Development Budget
@@ -310,31 +310,31 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
 
                 {/* Creation Dialog */}
                 {showCreateDialog && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-                        <div className="bg-white border border-[#E2E5EA] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in">
-                            <h2 className="text-lg font-semibold text-[#1A1F2B] mb-4">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
+                        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in">
+                            <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">
                                 New Pre-Development Budget
                             </h2>
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-xs font-semibold text-[#4A5568] mb-1.5 uppercase tracking-wider">
+                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
                                         Start Month
                                     </label>
                                     <input
                                         type="month"
                                         value={newStartDate.substring(0, 7)}
                                         onChange={(e) => setNewStartDate(`${e.target.value}-01`)}
-                                        className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] focus:border-[#2563EB] focus:ring-2 focus:ring-[#EBF1FF] focus:outline-none"
+                                        className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-subtle)] focus:outline-none"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-semibold text-[#4A5568] mb-1.5 uppercase tracking-wider">
+                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
                                         Duration (Months)
                                     </label>
                                     <select
                                         value={newDuration}
                                         onChange={(e) => setNewDuration(Number(e.target.value))}
-                                        className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none"
+                                        className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                                     >
                                         {[6, 9, 12, 15, 18, 21, 24].map((n) => (
                                             <option key={n} value={n}>
@@ -347,14 +347,14 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                             <div className="flex justify-end gap-3 mt-6">
                                 <button
                                     onClick={() => setShowCreateDialog(false)}
-                                    className="px-4 py-2 rounded-lg text-sm text-[#4A5568] hover:text-[#1A1F2B] hover:bg-[#F4F5F7] transition-colors"
+                                    className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleCreate}
                                     disabled={createBudget.isPending}
-                                    className="px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-[#1D4FD7] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
+                                    className="px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
                                 >
                                     {createBudget.isPending ? 'Creating...' : 'Create Budget'}
                                 </button>
@@ -377,8 +377,8 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             {/* Toolbar */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <h2 className="text-lg font-semibold text-[#1A1F2B]">Pre-Dev Budget</h2>
-                    <div className="flex items-center gap-1.5 text-xs text-[#7A8599]">
+                    <h2 className="text-lg font-semibold text-[var(--text-primary)]">Pre-Dev Budget</h2>
+                    <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
                         <CalendarDays className="w-3.5 h-3.5" />
                         {formatMonthLabel(monthKeys[0])} – {formatMonthLabel(monthKeys[monthKeys.length - 1])}
                     </div>
@@ -387,8 +387,8 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                     <button
                         onClick={() => setShowNotes(!showNotes)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${showNotes
-                            ? 'bg-[#EBF1FF] text-[#2563EB]'
-                            : 'text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7]'
+                            ? 'bg-[var(--accent-subtle)] text-[var(--accent)]'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
                             }`}
                     >
                         <StickyNote className="w-3.5 h-3.5" />
@@ -397,8 +397,8 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                     <button
                         onClick={() => setShowSettings(!showSettings)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${showSettings
-                            ? 'bg-[#EBF1FF] text-[#2563EB]'
-                            : 'text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7]'
+                            ? 'bg-[var(--accent-subtle)] text-[var(--accent)]'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
                             }`}
                     >
                         <Settings className="w-3.5 h-3.5" />
@@ -411,33 +411,33 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             <div className="grid grid-cols-3 gap-3">
                 <div className="card p-4 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-[#ECFDF5] flex items-center justify-center shrink-0">
-                        <CheckCircle2 className="w-5 h-5 text-[#0D7A3E]" />
+                        <CheckCircle2 className="w-5 h-5 text-[var(--success)]" />
                     </div>
                     <div>
-                        <div className="text-[10px] font-bold text-[#7A8599] uppercase tracking-wider">Actuals</div>
-                        <div className="text-lg font-bold text-[#0D7A3E] tabular-nums">
+                        <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Actuals</div>
+                        <div className="text-lg font-bold text-[var(--success)] tabular-nums">
                             {totalActuals === 0 ? '$0' : formatCurrency(totalActuals, 0)}
                         </div>
                     </div>
                 </div>
                 <div className="card p-4 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#EBF1FF] flex items-center justify-center shrink-0">
-                        <TrendingUp className="w-5 h-5 text-[#2563EB]" />
+                    <div className="w-10 h-10 rounded-xl bg-[var(--accent-subtle)] flex items-center justify-center shrink-0">
+                        <TrendingUp className="w-5 h-5 text-[var(--accent)]" />
                     </div>
                     <div>
-                        <div className="text-[10px] font-bold text-[#7A8599] uppercase tracking-wider">Projected</div>
-                        <div className="text-lg font-bold text-[#2563EB] tabular-nums">
+                        <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Projected</div>
+                        <div className="text-lg font-bold text-[var(--accent)] tabular-nums">
                             {totalProjected === 0 ? '$0' : formatCurrency(totalProjected, 0)}
                         </div>
                     </div>
                 </div>
                 <div className="card p-4 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#F4F5F7] flex items-center justify-center shrink-0">
-                        <DollarSign className="w-5 h-5 text-[#1A1F2B]" />
+                    <div className="w-10 h-10 rounded-xl bg-[var(--bg-elevated)] flex items-center justify-center shrink-0">
+                        <DollarSign className="w-5 h-5 text-[var(--text-primary)]" />
                     </div>
                     <div>
-                        <div className="text-[10px] font-bold text-[#7A8599] uppercase tracking-wider">Total Budget</div>
-                        <div className="text-lg font-bold text-[#1A1F2B] tabular-nums">
+                        <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Total Budget</div>
+                        <div className="text-lg font-bold text-[var(--text-primary)] tabular-nums">
                             {grandTotal === 0 ? '$0' : formatCurrency(grandTotal, 0)}
                         </div>
                     </div>
@@ -446,13 +446,13 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
 
             {/* Settings Panel */}
             {showSettings && (
-                <div className="card p-4 border-[#2563EB]/20">
-                    <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider mb-3">
+                <div className="card p-4 border-[var(--accent)]/20">
+                    <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">
                         Budget Settings
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-medium text-[#4A5568] mb-1">
+                            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
                                 Start Month
                             </label>
                             <input
@@ -465,11 +465,11 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                         updates: { start_date: `${e.target.value}-01` },
                                     });
                                 }}
-                                className="w-full px-3 py-1.5 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none"
+                                className="w-full px-3 py-1.5 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-[#4A5568] mb-1">
+                            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
                                 Duration (Months)
                             </label>
                             <select
@@ -481,7 +481,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                         updates: { duration_months: Number(e.target.value) },
                                     });
                                 }}
-                                className="w-full px-3 py-1.5 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none"
+                                className="w-full px-3 py-1.5 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                             >
                                 {[6, 9, 12, 15, 18, 21, 24].map((n) => (
                                     <option key={n} value={n}>
@@ -497,7 +497,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             {/* Notes Panel */}
             {showNotes && (
                 <div className="card">
-                    <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider mb-3">
+                    <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">
                         Budget Notes
                     </h3>
                     <RichTextEditor
@@ -519,10 +519,10 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                 <div className="overflow-x-auto">
                     <table className="w-full border-collapse" style={{ minWidth: `${200 + monthKeys.length * 100 + 110}px` }}>
                         <thead>
-                            <tr className="bg-[#FAFBFC]">
+                            <tr className="bg-[var(--bg-primary)]">
                                 {/* Sticky label column */}
                                 <th
-                                    className="sticky left-0 z-20 bg-[#FAFBFC] text-left px-4 py-2.5 text-[10px] font-bold text-[#7A8599] uppercase tracking-wider border-b border-r border-[#E2E5EA]"
+                                    className="sticky left-0 z-20 bg-[var(--bg-primary)] text-left px-4 py-2.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-r border-[var(--border)]"
                                     style={{ minWidth: 200 }}
                                 >
                                     Line Item
@@ -533,7 +533,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                     return (
                                         <th
                                             key={mk}
-                                            className={`text-center px-1 py-2.5 text-[10px] font-bold uppercase tracking-wider border-b border-[#E2E5EA] ${locked ? 'bg-[#ECFDF5] text-[#0D7A3E]' : 'text-[#7A8599]'
+                                            className={`text-center px-1 py-2.5 text-[10px] font-bold uppercase tracking-wider border-b border-[var(--border)] ${locked ? 'bg-[#ECFDF5] text-[var(--success)]' : 'text-[var(--text-muted)]'
                                                 }`}
                                             style={{ minWidth: 100 }}
                                         >
@@ -542,8 +542,8 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                                 <button
                                                     onClick={() => locked ? handleUnlockMonth(mk) : setLockingMonth(mk)}
                                                     className={`p-0.5 rounded transition-colors ${locked
-                                                        ? 'text-[#0D7A3E] hover:text-[#065F46]'
-                                                        : 'text-[#C8CDD5] hover:text-[#7A8599]'
+                                                        ? 'text-[var(--success)] hover:text-[#065F46]'
+                                                        : 'text-[var(--border-strong)] hover:text-[var(--text-muted)]'
                                                         }`}
                                                     title={locked ? 'Unlock actuals' : 'Lock actuals for this month'}
                                                 >
@@ -559,7 +559,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                 })}
                                 {/* Total column */}
                                 <th
-                                    className="sticky right-0 z-20 bg-[#FAFBFC] text-right px-4 py-2.5 text-[10px] font-bold text-[#7A8599] uppercase tracking-wider border-b border-l border-[#E2E5EA]"
+                                    className="sticky right-0 z-20 bg-[var(--bg-primary)] text-right px-4 py-2.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-l border-[var(--border)]"
                                     style={{ minWidth: 110 }}
                                 >
                                     Total
@@ -572,16 +572,16 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                 return (
                                     <tr
                                         key={li.id}
-                                        className={`group/row ${idx % 2 === 0 ? 'bg-white' : 'bg-[#FAFBFC]/50'} hover:bg-[#F4F5F7]/50 transition-colors`}
+                                        className={`group/row ${idx % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]/50'} hover:bg-[var(--bg-elevated)]/50 transition-colors`}
                                     >
                                         {/* Label */}
-                                        <td className="sticky left-0 z-10 bg-inherit px-4 py-1 border-r border-[#F0F1F4] flex items-center gap-1.5">
-                                            <span className="text-xs text-[#1A1F2B] font-medium truncate">
+                                        <td className="sticky left-0 z-10 bg-inherit px-4 py-1 border-r border-[var(--table-row-border)] flex items-center gap-1.5">
+                                            <span className="text-xs text-[var(--text-primary)] font-medium truncate">
                                                 {li.label}
                                             </span>
                                             <button
                                                 onClick={() => deleteLineItemMut.mutate({ id: li.id, pursuitId })}
-                                                className="opacity-0 group-hover/row:opacity-100 text-[#A0AABB] hover:text-[#DC2626] p-0.5 rounded transition-all"
+                                                className="opacity-0 group-hover/row:opacity-100 text-[var(--text-faint)] hover:text-[var(--danger)] p-0.5 rounded transition-all"
                                                 title="Remove line item"
                                             >
                                                 <Trash2 className="w-3 h-3" />
@@ -596,7 +596,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                             return (
                                                 <td
                                                     key={mk}
-                                                    className={`border-[#F0F1F4] ${locked ? 'bg-[#ECFDF5]/40' : ''}`}
+                                                    className={`border-[var(--table-row-border)] ${locked ? 'bg-[#ECFDF5]/40' : ''}`}
                                                 >
                                                     <EditableCell
                                                         value={value}
@@ -607,8 +607,8 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                             );
                                         })}
                                         {/* Row total */}
-                                        <td className="sticky right-0 z-10 bg-inherit px-3 py-1 border-l border-[#F0F1F4] text-right">
-                                            <span className={`text-xs font-semibold tabular-nums ${rt === 0 ? 'text-[#C8CDD5]' : 'text-[#1A1F2B]'}`}>
+                                        <td className="sticky right-0 z-10 bg-inherit px-3 py-1 border-l border-[var(--table-row-border)] text-right">
+                                            <span className={`text-xs font-semibold tabular-nums ${rt === 0 ? 'text-[var(--border-strong)]' : 'text-[var(--text-primary)]'}`}>
                                                 {rt === 0 ? '—' : formatCurrency(rt, 0)}
                                             </span>
                                         </td>
@@ -617,22 +617,22 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                             })}
 
                             {/* Total row */}
-                            <tr className="bg-[#1A1F2B]">
-                                <td className="sticky left-0 z-10 bg-[#1A1F2B] px-4 py-2 border-r border-[#2A3040] text-xs font-bold text-white uppercase tracking-wider">
+                            <tr className="bg-[var(--text-primary)]">
+                                <td className="sticky left-0 z-10 bg-[var(--text-primary)] px-4 py-2 border-r border-[#2A3040] text-xs font-bold text-white uppercase tracking-wider">
                                     Total
                                 </td>
                                 {monthKeys.map((mk) => {
                                     const ct = colTotal(mk);
                                     const locked = lockedMonths.has(mk);
                                     return (
-                                        <td key={mk} className={`px-2 py-2 text-right ${locked ? 'bg-[#0D7A3E]/20' : ''}`}>
-                                            <span className={`text-xs font-bold tabular-nums ${ct === 0 ? 'text-[#4A5568]' : 'text-white'}`}>
+                                        <td key={mk} className={`px-2 py-2 text-right ${locked ? 'bg-[var(--success)]/20' : ''}`}>
+                                            <span className={`text-xs font-bold tabular-nums ${ct === 0 ? 'text-[var(--text-secondary)]' : 'text-white'}`}>
                                                 {ct === 0 ? '—' : formatCurrency(ct, 0)}
                                             </span>
                                         </td>
                                     );
                                 })}
-                                <td className="sticky right-0 z-10 bg-[#1A1F2B] px-3 py-2 border-l border-[#2A3040] text-right">
+                                <td className="sticky right-0 z-10 bg-[var(--text-primary)] px-3 py-2 border-l border-[#2A3040] text-right">
                                     <span className="text-xs font-bold text-white tabular-nums">
                                         {grandTotal === 0 ? '—' : formatCurrency(grandTotal, 0)}
                                     </span>
@@ -652,7 +652,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                             value={newLineLabel}
                             onChange={(e) => setNewLineLabel(e.target.value)}
                             placeholder="Custom line item name..."
-                            className="px-3 py-1.5 rounded-lg border border-[#E2E5EA] text-sm text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none w-64"
+                            className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none w-64"
                             autoFocus
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && newLineLabel.trim()) {
@@ -683,13 +683,13 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                 }
                             }}
                             disabled={!newLineLabel.trim() || addLineItem.isPending}
-                            className="px-3 py-1.5 rounded-lg bg-[#2563EB] hover:bg-[#1D4FD7] disabled:opacity-50 text-white text-xs font-medium transition-colors"
+                            className="px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-xs font-medium transition-colors"
                         >
                             Add
                         </button>
                         <button
                             onClick={() => { setShowAddLine(false); setNewLineLabel(''); }}
-                            className="px-3 py-1.5 rounded-lg text-xs text-[#7A8599] hover:bg-[#F4F5F7]"
+                            className="px-3 py-1.5 rounded-lg text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
                         >
                             Cancel
                         </button>
@@ -697,7 +697,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                 ) : (
                     <button
                         onClick={() => setShowAddLine(true)}
-                        className="flex items-center gap-1.5 text-xs text-[#7A8599] hover:text-[#2563EB] transition-colors"
+                        className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors"
                     >
                         <Plus className="w-3.5 h-3.5" />
                         Add Custom Line Item
@@ -707,26 +707,26 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
 
             {/* Lock Confirmation Dialog */}
             {lockingMonth && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-                    <div className="bg-white border border-[#E2E5EA] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in">
-                        <h2 className="text-lg font-semibold text-[#1A1F2B] mb-2">Lock Actuals</h2>
-                        <p className="text-sm text-[#7A8599] mb-1">
-                            Lock actuals for <span className="font-medium text-[#1A1F2B]">{formatMonthLabel(lockingMonth)}</span>?
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
+                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in">
+                        <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Lock Actuals</h2>
+                        <p className="text-sm text-[var(--text-muted)] mb-1">
+                            Lock actuals for <span className="font-medium text-[var(--text-primary)]">{formatMonthLabel(lockingMonth)}</span>?
                         </p>
-                        <p className="text-xs text-[#7A8599] mb-4">
+                        <p className="text-xs text-[var(--text-muted)] mb-4">
                             This will copy each projected value to actual for this month.
                             You can still edit individual actual values after locking. Use "Unlock" to revert.
                         </p>
                         <div className="flex justify-end gap-3">
                             <button
                                 onClick={() => setLockingMonth(null)}
-                                className="px-4 py-2 rounded-lg text-sm text-[#4A5568] hover:text-[#1A1F2B] hover:bg-[#F4F5F7] transition-colors"
+                                className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={() => handleLockMonth(lockingMonth)}
-                                className="px-4 py-2 rounded-lg bg-[#0D7A3E] hover:bg-[#065F46] text-white text-sm font-medium transition-colors shadow-sm"
+                                className="px-4 py-2 rounded-lg bg-[var(--success)] hover:bg-[#065F46] text-white text-sm font-medium transition-colors shadow-sm"
                             >
                                 <Lock className="w-3.5 h-3.5 inline mr-1.5" />
                                 Lock Actuals

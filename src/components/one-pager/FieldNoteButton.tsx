@@ -66,8 +66,8 @@ export default function FieldNoteButton({ fieldKey, note, onNoteChange }: FieldN
                 ref={buttonRef}
                 onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
                 className={`p-0.5 rounded transition-colors ${hasNote
-                        ? 'text-[#2563EB] hover:text-[#1D4ED8]'
-                        : 'text-[#CBD2DC] hover:text-[#7A8599] opacity-0 group-hover/note:opacity-100'
+                        ? 'text-[var(--accent)] hover:text-[#1D4ED8]'
+                        : 'text-[#CBD2DC] hover:text-[var(--text-muted)] opacity-0 group-hover/note:opacity-100'
                     } ${hasNote ? '' : 'focus:opacity-100'}`}
                 title={hasNote ? 'View/edit note' : 'Add a note'}
                 type="button"
@@ -78,11 +78,11 @@ export default function FieldNoteButton({ fieldKey, note, onNoteChange }: FieldN
             {open && (
                 <div
                     ref={popoverRef}
-                    className="absolute left-0 top-full mt-1 z-50 w-64 bg-white border border-[#E2E5EA] rounded-lg shadow-lg animate-fade-in"
+                    className="absolute left-0 top-full mt-1 z-50 w-64 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg shadow-lg animate-fade-in"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="p-2">
-                        <div className="text-[10px] font-semibold text-[#7A8599] uppercase tracking-wider mb-1">
+                        <div className="text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1">
                             Note
                         </div>
                         <textarea
@@ -96,15 +96,15 @@ export default function FieldNoteButton({ fieldKey, note, onNoteChange }: FieldN
                                 }
                             }}
                             placeholder="Add assumption context..."
-                            className="w-full px-2 py-1.5 rounded-md bg-[#F9FAFB] border border-[#E2E5EA] text-xs text-[#1A1F2B] placeholder:text-[#A0AABB] focus:border-[#2563EB] focus:ring-1 focus:ring-[#EBF1FF] focus:outline-none resize-none"
+                            className="w-full px-2 py-1.5 rounded-md bg-[var(--bg-primary)] border border-[var(--border)] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent-subtle)] focus:outline-none resize-none"
                             rows={3}
                         />
                         <div className="flex items-center justify-between mt-1.5">
-                            <span className="text-[10px] text-[#A0AABB]">Enter to save · Esc to close</span>
+                            <span className="text-[10px] text-[var(--text-faint)]">Enter to save · Esc to close</span>
                             {hasNote && (
                                 <button
                                     onClick={() => { setDraft(''); onNoteChange(fieldKey, ''); setOpen(false); }}
-                                    className="text-[10px] text-[#DC2626] hover:underline"
+                                    className="text-[10px] text-[var(--danger)] hover:underline"
                                     type="button"
                                 >
                                     Clear

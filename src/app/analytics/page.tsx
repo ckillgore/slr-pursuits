@@ -238,22 +238,22 @@ export default function AnalyticsPage() {
                 {/* ── Header & Filters ──────────────────── */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
                     <div>
-                        <h1 className="text-xl md:text-2xl font-bold text-[#1A1F2B] flex items-center gap-2">
-                            <TrendingUp className="w-6 h-6 text-[#2563EB]" />
+                        <h1 className="text-xl md:text-2xl font-bold text-[var(--text-primary)] flex items-center gap-2">
+                            <TrendingUp className="w-6 h-6 text-[var(--accent)]" />
                             Pipeline Analytics
                         </h1>
-                        <p className="text-sm text-[#7A8599] mt-1">
+                        <p className="text-sm text-[var(--text-muted)] mt-1">
                             Track pursuit flow through your deal pipeline
                         </p>
                     </div>
                 </div>
 
                 {/* Filters bar */}
-                <div className="flex flex-wrap items-center gap-3 mb-8 p-4 bg-white rounded-xl border border-[#E2E5EA]">
-                    <Calendar className="w-4 h-4 text-[#7A8599]" />
+                <div className="flex flex-wrap items-center gap-3 mb-8 p-4 bg-[var(--bg-card)] rounded-xl border border-[var(--border)]">
+                    <Calendar className="w-4 h-4 text-[var(--text-muted)]" />
 
                     {/* Time period */}
-                    <div className="flex items-center rounded-lg bg-[#F4F5F7] p-0.5">
+                    <div className="flex items-center rounded-lg bg-[var(--bg-elevated)] p-0.5">
                         {[
                             { key: 'ytd' as TimePeriod, label: 'YTD' },
                             { key: 'prior_year' as TimePeriod, label: 'Prior Year' },
@@ -264,8 +264,8 @@ export default function AnalyticsPage() {
                                 key={opt.key}
                                 onClick={() => setPeriod(opt.key)}
                                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${period === opt.key
-                                    ? 'bg-white text-[#1A1F2B] shadow-sm'
-                                    : 'text-[#7A8599] hover:text-[#4A5568]'
+                                    ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm'
+                                    : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                                     }`}
                             >
                                 {opt.label}
@@ -279,25 +279,25 @@ export default function AnalyticsPage() {
                                 type="date"
                                 value={customStart}
                                 onChange={(e) => setCustomStart(e.target.value)}
-                                className="px-2 py-1.5 rounded-lg border border-[#E2E5EA] text-xs text-[#4A5568] focus:border-[#2563EB] focus:outline-none"
+                                className="px-2 py-1.5 rounded-lg border border-[var(--border)] text-xs text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
                             />
-                            <span className="text-xs text-[#A0AABB]">to</span>
+                            <span className="text-xs text-[var(--text-faint)]">to</span>
                             <input
                                 type="date"
                                 value={customEnd}
                                 onChange={(e) => setCustomEnd(e.target.value)}
-                                className="px-2 py-1.5 rounded-lg border border-[#E2E5EA] text-xs text-[#4A5568] focus:border-[#2563EB] focus:outline-none"
+                                className="px-2 py-1.5 rounded-lg border border-[var(--border)] text-xs text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
                             />
                         </div>
                     )}
 
-                    <div className="w-px h-6 bg-[#E2E5EA] mx-1" />
+                    <div className="w-px h-6 bg-[var(--border)] mx-1" />
 
                     {regions.length > 0 && (
                         <select
                             value={regionFilter}
                             onChange={(e) => setRegionFilter(e.target.value)}
-                            className="px-3 py-1.5 rounded-lg bg-white border border-[#E2E5EA] text-xs text-[#4A5568] focus:border-[#2563EB] focus:outline-none"
+                            className="px-3 py-1.5 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-xs text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
                         >
                             <option value="">All Regions</option>
                             {regions.map(r => <option key={r} value={r}>{r}</option>)}
@@ -308,7 +308,7 @@ export default function AnalyticsPage() {
                         <select
                             value={productTypeFilter}
                             onChange={(e) => setProductTypeFilter(e.target.value)}
-                            className="px-3 py-1.5 rounded-lg bg-white border border-[#E2E5EA] text-xs text-[#4A5568] focus:border-[#2563EB] focus:outline-none"
+                            className="px-3 py-1.5 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-xs text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
                         >
                             <option value="">All Products</option>
                             {productTypes.filter(pt => pt.is_active).map(pt => (
@@ -317,34 +317,34 @@ export default function AnalyticsPage() {
                         </select>
                     )}
 
-                    <span className="ml-auto text-[11px] text-[#A0AABB]">
+                    <span className="ml-auto text-[11px] text-[var(--text-faint)]">
                         {filteredPursuits.length} pursuit{filteredPursuits.length !== 1 ? 's' : ''} in period
                     </span>
                 </div>
 
                 {isLoading ? (
                     <div className="flex justify-center py-24">
-                        <Loader2 className="w-8 h-8 animate-spin text-[#C8CDD5]" />
+                        <Loader2 className="w-8 h-8 animate-spin text-[var(--border-strong)]" />
                     </div>
                 ) : (
                     <>
                         {/* ── KPI Cards ─────────────────────────── */}
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
                             {[
-                                { label: 'Total Deals', value: kpis.total, icon: Building2, color: '#2563EB', bg: '#EBF1FF' },
+                                { label: 'Total Deals', value: kpis.total, icon: Building2, color: 'var(--accent)', bg: 'var(--accent-subtle)' },
                                 { label: 'Active Pipeline', value: kpis.active, icon: Target, color: '#3B82F6', bg: '#EFF6FF' },
                                 { label: 'Closed', value: kpis.closed, icon: CheckCircle2, color: '#10B981', bg: '#ECFDF5' },
-                                { label: 'Passed / Dead', value: kpis.passed + kpis.dead, icon: XCircle, color: '#EF4444', bg: '#FEF2F2' },
+                                { label: 'Passed / Dead', value: kpis.passed + kpis.dead, icon: XCircle, color: '#EF4444', bg: 'var(--danger-bg)' },
                                 { label: 'Close Rate', value: `${kpis.conversionRate.toFixed(1)}%`, icon: TrendingUp, color: '#8B5CF6', bg: '#F5F3FF' },
                             ].map((kpi) => (
-                                <div key={kpi.label} className="bg-white rounded-xl border border-[#E2E5EA] p-4 hover:shadow-md transition-shadow">
+                                <div key={kpi.label} className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4 hover:shadow-md transition-shadow">
                                     <div className="flex items-center justify-between mb-3">
-                                        <span className="text-[10px] font-bold text-[#A0AABB] uppercase tracking-wider">{kpi.label}</span>
+                                        <span className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">{kpi.label}</span>
                                         <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: kpi.bg }}>
                                             <kpi.icon className="w-4 h-4" style={{ color: kpi.color }} />
                                         </div>
                                     </div>
-                                    <div className="text-2xl font-bold text-[#1A1F2B]">{kpi.value}</div>
+                                    <div className="text-2xl font-bold text-[var(--text-primary)]">{kpi.value}</div>
                                 </div>
                             ))}
                         </div>
@@ -352,16 +352,16 @@ export default function AnalyticsPage() {
                         {/* ── Charts Row ─────────────────────────── */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                             {/* Pipeline Funnel */}
-                            <div className="lg:col-span-2 bg-white rounded-xl border border-[#E2E5EA] p-6">
-                                <h2 className="text-sm font-semibold text-[#1A1F2B] mb-1">Pipeline Funnel</h2>
-                                <p className="text-[11px] text-[#A0AABB] mb-4">Pursuits that reached each stage (cumulative)</p>
+                            <div className="lg:col-span-2 bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-6">
+                                <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-1">Pipeline Funnel</h2>
+                                <p className="text-[11px] text-[var(--text-faint)] mb-4">Pursuits that reached each stage (cumulative)</p>
                                 {funnelData.length > 0 && funnelData.some(d => d.value > 0) ? (
                                     <ResponsiveContainer width="100%" height={320}>
                                         <FunnelChart>
                                             <Tooltip
                                                 contentStyle={{
                                                     backgroundColor: '#fff',
-                                                    border: '1px solid #E2E5EA',
+                                                    border: '1px solid var(--border)',
                                                     borderRadius: '8px',
                                                     fontSize: '12px',
                                                     boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
@@ -379,7 +379,7 @@ export default function AnalyticsPage() {
                                                     content={(props: any) => {
                                                         const { x, y, width, height, value, name } = props;
                                                         return (
-                                                            <text x={x + width + 10} y={y + height / 2} textAnchor="start" dominantBaseline="central" className="text-xs fill-[#4A5568] font-medium">
+                                                            <text x={x + width + 10} y={y + height / 2} textAnchor="start" dominantBaseline="central" className="text-xs fill-[var(--text-secondary)] font-medium">
                                                                 {name}: {value}
                                                             </text>
                                                         );
@@ -392,16 +392,16 @@ export default function AnalyticsPage() {
                                         </FunnelChart>
                                     </ResponsiveContainer>
                                 ) : (
-                                    <div className="flex items-center justify-center h-[320px] text-sm text-[#A0AABB]">
+                                    <div className="flex items-center justify-center h-[320px] text-sm text-[var(--text-faint)]">
                                         No funnel data for this period
                                     </div>
                                 )}
                             </div>
 
                             {/* Outcome Distribution */}
-                            <div className="bg-white rounded-xl border border-[#E2E5EA] p-6">
-                                <h2 className="text-sm font-semibold text-[#1A1F2B] mb-1">Outcome Distribution</h2>
-                                <p className="text-[11px] text-[#A0AABB] mb-4">Current status of deals in period</p>
+                            <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-6">
+                                <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-1">Outcome Distribution</h2>
+                                <p className="text-[11px] text-[var(--text-faint)] mb-4">Current status of deals in period</p>
                                 {outcomeData.length > 0 ? (
                                     <div>
                                         <ResponsiveContainer width="100%" height={200}>
@@ -423,7 +423,7 @@ export default function AnalyticsPage() {
                                                 <Tooltip
                                                     contentStyle={{
                                                         backgroundColor: '#fff',
-                                                        border: '1px solid #E2E5EA',
+                                                        border: '1px solid var(--border)',
                                                         borderRadius: '8px',
                                                         fontSize: '12px',
                                                         boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
@@ -434,7 +434,7 @@ export default function AnalyticsPage() {
                                         </ResponsiveContainer>
                                         <div className="flex flex-wrap justify-center gap-3 mt-2">
                                             {outcomeData.map(d => (
-                                                <div key={d.name} className="flex items-center gap-1.5 text-[11px] text-[#4A5568]">
+                                                <div key={d.name} className="flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)]">
                                                     <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
                                                     {d.name} ({d.value})
                                                 </div>
@@ -442,7 +442,7 @@ export default function AnalyticsPage() {
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="flex items-center justify-center h-[200px] text-sm text-[#A0AABB]">
+                                    <div className="flex items-center justify-center h-[200px] text-sm text-[var(--text-faint)]">
                                         No data
                                     </div>
                                 )}
@@ -450,18 +450,18 @@ export default function AnalyticsPage() {
                         </div>
 
                         {/* ── Stage Distribution Bar Chart ─────── */}
-                        <div className="bg-white rounded-xl border border-[#E2E5EA] p-6 mb-8">
-                            <h2 className="text-sm font-semibold text-[#1A1F2B] mb-1">Current Stage Distribution</h2>
-                            <p className="text-[11px] text-[#A0AABB] mb-4">Where pursuits currently sit in the pipeline</p>
+                        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-6 mb-8">
+                            <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-1">Current Stage Distribution</h2>
+                            <p className="text-[11px] text-[var(--text-faint)] mb-4">Where pursuits currently sit in the pipeline</p>
                             <ResponsiveContainer width="100%" height={280}>
                                 <BarChart data={stageDistribution} layout="vertical" margin={{ left: 20, right: 30 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#F0F1F4" horizontal={false} />
-                                    <XAxis type="number" tick={{ fontSize: 11, fill: '#7A8599' }} axisLine={false} tickLine={false} />
-                                    <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: '#4A5568', fontWeight: 500 }} width={120} axisLine={false} tickLine={false} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke="var(--table-row-border)" horizontal={false} />
+                                    <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                                    <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: 'var(--text-secondary)', fontWeight: 500 }} width={120} axisLine={false} tickLine={false} />
                                     <Tooltip
                                         contentStyle={{
                                             backgroundColor: '#fff',
-                                            border: '1px solid #E2E5EA',
+                                            border: '1px solid var(--border)',
                                             borderRadius: '8px',
                                             fontSize: '12px',
                                             boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
@@ -478,35 +478,35 @@ export default function AnalyticsPage() {
                         </div>
 
                         {/* ── Conversion Rates Table ─────────── */}
-                        <div className="bg-white rounded-xl border border-[#E2E5EA] p-6">
-                            <h2 className="text-sm font-semibold text-[#1A1F2B] mb-1">Stage Conversion Rates</h2>
-                            <p className="text-[11px] text-[#A0AABB] mb-4">Progression rates between pipeline stages</p>
+                        <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-6">
+                            <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-1">Stage Conversion Rates</h2>
+                            <p className="text-[11px] text-[var(--text-faint)] mb-4">Progression rates between pipeline stages</p>
                             {conversionRates.length > 0 ? (
                                 <div className="overflow-auto">
                                     <table className="w-full text-sm">
                                         <thead>
-                                            <tr className="border-b border-[#E2E5EA]">
-                                                <th className="text-left py-2 px-3 text-[10px] font-bold text-[#7A8599] uppercase tracking-wider">From</th>
-                                                <th className="text-center py-2 px-3 text-[10px] font-bold text-[#7A8599] uppercase tracking-wider w-8"></th>
-                                                <th className="text-left py-2 px-3 text-[10px] font-bold text-[#7A8599] uppercase tracking-wider">To</th>
-                                                <th className="text-right py-2 px-3 text-[10px] font-bold text-[#7A8599] uppercase tracking-wider">Entered</th>
-                                                <th className="text-right py-2 px-3 text-[10px] font-bold text-[#7A8599] uppercase tracking-wider">Advanced</th>
-                                                <th className="text-right py-2 px-3 text-[10px] font-bold text-[#7A8599] uppercase tracking-wider">Conversion</th>
+                                            <tr className="border-b border-[var(--border)]">
+                                                <th className="text-left py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">From</th>
+                                                <th className="text-center py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider w-8"></th>
+                                                <th className="text-left py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">To</th>
+                                                <th className="text-right py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Entered</th>
+                                                <th className="text-right py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Advanced</th>
+                                                <th className="text-right py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Conversion</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {conversionRates.map((cr, idx) => (
-                                                <tr key={idx} className="border-b border-[#F0F1F4] last:border-0 hover:bg-[#FAFBFC]">
-                                                    <td className="py-3 px-3 font-medium text-[#1A1F2B]">{cr.from}</td>
-                                                    <td className="py-3 px-3 text-center text-[#A0AABB]"><ArrowRight className="w-3.5 h-3.5 inline" /></td>
-                                                    <td className="py-3 px-3 font-medium text-[#1A1F2B]">{cr.to}</td>
-                                                    <td className="py-3 px-3 text-right text-[#4A5568] font-mono">{cr.fromCount}</td>
-                                                    <td className="py-3 px-3 text-right text-[#4A5568] font-mono">{cr.toCount}</td>
+                                                <tr key={idx} className="border-b border-[var(--table-row-border)] last:border-0 hover:bg-[var(--bg-primary)]">
+                                                    <td className="py-3 px-3 font-medium text-[var(--text-primary)]">{cr.from}</td>
+                                                    <td className="py-3 px-3 text-center text-[var(--text-faint)]"><ArrowRight className="w-3.5 h-3.5 inline" /></td>
+                                                    <td className="py-3 px-3 font-medium text-[var(--text-primary)]">{cr.to}</td>
+                                                    <td className="py-3 px-3 text-right text-[var(--text-secondary)] font-mono">{cr.fromCount}</td>
+                                                    <td className="py-3 px-3 text-right text-[var(--text-secondary)] font-mono">{cr.toCount}</td>
                                                     <td className="py-3 px-3 text-right">
                                                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${cr.rate >= 75 ? 'bg-[#ECFDF5] text-[#10B981]' :
                                                             cr.rate >= 50 ? 'bg-[#FFF7ED] text-[#F59E0B]' :
                                                                 cr.rate >= 25 ? 'bg-[#FFF7ED] text-[#F97316]' :
-                                                                    'bg-[#FEF2F2] text-[#EF4444]'
+                                                                    'bg-[var(--danger-bg)] text-[#EF4444]'
                                                             }`}>
                                                             {cr.rate.toFixed(0)}%
                                                         </span>
@@ -517,7 +517,7 @@ export default function AnalyticsPage() {
                                     </table>
                                 </div>
                             ) : (
-                                <div className="text-center py-8 text-sm text-[#A0AABB]">
+                                <div className="text-center py-8 text-sm text-[var(--text-faint)]">
                                     No stage transitions recorded for this period
                                 </div>
                             )}

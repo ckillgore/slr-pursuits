@@ -182,3 +182,8 @@ _(Append new lessons below. Do not rewrite or delete existing entries.)_
 - **Two-row toolbar pattern**: When a toolbar has too many controls for one row (toggle group + selector + action buttons), split into two rows: top row = title + actions, bottom row = toggle group (scrollable).
 - **Abbreviated toggle labels**: Use `<span className="hidden sm:inline">Full Label</span><span className="sm:hidden">Abbr</span>` for data source toggle buttons. Shows full text on desktop, abbreviated on mobile.
 - **Div nesting discipline**: When restructuring a complex toolbar from one row to multi-row, add `{/* end X */}` comments on closing `</div>` tags. Mismatched nesting creates invisible layout bugs (large white space gaps) that are hard to spot visually.
+
+## Auth Session Management
+- **Stale closures in `onAuthStateChange`**: The listener is registered once (empty deps `[]`), so any state read inside it is frozen at mount time. Always use `useRef` to track values (like `profile`) that the listener needs to read at runtime. Reading state directly causes phantom "unauthenticated" states on every token refresh (~55 min).
+- **Harden `signOut`**: `supabase.auth.signOut()` throws if the session is already invalid. Always wrap in `try/catch` and proceed with state clearing + redirect regardless — users must never be trapped in an unrecoverable state.
+- **Tab-return session health check**: Add a `visibilitychange` listener that calls `getUser()` when the tab becomes visible. Sessions can expire while tabs are backgrounded; this catches it immediately instead of leaving a broken UI.

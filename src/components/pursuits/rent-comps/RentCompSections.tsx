@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import SVGChart, { ChartSeries } from './SVGChart';
@@ -51,28 +51,28 @@ export function RentTrendsSection({ comps }: { comps: PropertyMetrics[] }) {
         <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <h3 className="text-sm font-semibold text-[#1A1F2B]">Rent Trends</h3>
-                    <p className="text-xs text-[#7A8599]">Historical rent pricing from unit listing data.</p>
+                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Rent Trends</h3>
+                    <p className="text-xs text-[var(--text-muted)]">Historical rent pricing from unit listing data.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    <select value={bedFilter} onChange={e => setBedFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))} className="text-[11px] sm:text-xs border border-[#E2E5EA] rounded-lg px-2 py-1.5 text-[#4A5568] bg-white">
+                    <select value={bedFilter} onChange={e => setBedFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))} className="text-[11px] sm:text-xs border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--text-secondary)] bg-[var(--bg-card)]">
                         <option value="all">All Beds</option>
                         {allBeds.map(b => <option key={b} value={b}>{b === 0 ? 'Studio' : `${b} BR`}</option>)}
                     </select>
-                    <select value={metric} onChange={e => setMetric(e.target.value as 'asking' | 'effective')} className="text-[11px] sm:text-xs border border-[#E2E5EA] rounded-lg px-2 py-1.5 text-[#4A5568] bg-white">
+                    <select value={metric} onChange={e => setMetric(e.target.value as 'asking' | 'effective')} className="text-[11px] sm:text-xs border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--text-secondary)] bg-[var(--bg-card)]">
                         <option value="asking">Asking</option>
                         <option value="effective">Effective</option>
                     </select>
-                    <div className="flex rounded-lg border border-[#E2E5EA] overflow-hidden">
+                    <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
                         {(['month', 'week'] as const).map(g => (
-                            <button key={g} onClick={() => setGranularity(g)} className={`px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-medium ${granularity === g ? 'bg-[#2563EB] text-white' : 'text-[#7A8599] hover:bg-[#F4F5F7]'}`}>
+                            <button key={g} onClick={() => setGranularity(g)} className={`px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-medium ${granularity === g ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]'}`}>
                                 {g === 'month' ? 'Mo' : 'Wk'}
                             </button>
                         ))}
                     </div>
                 </div>
             </div>
-            <div className="border border-[#E2E5EA] rounded-xl bg-white p-2 sm:p-4">
+            <div className="border border-[var(--border)] rounded-xl bg-[var(--bg-card)] p-2 sm:p-4">
                 <SVGChart series={series} yLabel={metric === 'asking' ? 'Asking Rent' : 'Effective Rent'} />
             </div>
         </div>
@@ -151,31 +151,31 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
         <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <h3 className="text-sm font-semibold text-[#1A1F2B]">Rent vs. Size</h3>
-                    <p className="text-xs text-[#7A8599]">Bubble size = unit count. X = avg sqft, Y = avg rent.</p>
+                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Rent vs. Size</h3>
+                    <p className="text-xs text-[var(--text-muted)]">Bubble size = unit count. X = avg sqft, Y = avg rent.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    <select value={groupBy} onChange={e => setGroupBy(e.target.value as 'property' | 'type' | 'floorplan')} className="text-[11px] sm:text-xs border border-[#E2E5EA] rounded-lg px-2 py-1.5 text-[#4A5568] bg-white">
+                    <select value={groupBy} onChange={e => setGroupBy(e.target.value as 'property' | 'type' | 'floorplan')} className="text-[11px] sm:text-xs border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--text-secondary)] bg-[var(--bg-card)]">
                         <option value="property">Property</option>
                         <option value="type">Bed Type</option>
                         <option value="floorplan">Floorplan</option>
                     </select>
-                    <select value={rentType} onChange={e => setRentType(e.target.value as 'asking' | 'effective')} className="text-[11px] sm:text-xs border border-[#E2E5EA] rounded-lg px-2 py-1.5 text-[#4A5568] bg-white">
+                    <select value={rentType} onChange={e => setRentType(e.target.value as 'asking' | 'effective')} className="text-[11px] sm:text-xs border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--text-secondary)] bg-[var(--bg-card)]">
                         <option value="asking">Asking</option>
                         <option value="effective">Effective</option>
                     </select>
-                    <select value={yAxis} onChange={e => setYAxis(e.target.value as 'total' | 'psf')} className="text-[11px] sm:text-xs border border-[#E2E5EA] rounded-lg px-2 py-1.5 text-[#4A5568] bg-white">
+                    <select value={yAxis} onChange={e => setYAxis(e.target.value as 'total' | 'psf')} className="text-[11px] sm:text-xs border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--text-secondary)] bg-[var(--bg-card)]">
                         <option value="total">Total</option>
                         <option value="psf">Per SF</option>
                     </select>
                 </div>
             </div>
-            <div className="border border-[#E2E5EA] rounded-xl bg-white p-2 sm:p-4 overflow-x-auto">
-                {bubbles.length === 0 ? <p className="text-sm text-center text-[#7A8599] py-8">No data</p> : (
+            <div className="border border-[var(--border)] rounded-xl bg-[var(--bg-card)] p-2 sm:p-4 overflow-x-auto">
+                {bubbles.length === 0 ? <p className="text-sm text-center text-[var(--text-muted)] py-8">No data</p> : (
                     <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[750px]" style={{ minWidth: 280 }}
                         onMouseLeave={() => setHoveredBubble(null)}>
                         {/* Grid */}
-                        {[0, 1, 2, 3, 4].map(i => { const y = pad.top + ch * (1 - i / 4); const val = (maxRent * i) / 4; return (<g key={i}><line x1={pad.left} x2={W - pad.right} y1={y} y2={y} stroke="#F4F5F7" /><text x={pad.left - 8} y={y + 4} textAnchor="end" fill="#7A8599" fontSize={10}>{yAxis === 'psf' ? `$${val.toFixed(2)}` : `$${Math.round(val).toLocaleString()}`}</text></g>); })}
+                        {[0, 1, 2, 3, 4].map(i => { const y = pad.top + ch * (1 - i / 4); const val = (maxRent * i) / 4; return (<g key={i}><line x1={pad.left} x2={W - pad.right} y1={y} y2={y} stroke="var(--bg-elevated)" /><text x={pad.left - 8} y={y + 4} textAnchor="end" fill="var(--text-muted)" fontSize={10}>{yAxis === 'psf' ? `$${val.toFixed(2)}` : `$${Math.round(val).toLocaleString()}`}</text></g>); })}
                         {/* Bubbles */}
                         {bubbles.map((b, i) => {
                             const { cx, cy, r } = getBubblePos(b);
@@ -184,7 +184,7 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
                             return (<g key={i} style={{ cursor: 'pointer' }} onMouseEnter={() => setHoveredBubble(i)}>
                                 <circle cx={cx} cy={cy} r={r} fill={b.color} fillOpacity={isDimmed ? 0.15 : 0.6} stroke={b.color}
                                     strokeWidth={isHovered ? 2.5 : 1.5} style={{ transition: 'all 0.15s ease' }} />
-                                <text x={cx} y={cy - r - 4} textAnchor="middle" fill="#4A5568" fontSize={9} fontWeight={500}
+                                <text x={cx} y={cy - r - 4} textAnchor="middle" fill="var(--text-secondary)" fontSize={9} fontWeight={500}
                                     opacity={isDimmed ? 0.25 : 1}>{b.label}</text>
                                 {/* Larger hit area */}
                                 <circle cx={cx} cy={cy} r={Math.max(r + 8, 18)} fill="transparent" />
@@ -201,17 +201,17 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
                             return (
                                 <g style={{ pointerEvents: 'none' }}>
                                     <rect x={tx} y={ty} width={tw} height={th} rx={6}
-                                        fill="white" stroke="#E2E5EA" strokeWidth={1} filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))" />
+                                        fill="white" stroke="var(--border)" strokeWidth={1} filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))" />
                                     <circle cx={tx + 10} cy={ty + 14} r={4} fill={b.color} />
-                                    <text x={tx + 18} y={ty + 18} fill="#1A1F2B" fontSize={11} fontWeight={600}>{b.label.slice(0, 20)}</text>
-                                    <text x={tx + 10} y={ty + 34} fill="#7A8599" fontSize={10}>Sqft: <tspan fill="#1A1F2B" fontWeight={500}>{b.sqft.toLocaleString()} ftÂ²</tspan></text>
-                                    <text x={tx + 10} y={ty + 48} fill="#7A8599" fontSize={10}>{rentType === 'asking' ? 'Asking' : 'Eff.'}: <tspan fill="#1A1F2B" fontWeight={500}>{fmtR}</tspan></text>
-                                    <text x={tx + 10} y={ty + 62} fill="#7A8599" fontSize={10}>Units: <tspan fill="#1A1F2B" fontWeight={500}>{b.count}</tspan></text>
+                                    <text x={tx + 18} y={ty + 18} fill="var(--text-primary)" fontSize={11} fontWeight={600}>{b.label.slice(0, 20)}</text>
+                                    <text x={tx + 10} y={ty + 34} fill="var(--text-muted)" fontSize={10}>Sqft: <tspan fill="var(--text-primary)" fontWeight={500}>{b.sqft.toLocaleString()} ftÂ²</tspan></text>
+                                    <text x={tx + 10} y={ty + 48} fill="var(--text-muted)" fontSize={10}>{rentType === 'asking' ? 'Asking' : 'Eff.'}: <tspan fill="var(--text-primary)" fontWeight={500}>{fmtR}</tspan></text>
+                                    <text x={tx + 10} y={ty + 62} fill="var(--text-muted)" fontSize={10}>Units: <tspan fill="var(--text-primary)" fontWeight={500}>{b.count}</tspan></text>
                                 </g>
                             );
                         })()}
                         {/* X label */}
-                        <text x={W / 2} y={H - 4} textAnchor="middle" fill="#7A8599" fontSize={10}>Avg Sqft</text>
+                        <text x={W / 2} y={H - 4} textAnchor="middle" fill="var(--text-muted)" fontSize={10}>Avg Sqft</text>
                     </svg>
                 )}
             </div>
@@ -316,25 +316,25 @@ export function OccupancySection({ comps }: { comps: PropertyMetrics[] }) {
     return (
         <div className="space-y-4">
             <div>
-                <h3 className="text-sm font-semibold text-[#1A1F2B]">Occupancy Trends</h3>
-                <p className="text-xs text-[#7A8599]">Estimated leased % over time, derived from unit availability periods.</p>
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Occupancy Trends</h3>
+                <p className="text-xs text-[var(--text-muted)]">Estimated leased % over time, derived from unit availability periods.</p>
             </div>
             <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-4 gap-3">
                 {summaryData.map((s, i) => (
-                    <div key={i} className="rounded-xl border border-[#E2E5EA] bg-white p-3">
-                        <h4 className="text-xs font-semibold text-[#2563EB] truncate mb-2">{s.name}</h4>
+                    <div key={i} className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-3">
+                        <h4 className="text-xs font-semibold text-[var(--accent)] truncate mb-2">{s.name}</h4>
                         <div className="space-y-1 text-xs">
-                            <div className="flex justify-between"><span className="text-[#7A8599]">Total Units</span><span className="font-medium">{s.totalUnits}</span></div>
-                            <div className="flex justify-between"><span className="text-[#7A8599]">Leased %</span><span className="font-medium">{s.leased}%</span></div>
-                            <div className="flex justify-between"><span className="text-[#7A8599]">Exposure</span><span className="font-medium">{s.exposure}%</span></div>
-                            <div className="flex justify-between"><span className="text-[#7A8599]">On Market</span><span className="font-medium">{s.onMarket} units</span></div>
+                            <div className="flex justify-between"><span className="text-[var(--text-muted)]">Total Units</span><span className="font-medium">{s.totalUnits}</span></div>
+                            <div className="flex justify-between"><span className="text-[var(--text-muted)]">Leased %</span><span className="font-medium">{s.leased}%</span></div>
+                            <div className="flex justify-between"><span className="text-[var(--text-muted)]">Exposure</span><span className="font-medium">{s.exposure}%</span></div>
+                            <div className="flex justify-between"><span className="text-[var(--text-muted)]">On Market</span><span className="font-medium">{s.onMarket} units</span></div>
                         </div>
                     </div>
                 ))}
             </div>
-            <div className="border border-[#E2E5EA] rounded-xl bg-white p-2 sm:p-4">
+            <div className="border border-[var(--border)] rounded-xl bg-[var(--bg-card)] p-2 sm:p-4">
                 {series.every(s => s.data.length === 0) ? (
-                    <p className="text-sm text-[#7A8599] text-center py-8">No availability period data to derive occupancy trends.</p>
+                    <p className="text-sm text-[var(--text-muted)] text-center py-8">No availability period data to derive occupancy trends.</p>
                 ) : (
                     <SVGChart series={series} yLabel="Leased %" formatY={(v: number) => `${v.toFixed(0)}%`} />
                 )}
@@ -418,57 +418,57 @@ export function LeasingActivitySection({ comps }: { comps: PropertyMetrics[] }) 
         <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <h3 className="text-sm font-semibold text-[#1A1F2B]">Leasing Activity</h3>
-                    <p className="text-xs text-[#7A8599]">Estimated leases per week (units exiting market) â€” trailing {trailingWeeks} weeks.</p>
+                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Leasing Activity</h3>
+                    <p className="text-xs text-[var(--text-muted)]">Estimated leases per week (units exiting market) â€” trailing {trailingWeeks} weeks.</p>
                 </div>
-                <div className="flex rounded-lg border border-[#E2E5EA] overflow-hidden">
+                <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
                     {(['property', 'bed'] as const).map(g => (
                         <button key={g} onClick={() => setGroupBy(g)}
-                            className={`px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-medium ${groupBy === g ? 'bg-[#2563EB] text-white' : 'text-[#7A8599] hover:bg-[#F4F5F7]'}`}>
+                            className={`px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-medium ${groupBy === g ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]'}`}>
                             {g === 'property' ? 'By Property' : 'By Bed Type'}
                         </button>
                     ))}
                 </div>
             </div>
-            <div className="overflow-x-auto border border-[#E2E5EA] rounded-xl">
+            <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
                 <table className="w-full text-xs min-w-[500px]">
                     <thead>
-                        <tr className="border-b-2 border-[#E2E5EA] bg-[#F9FAFB]">
-                            <th className="text-left py-2.5 px-3 font-semibold text-[#4A5568] sticky left-0 bg-[#F9FAFB] z-10 min-w-[100px]">{groupBy === 'property' ? 'Property' : 'Unit Type'}</th>
+                        <tr className="border-b-2 border-[var(--border)] bg-[var(--bg-primary)]">
+                            <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10 min-w-[100px]">{groupBy === 'property' ? 'Property' : 'Unit Type'}</th>
                             {weekLabels.map((wl, i) => (
-                                <th key={i} className="text-center py-2.5 px-1.5 font-medium text-[#7A8599] min-w-[40px]">{wl}</th>
+                                <th key={i} className="text-center py-2.5 px-1.5 font-medium text-[var(--text-muted)] min-w-[40px]">{wl}</th>
                             ))}
-                            <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568] min-w-[50px] border-l-2 border-[#E2E5EA]">Total</th>
-                            <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568] min-w-[50px]">Avg/Wk</th>
+                            <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)] min-w-[50px] border-l-2 border-[var(--border)]">Total</th>
+                            <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)] min-w-[50px]">Avg/Wk</th>
                         </tr>
                     </thead>
                     <tbody>
                         {rows.map((row, ri) => (
-                            <tr key={ri} className={`border-b border-[#F4F5F7] ${ri % 2 === 0 ? 'bg-white' : 'bg-[#FBFBFC]'}`}>
-                                <td className="py-2 px-3 font-medium text-[#4A5568] sticky left-0 bg-inherit z-10">
+                            <tr key={ri} className={`border-b border-[var(--bg-elevated)] ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[#FBFBFC]'}`}>
+                                <td className="py-2 px-3 font-medium text-[var(--text-secondary)] sticky left-0 bg-inherit z-10">
                                     <div className="flex items-center gap-1.5">
                                         <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: row.color }} />
                                         <span className="truncate">{row.label}</span>
                                     </div>
                                 </td>
                                 {row.counts.map((count, wi) => (
-                                    <td key={wi} className={`py-2 px-1.5 text-center ${count > 0 ? 'text-[#1A1F2B] font-medium' : 'text-[#CBD2DC]'}`}>
+                                    <td key={wi} className={`py-2 px-1.5 text-center ${count > 0 ? 'text-[var(--text-primary)] font-medium' : 'text-[#CBD2DC]'}`}>
                                         {count > 0 ? count : 'â€”'}
                                     </td>
                                 ))}
-                                <td className="py-2 px-2 text-center font-semibold text-[#2563EB] border-l-2 border-[#E2E5EA]">{row.total}</td>
-                                <td className="py-2 px-2 text-center font-medium text-[#4A5568]">{row.avg.toFixed(1)}</td>
+                                <td className="py-2 px-2 text-center font-semibold text-[var(--accent)] border-l-2 border-[var(--border)]">{row.total}</td>
+                                <td className="py-2 px-2 text-center font-medium text-[var(--text-secondary)]">{row.avg.toFixed(1)}</td>
                             </tr>
                         ))}
                         {/* Totals row */}
-                        <tr className="border-t-2 border-[#E2E5EA] bg-[#F9FAFB] font-semibold">
-                            <td className="py-2.5 px-3 text-[#4A5568] sticky left-0 bg-[#F9FAFB] z-10">Total</td>
+                        <tr className="border-t-2 border-[var(--border)] bg-[var(--bg-primary)] font-semibold">
+                            <td className="py-2.5 px-3 text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10">Total</td>
                             {weekLabels.map((_, wi) => {
                                 const weekTotal = rows.reduce((s, r) => s + r.counts[wi], 0);
-                                return <td key={wi} className="py-2.5 px-1.5 text-center text-[#1A1F2B]">{weekTotal > 0 ? weekTotal : 'â€”'}</td>;
+                                return <td key={wi} className="py-2.5 px-1.5 text-center text-[var(--text-primary)]">{weekTotal > 0 ? weekTotal : 'â€”'}</td>;
                             })}
-                            <td className="py-2.5 px-2 text-center text-[#2563EB] border-l-2 border-[#E2E5EA]">{rows.reduce((s, r) => s + r.total, 0)}</td>
-                            <td className="py-2.5 px-2 text-center text-[#4A5568]">{(rows.reduce((s, r) => s + r.total, 0) / trailingWeeks).toFixed(1)}</td>
+                            <td className="py-2.5 px-2 text-center text-[var(--accent)] border-l-2 border-[var(--border)]">{rows.reduce((s, r) => s + r.total, 0)}</td>
+                            <td className="py-2.5 px-2 text-center text-[var(--text-secondary)]">{(rows.reduce((s, r) => s + r.total, 0) / trailingWeeks).toFixed(1)}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -484,8 +484,8 @@ export function ConcessionsSection({ comps }: { comps: PropertyMetrics[] }) {
     return (
         <div className="space-y-4">
             <div>
-                <h3 className="text-sm font-semibold text-[#1A1F2B]">Concession History</h3>
-                <p className="text-xs text-[#7A8599]">Tracked concession periods by property.</p>
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Concession History</h3>
+                <p className="text-xs text-[var(--text-muted)]">Tracked concession periods by property.</p>
             </div>
             {comps.map((c, ci) => {
                 const concessions = c.concessions.sort((a: HellodataConcession, b: HellodataConcession) => (b.from_date || '').localeCompare(a.from_date || ''));
@@ -495,25 +495,25 @@ export function ConcessionsSection({ comps }: { comps: PropertyMetrics[] }) {
                     return items?.some(it => it.free_months_count && it.free_months_count > 0);
                 });
                 return (
-                    <div key={ci} className="border border-[#E2E5EA] rounded-xl overflow-hidden">
-                        <div className="px-3 sm:px-4 py-2.5 sm:py-3 bg-[#F9FAFB] border-b border-[#E2E5EA] flex flex-col sm:flex-row sm:items-center gap-1 sm:justify-between">
-                            <h4 className="text-sm font-semibold text-[#1A1F2B]">{c.name}</h4>
-                            <span className="text-[10px] text-[#A0AABB]">{concessions.length} concession periods tracked</span>
+                    <div key={ci} className="border border-[var(--border)] rounded-xl overflow-hidden">
+                        <div className="px-3 sm:px-4 py-2.5 sm:py-3 bg-[var(--bg-primary)] border-b border-[var(--border)] flex flex-col sm:flex-row sm:items-center gap-1 sm:justify-between">
+                            <h4 className="text-sm font-semibold text-[var(--text-primary)]">{c.name}</h4>
+                            <span className="text-[10px] text-[var(--text-faint)]">{concessions.length} concession periods tracked</span>
                         </div>
                         <div className="p-3 space-y-2">
                             {latest && (
-                                <div className="bg-[#EBF1FF] rounded-lg px-3 py-2 text-xs">
-                                    <span className="font-medium text-[#2563EB]">Latest: </span>
-                                    <span className="text-[#4A5568]">{latest.concession_text?.slice(0, 150) || 'No details'}</span>
-                                    {latest.from_date && <span className="text-[#7A8599]"> ({latest.from_date} â†’ {latest.to_date || 'ongoing'})</span>}
+                                <div className="bg-[var(--accent-subtle)] rounded-lg px-3 py-2 text-xs">
+                                    <span className="font-medium text-[var(--accent)]">Latest: </span>
+                                    <span className="text-[var(--text-secondary)]">{latest.concession_text?.slice(0, 150) || 'No details'}</span>
+                                    {latest.from_date && <span className="text-[var(--text-muted)]"> ({latest.from_date} â†’ {latest.to_date || 'ongoing'})</span>}
                                 </div>
                             )}
                             {freeMonths.length > 0 && (
-                                <p className="text-xs text-[#7A8599]">
+                                <p className="text-xs text-[var(--text-muted)]">
                                     {freeMonths.length} of {concessions.length} periods included free month(s)
                                 </p>
                             )}
-                            {concessions.length === 0 && <p className="text-xs text-[#7A8599] text-center py-4">No concession data</p>}
+                            {concessions.length === 0 && <p className="text-xs text-[var(--text-muted)] text-center py-4">No concession data</p>}
                         </div>
                     </div>
                 );
@@ -550,24 +550,24 @@ export function FeesSection({ comps }: { comps: PropertyMetrics[] }) {
     return (
         <div className="space-y-3">
             <div>
-                <h3 className="text-sm font-semibold text-[#1A1F2B]">Fees & Other Income</h3>
-                <p className="text-xs text-[#7A8599]">Fee comparison across comp set â€” informs other income projections.</p>
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Fees & Other Income</h3>
+                <p className="text-xs text-[var(--text-muted)]">Fee comparison across comp set â€” informs other income projections.</p>
             </div>
-            <div className="overflow-x-auto border border-[#E2E5EA] rounded-xl">
+            <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
                 <table className="w-full text-xs min-w-[400px]">
                     <thead>
-                        <tr className="border-b-2 border-[#E2E5EA] bg-[#F9FAFB]">
-                            <th className="text-left py-2.5 px-4 font-semibold text-[#4A5568] sticky left-0 bg-[#F9FAFB] z-10 min-w-[120px]">Fee</th>
-                            {comps.map((c, i) => <th key={i} className="text-center py-2.5 px-3 font-semibold text-[#2563EB] min-w-[100px] truncate">{c.name}</th>)}
+                        <tr className="border-b-2 border-[var(--border)] bg-[var(--bg-primary)]">
+                            <th className="text-left py-2.5 px-4 font-semibold text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10 min-w-[120px]">Fee</th>
+                            {comps.map((c, i) => <th key={i} className="text-center py-2.5 px-3 font-semibold text-[var(--accent)] min-w-[100px] truncate">{c.name}</th>)}
                         </tr>
                     </thead>
                     <tbody>
                         {feeRows.map((row, ri) => (
-                            <tr key={ri} className={`border-b border-[#F4F5F7] ${ri % 2 === 0 ? 'bg-white' : 'bg-[#FBFBFC]'}`}>
-                                <td className="py-2 px-4 font-medium text-[#4A5568] sticky left-0 bg-inherit z-10">{row.label}</td>
+                            <tr key={ri} className={`border-b border-[var(--bg-elevated)] ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[#FBFBFC]'}`}>
+                                <td className="py-2 px-4 font-medium text-[var(--text-secondary)] sticky left-0 bg-inherit z-10">{row.label}</td>
                                 {comps.map((c, ci) => {
                                     const fees = c.property.fees as Record<string, unknown> | null;
-                                    return <td key={ci} className="py-2 px-3 text-center text-[#1A1F2B]">{fmtFee(fees?.[row.key])}</td>;
+                                    return <td key={ci} className="py-2 px-3 text-center text-[var(--text-primary)]">{fmtFee(fees?.[row.key])}</td>;
                                 })}
                             </tr>
                         ))}
@@ -602,21 +602,21 @@ export function QualitySection({ comps }: { comps: PropertyMetrics[] }) {
             {/* Quality Scores */}
             <div className="space-y-3">
                 <div>
-                    <h3 className="text-sm font-semibold text-[#1A1F2B]">Building Quality Scores</h3>
-                    <p className="text-xs text-[#7A8599]">AI-scored quality ratings from property photos (0-100%).</p>
+                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Building Quality Scores</h3>
+                    <p className="text-xs text-[var(--text-muted)]">AI-scored quality ratings from property photos (0-100%).</p>
                 </div>
-                <div className="overflow-x-auto border border-[#E2E5EA] rounded-xl">
+                <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
                     <table className="w-full text-xs min-w-[400px]">
                         <thead>
-                            <tr className="border-b-2 border-[#E2E5EA] bg-[#F9FAFB]">
-                                <th className="text-left py-2.5 px-4 font-semibold text-[#4A5568] sticky left-0 bg-[#F9FAFB] z-10 min-w-[120px]">Quality</th>
-                                {comps.map((c, i) => <th key={i} className="text-center py-2.5 px-3 font-semibold text-[#2563EB] min-w-[110px] truncate">{c.name}</th>)}
+                            <tr className="border-b-2 border-[var(--border)] bg-[var(--bg-primary)]">
+                                <th className="text-left py-2.5 px-4 font-semibold text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10 min-w-[120px]">Quality</th>
+                                {comps.map((c, i) => <th key={i} className="text-center py-2.5 px-3 font-semibold text-[var(--accent)] min-w-[110px] truncate">{c.name}</th>)}
                             </tr>
                         </thead>
                         <tbody>
                             {qualityKeys.map((row, ri) => (
-                                <tr key={ri} className={`border-b border-[#F4F5F7] ${ri % 2 === 0 ? 'bg-white' : 'bg-[#FBFBFC]'}`}>
-                                    <td className="py-2 px-4 font-medium text-[#4A5568] sticky left-0 bg-inherit z-10">{row.label}</td>
+                                <tr key={ri} className={`border-b border-[var(--bg-elevated)] ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[#FBFBFC]'}`}>
+                                    <td className="py-2 px-4 font-medium text-[var(--text-secondary)] sticky left-0 bg-inherit z-10">{row.label}</td>
                                     {comps.map((c, ci) => {
                                         const q = c.property.building_quality as Record<string, number> | null;
                                         const val = q?.[row.key];
@@ -625,12 +625,12 @@ export function QualitySection({ comps }: { comps: PropertyMetrics[] }) {
                                             <td key={ci} className="py-2 px-3">
                                                 {pct !== null ? (
                                                     <div className="flex items-center gap-2 justify-center">
-                                                        <div className="w-16 h-2 bg-[#F4F5F7] rounded-full overflow-hidden">
+                                                        <div className="w-16 h-2 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
                                                             <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: pct > 80 ? '#22C55E' : pct > 60 ? '#F59E0B' : '#EF4444' }} />
                                                         </div>
-                                                        <span className="font-medium text-[#1A1F2B] w-8">{pct}%</span>
+                                                        <span className="font-medium text-[var(--text-primary)] w-8">{pct}%</span>
                                                     </div>
-                                                ) : <span className="text-[#A0AABB] text-center block">â€”</span>}
+                                                ) : <span className="text-[var(--text-faint)] text-center block">â€”</span>}
                                             </td>
                                         );
                                     })}
@@ -644,33 +644,33 @@ export function QualitySection({ comps }: { comps: PropertyMetrics[] }) {
             {/* Reviews Sentiment */}
             <div className="space-y-3">
                 <div>
-                    <h3 className="text-sm font-semibold text-[#1A1F2B]">Review Sentiment</h3>
-                    <p className="text-xs text-[#7A8599]">Positive & negative review counts by category.</p>
+                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Review Sentiment</h3>
+                    <p className="text-xs text-[var(--text-muted)]">Positive & negative review counts by category.</p>
                 </div>
-                <div className="overflow-x-auto border border-[#E2E5EA] rounded-xl">
+                <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
                     <table className="w-full text-xs min-w-[400px]">
                         <thead>
-                            <tr className="border-b-2 border-[#E2E5EA] bg-[#F9FAFB]">
-                                <th className="text-left py-2.5 px-4 font-semibold text-[#4A5568] sticky left-0 bg-[#F9FAFB] z-10 min-w-[120px]">Category</th>
+                            <tr className="border-b-2 border-[var(--border)] bg-[var(--bg-primary)]">
+                                <th className="text-left py-2.5 px-4 font-semibold text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10 min-w-[120px]">Category</th>
                                 {comps.map((c, i) => (
-                                    <th key={i} className="text-center py-2.5 px-3 font-semibold text-[#2563EB] min-w-[110px] truncate" colSpan={1}>
+                                    <th key={i} className="text-center py-2.5 px-3 font-semibold text-[var(--accent)] min-w-[110px] truncate" colSpan={1}>
                                         {c.name}
-                                        {c.property.review_analysis?.count_reviews ? <div className="text-[10px] font-normal text-[#7A8599]">{c.property.review_analysis.count_reviews} reviews Â· {((c.property.review_analysis.avg_score ?? 0) * 100).toFixed(0)}% positive</div> : null}
+                                        {c.property.review_analysis?.count_reviews ? <div className="text-[10px] font-normal text-[var(--text-muted)]">{c.property.review_analysis.count_reviews} reviews Â· {((c.property.review_analysis.avg_score ?? 0) * 100).toFixed(0)}% positive</div> : null}
                                     </th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody>
                             {sentimentKeys.map((key, ri) => (
-                                <tr key={ri} className={`border-b border-[#F4F5F7] ${ri % 2 === 0 ? 'bg-white' : 'bg-[#FBFBFC]'}`}>
-                                    <td className="py-2 px-4 font-medium text-[#4A5568] sticky left-0 bg-inherit z-10 capitalize">{key.replace(/_/g, ' ')}</td>
+                                <tr key={ri} className={`border-b border-[var(--bg-elevated)] ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[#FBFBFC]'}`}>
+                                    <td className="py-2 px-4 font-medium text-[var(--text-secondary)] sticky left-0 bg-inherit z-10 capitalize">{key.replace(/_/g, ' ')}</td>
                                     {comps.map((c, ci) => {
                                         const pos = (c.property.review_analysis?.positive_counts as Record<string, number> | undefined)?.[key] ?? 0;
                                         const neg = (c.property.review_analysis?.negative_counts as Record<string, number> | undefined)?.[key] ?? 0;
                                         return (
                                             <td key={ci} className="py-2 px-3 text-center">
                                                 <span className="text-[#22C55E] font-medium">+{pos}</span>
-                                                <span className="text-[#A0AABB] mx-1">/</span>
+                                                <span className="text-[var(--text-faint)] mx-1">/</span>
                                                 <span className="text-[#EF4444] font-medium">-{neg}</span>
                                             </td>
                                         );
@@ -717,15 +717,15 @@ export function MarketContextSection({ comps }: { comps: PropertyMetrics[] }) {
             {/* Pricing Strategy */}
             <div className="space-y-3">
                 <div>
-                    <h3 className="text-sm font-semibold text-[#1A1F2B]">Pricing Strategy</h3>
-                    <p className="text-xs text-[#7A8599]">Revenue management and pricing behavior intelligence.</p>
+                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Pricing Strategy</h3>
+                    <p className="text-xs text-[var(--text-muted)]">Revenue management and pricing behavior intelligence.</p>
                 </div>
-                <div className="overflow-x-auto border border-[#E2E5EA] rounded-xl">
+                <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
                     <table className="w-full text-xs min-w-[400px]">
                         <thead>
-                            <tr className="border-b-2 border-[#E2E5EA] bg-[#F9FAFB]">
-                                <th className="text-left py-2.5 px-4 font-semibold text-[#4A5568] sticky left-0 bg-[#F9FAFB] z-10 min-w-[140px]">Metric</th>
-                                {comps.map((c, i) => <th key={i} className="text-center py-2.5 px-3 font-semibold text-[#2563EB] min-w-[110px] truncate">{c.name}</th>)}
+                            <tr className="border-b-2 border-[var(--border)] bg-[var(--bg-primary)]">
+                                <th className="text-left py-2.5 px-4 font-semibold text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10 min-w-[140px]">Metric</th>
+                                {comps.map((c, i) => <th key={i} className="text-center py-2.5 px-3 font-semibold text-[var(--accent)] min-w-[110px] truncate">{c.name}</th>)}
                             </tr>
                         </thead>
                         <tbody>
@@ -736,9 +736,9 @@ export function MarketContextSection({ comps }: { comps: PropertyMetrics[] }) {
                                 { label: 'Avg Days on Market', fn: (c: PropertyMetrics) => { const v = c.property.pricing_strategy?.avg_time_on_market; return v != null ? `${v.toFixed(0)} days` : 'â€”'; } },
                                 { label: 'Price Updates Tracked', fn: (c: PropertyMetrics) => { const v = c.property.pricing_strategy?.count_prices; return v != null ? v.toLocaleString() : 'â€”'; } },
                             ].map((row, ri) => (
-                                <tr key={ri} className={`border-b border-[#F4F5F7] ${ri % 2 === 0 ? 'bg-white' : 'bg-[#FBFBFC]'}`}>
-                                    <td className="py-2 px-4 font-medium text-[#4A5568] sticky left-0 bg-inherit z-10">{row.label}</td>
-                                    {comps.map((c, ci) => <td key={ci} className="py-2 px-3 text-center text-[#1A1F2B]">{row.fn(c)}</td>)}
+                                <tr key={ri} className={`border-b border-[var(--bg-elevated)] ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[#FBFBFC]'}`}>
+                                    <td className="py-2 px-4 font-medium text-[var(--text-secondary)] sticky left-0 bg-inherit z-10">{row.label}</td>
+                                    {comps.map((c, ci) => <td key={ci} className="py-2 px-3 text-center text-[var(--text-primary)]">{row.fn(c)}</td>)}
                                 </tr>
                             ))}
                         </tbody>
@@ -749,25 +749,25 @@ export function MarketContextSection({ comps }: { comps: PropertyMetrics[] }) {
             {/* Demographics */}
             <div className="space-y-3">
                 <div>
-                    <h3 className="text-sm font-semibold text-[#1A1F2B]">Demographics</h3>
-                    <p className="text-xs text-[#7A8599]">Census tract demographics around each property.</p>
+                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Demographics</h3>
+                    <p className="text-xs text-[var(--text-muted)]">Census tract demographics around each property.</p>
                 </div>
-                <div className="overflow-x-auto border border-[#E2E5EA] rounded-xl">
+                <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
                     <table className="w-full text-xs min-w-[400px]">
                         <thead>
-                            <tr className="border-b-2 border-[#E2E5EA] bg-[#F9FAFB]">
-                                <th className="text-left py-2.5 px-4 font-semibold text-[#4A5568] sticky left-0 bg-[#F9FAFB] z-10 min-w-[140px]">Demographic</th>
-                                {comps.map((c, i) => <th key={i} className="text-center py-2.5 px-3 font-semibold text-[#2563EB] min-w-[110px] truncate">{c.name}</th>)}
+                            <tr className="border-b-2 border-[var(--border)] bg-[var(--bg-primary)]">
+                                <th className="text-left py-2.5 px-4 font-semibold text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10 min-w-[140px]">Demographic</th>
+                                {comps.map((c, i) => <th key={i} className="text-center py-2.5 px-3 font-semibold text-[var(--accent)] min-w-[110px] truncate">{c.name}</th>)}
                             </tr>
                         </thead>
                         <tbody>
                             {demoRows.map((row, ri) => (
-                                <tr key={ri} className={`border-b border-[#F4F5F7] ${ri % 2 === 0 ? 'bg-white' : 'bg-[#FBFBFC]'}`}>
-                                    <td className="py-2 px-4 font-medium text-[#4A5568] sticky left-0 bg-inherit z-10">{row.label}</td>
+                                <tr key={ri} className={`border-b border-[var(--bg-elevated)] ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[#FBFBFC]'}`}>
+                                    <td className="py-2 px-4 font-medium text-[var(--text-secondary)] sticky left-0 bg-inherit z-10">{row.label}</td>
                                     {comps.map((c, ci) => {
                                         const d = c.property.demographics as Record<string, unknown> | null;
                                         const val = d?.[row.key];
-                                        return <td key={ci} className="py-2 px-3 text-center text-[#1A1F2B]">{row.format === 'cur' ? fmtNum(val, '$') : row.format === 'pct' ? fmtPct(val) : fmtNum(val)}</td>;
+                                        return <td key={ci} className="py-2 px-3 text-center text-[var(--text-primary)]">{row.format === 'cur' ? fmtNum(val, '$') : row.format === 'pct' ? fmtPct(val) : fmtNum(val)}</td>;
                                     })}
                                 </tr>
                             ))}
@@ -787,7 +787,7 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
     const [viewMode, setViewMode] = useState<'summary' | 'detail'>('summary');
 
     const comp = comps[selectedComp];
-    if (!comp) return <p className="text-sm text-[#7A8599] text-center py-8">No comp selected</p>;
+    if (!comp) return <p className="text-sm text-[var(--text-muted)] text-center py-8">No comp selected</p>;
 
     const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -882,18 +882,18 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
         <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <h3 className="text-sm font-semibold text-[#1A1F2B]">Estimated Rent Roll</h3>
-                    <p className="text-xs text-[#7A8599]">Unit-level rent and occupancy data from HelloData listings.</p>
+                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Estimated Rent Roll</h3>
+                    <p className="text-xs text-[var(--text-muted)]">Unit-level rent and occupancy data from HelloData listings.</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <select value={selectedComp} onChange={e => setSelectedComp(Number(e.target.value))}
-                        className="text-[11px] sm:text-xs border border-[#E2E5EA] rounded-lg px-2 py-1.5 text-[#4A5568] bg-white">
+                        className="text-[11px] sm:text-xs border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--text-secondary)] bg-[var(--bg-card)]">
                         {comps.map((c, i) => <option key={i} value={i}>{c.name}</option>)}
                     </select>
-                    <div className="flex rounded-lg border border-[#E2E5EA] overflow-hidden">
+                    <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
                         {(['summary', 'detail'] as const).map(m => (
                             <button key={m} onClick={() => setViewMode(m)}
-                                className={`px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-medium ${viewMode === m ? 'bg-[#2563EB] text-white' : 'text-[#7A8599] hover:bg-[#F4F5F7]'}`}>
+                                className={`px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-medium ${viewMode === m ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]'}`}>
                                 {m === 'summary' ? 'By Type' : 'By Unit'}
                             </button>
                         ))}
@@ -903,46 +903,46 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
 
             {/* Quick stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <div className="rounded-lg border border-[#E2E5EA] bg-white p-2.5">
-                    <div className="text-[10px] text-[#7A8599] uppercase tracking-wider">Total Units</div>
-                    <div className="text-base font-semibold text-[#1A1F2B]">{totalCount}</div>
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-2.5">
+                    <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Total Units</div>
+                    <div className="text-base font-semibold text-[var(--text-primary)]">{totalCount}</div>
                 </div>
-                <div className="rounded-lg border border-[#E2E5EA] bg-white p-2.5">
-                    <div className="text-[10px] text-[#7A8599] uppercase tracking-wider">Occupied</div>
-                    <div className="text-base font-semibold text-[#10B981]">{totalOccupied} <span className="text-xs font-normal text-[#7A8599]">({totalCount > 0 ? ((totalOccupied / totalCount) * 100).toFixed(1) : 0}%)</span></div>
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-2.5">
+                    <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Occupied</div>
+                    <div className="text-base font-semibold text-[#10B981]">{totalOccupied} <span className="text-xs font-normal text-[var(--text-muted)]">({totalCount > 0 ? ((totalOccupied / totalCount) * 100).toFixed(1) : 0}%)</span></div>
                 </div>
-                <div className="rounded-lg border border-[#E2E5EA] bg-white p-2.5">
-                    <div className="text-[10px] text-[#7A8599] uppercase tracking-wider">Vacant</div>
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-2.5">
+                    <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Vacant</div>
                     <div className="text-base font-semibold text-[#EF4444]">{totalVacant}</div>
                 </div>
-                <div className="rounded-lg border border-[#E2E5EA] bg-white p-2.5">
-                    <div className="text-[10px] text-[#7A8599] uppercase tracking-wider">Avg Rent</div>
-                    <div className="text-base font-semibold text-[#1A1F2B]">{fmt(comp.askingRent)}</div>
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-2.5">
+                    <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Avg Rent</div>
+                    <div className="text-base font-semibold text-[var(--text-primary)]">{fmt(comp.askingRent)}</div>
                 </div>
             </div>
 
             {viewMode === 'summary' ? (
-                <div className="overflow-x-auto border border-[#E2E5EA] rounded-xl">
+                <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
                     <table className="w-full text-xs min-w-[700px]">
                         <thead>
-                            <tr className="border-b-2 border-[#E2E5EA] bg-[#F9FAFB]">
-                                <th className="text-left py-2.5 px-3 font-semibold text-[#4A5568] sticky left-0 bg-[#F9FAFB] z-10">Unit Type</th>
-                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]"># Units</th>
+                            <tr className="border-b-2 border-[var(--border)] bg-[var(--bg-primary)]">
+                                <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10">Unit Type</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]"># Units</th>
                                 <th className="text-center py-2.5 px-2 font-semibold text-[#10B981]">Occupied</th>
                                 <th className="text-center py-2.5 px-2 font-semibold text-[#EF4444]">Vacant</th>
-                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Occ %</th>
-                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Avg SF</th>
-                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Market Rent</th>
-                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Rent/SF</th>
-                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Eff. Rent</th>
-                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Eff/SF</th>
-                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Avg DOM</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">Occ %</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">Avg SF</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">Market Rent</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">Rent/SF</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">Eff. Rent</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">Eff/SF</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">Avg DOM</th>
                             </tr>
                         </thead>
                         <tbody>
                             {summaryRows.map((row, ri) => (
-                                <tr key={ri} className={`border-b border-[#F4F5F7] ${ri % 2 === 0 ? 'bg-white' : 'bg-[#FBFBFC]'}`}>
-                                    <td className="py-2 px-3 font-medium text-[#4A5568] sticky left-0 bg-inherit z-10">{row.label}</td>
+                                <tr key={ri} className={`border-b border-[var(--bg-elevated)] ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[#FBFBFC]'}`}>
+                                    <td className="py-2 px-3 font-medium text-[var(--text-secondary)] sticky left-0 bg-inherit z-10">{row.label}</td>
                                     <td className="py-2 px-2 text-center font-medium">{row.count}</td>
                                     <td className="py-2 px-2 text-center text-[#10B981] font-medium">{row.occupied}</td>
                                     <td className="py-2 px-2 text-center text-[#EF4444] font-medium">{row.vacant}{row.notice > 0 ? <span className="text-[#F59E0B]"> +{row.notice}</span> : ''}</td>
@@ -956,12 +956,12 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                                     <td className="py-2 px-2 text-center">{fmt(row.rentPsf, 2)}/sf</td>
                                     <td className="py-2 px-2 text-center font-medium">{fmt(row.avgEff)}</td>
                                     <td className="py-2 px-2 text-center">{fmt(row.effPsf, 2)}/sf</td>
-                                    <td className="py-2 px-2 text-center text-[#7A8599]">{row.avgDom !== null ? `${Math.round(row.avgDom)}d` : 'â€”'}</td>
+                                    <td className="py-2 px-2 text-center text-[var(--text-muted)]">{row.avgDom !== null ? `${Math.round(row.avgDom)}d` : 'â€”'}</td>
                                 </tr>
                             ))}
                             {/* Totals */}
-                            <tr className="border-t-2 border-[#E2E5EA] bg-[#F9FAFB] font-semibold">
-                                <td className="py-2.5 px-3 text-[#4A5568] sticky left-0 bg-[#F9FAFB] z-10">Total / Avg</td>
+                            <tr className="border-t-2 border-[var(--border)] bg-[var(--bg-primary)] font-semibold">
+                                <td className="py-2.5 px-3 text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10">Total / Avg</td>
                                 <td className="py-2.5 px-2 text-center">{totalCount}</td>
                                 <td className="py-2.5 px-2 text-center text-[#10B981]">{totalOccupied}</td>
                                 <td className="py-2.5 px-2 text-center text-[#EF4444]">{totalVacant}</td>
@@ -971,38 +971,38 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                                 <td className="py-2.5 px-2 text-center">{comp.rentPSF ? `${fmt(comp.rentPSF, 2)}/sf` : 'â€”'}</td>
                                 <td className="py-2.5 px-2 text-center">{fmt(comp.effectiveRent)}</td>
                                 <td className="py-2.5 px-2 text-center">{comp.effectiveRent && comp.avgSqft ? `${fmt(comp.effectiveRent / comp.avgSqft, 2)}/sf` : 'â€”'}</td>
-                                <td className="py-2.5 px-2 text-center text-[#7A8599]">{comp.avgDaysOnMarket !== null ? `${Math.round(comp.avgDaysOnMarket)}d` : 'â€”'}</td>
+                                <td className="py-2.5 px-2 text-center text-[var(--text-muted)]">{comp.avgDaysOnMarket !== null ? `${Math.round(comp.avgDaysOnMarket)}d` : 'â€”'}</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             ) : (
-                <div className="overflow-x-auto border border-[#E2E5EA] rounded-xl">
+                <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
                     <table className="w-full text-xs min-w-[750px]">
                         <thead>
-                            <tr className="border-b-2 border-[#E2E5EA] bg-[#F9FAFB]">
-                                <th className="text-left py-2.5 px-3 font-semibold text-[#4A5568] sticky left-0 bg-[#F9FAFB] z-10">Unit</th>
-                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Type</th>
-                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">SF</th>
-                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Status</th>
-                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Market Rent</th>
-                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Rent/SF</th>
-                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Eff. Rent</th>
-                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">Eff/SF</th>
-                                <th className="text-center py-2.5 px-2 font-semibold text-[#4A5568]">DOM</th>
-                                <th className="text-left py-2.5 px-2 font-semibold text-[#4A5568]">Floorplan</th>
+                            <tr className="border-b-2 border-[var(--border)] bg-[var(--bg-primary)]">
+                                <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10">Unit</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">Type</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">SF</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">Status</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">Market Rent</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">Rent/SF</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">Eff. Rent</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">Eff/SF</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">DOM</th>
+                                <th className="text-left py-2.5 px-2 font-semibold text-[var(--text-secondary)]">Floorplan</th>
                             </tr>
                         </thead>
                         <tbody>
                             {detailRows.map((row, ri) => (
-                                <tr key={ri} className={`border-b border-[#F4F5F7] ${ri % 2 === 0 ? 'bg-white' : 'bg-[#FBFBFC]'}`}>
-                                    <td className="py-1.5 px-3 font-medium text-[#4A5568] sticky left-0 bg-inherit z-10">{row.unit}</td>
+                                <tr key={ri} className={`border-b border-[var(--bg-elevated)] ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[#FBFBFC]'}`}>
+                                    <td className="py-1.5 px-3 font-medium text-[var(--text-secondary)] sticky left-0 bg-inherit z-10">{row.unit}</td>
                                     <td className="py-1.5 px-2 text-center">{row.bed === null ? 'â€”' : row.bed === 0 ? 'Studio' : `${row.bed}/${row.bath ?? '?'}`}</td>
                                     <td className="py-1.5 px-2 text-center">{row.sqft ? `${row.sqft}` : 'â€”'}</td>
                                     <td className="py-1.5 px-2 text-center">
                                         <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ${row.status === 'occupied' ? 'bg-[#ECFDF5] text-[#10B981]' :
                                             row.status === 'notice' ? 'bg-[#FEF3C7] text-[#92400E]' :
-                                                'bg-[#FEF2F2] text-[#EF4444]'
+                                                'bg-[var(--danger-bg)] text-[#EF4444]'
                                             }`}>
                                             {row.status === 'occupied' ? 'Leased' : row.status === 'notice' ? 'Notice' : 'Vacant'}
                                         </span>
@@ -1011,13 +1011,13 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                                     <td className="py-1.5 px-2 text-center">{fmt(row.rentPsf, 2)}/sf</td>
                                     <td className="py-1.5 px-2 text-center font-medium">{fmt(row.effRent)}</td>
                                     <td className="py-1.5 px-2 text-center">{fmt(row.effPsf, 2)}/sf</td>
-                                    <td className="py-1.5 px-2 text-center text-[#7A8599]">{row.dom !== null ? `${row.dom}d` : 'â€”'}</td>
-                                    <td className="py-1.5 px-2 text-left text-[#7A8599] truncate max-w-[120px]">{row.floorplan || 'â€”'}</td>
+                                    <td className="py-1.5 px-2 text-center text-[var(--text-muted)]">{row.dom !== null ? `${row.dom}d` : 'â€”'}</td>
+                                    <td className="py-1.5 px-2 text-left text-[var(--text-muted)] truncate max-w-[120px]">{row.floorplan || 'â€”'}</td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
-                    {detailRows.length === 0 && <p className="text-sm text-[#7A8599] text-center py-8">No unit data available</p>}
+                    {detailRows.length === 0 && <p className="text-sm text-[var(--text-muted)] text-center py-8">No unit data available</p>}
                 </div>
             )}
         </div>
@@ -1086,13 +1086,13 @@ export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
                         maxWidth: '280px',
                     }).setHTML(`
                         <div style="font-family: system-ui, sans-serif; padding: 4px;">
-                            <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #1A1F2B;">${c.name}</div>
-                            <div style="font-size: 11px; color: #7A8599; margin-bottom: 6px;">${c.address}</div>
+                            <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px; color: var(--text-primary);">${c.name}</div>
+                            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">${c.address}</div>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; font-size: 11px;">
-                                <span style="color: #7A8599;">Asking:</span><span style="font-weight: 500;">${fmtC(c.askingRent)}</span>
-                                <span style="color: #7A8599;">Effective:</span><span style="font-weight: 500;">${fmtC(c.effectiveRent)}</span>
-                                <span style="color: #7A8599;">Units:</span><span style="font-weight: 500;">${c.property.number_units ?? 'â€”'}</span>
-                                <span style="color: #7A8599;">Leased:</span><span style="font-weight: 500;">${c.leasedPct !== null ? c.leasedPct.toFixed(1) + '%' : 'â€”'}</span>
+                                <span style="color: var(--text-muted);">Asking:</span><span style="font-weight: 500;">${fmtC(c.askingRent)}</span>
+                                <span style="color: var(--text-muted);">Effective:</span><span style="font-weight: 500;">${fmtC(c.effectiveRent)}</span>
+                                <span style="color: var(--text-muted);">Units:</span><span style="font-weight: 500;">${c.property.number_units ?? 'â€”'}</span>
+                                <span style="color: var(--text-muted);">Leased:</span><span style="font-weight: 500;">${c.leasedPct !== null ? c.leasedPct.toFixed(1) + '%' : 'â€”'}</span>
                             </div>
                         </div>
                     `);
@@ -1136,16 +1136,16 @@ export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
 
     if (!MAPBOX_TOKEN) {
         return (
-            <div className="text-center py-12 border border-dashed border-[#E2E5EA] rounded-xl bg-[#FBFBFC]">
-                <p className="text-sm text-[#7A8599]">Map requires <code className="text-[10px] bg-[#F4F5F7] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> in .env.local</p>
+            <div className="text-center py-12 border border-dashed border-[var(--border)] rounded-xl bg-[#FBFBFC]">
+                <p className="text-sm text-[var(--text-muted)]">Map requires <code className="text-[10px] bg-[var(--bg-elevated)] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> in .env.local</p>
             </div>
         );
     }
 
     if (mappableComps.length === 0) {
         return (
-            <div className="text-center py-12 border border-dashed border-[#E2E5EA] rounded-xl bg-[#FBFBFC]">
-                <p className="text-sm text-[#7A8599]">No comps with coordinates available for mapping.</p>
+            <div className="text-center py-12 border border-dashed border-[var(--border)] rounded-xl bg-[#FBFBFC]">
+                <p className="text-sm text-[var(--text-muted)]">No comps with coordinates available for mapping.</p>
             </div>
         );
     }
@@ -1153,10 +1153,10 @@ export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
     return (
         <div className="space-y-3">
             <div>
-                <h3 className="text-sm font-semibold text-[#1A1F2B]">Comp Map</h3>
-                <p className="text-xs text-[#7A8599]">Locations of comp properties. Hover markers for details.</p>
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Comp Map</h3>
+                <p className="text-xs text-[var(--text-muted)]">Locations of comp properties. Hover markers for details.</p>
             </div>
-            <div className="border border-[#E2E5EA] rounded-xl overflow-hidden relative" style={{ height: '420px' }}>
+            <div className="border border-[var(--border)] rounded-xl overflow-hidden relative" style={{ height: '420px' }}>
                 <div ref={containerRef} className="w-full h-full" />
             </div>
             {/* Legend */}
@@ -1164,7 +1164,7 @@ export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
                 {mappableComps.map((c, i) => (
                     <div key={i} className={`flex items-center gap-1.5 text-xs transition-opacity ${hoveredComp !== null && hoveredComp !== i ? 'opacity-40' : ''}`}>
                         <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.compType === 'primary' ? COMP_COLORS[i % COMP_COLORS.length] : '#94A3B8' }} />
-                        <span className="text-[#4A5568] truncate max-w-[140px]">{c.name}</span>
+                        <span className="text-[var(--text-secondary)] truncate max-w-[140px]">{c.name}</span>
                     </div>
                 ))}
             </div>

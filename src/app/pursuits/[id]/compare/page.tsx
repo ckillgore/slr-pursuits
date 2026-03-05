@@ -95,7 +95,7 @@ export default function ComparisonPage() {
     if (loadingPursuit || loadingOPs) {
         return (
             <AppShell>
-                <div className="flex justify-center py-24"><Loader2 className="w-8 h-8 animate-spin text-[#C8CDD5]" /></div>
+                <div className="flex justify-center py-24"><Loader2 className="w-8 h-8 animate-spin text-[var(--border-strong)]" /></div>
             </AppShell>
         );
     }
@@ -104,7 +104,7 @@ export default function ComparisonPage() {
         return (
             <AppShell>
                 <div className="max-w-7xl mx-auto px-6 py-12 text-center">
-                    <p className="text-[#7A8599]">Pursuit not found.</p>
+                    <p className="text-[var(--text-muted)]">Pursuit not found.</p>
                 </div>
             </AppShell>
         );
@@ -120,22 +120,22 @@ export default function ComparisonPage() {
                 {/* Breadcrumb */}
                 <Link
                     href={`/pursuits/${pursuitId}`}
-                    className="inline-flex items-center gap-1.5 text-sm text-[#7A8599] hover:text-[#4A5568] transition-colors mb-6"
+                    className="inline-flex items-center gap-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors mb-6"
                 >
                     <ChevronLeft className="w-4 h-4" /> Back to {pursuit.name}
                 </Link>
 
                 <div className="mb-6">
-                    <h1 className="text-2xl font-bold text-[#1A1F2B]">Scenario Comparison</h1>
-                    <p className="text-sm text-[#7A8599] mt-1">
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Scenario Comparison</h1>
+                    <p className="text-sm text-[var(--text-muted)] mt-1">
                         Comparing {activeOPs.length} one-pager{activeOPs.length !== 1 ? 's' : ''} for {pursuit.name}
                     </p>
                 </div>
 
                 {activeOPs.length < 2 && (
                     <div className="card flex flex-col items-center py-12 text-center">
-                        <p className="text-sm text-[#7A8599]">Create at least 2 one-pagers to compare scenarios side-by-side.</p>
-                        <Link href={`/pursuits/${pursuitId}`} className="mt-4 px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-[#1D4FD7] text-white text-sm font-medium transition-colors">
+                        <p className="text-sm text-[var(--text-muted)]">Create at least 2 one-pagers to compare scenarios side-by-side.</p>
+                        <Link href={`/pursuits/${pursuitId}`} className="mt-4 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors">
                             Back to Pursuit
                         </Link>
                     </div>
@@ -147,7 +147,7 @@ export default function ComparisonPage() {
                             {/* Header row — scenario names */}
                             <thead>
                                 <tr>
-                                    <th className="sticky left-0 z-10 bg-white text-left text-xs font-bold text-[#7A8599] uppercase tracking-wider py-3 px-4 border-b border-[#E2E5EA] min-w-[180px]">
+                                    <th className="sticky left-0 z-10 bg-[var(--bg-card)] text-left text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider py-3 px-4 border-b border-[var(--border)] min-w-[180px]">
                                         Metric
                                     </th>
                                     {activeOPs.map((op) => {
@@ -156,13 +156,13 @@ export default function ComparisonPage() {
                                         return (
                                             <th
                                                 key={op.id}
-                                                className={`text-center py-3 px-4 border-b border-[#E2E5EA] min-w-[140px] ${isBest ? 'bg-[#EBF1FF]' : ''}`}
+                                                className={`text-center py-3 px-4 border-b border-[var(--border)] min-w-[140px] ${isBest ? 'bg-[var(--accent-subtle)]' : ''}`}
                                             >
-                                                <Link href={`/pursuits/${pursuitId}/one-pagers/${op.short_id}`} className="hover:text-[#2563EB] transition-colors">
-                                                    <div className="text-sm font-semibold text-[#1A1F2B]">{op.name}</div>
+                                                <Link href={`/pursuits/${pursuitId}/one-pagers/${op.short_id}`} className="hover:text-[var(--accent)] transition-colors">
+                                                    <div className="text-sm font-semibold text-[var(--text-primary)]">{op.name}</div>
                                                 </Link>
-                                                {pt && <div className="text-[10px] text-[#A0AABB] mt-0.5">{pt.name}</div>}
-                                                {isBest && <div className="text-[9px] font-bold text-[#2563EB] uppercase mt-1">★ Best YOC</div>}
+                                                {pt && <div className="text-[10px] text-[var(--text-faint)] mt-0.5">{pt.name}</div>}
+                                                {isBest && <div className="text-[9px] font-bold text-[var(--accent)] uppercase mt-1">★ Best YOC</div>}
                                             </th>
                                         );
                                     })}
@@ -175,15 +175,15 @@ export default function ComparisonPage() {
                                         <tr>
                                             <td
                                                 colSpan={activeOPs.length + 1}
-                                                className="sticky left-0 z-10 bg-[#FAFBFC] text-[10px] font-bold text-[#A0AABB] uppercase tracking-wider py-2 px-4 border-b border-[#F0F1F4]"
+                                                className="sticky left-0 z-10 bg-[var(--bg-primary)] text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider py-2 px-4 border-b border-[var(--table-row-border)]"
                                             >
                                                 {section.title}
                                             </td>
                                         </tr>
                                         {/* Metric rows */}
                                         {section.rows.map((row) => (
-                                            <tr key={row.label} className="hover:bg-[#FAFBFC] transition-colors">
-                                                <td className="sticky left-0 z-10 bg-white text-xs text-[#4A5568] py-2 px-4 border-b border-[#F0F1F4] whitespace-nowrap">
+                                            <tr key={row.label} className="hover:bg-[var(--bg-primary)] transition-colors">
+                                                <td className="sticky left-0 z-10 bg-[var(--bg-card)] text-xs text-[var(--text-secondary)] py-2 px-4 border-b border-[var(--table-row-border)] whitespace-nowrap">
                                                     {row.label}
                                                 </td>
                                                 {activeOPs.map((op) => {
@@ -191,8 +191,8 @@ export default function ComparisonPage() {
                                                     return (
                                                         <td
                                                             key={op.id}
-                                                            className={`text-right text-xs tabular-nums py-2 px-4 border-b border-[#F0F1F4] ${row.highlight ? 'font-bold text-[#1A1F2B]' : 'text-[#4A5568]'
-                                                                } ${isBest ? 'bg-[#EBF1FF]/50' : ''}`}
+                                                            className={`text-right text-xs tabular-nums py-2 px-4 border-b border-[var(--table-row-border)] ${row.highlight ? 'font-bold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+                                                                } ${isBest ? 'bg-[var(--accent-subtle)]/50' : ''}`}
                                                         >
                                                             {row.getValue(op)}
                                                         </td>

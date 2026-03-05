@@ -139,8 +139,8 @@ export default function CrossComparisonPage() {
         <AppShell>
             <div className="max-w-full mx-auto px-6 py-8">
                 <div className="mb-6">
-                    <h1 className="text-2xl font-bold text-[#1A1F2B]">Cross-Pursuit Comparison</h1>
-                    <p className="text-sm text-[#7A8599] mt-1">
+                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Cross-Pursuit Comparison</h1>
+                    <p className="text-sm text-[var(--text-muted)] mt-1">
                         Compare one-pagers across different pursuits side-by-side.
                     </p>
                 </div>
@@ -152,16 +152,16 @@ export default function CrossComparisonPage() {
                         return (
                             <div
                                 key={s.onePager.id}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#EBF1FF] border border-[#C7D7FE] text-sm"
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--accent-subtle)] border border-[#C7D7FE] text-sm"
                             >
                                 <div>
-                                    <span className="font-medium text-[#1A1F2B]">{s.onePager.name}</span>
-                                    <span className="text-[#7A8599] ml-1.5 text-xs">({s.pursuitName})</span>
-                                    {pt && <span className="text-[#A0AABB] ml-1 text-[10px]">· {pt.name}</span>}
+                                    <span className="font-medium text-[var(--text-primary)]">{s.onePager.name}</span>
+                                    <span className="text-[var(--text-muted)] ml-1.5 text-xs">({s.pursuitName})</span>
+                                    {pt && <span className="text-[var(--text-faint)] ml-1 text-[10px]">· {pt.name}</span>}
                                 </div>
                                 <button
                                     onClick={() => removeOnePager(s.onePager.id)}
-                                    className="text-[#7A8599] hover:text-[#DC2626] transition-colors"
+                                    className="text-[var(--text-muted)] hover:text-[var(--danger)] transition-colors"
                                 >
                                     <X className="w-3.5 h-3.5" />
                                 </button>
@@ -170,7 +170,7 @@ export default function CrossComparisonPage() {
                     })}
                     <button
                         onClick={() => setShowPicker(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-[#C8CDD5] text-sm text-[#7A8599] hover:text-[#2563EB] hover:border-[#2563EB] transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-[var(--border-strong)] text-sm text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors"
                     >
                         <Plus className="w-3.5 h-3.5" /> Add One-Pager
                     </button>
@@ -179,7 +179,7 @@ export default function CrossComparisonPage() {
                 {/* Empty state */}
                 {selectedOPs.length < 2 && (
                     <div className="card text-center py-12">
-                        <p className="text-sm text-[#7A8599]">
+                        <p className="text-sm text-[var(--text-muted)]">
                             {selectedOPs.length === 0
                                 ? 'Add at least 2 one-pagers from any pursuits to compare.'
                                 : 'Add one more one-pager to start comparing.'}
@@ -193,7 +193,7 @@ export default function CrossComparisonPage() {
                         <table className="w-full border-collapse">
                             <thead>
                                 <tr>
-                                    <th className="sticky left-0 z-10 bg-white text-left text-xs font-bold text-[#7A8599] uppercase tracking-wider py-3 px-4 border-b border-[#E2E5EA] min-w-[180px]">
+                                    <th className="sticky left-0 z-10 bg-[var(--bg-card)] text-left text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider py-3 px-4 border-b border-[var(--border)] min-w-[180px]">
                                         Metric
                                     </th>
                                     {selectedOPs.map((s) => {
@@ -201,11 +201,11 @@ export default function CrossComparisonPage() {
                                         return (
                                             <th
                                                 key={s.onePager.id}
-                                                className={`text-center py-3 px-4 border-b border-[#E2E5EA] min-w-[150px] ${isBest ? 'bg-[#EBF1FF]' : ''}`}
+                                                className={`text-center py-3 px-4 border-b border-[var(--border)] min-w-[150px] ${isBest ? 'bg-[var(--accent-subtle)]' : ''}`}
                                             >
-                                                <div className="text-sm font-semibold text-[#1A1F2B]">{s.onePager.name}</div>
-                                                <div className="text-[10px] text-[#A0AABB] mt-0.5">{s.pursuitName}</div>
-                                                {isBest && <div className="text-[9px] font-bold text-[#2563EB] uppercase mt-1">★ Best YOC</div>}
+                                                <div className="text-sm font-semibold text-[var(--text-primary)]">{s.onePager.name}</div>
+                                                <div className="text-[10px] text-[var(--text-faint)] mt-0.5">{s.pursuitName}</div>
+                                                {isBest && <div className="text-[9px] font-bold text-[var(--accent)] uppercase mt-1">★ Best YOC</div>}
                                             </th>
                                         );
                                     })}
@@ -217,14 +217,14 @@ export default function CrossComparisonPage() {
                                         <tr>
                                             <td
                                                 colSpan={selectedOPs.length + 1}
-                                                className="sticky left-0 z-10 bg-[#FAFBFC] text-[10px] font-bold text-[#A0AABB] uppercase tracking-wider py-2 px-4 border-b border-[#F0F1F4]"
+                                                className="sticky left-0 z-10 bg-[var(--bg-primary)] text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider py-2 px-4 border-b border-[var(--table-row-border)]"
                                             >
                                                 {section.title}
                                             </td>
                                         </tr>
                                         {section.rows.map((row) => (
-                                            <tr key={row.label} className="hover:bg-[#FAFBFC] transition-colors">
-                                                <td className="sticky left-0 z-10 bg-white text-xs text-[#4A5568] py-2 px-4 border-b border-[#F0F1F4] whitespace-nowrap">
+                                            <tr key={row.label} className="hover:bg-[var(--bg-primary)] transition-colors">
+                                                <td className="sticky left-0 z-10 bg-[var(--bg-card)] text-xs text-[var(--text-secondary)] py-2 px-4 border-b border-[var(--table-row-border)] whitespace-nowrap">
                                                     {row.label}
                                                 </td>
                                                 {selectedOPs.map((s) => {
@@ -233,8 +233,8 @@ export default function CrossComparisonPage() {
                                                     return (
                                                         <td
                                                             key={s.onePager.id}
-                                                            className={`text-right text-xs tabular-nums py-2 px-4 border-b border-[#F0F1F4] ${row.highlight ? 'font-bold text-[#1A1F2B]' : 'text-[#4A5568]'
-                                                                } ${isBest ? 'bg-[#EBF1FF]/50' : ''}`}
+                                                            className={`text-right text-xs tabular-nums py-2 px-4 border-b border-[var(--table-row-border)] ${row.highlight ? 'font-bold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+                                                                } ${isBest ? 'bg-[var(--accent-subtle)]/50' : ''}`}
                                                         >
                                                             {row.getValue(s.onePager, pursuit)}
                                                         </td>
@@ -252,17 +252,17 @@ export default function CrossComparisonPage() {
 
             {/* Picker Dialog */}
             {showPicker && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-                    <div className="bg-white border border-[#E2E5EA] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in">
-                        <h2 className="text-lg font-semibold text-[#1A1F2B] mb-4">Select One-Pager</h2>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
+                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in">
+                        <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Select One-Pager</h2>
 
                         {/* Step 1: Pick pursuit */}
                         <div className="mb-4">
-                            <label className="block text-xs font-semibold text-[#4A5568] mb-1.5 uppercase tracking-wider">Pursuit</label>
+                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Pursuit</label>
                             <select
                                 value={pickerPursuitId}
                                 onChange={(e) => handlePickerPursuitChange(e.target.value)}
-                                className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none"
+                                className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                             >
                                 <option value="">Select a pursuit...</option>
                                 {pursuits.filter((p) => !p.is_archived).map((p) => (
@@ -274,12 +274,12 @@ export default function CrossComparisonPage() {
                         {/* Step 2: Pick one-pager */}
                         {pickerPursuitId && (
                             <div className="mb-4">
-                                <label className="block text-xs font-semibold text-[#4A5568] mb-1.5 uppercase tracking-wider">One-Pager</label>
+                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">One-Pager</label>
                                 {loadingPicker && (
-                                    <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-[#C8CDD5]" /></div>
+                                    <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-[var(--border-strong)]" /></div>
                                 )}
                                 {!loadingPicker && pickerOnePagers.length === 0 && (
-                                    <p className="text-sm text-[#7A8599] py-2">No one-pagers in this pursuit.</p>
+                                    <p className="text-sm text-[var(--text-muted)] py-2">No one-pagers in this pursuit.</p>
                                 )}
                                 {!loadingPicker && pickerOnePagers.length > 0 && (
                                     <div className="space-y-1.5 max-h-60 overflow-y-auto">
@@ -292,16 +292,16 @@ export default function CrossComparisonPage() {
                                                     onClick={() => addOnePager(op)}
                                                     disabled={alreadyAdded}
                                                     className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition-colors ${alreadyAdded
-                                                        ? 'border-[#E2E5EA] bg-[#F4F5F7] text-[#A0AABB] cursor-not-allowed'
-                                                        : 'border-[#E2E5EA] hover:border-[#2563EB] hover:bg-[#EBF1FF] text-[#1A1F2B]'
+                                                        ? 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--text-faint)] cursor-not-allowed'
+                                                        : 'border-[var(--border)] hover:border-[var(--accent)] hover:bg-[var(--accent-subtle)] text-[var(--text-primary)]'
                                                         }`}
                                                 >
                                                     <div className="font-medium">{op.name}</div>
-                                                    <div className="flex items-center gap-3 mt-0.5 text-[10px] text-[#7A8599]">
+                                                    <div className="flex items-center gap-3 mt-0.5 text-[10px] text-[var(--text-muted)]">
                                                         {pt && <span>{pt.name}</span>}
                                                         <span>{op.total_units} units</span>
                                                         {op.calc_yoc ? <span>YOC: {(op.calc_yoc * 100).toFixed(2)}%</span> : null}
-                                                        {alreadyAdded && <span className="text-[#2563EB] font-medium">Already added</span>}
+                                                        {alreadyAdded && <span className="text-[var(--accent)] font-medium">Already added</span>}
                                                     </div>
                                                 </button>
                                             );
@@ -314,7 +314,7 @@ export default function CrossComparisonPage() {
                         <div className="flex justify-end mt-4">
                             <button
                                 onClick={() => { setShowPicker(false); setPickerPursuitId(''); setPickerOnePagers([]); }}
-                                className="px-4 py-2 rounded-lg text-sm text-[#4A5568] hover:text-[#1A1F2B] hover:bg-[#F4F5F7] transition-colors"
+                                className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
                             >
                                 Close
                             </button>

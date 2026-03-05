@@ -85,9 +85,9 @@ export function RichTextEditor({
     if (!editor) return null;
 
     return (
-        <div className="rich-text-editor border border-[#E2E5EA] rounded-lg overflow-hidden focus-within:border-[#2563EB] focus-within:ring-2 focus-within:ring-[#EBF1FF] transition-all">
+        <div className="rich-text-editor border border-[var(--border)] rounded-lg overflow-hidden focus-within:border-[var(--accent)] focus-within:ring-2 focus-within:ring-[var(--accent-subtle)] transition-all">
             {/* Toolbar */}
-            <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-[#F0F1F4] bg-[#FAFBFC]">
+            <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-[var(--table-row-border)] bg-[var(--bg-primary)]">
                 <ToolbarButton
                     onClick={() => editor.chain().focus().toggleBold().run()}
                     active={editor.isActive('bold')}
@@ -110,7 +110,7 @@ export function RichTextEditor({
                     <UnderlineIcon className="w-3.5 h-3.5" />
                 </ToolbarButton>
 
-                <div className="w-px h-4 bg-[#E2E5EA] mx-1" />
+                <div className="w-px h-4 bg-[var(--border)] mx-1" />
 
                 <ToolbarButton
                     onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
@@ -120,7 +120,7 @@ export function RichTextEditor({
                     <Heading2 className="w-3.5 h-3.5" />
                 </ToolbarButton>
 
-                <div className="w-px h-4 bg-[#E2E5EA] mx-1" />
+                <div className="w-px h-4 bg-[var(--border)] mx-1" />
 
                 <ToolbarButton
                     onClick={() => editor.chain().focus().toggleBulletList().run()}
@@ -194,8 +194,8 @@ function ToolbarButton({
             disabled={disabled}
             title={title}
             className={`p-1.5 rounded-md transition-colors ${active
-                ? 'bg-[#EBF1FF] text-[#2563EB]'
-                : 'text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7]'
+                ? 'bg-[var(--accent-subtle)] text-[var(--accent)]'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
                 } ${disabled ? 'opacity-30 cursor-not-allowed' : ''}`}
         >
             {children}

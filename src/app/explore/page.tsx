@@ -158,11 +158,11 @@ function InfoRow({ label, value, icon: Icon, highlight }: {
 }) {
     const displayValue = value === null || value === undefined || value === '' ? '—' : String(value);
     return (
-        <div className="flex items-start gap-2.5 py-1.5 border-b border-[#F4F5F7] last:border-0">
-            {Icon && <Icon className={`w-3 h-3 mt-0.5 flex-shrink-0 ${highlight ? 'text-[#2563EB]' : 'text-[#A0AABB]'}`} />}
+        <div className="flex items-start gap-2.5 py-1.5 border-b border-[var(--bg-elevated)] last:border-0">
+            {Icon && <Icon className={`w-3 h-3 mt-0.5 flex-shrink-0 ${highlight ? 'text-[var(--accent)]' : 'text-[var(--text-faint)]'}`} />}
             <div className="flex-1 min-w-0">
-                <div className="text-[9px] text-[#A0AABB] uppercase tracking-wider font-semibold">{label}</div>
-                <div className={`text-xs ${highlight ? 'font-semibold text-[#1A1F2B]' : 'text-[#4A5568]'} ${displayValue.length > 60 ? 'text-[10px] leading-relaxed' : ''}`}>
+                <div className="text-[9px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">{label}</div>
+                <div className={`text-xs ${highlight ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'} ${displayValue.length > 60 ? 'text-[10px] leading-relaxed' : ''}`}>
                     {displayValue}
                 </div>
             </div>
@@ -582,34 +582,34 @@ export default function ExplorePage() {
                 {/* Search Bar — floating overlay */}
                 <div className="absolute top-4 left-4 z-20 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
                     <div className="relative">
-                        <div className="flex items-center gap-2 bg-white/95 backdrop-blur-sm border border-[#E2E5EA] rounded-xl shadow-lg px-4 py-2.5">
-                            <Search className="w-4 h-4 text-[#A0AABB] flex-shrink-0" />
+                        <div className="flex items-center gap-2 bg-[var(--bg-card)]/95 backdrop-blur-sm border border-[var(--border)] rounded-xl shadow-lg px-4 py-2.5">
+                            <Search className="w-4 h-4 text-[var(--text-faint)] flex-shrink-0" />
                             <input
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => handleSearch(e.target.value)}
                                 placeholder="Search address, city, or zip code..."
-                                className="flex-1 bg-transparent text-sm text-[#1A1F2B] outline-none placeholder:text-[#A0AABB]"
+                                className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-faint)]"
                             />
                             {searchQuery && (
-                                <button onClick={() => { setSearchQuery(''); setSuggestions([]); }} className="text-[#A0AABB] hover:text-[#4A5568]">
+                                <button onClick={() => { setSearchQuery(''); setSuggestions([]); }} className="text-[var(--text-faint)] hover:text-[var(--text-secondary)]">
                                     <X className="w-4 h-4" />
                                 </button>
                             )}
                         </div>
                         {showSuggestions && suggestions.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 z-30 mt-1 bg-white border border-[#E2E5EA] rounded-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto">
+                            <div className="absolute top-full left-0 right-0 z-30 mt-1 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto">
                                 {suggestions.map((s: any) => (
                                     <button
                                         key={s.id}
                                         onClick={() => selectSuggestion(s)}
-                                        className="w-full text-left px-4 py-3 hover:bg-[#EBF1FF] transition-colors border-b border-[#F0F1F4] last:border-b-0"
+                                        className="w-full text-left px-4 py-3 hover:bg-[var(--accent-subtle)] transition-colors border-b border-[var(--table-row-border)] last:border-b-0"
                                     >
                                         <div className="flex items-start gap-2.5">
-                                            <MapPin className="w-3.5 h-3.5 mt-0.5 text-[#A0AABB] flex-shrink-0" />
+                                            <MapPin className="w-3.5 h-3.5 mt-0.5 text-[var(--text-faint)] flex-shrink-0" />
                                             <div>
-                                                <div className="text-sm font-medium text-[#1A1F2B]">{s.text}</div>
-                                                <div className="text-[10px] text-[#7A8599] mt-0.5">{s.place_name}</div>
+                                                <div className="text-sm font-medium text-[var(--text-primary)]">{s.text}</div>
+                                                <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{s.place_name}</div>
                                             </div>
                                         </div>
                                     </button>
@@ -620,14 +620,14 @@ export default function ExplorePage() {
                 </div>
 
                 {/* Basemap Toggle — top-right */}
-                <div className="absolute top-4 right-4 z-20 flex bg-white/95 backdrop-blur-sm rounded-lg border border-[#E2E5EA] shadow-lg overflow-hidden">
+                <div className="absolute top-4 right-4 z-20 flex bg-[var(--bg-card)]/95 backdrop-blur-sm rounded-lg border border-[var(--border)] shadow-lg overflow-hidden">
                     {(Object.keys(STYLES) as MapStyleId[]).map((key) => (
                         <button
                             key={key}
                             onClick={() => setActiveStyle(key)}
                             className={`px-3 py-1.5 text-[11px] font-medium transition-colors ${activeStyle === key
-                                ? 'bg-[#2563EB] text-white'
-                                : 'text-[#4A5568] hover:bg-[#F4F5F7]'
+                                ? 'bg-[var(--accent)] text-white'
+                                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
                                 }`}
                         >
                             {STYLES[key].label}
@@ -637,11 +637,11 @@ export default function ExplorePage() {
 
                 {/* Zoom message */}
                 {showZoomMsg && (
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 bg-white/95 backdrop-blur-sm border border-[#E2E5EA] rounded-xl shadow-lg px-5 py-3 flex items-center gap-3">
-                        <Eye className="w-4 h-4 text-[#A0AABB]" />
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 bg-[var(--bg-card)]/95 backdrop-blur-sm border border-[var(--border)] rounded-xl shadow-lg px-5 py-3 flex items-center gap-3">
+                        <Eye className="w-4 h-4 text-[var(--text-faint)]" />
                         <div>
-                            <p className="text-sm font-medium text-[#4A5568]">Zoom in to see parcels</p>
-                            <p className="text-[10px] text-[#A0AABB]">Parcel boundaries appear at zoom level 14+</p>
+                            <p className="text-sm font-medium text-[var(--text-secondary)]">Zoom in to see parcels</p>
+                            <p className="text-[10px] text-[var(--text-faint)]">Parcel boundaries appear at zoom level 14+</p>
                         </div>
                     </div>
                 )}
@@ -650,11 +650,11 @@ export default function ExplorePage() {
                 {MAPBOX_TOKEN ? (
                     <div ref={mapContainerRef} className="w-full h-full" />
                 ) : (
-                    <div className="w-full h-full bg-[#FAFBFC] flex items-center justify-center">
+                    <div className="w-full h-full bg-[var(--bg-primary)] flex items-center justify-center">
                         <div className="text-center">
-                            <Compass className="w-10 h-10 text-[#C8CDD5] mx-auto mb-3" />
-                            <p className="text-sm text-[#7A8599]">
-                                Add <code className="text-xs bg-[#F4F5F7] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env.local
+                            <Compass className="w-10 h-10 text-[var(--border-strong)] mx-auto mb-3" />
+                            <p className="text-sm text-[var(--text-muted)]">
+                                Add <code className="text-xs bg-[var(--bg-elevated)] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env.local
                             </p>
                         </div>
                     </div>
@@ -666,45 +666,45 @@ export default function ExplorePage() {
                         className="absolute z-30 pointer-events-none hidden md:block"
                         style={{ left: tooltip.x + 12, top: tooltip.y - 8, maxWidth: 280 }}
                     >
-                        <div className="bg-white/95 backdrop-blur-sm border border-[#E2E5EA] rounded-lg shadow-xl px-3 py-2.5">
+                        <div className="bg-[var(--bg-card)]/95 backdrop-blur-sm border border-[var(--border)] rounded-lg shadow-xl px-3 py-2.5">
                             {tooltip.data.address && (
-                                <div className="text-xs font-semibold text-[#1A1F2B] mb-1">{tooltip.data.address}</div>
+                                <div className="text-xs font-semibold text-[var(--text-primary)] mb-1">{tooltip.data.address}</div>
                             )}
                             {(tooltip.data.city || tooltip.data.state) && (
-                                <div className="text-[10px] text-[#7A8599] mb-1.5">
+                                <div className="text-[10px] text-[var(--text-muted)] mb-1.5">
                                     {[tooltip.data.city, tooltip.data.state, tooltip.data.zip].filter(Boolean).join(', ')}
                                 </div>
                             )}
                             <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px]">
                                 {tooltip.data.owner && (
-                                    <div><span className="text-[#A0AABB]">Owner:</span> <span className="text-[#4A5568]">{tooltip.data.owner}</span></div>
+                                    <div><span className="text-[var(--text-faint)]">Owner:</span> <span className="text-[var(--text-secondary)]">{tooltip.data.owner}</span></div>
                                 )}
                                 {tooltip.data.parcelNumber && (
-                                    <div><span className="text-[#A0AABB]">Parcel:</span> <span className="text-[#4A5568]">{tooltip.data.parcelNumber}</span></div>
+                                    <div><span className="text-[var(--text-faint)]">Parcel:</span> <span className="text-[var(--text-secondary)]">{tooltip.data.parcelNumber}</span></div>
                                 )}
                                 {tooltip.data.zoning && (
-                                    <div><span className="text-[#A0AABB]">Zoning:</span> <span className="text-[#4A5568] font-medium">{tooltip.data.zoning}</span></div>
+                                    <div><span className="text-[var(--text-faint)]">Zoning:</span> <span className="text-[var(--text-secondary)] font-medium">{tooltip.data.zoning}</span></div>
                                 )}
                                 {tooltip.data.usedesc && (
-                                    <div><span className="text-[#A0AABB]">Use:</span> <span className="text-[#4A5568]">{tooltip.data.usedesc}</span></div>
+                                    <div><span className="text-[var(--text-faint)]">Use:</span> <span className="text-[var(--text-secondary)]">{tooltip.data.usedesc}</span></div>
                                 )}
                                 {tooltip.data.lotAcres != null && tooltip.data.lotAcres > 0 && (
                                     <div>
-                                        <span className="text-[#A0AABB]">Size:</span>{' '}
-                                        <span className="text-[#4A5568] font-medium">
+                                        <span className="text-[var(--text-faint)]">Size:</span>{' '}
+                                        <span className="text-[var(--text-secondary)] font-medium">
                                             {formatNumber(tooltip.data.lotAcres, 2)} ac
                                             {tooltip.data.lotSqft ? ` (${formatNumber(tooltip.data.lotSqft)} SF)` : ''}
                                         </span>
                                     </div>
                                 )}
                                 {tooltip.data.assessedValue != null && tooltip.data.assessedValue > 0 && (
-                                    <div><span className="text-[#A0AABB]">Value:</span> <span className="text-[#4A5568]">{formatCurrency(tooltip.data.assessedValue)}</span></div>
+                                    <div><span className="text-[var(--text-faint)]">Value:</span> <span className="text-[var(--text-secondary)]">{formatCurrency(tooltip.data.assessedValue)}</span></div>
                                 )}
                                 {tooltip.data.yearBuilt != null && tooltip.data.yearBuilt > 0 && (
-                                    <div><span className="text-[#A0AABB]">Built:</span> <span className="text-[#4A5568]">{tooltip.data.yearBuilt}</span></div>
+                                    <div><span className="text-[var(--text-faint)]">Built:</span> <span className="text-[var(--text-secondary)]">{tooltip.data.yearBuilt}</span></div>
                                 )}
                             </div>
-                            <div className="text-[9px] text-[#A0AABB] mt-1.5 border-t border-[#F0F1F4] pt-1">Click for full details</div>
+                            <div className="text-[9px] text-[var(--text-faint)] mt-1.5 border-t border-[var(--table-row-border)] pt-1">Click for full details</div>
                         </div>
                     </div>
                 )}
@@ -712,48 +712,48 @@ export default function ExplorePage() {
                 {/* Mobile Tap Popup — fixed at bottom of screen */}
                 {mobilePopup && (
                     <div className="absolute bottom-0 left-0 right-0 z-30 md:hidden animate-fade-in">
-                        <div className="bg-white/95 backdrop-blur-sm border-t border-[#E2E5EA] shadow-2xl px-4 py-3 safe-area-pb">
+                        <div className="bg-[var(--bg-card)]/95 backdrop-blur-sm border-t border-[var(--border)] shadow-2xl px-4 py-3 safe-area-pb">
                             {/* Close button */}
                             <button
                                 onClick={() => setMobilePopup(null)}
-                                className="absolute top-2 right-3 p-1 rounded-md text-[#A0AABB] hover:text-[#4A5568]"
+                                className="absolute top-2 right-3 p-1 rounded-md text-[var(--text-faint)] hover:text-[var(--text-secondary)]"
                             >
                                 <X className="w-4 h-4" />
                             </button>
 
                             {mobilePopup.data.address && (
-                                <div className="text-sm font-semibold text-[#1A1F2B] mb-0.5 pr-6">{mobilePopup.data.address}</div>
+                                <div className="text-sm font-semibold text-[var(--text-primary)] mb-0.5 pr-6">{mobilePopup.data.address}</div>
                             )}
                             {(mobilePopup.data.city || mobilePopup.data.state) && (
-                                <div className="text-[10px] text-[#7A8599] mb-2">
+                                <div className="text-[10px] text-[var(--text-muted)] mb-2">
                                     {[mobilePopup.data.city, mobilePopup.data.state, mobilePopup.data.zip].filter(Boolean).join(', ')}
                                 </div>
                             )}
 
                             <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] mb-3">
                                 {mobilePopup.data.owner && (
-                                    <div><span className="text-[#A0AABB]">Owner:</span> <span className="text-[#4A5568]">{mobilePopup.data.owner}</span></div>
+                                    <div><span className="text-[var(--text-faint)]">Owner:</span> <span className="text-[var(--text-secondary)]">{mobilePopup.data.owner}</span></div>
                                 )}
                                 {mobilePopup.data.parcelNumber && (
-                                    <div><span className="text-[#A0AABB]">Parcel:</span> <span className="text-[#4A5568]">{mobilePopup.data.parcelNumber}</span></div>
+                                    <div><span className="text-[var(--text-faint)]">Parcel:</span> <span className="text-[var(--text-secondary)]">{mobilePopup.data.parcelNumber}</span></div>
                                 )}
                                 {mobilePopup.data.zoning && (
-                                    <div><span className="text-[#A0AABB]">Zoning:</span> <span className="text-[#4A5568] font-medium">{mobilePopup.data.zoning}</span></div>
+                                    <div><span className="text-[var(--text-faint)]">Zoning:</span> <span className="text-[var(--text-secondary)] font-medium">{mobilePopup.data.zoning}</span></div>
                                 )}
                                 {mobilePopup.data.usedesc && (
-                                    <div><span className="text-[#A0AABB]">Use:</span> <span className="text-[#4A5568]">{mobilePopup.data.usedesc}</span></div>
+                                    <div><span className="text-[var(--text-faint)]">Use:</span> <span className="text-[var(--text-secondary)]">{mobilePopup.data.usedesc}</span></div>
                                 )}
                                 {mobilePopup.data.lotAcres != null && mobilePopup.data.lotAcres > 0 && (
                                     <div>
-                                        <span className="text-[#A0AABB]">Size:</span>{' '}
-                                        <span className="text-[#4A5568] font-medium">
+                                        <span className="text-[var(--text-faint)]">Size:</span>{' '}
+                                        <span className="text-[var(--text-secondary)] font-medium">
                                             {formatNumber(mobilePopup.data.lotAcres, 2)} ac
                                             {mobilePopup.data.lotSqft ? ` (${formatNumber(mobilePopup.data.lotSqft)} SF)` : ''}
                                         </span>
                                     </div>
                                 )}
                                 {mobilePopup.data.assessedValue != null && mobilePopup.data.assessedValue > 0 && (
-                                    <div><span className="text-[#A0AABB]">Value:</span> <span className="text-[#4A5568]">{formatCurrency(mobilePopup.data.assessedValue)}</span></div>
+                                    <div><span className="text-[var(--text-faint)]">Value:</span> <span className="text-[var(--text-secondary)]">{formatCurrency(mobilePopup.data.assessedValue)}</span></div>
                                 )}
                             </div>
 
@@ -793,7 +793,7 @@ export default function ExplorePage() {
                                             setPanelLoading(false);
                                         });
                                 }}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#2563EB] hover:bg-[#1D4FD7] text-white text-sm font-medium transition-colors"
+                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors"
                             >
                                 <ChevronRight className="w-4 h-4" />
                                 View Full Details
@@ -808,16 +808,16 @@ export default function ExplorePage() {
                         }`}
                     style={{ width: 'min(380px, 100vw)' }}
                 >
-                    <div className="h-full bg-white border-l border-[#E2E5EA] shadow-2xl flex flex-col">
+                    <div className="h-full bg-[var(--bg-card)] border-l border-[var(--border)] shadow-2xl flex flex-col">
                         {/* Panel Header */}
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-[#E2E5EA] bg-[#FAFBFC]">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)] bg-[var(--bg-primary)]">
                             <div className="flex items-center gap-2">
                                 <Building2 className="w-4 h-4 text-[#F59E0B]" />
-                                <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider">Parcel Detail</h3>
+                                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Parcel Detail</h3>
                             </div>
                             <button
                                 onClick={() => { setPanelOpen(false); setPanelParcel(null); setPanelError(null); }}
-                                className="p-1 rounded-md text-[#A0AABB] hover:text-[#4A5568] hover:bg-[#F4F5F7] transition-colors"
+                                className="p-1 rounded-md text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
                             >
                                 <X className="w-4 h-4" />
                             </button>
@@ -827,47 +827,47 @@ export default function ExplorePage() {
                         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
                             {panelLoading && (
                                 <div className="flex items-center justify-center py-12">
-                                    <Loader2 className="w-6 h-6 animate-spin text-[#C8CDD5]" />
+                                    <Loader2 className="w-6 h-6 animate-spin text-[var(--border-strong)]" />
                                 </div>
                             )}
 
                             {panelError && (
-                                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-[#FEF2F2] border border-[#FECACA]">
-                                    <X className="w-3.5 h-3.5 mt-0.5 text-[#DC2626] flex-shrink-0" />
-                                    <p className="text-xs text-[#DC2626]">{panelError}</p>
+                                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-[var(--danger-bg)] border border-[var(--danger)]">
+                                    <X className="w-3.5 h-3.5 mt-0.5 text-[var(--danger)] flex-shrink-0" />
+                                    <p className="text-xs text-[var(--danger)]">{panelError}</p>
                                 </div>
                             )}
 
                             {panelParcel && (
                                 <>
                                     {/* Address header */}
-                                    <div className="pb-2 border-b border-[#E2E5EA]">
-                                        <h4 className="text-sm font-bold text-[#1A1F2B]">{panelParcel.details.address || 'Unknown Address'}</h4>
-                                        <p className="text-xs text-[#7A8599] mt-0.5">
+                                    <div className="pb-2 border-b border-[var(--border)]">
+                                        <h4 className="text-sm font-bold text-[var(--text-primary)]">{panelParcel.details.address || 'Unknown Address'}</h4>
+                                        <p className="text-xs text-[var(--text-muted)] mt-0.5">
                                             {[panelParcel.details.city, panelParcel.details.state, panelParcel.details.zip].filter(Boolean).join(', ')}
                                         </p>
                                         {panelParcel.details.county && (
-                                            <p className="text-[10px] text-[#A0AABB] mt-0.5">{panelParcel.details.county} County</p>
+                                            <p className="text-[10px] text-[var(--text-faint)] mt-0.5">{panelParcel.details.county} County</p>
                                         )}
                                     </div>
 
                                     {/* Quick Stats */}
                                     <div className="grid grid-cols-3 gap-2">
-                                        <div className="bg-[#FAFBFC] border border-[#E2E5EA] rounded-lg px-2 py-1.5 text-center">
-                                            <div className="text-[8px] text-[#A0AABB] uppercase tracking-wider font-semibold">Lot Size</div>
-                                            <div className="text-xs font-bold text-[#1A1F2B]">
+                                        <div className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-center">
+                                            <div className="text-[8px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Lot Size</div>
+                                            <div className="text-xs font-bold text-[var(--text-primary)]">
                                                 {panelParcel.details.lotSizeAcres ? `${formatNumber(panelParcel.details.lotSizeAcres, 2)} ac` : '—'}
                                             </div>
                                         </div>
-                                        <div className="bg-[#FAFBFC] border border-[#E2E5EA] rounded-lg px-2 py-1.5 text-center">
-                                            <div className="text-[8px] text-[#A0AABB] uppercase tracking-wider font-semibold">Zoning</div>
+                                        <div className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-center">
+                                            <div className="text-[8px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Zoning</div>
                                             <div className="text-xs font-bold text-[#8B5CF6]">
                                                 {panelParcel.zoning.code || panelParcel.zoning.type || '—'}
                                             </div>
                                         </div>
-                                        <div className="bg-[#FAFBFC] border border-[#E2E5EA] rounded-lg px-2 py-1.5 text-center">
-                                            <div className="text-[8px] text-[#A0AABB] uppercase tracking-wider font-semibold">Value</div>
-                                            <div className="text-xs font-bold text-[#1A1F2B]">
+                                        <div className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-center">
+                                            <div className="text-[8px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Value</div>
+                                            <div className="text-xs font-bold text-[var(--text-primary)]">
                                                 {formatCurrency(panelParcel.tax.totalValue)}
                                             </div>
                                         </div>
@@ -877,7 +877,7 @@ export default function ExplorePage() {
                                     <div>
                                         <div className="flex items-center gap-1.5 mb-1.5">
                                             <Home className="w-3 h-3 text-[#F59E0B]" />
-                                            <h5 className="text-[10px] font-bold text-[#7A8599] uppercase tracking-wider">Property</h5>
+                                            <h5 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Property</h5>
                                         </div>
                                         <InfoRow label="Parcel #" value={panelParcel.details.parcelNumber} icon={FileText} highlight />
                                         <InfoRow
@@ -899,7 +899,7 @@ export default function ExplorePage() {
                                     <div>
                                         <div className="flex items-center gap-1.5 mb-1.5">
                                             <Layers className="w-3 h-3 text-[#8B5CF6]" />
-                                            <h5 className="text-[10px] font-bold text-[#7A8599] uppercase tracking-wider">Zoning</h5>
+                                            <h5 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Zoning</h5>
                                         </div>
                                         <InfoRow label="Code" value={panelParcel.zoning.code} icon={Layers} highlight />
                                         <InfoRow label="Type" value={panelParcel.zoning.type} />
@@ -911,7 +911,7 @@ export default function ExplorePage() {
                                         {panelParcel.zoning.maxDensityPerAcre && <InfoRow label="Max Density" value={`${panelParcel.zoning.maxDensityPerAcre} du/ac`} />}
                                         {panelParcel.zoning.zoningCodeLink && (
                                             <a href={panelParcel.zoning.zoningCodeLink} target="_blank" rel="noopener noreferrer"
-                                                className="flex items-center gap-1 text-[10px] text-[#2563EB] hover:underline mt-1">
+                                                className="flex items-center gap-1 text-[10px] text-[var(--accent)] hover:underline mt-1">
                                                 View Zoning Code <ExternalLink className="w-2.5 h-2.5" />
                                             </a>
                                         )}
@@ -920,8 +920,8 @@ export default function ExplorePage() {
                                     {/* Tax & Valuation */}
                                     <div>
                                         <div className="flex items-center gap-1.5 mb-1.5">
-                                            <DollarSign className="w-3 h-3 text-[#0D7A3E]" />
-                                            <h5 className="text-[10px] font-bold text-[#7A8599] uppercase tracking-wider">Tax & Valuation</h5>
+                                            <DollarSign className="w-3 h-3 text-[var(--success)]" />
+                                            <h5 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Tax & Valuation</h5>
                                         </div>
                                         <InfoRow label="Total Value" value={formatCurrency(panelParcel.tax.totalValue)} icon={DollarSign} highlight />
                                         <InfoRow label="Land Value" value={formatCurrency(panelParcel.tax.landValue)} />
@@ -937,8 +937,8 @@ export default function ExplorePage() {
                                     {/* Owner */}
                                     <div>
                                         <div className="flex items-center gap-1.5 mb-1.5">
-                                            <User className="w-3 h-3 text-[#2563EB]" />
-                                            <h5 className="text-[10px] font-bold text-[#7A8599] uppercase tracking-wider">Ownership</h5>
+                                            <User className="w-3 h-3 text-[var(--accent)]" />
+                                            <h5 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Ownership</h5>
                                         </div>
                                         <InfoRow label="Owner" value={panelParcel.owner.name} icon={User} highlight />
                                         {panelParcel.owner.name2 && <InfoRow label="Owner 2" value={panelParcel.owner.name2} />}
@@ -954,7 +954,7 @@ export default function ExplorePage() {
                                         <div>
                                             <div className="flex items-center gap-1.5 mb-1.5">
                                                 <Calendar className="w-3 h-3 text-[#F59E0B]" />
-                                                <h5 className="text-[10px] font-bold text-[#7A8599] uppercase tracking-wider">Sale History</h5>
+                                                <h5 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Sale History</h5>
                                             </div>
                                             <InfoRow label="Last Sale Price" value={formatCurrency(panelParcel.details.lastSalePrice)} highlight />
                                             <InfoRow label="Last Sale Date" value={panelParcel.details.lastSaleDate} />
@@ -968,8 +968,8 @@ export default function ExplorePage() {
                                     {(panelParcel.details.femaFloodZone || panelParcel.details.femaNriRiskRating) && (
                                         <div>
                                             <div className="flex items-center gap-1.5 mb-1.5">
-                                                <Shield className="w-3 h-3 text-[#DC2626]" />
-                                                <h5 className="text-[10px] font-bold text-[#7A8599] uppercase tracking-wider">FEMA & Risk</h5>
+                                                <Shield className="w-3 h-3 text-[var(--danger)]" />
+                                                <h5 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">FEMA & Risk</h5>
                                             </div>
                                             {panelParcel.details.femaFloodZone && (
                                                 <InfoRow label="Flood Zone" value={panelParcel.details.femaFloodZone} />
@@ -979,7 +979,7 @@ export default function ExplorePage() {
                                             )}
                                             {panelParcel.details.femaNriRiskRating && (
                                                 <div className="py-1">
-                                                    <div className="text-[9px] text-[#A0AABB] uppercase tracking-wider font-semibold mb-0.5">NRI Risk Rating</div>
+                                                    <div className="text-[9px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-0.5">NRI Risk Rating</div>
                                                     <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${getRiskColor(panelParcel.details.femaNriRiskRating)}`}>
                                                         {panelParcel.details.femaNriRiskRating}
                                                     </span>
@@ -993,7 +993,7 @@ export default function ExplorePage() {
                                         <div>
                                             <div className="flex items-center gap-1.5 mb-1.5">
                                                 <LandPlot className="w-3 h-3 text-[#7C3AED]" />
-                                                <h5 className="text-[10px] font-bold text-[#7A8599] uppercase tracking-wider">Demographics</h5>
+                                                <h5 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Demographics</h5>
                                             </div>
                                             <InfoRow label="Median HH Income" value={formatCurrency(panelParcel.details.medianHouseholdIncome)} highlight />
                                             <InfoRow label="Pop. Density" value={panelParcel.details.populationDensity ? `${formatNumber(panelParcel.details.populationDensity)} / sq mi` : null} />
@@ -1013,8 +1013,8 @@ export default function ExplorePage() {
                                     {panelParcel.details.censusTract && (
                                         <div>
                                             <div className="flex items-center gap-1.5 mb-1.5">
-                                                <MapPin className="w-3 h-3 text-[#A0AABB]" />
-                                                <h5 className="text-[10px] font-bold text-[#7A8599] uppercase tracking-wider">Census</h5>
+                                                <MapPin className="w-3 h-3 text-[var(--text-faint)]" />
+                                                <h5 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Census</h5>
                                             </div>
                                             <InfoRow label="Census Tract" value={panelParcel.details.censusTract} />
                                             <InfoRow label="Block Group" value={panelParcel.details.censusBlockGroup} />
@@ -1029,10 +1029,10 @@ export default function ExplorePage() {
 
                         {/* Panel Footer — Action buttons */}
                         {panelParcel && (
-                            <div className="px-4 py-3 border-t border-[#E2E5EA] bg-[#FAFBFC] space-y-2">
+                            <div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--bg-primary)] space-y-2">
                                 <button
                                     onClick={() => { setCreateName(panelParcel.details.address || 'New Pursuit'); setShowCreateDialog('pursuit'); }}
-                                    className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-[#1D4FD7] text-white text-xs font-medium transition-colors shadow-sm"
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-medium transition-colors shadow-sm"
                                 >
                                     <Plus className="w-3.5 h-3.5" />
                                     Create Pursuit
@@ -1051,26 +1051,26 @@ export default function ExplorePage() {
 
                 {/* Create Dialog */}
                 {showCreateDialog && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-                        <div className="bg-white border border-[#E2E5EA] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in">
-                            <h2 className="text-lg font-semibold text-[#1A1F2B] mb-1">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
+                        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in">
+                            <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-1">
                                 {showCreateDialog === 'pursuit' ? 'Create Pursuit' : 'Create Comp'}
                             </h2>
-                            <p className="text-xs text-[#7A8599] mb-4">
+                            <p className="text-xs text-[var(--text-muted)] mb-4">
                                 {panelParcel?.details.address && (
-                                    <>From parcel: <span className="font-medium text-[#4A5568]">{panelParcel.details.address}</span></>
+                                    <>From parcel: <span className="font-medium text-[var(--text-secondary)]">{panelParcel.details.address}</span></>
                                 )}
                             </p>
                             <div>
-                                <label className="block text-xs font-semibold text-[#4A5568] mb-1.5 uppercase tracking-wider">
-                                    Name <span className="text-[#DC2626]">*</span>
+                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
+                                    Name <span className="text-[var(--danger)]">*</span>
                                 </label>
                                 <input
                                     type="text"
                                     value={createName}
                                     onChange={(e) => setCreateName(e.target.value)}
                                     placeholder={showCreateDialog === 'pursuit' ? 'e.g., Main & Elm Site' : 'e.g., 123 Main St Sale'}
-                                    className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] placeholder:text-[#A0AABB] focus:border-[#2563EB] focus:ring-2 focus:ring-[#EBF1FF] focus:outline-none"
+                                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-subtle)] focus:outline-none"
                                     autoFocus
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
@@ -1083,7 +1083,7 @@ export default function ExplorePage() {
                             <div className="flex justify-end gap-3 mt-6">
                                 <button
                                     onClick={() => { setShowCreateDialog(null); setCreateName(''); }}
-                                    className="px-4 py-2 rounded-lg text-sm text-[#4A5568] hover:text-[#1A1F2B] hover:bg-[#F4F5F7] transition-colors"
+                                    className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
                                 >
                                     Cancel
                                 </button>
@@ -1094,7 +1094,7 @@ export default function ExplorePage() {
                                         (showCreateDialog === 'pursuit' ? createPursuit.isPending : createComp.isPending)
                                     }
                                     className={`px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors shadow-sm disabled:opacity-50 ${showCreateDialog === 'pursuit'
-                                        ? 'bg-[#2563EB] hover:bg-[#1D4FD7]'
+                                        ? 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'
                                         : 'bg-[#0D9488] hover:bg-[#0F766E]'
                                         }`}
                                 >

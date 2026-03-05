@@ -264,13 +264,13 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
         return (
             <div className="card">
                 <div className="flex items-center gap-2 mb-3">
-                    <Clock className="w-4 h-4 text-[#A0AABB]" />
-                    <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider">Drive-Time Analysis</h3>
+                    <Clock className="w-4 h-4 text-[var(--text-faint)]" />
+                    <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Drive-Time Analysis</h3>
                 </div>
                 <div className="flex items-center justify-center py-8 text-center">
                     <div>
-                        <MapPin className="w-6 h-6 text-[#C8CDD5] mx-auto mb-2" />
-                        <p className="text-xs text-[#A0AABB]">Set a location to generate drive-time analysis</p>
+                        <MapPin className="w-6 h-6 text-[var(--border-strong)] mx-auto mb-2" />
+                        <p className="text-xs text-[var(--text-faint)]">Set a location to generate drive-time analysis</p>
                     </div>
                 </div>
             </div>
@@ -287,9 +287,9 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-[#007cbf]" />
-                    <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider">Drive-Time Analysis</h3>
+                    <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Drive-Time Analysis</h3>
                     {cachedAt && !loading && (
-                        <span className="flex items-center gap-1 text-[10px] text-[#0D7A3E] bg-[#0D7A3E]/10 px-1.5 py-0.5 rounded-full font-medium">
+                        <span className="flex items-center gap-1 text-[10px] text-[var(--success)] bg-[var(--success)]/10 px-1.5 py-0.5 rounded-full font-medium">
                             <CheckCircle2 className="w-2.5 h-2.5" />
                             Cached
                         </span>
@@ -300,7 +300,7 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
                     <select
                         value={breakMinutes}
                         onChange={(e) => setBreakMinutes(Number(e.target.value))}
-                        className="text-xs px-2 py-1 rounded-md border border-[#E2E5EA] text-[#4A5568] focus:border-[#2563EB] focus:outline-none bg-white"
+                        className="text-xs px-2 py-1 rounded-md border border-[var(--border)] text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none bg-[var(--bg-card)]"
                         disabled={loading}
                     >
                         <option value={5}>5 min</option>
@@ -312,7 +312,7 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
                     <button
                         onClick={fetchIsochrone}
                         disabled={loading}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#2563EB] hover:bg-[#1D4FD7] disabled:opacity-50 text-white text-xs font-medium transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-xs font-medium transition-colors"
                     >
                         {loading ? (
                             <><Loader2 className="w-3 h-3 animate-spin" /> Generating...</>
@@ -325,14 +325,14 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
 
             {/* Cached timestamp */}
             {formattedCacheDate && !loading && (
-                <p className="text-[10px] text-[#A0AABB] mb-2">Last generated: {formattedCacheDate}</p>
+                <p className="text-[10px] text-[var(--text-faint)] mb-2">Last generated: {formattedCacheDate}</p>
             )}
 
             {/* Error */}
             {error && (
-                <div className="flex items-start gap-2 p-2.5 mb-3 rounded-lg bg-[#FEF2F2] border border-[#FECACA]">
-                    <AlertCircle className="w-3.5 h-3.5 mt-0.5 text-[#DC2626] flex-shrink-0" />
-                    <p className="text-xs text-[#DC2626]">{error}</p>
+                <div className="flex items-start gap-2 p-2.5 mb-3 rounded-lg bg-[var(--danger-bg)] border border-[var(--danger)]">
+                    <AlertCircle className="w-3.5 h-3.5 mt-0.5 text-[var(--danger)] flex-shrink-0" />
+                    <p className="text-xs text-[var(--danger)]">{error}</p>
                 </div>
             )}
 
@@ -343,15 +343,15 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
                     {MAPBOX_TOKEN ? (
                         <div
                             ref={mapContainerRef}
-                            className="w-full h-[400px] rounded-lg overflow-hidden border border-[#E2E5EA]"
+                            className="w-full h-[400px] rounded-lg overflow-hidden border border-[var(--border)]"
                         />
                     ) : (
-                        <div className="w-full h-[400px] rounded-lg border border-[#E2E5EA] bg-[#FAFBFC] flex items-center justify-center">
-                            <p className="text-xs text-[#A0AABB]">Add <code className="text-[10px] bg-[#F4F5F7] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env.local</p>
+                        <div className="w-full h-[400px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] flex items-center justify-center">
+                            <p className="text-xs text-[var(--text-faint)]">Add <code className="text-[10px] bg-[var(--bg-elevated)] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env.local</p>
                         </div>
                     )}
                     {polygon && (
-                        <p className="text-[10px] text-[#A0AABB] mt-1.5 text-center">
+                        <p className="text-[10px] text-[var(--text-faint)] mt-1.5 text-center">
                             {breakMinutes}-minute drive-time area from {pursuitName || 'location'} · Tuesday 8:00 AM
                         </p>
                     )}
@@ -360,21 +360,21 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
                 {/* Tapestry Sidebar */}
                 <div className="lg:col-span-1">
                     {tapestry.length > 0 ? (
-                        <div className="bg-[#FAFBFC] border border-[#E2E5EA] rounded-lg p-3">
+                        <div className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg p-3">
                             <button
                                 onClick={() => setShowDetails(!showDetails)}
                                 className="flex items-center justify-between w-full mb-2"
                             >
                                 <div className="flex items-center gap-1.5">
                                     <BarChart3 className="w-3.5 h-3.5 text-[#007cbf]" />
-                                    <span className="text-xs font-bold text-[#7A8599] uppercase tracking-wider">Tapestry Segments</span>
+                                    <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Tapestry Segments</span>
                                 </div>
-                                {showDetails ? <ChevronUp className="w-3.5 h-3.5 text-[#A0AABB]" /> : <ChevronDown className="w-3.5 h-3.5 text-[#A0AABB]" />}
+                                {showDetails ? <ChevronUp className="w-3.5 h-3.5 text-[var(--text-faint)]" /> : <ChevronDown className="w-3.5 h-3.5 text-[var(--text-faint)]" />}
                             </button>
 
                             {/* Context label */}
-                            <p className="text-[10px] text-[#7A8599] mb-2 leading-relaxed">
-                                Top lifestyle segments within the <span className="font-semibold text-[#4A5568]">{breakMinutes}-min drive-time</span> area
+                            <p className="text-[10px] text-[var(--text-muted)] mb-2 leading-relaxed">
+                                Top lifestyle segments within the <span className="font-semibold text-[var(--text-secondary)]">{breakMinutes}-min drive-time</span> area
                                 {totalPop != null && totalHH != null && (
                                     <span> · {totalPop.toLocaleString()} people · {totalHH.toLocaleString()} households</span>
                                 )}
@@ -386,8 +386,8 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
                                         <div
                                             key={seg.code || i}
                                             className={`p-2.5 rounded-lg border ${i === 0
-                                                ? 'bg-white border-[#007cbf]/20 shadow-sm'
-                                                : 'bg-white border-[#E2E5EA]'
+                                                ? 'bg-[var(--bg-card)] border-[#007cbf]/20 shadow-sm'
+                                                : 'bg-[var(--bg-card)] border-[var(--border)]'
                                                 }`}
                                         >
                                             <div className="flex items-start justify-between gap-2">
@@ -397,20 +397,20 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
                                                             Dominant
                                                         </span>
                                                     )}
-                                                    <div className="text-xs font-semibold text-[#1A1F2B] truncate">{seg.name}</div>
-                                                    <div className="text-[10px] text-[#7A8599] mt-0.5">
+                                                    <div className="text-xs font-semibold text-[var(--text-primary)] truncate">{seg.name}</div>
+                                                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5">
                                                         {seg.code} · {seg.lifestyleGroup || 'N/A'}
                                                     </div>
                                                     {seg.medianAge != null && seg.medianAge > 0 && (
-                                                        <div className="text-[10px] text-[#A0AABB] mt-0.5">Median Age: {seg.medianAge.toFixed(1)}</div>
+                                                        <div className="text-[10px] text-[var(--text-faint)] mt-0.5">Median Age: {seg.medianAge.toFixed(1)}</div>
                                                     )}
                                                 </div>
                                                 <div className="text-right flex-shrink-0">
                                                     <div className="text-sm font-bold text-[#007cbf]">{seg.householdPct}%</div>
-                                                    <div className="text-[10px] text-[#A0AABB]">{seg.householdCount.toLocaleString()} HH</div>
+                                                    <div className="text-[10px] text-[var(--text-faint)]">{seg.householdCount.toLocaleString()} HH</div>
                                                 </div>
                                             </div>
-                                            <div className="mt-2 h-1.5 bg-[#F0F1F4] rounded-full overflow-hidden">
+                                            <div className="mt-2 h-1.5 bg-[var(--table-row-border)] rounded-full overflow-hidden">
                                                 <div
                                                     className="h-full rounded-full transition-all duration-500"
                                                     style={{
@@ -425,17 +425,17 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
                             )}
                         </div>
                     ) : polygon ? (
-                        <div className="bg-[#FAFBFC] border border-[#E2E5EA] rounded-lg p-4 flex items-center justify-center h-full">
+                        <div className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg p-4 flex items-center justify-center h-full">
                             <div className="text-center">
-                                <BarChart3 className="w-5 h-5 text-[#C8CDD5] mx-auto mb-2" />
-                                <p className="text-xs text-[#A0AABB]">No Tapestry data available for this area</p>
+                                <BarChart3 className="w-5 h-5 text-[var(--border-strong)] mx-auto mb-2" />
+                                <p className="text-xs text-[var(--text-faint)]">No Tapestry data available for this area</p>
                             </div>
                         </div>
                     ) : (
-                        <div className="bg-[#FAFBFC] border border-[#E2E5EA] rounded-lg p-4 flex items-center justify-center h-full min-h-[200px]">
+                        <div className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg p-4 flex items-center justify-center h-full min-h-[200px]">
                             <div className="text-center">
-                                <Clock className="w-5 h-5 text-[#C8CDD5] mx-auto mb-2" />
-                                <p className="text-xs text-[#A0AABB]">Click &ldquo;Generate&rdquo; to create a drive-time isochrone and view Tapestry lifestyle segments</p>
+                                <Clock className="w-5 h-5 text-[var(--border-strong)] mx-auto mb-2" />
+                                <p className="text-xs text-[var(--text-faint)]">Click &ldquo;Generate&rdquo; to create a drive-time isochrone and view Tapestry lifestyle segments</p>
                             </div>
                         </div>
                     )}

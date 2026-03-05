@@ -32,10 +32,10 @@ interface KeyDatesTabProps {
 // ── Helpers ─────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<KeyDateStatus, { label: string; color: string; bgColor: string; Icon: typeof CheckCircle2 }> = {
-    upcoming: { label: 'Upcoming', color: '#2563EB', bgColor: '#EBF1FF', Icon: Clock },
-    completed: { label: 'Completed', color: '#0D7A3E', bgColor: '#ECFDF3', Icon: CheckCircle2 },
-    overdue: { label: 'Overdue', color: '#DC2626', bgColor: '#FEF2F2', Icon: AlertTriangle },
-    waived: { label: 'Waived', color: '#7A8599', bgColor: '#F4F5F7', Icon: XCircle },
+    upcoming: { label: 'Upcoming', color: 'var(--accent)', bgColor: 'var(--accent-subtle)', Icon: Clock },
+    completed: { label: 'Completed', color: 'var(--success)', bgColor: 'var(--success-bg)', Icon: CheckCircle2 },
+    overdue: { label: 'Overdue', color: 'var(--danger)', bgColor: 'var(--danger-bg)', Icon: AlertTriangle },
+    waived: { label: 'Waived', color: 'var(--text-muted)', bgColor: 'var(--bg-elevated)', Icon: XCircle },
 };
 
 function daysUntil(dateStr: string): number {
@@ -57,7 +57,7 @@ function getDateLabel(kd: KeyDate): string {
 
 function getDateColor(kd: KeyDate, types: KeyDateType[]): string {
     if (kd.key_date_type) return kd.key_date_type.color;
-    return '#7A8599';
+    return 'var(--text-muted)';
 }
 
 // ── AI Review Modal ─────────────────────────────────────────
@@ -98,17 +98,17 @@ function AIReviewModal({
     const acceptedCount = items.filter(d => d.accepted && d.date_value).length;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-            <div className="bg-white border border-[#E2E5EA] rounded-xl p-6 w-full max-w-3xl shadow-xl animate-fade-in max-h-[80vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
+            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-3xl shadow-xl animate-fade-in max-h-[80vh] flex flex-col">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
-                        <h2 className="text-lg font-semibold text-[#1A1F2B]">AI Extracted Dates</h2>
+                        <h2 className="text-lg font-semibold text-[var(--text-primary)]">AI Extracted Dates</h2>
                         <span className="text-xs bg-[#8B5CF6]/10 text-[#8B5CF6] px-2 py-0.5 rounded-full font-medium">
                             {items.length} found
                         </span>
                     </div>
-                    <button onClick={onClose} className="p-1 rounded hover:bg-[#F4F5F7] text-[#A0AABB]">
+                    <button onClick={onClose} className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-faint)]">
                         <X className="w-4 h-4" />
                     </button>
                 </div>
@@ -117,58 +117,58 @@ function AIReviewModal({
                     {items.map((d, idx) => (
                         <div
                             key={idx}
-                            className={`border rounded-lg p-3 transition-all ${d.accepted ? 'border-[#2563EB]/30 bg-[#EBF1FF]/30' : 'border-[#E2E5EA] opacity-60'}`}
+                            className={`border rounded-lg p-3 transition-all ${d.accepted ? 'border-[var(--accent)]/30 bg-[var(--accent-subtle)]/30' : 'border-[var(--border)] opacity-60'}`}
                         >
                             <div className="flex items-center gap-3">
                                 <input
                                     type="checkbox"
                                     checked={d.accepted}
                                     onChange={() => toggleItem(idx)}
-                                    className="w-4 h-4 rounded border-[#E2E5EA] text-[#2563EB] focus:ring-[#2563EB]"
+                                    className="w-4 h-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
                                 />
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium text-[#1A1F2B]">{d.label}</span>
+                                        <span className="text-sm font-medium text-[var(--text-primary)]">{d.label}</span>
                                         {d.matched_type !== 'custom' && (
-                                            <span className="text-[9px] bg-[#F4F5F7] text-[#7A8599] px-1.5 py-0.5 rounded font-mono">
+                                            <span className="text-[9px] bg-[var(--bg-elevated)] text-[var(--text-muted)] px-1.5 py-0.5 rounded font-mono">
                                                 {d.matched_type}
                                             </span>
                                         )}
-                                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${d.confidence >= 0.8 ? 'bg-[#ECFDF3] text-[#0D7A3E]' :
+                                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${d.confidence >= 0.8 ? 'bg-[var(--success-bg)] text-[var(--success)]' :
                                                 d.confidence >= 0.5 ? 'bg-[#FFF8E1] text-[#CA8A04]' :
-                                                    'bg-[#FEF2F2] text-[#DC2626]'
+                                                    'bg-[var(--danger-bg)] text-[var(--danger)]'
                                             }`}>
                                             {Math.round(d.confidence * 100)}%
                                         </span>
                                     </div>
                                     {d.contract_reference && (
-                                        <span className="text-[10px] text-[#7A8599] font-mono">{d.contract_reference}</span>
+                                        <span className="text-[10px] text-[var(--text-muted)] font-mono">{d.contract_reference}</span>
                                     )}
                                     {d.context_snippet && (
-                                        <p className="text-[10px] text-[#A0AABB] mt-0.5 italic truncate">"{d.context_snippet}"</p>
+                                        <p className="text-[10px] text-[var(--text-faint)] mt-0.5 italic truncate">"{d.context_snippet}"</p>
                                     )}
                                 </div>
                                 <input
                                     type="date"
                                     value={d.date_value ?? ''}
                                     onChange={(e) => updateDate(idx, e.target.value)}
-                                    className="px-2 py-1 rounded border border-[#E2E5EA] text-sm text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none"
+                                    className="px-2 py-1 rounded border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                                 />
                             </div>
                         </div>
                     ))}
                 </div>
 
-                <div className="flex items-center justify-between pt-4 border-t border-[#E2E5EA]">
-                    <span className="text-xs text-[#7A8599]">{acceptedCount} date{acceptedCount !== 1 ? 's' : ''} selected</span>
+                <div className="flex items-center justify-between pt-4 border-t border-[var(--border)]">
+                    <span className="text-xs text-[var(--text-muted)]">{acceptedCount} date{acceptedCount !== 1 ? 's' : ''} selected</span>
                     <div className="flex gap-3">
-                        <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-[#4A5568] hover:text-[#1A1F2B] hover:bg-[#F4F5F7] transition-colors">
+                        <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors">
                             Cancel
                         </button>
                         <button
                             onClick={() => onAccept(items.filter(d => d.accepted && d.date_value))}
                             disabled={acceptedCount === 0 || isImporting}
-                            className="px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-[#1D4FD7] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
+                            className="px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
                         >
                             {isImporting ? 'Importing...' : `Import ${acceptedCount} Date${acceptedCount !== 1 ? 's' : ''}`}
                         </button>
@@ -217,20 +217,20 @@ function AddDateDialog({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-            <div className="bg-white border border-[#E2E5EA] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in">
-                <h2 className="text-lg font-semibold text-[#1A1F2B] mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
+            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in">
+                <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">
                     {editDate ? 'Edit Date' : 'Add Key Date'}
                 </h2>
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-xs font-semibold text-[#4A5568] mb-1.5 uppercase tracking-wider">
-                            Date Type <span className="text-[#DC2626]">*</span>
+                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
+                            Date Type <span className="text-[var(--danger)]">*</span>
                         </label>
                         <select
                             value={typeId}
                             onChange={(e) => setTypeId(e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none"
+                            className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                         >
                             <option value="">— Custom —</option>
                             <optgroup label="Contract">
@@ -248,39 +248,39 @@ function AddDateDialog({
 
                     {(typeId === '' || typeId === 'custom') && (
                         <div>
-                            <label className="block text-xs font-semibold text-[#4A5568] mb-1.5 uppercase tracking-wider">
-                                Custom Label <span className="text-[#DC2626]">*</span>
+                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
+                                Custom Label <span className="text-[var(--danger)]">*</span>
                             </label>
                             <input
                                 type="text"
                                 value={customLabel}
                                 onChange={(e) => setCustomLabel(e.target.value)}
                                 placeholder="e.g., City Council Vote"
-                                className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] placeholder:text-[#A0AABB] focus:border-[#2563EB] focus:outline-none"
+                                className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:outline-none"
                             />
                         </div>
                     )}
 
                     <div>
-                        <label className="block text-xs font-semibold text-[#4A5568] mb-1.5 uppercase tracking-wider">
-                            Date <span className="text-[#DC2626]">*</span>
+                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
+                            Date <span className="text-[var(--danger)]">*</span>
                         </label>
                         <input
                             type="date"
                             value={dateValue}
                             onChange={(e) => setDateValue(e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none"
+                            className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-[#4A5568] mb-1.5 uppercase tracking-wider">
+                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
                             Status
                         </label>
                         <select
                             value={status}
                             onChange={(e) => setStatus(e.target.value as KeyDateStatus)}
-                            className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] focus:border-[#2563EB] focus:outline-none"
+                            className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                         >
                             {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
                                 <option key={key} value={key}>{cfg.label}</option>
@@ -289,7 +289,7 @@ function AddDateDialog({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-[#4A5568] mb-1.5 uppercase tracking-wider">
+                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
                             Notes
                         </label>
                         <textarea
@@ -297,19 +297,19 @@ function AddDateDialog({
                             onChange={(e) => setNotes(e.target.value)}
                             placeholder="Optional notes..."
                             rows={2}
-                            className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] placeholder:text-[#A0AABB] focus:border-[#2563EB] focus:outline-none resize-none"
+                            className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:outline-none resize-none"
                         />
                     </div>
                 </div>
 
                 <div className="flex justify-end gap-3 mt-6">
-                    <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-[#4A5568] hover:text-[#1A1F2B] hover:bg-[#F4F5F7] transition-colors">
+                    <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors">
                         Cancel
                     </button>
                     <button
                         onClick={handleSave}
                         disabled={!dateValue || (isCustom && !customLabel.trim()) || isSaving}
-                        className="px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-[#1D4FD7] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors shadow-sm"
+                        className="px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors shadow-sm"
                     >
                         {isSaving ? 'Saving...' : editDate ? 'Save Changes' : 'Add Date'}
                     </button>
@@ -336,17 +336,17 @@ function TimelineView({ dates, types }: { dates: KeyDate[]; types: KeyDateType[]
     const todayPct = Math.max(0, Math.min(100, ((today.getTime() - earliest) / range) * 100));
 
     return (
-        <div className="mt-6 pt-4 border-t border-[#F0F1F4]">
-            <h4 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider mb-4">Timeline</h4>
-            <div className="relative h-16 bg-[#F8F9FB] rounded-lg overflow-visible px-4">
+        <div className="mt-6 pt-4 border-t border-[var(--table-row-border)]">
+            <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4">Timeline</h4>
+            <div className="relative h-16 bg-[var(--bg-primary)] rounded-lg overflow-visible px-4">
                 {/* Track line */}
-                <div className="absolute top-1/2 left-4 right-4 h-0.5 bg-[#E2E5EA] -translate-y-1/2" />
+                <div className="absolute top-1/2 left-4 right-4 h-0.5 bg-[var(--border)] -translate-y-1/2" />
                 {/* Today marker */}
                 <div
-                    className="absolute top-0 bottom-0 w-0.5 bg-[#DC2626]/40"
+                    className="absolute top-0 bottom-0 w-0.5 bg-[var(--danger)]/40"
                     style={{ left: `calc(${todayPct}% + 16px - 1px)` }}
                 >
-                    <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[8px] text-[#DC2626] font-medium whitespace-nowrap">
+                    <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[8px] text-[var(--danger)] font-medium whitespace-nowrap">
                         Today
                     </span>
                 </div>
@@ -366,7 +366,7 @@ function TimelineView({ dates, types }: { dates: KeyDate[]; types: KeyDateType[]
                                 style={{ backgroundColor: color }}
                             />
                             <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 opacity-0 group-hover/dot:opacity-100 transition-opacity pointer-events-none z-10">
-                                <div className="bg-[#1A1F2B] text-white text-[9px] px-2 py-1 rounded whitespace-nowrap shadow-lg">
+                                <div className="bg-[var(--text-primary)] text-white text-[9px] px-2 py-1 rounded whitespace-nowrap shadow-lg">
                                     {getDateLabel(kd)} — {formatDate(kd.date_value)}
                                 </div>
                             </div>
@@ -525,7 +525,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
     if (isLoading) {
         return (
             <div className="flex justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-[#C8CDD5]" />
+                <Loader2 className="w-6 h-6 animate-spin text-[var(--border-strong)]" />
             </div>
         );
     }
@@ -534,7 +534,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
         <div>
             {/* Header actions */}
             <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-[#1A1F2B]">Key Dates</h2>
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">Key Dates</h2>
                 <div className="flex items-center gap-2">
                     <input
                         ref={fileInputRef}
@@ -550,7 +550,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                     <button
                         onClick={() => fileInputRef.current?.click()}
                         disabled={isExtracting}
-                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg border border-[#E2E5EA] text-[#4A5568] hover:text-[#8B5CF6] hover:border-[#8B5CF6] text-sm font-medium transition-colors disabled:opacity-50"
+                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[#8B5CF6] hover:border-[#8B5CF6] text-sm font-medium transition-colors disabled:opacity-50"
                     >
                         {isExtracting ? (
                             <>
@@ -566,7 +566,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                     </button>
                     <button
                         onClick={() => { setEditDate(null); setShowAddDialog(true); }}
-                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-[#2563EB] hover:bg-[#1D4FD7] text-white text-sm font-medium transition-colors shadow-sm"
+                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors shadow-sm"
                     >
                         <Plus className="w-4 h-4" /> Add Date
                     </button>
@@ -575,10 +575,10 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
 
             {/* Extract error */}
             {extractError && (
-                <div className="mb-4 p-3 rounded-lg bg-[#FEF2F2] border border-[#FECACA] text-sm text-[#DC2626] flex items-center gap-2">
+                <div className="mb-4 p-3 rounded-lg bg-[var(--danger-bg)] border border-[var(--danger)] text-sm text-[var(--danger)] flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                     <span>{extractError}</span>
-                    <button onClick={() => setExtractError(null)} className="ml-auto text-[#DC2626]/60 hover:text-[#DC2626]">
+                    <button onClick={() => setExtractError(null)} className="ml-auto text-[var(--danger)]/60 hover:text-[var(--danger)]">
                         <X className="w-3.5 h-3.5" />
                     </button>
                 </div>
@@ -587,8 +587,8 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
             {/* Empty state */}
             {keyDates.length === 0 && !isExtracting && (
                 <div className="card flex flex-col items-center py-12 text-center">
-                    <Calendar className="w-10 h-10 text-[#C8CDD5] mb-3" />
-                    <p className="text-sm text-[#7A8599] mb-4">
+                    <Calendar className="w-10 h-10 text-[var(--border-strong)] mb-3" />
+                    <p className="text-sm text-[var(--text-muted)] mb-4">
                         No key dates added yet. Add dates manually or upload a contract for AI extraction.
                     </p>
                     <div className="flex items-center gap-3">
@@ -600,7 +600,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                         </button>
                         <button
                             onClick={() => { setEditDate(null); setShowAddDialog(true); }}
-                            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[#E2E5EA] text-[#4A5568] hover:text-[#2563EB] hover:border-[#2563EB] text-sm font-medium transition-colors"
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--accent)] hover:border-[var(--accent)] text-sm font-medium transition-colors"
                         >
                             <Plus className="w-4 h-4" /> Add Manually
                         </button>
@@ -615,13 +615,13 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                         onClick={() => toggleCategory(group.category)}
                         className="flex items-center justify-between w-full mb-2"
                     >
-                        <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider">
+                        <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
                             {group.label}
-                            <span className="ml-2 text-[#A0AABB] font-normal">({group.dates.length})</span>
+                            <span className="ml-2 text-[var(--text-faint)] font-normal">({group.dates.length})</span>
                         </h3>
                         {collapsedCategories.has(group.category)
-                            ? <ChevronDown className="w-3.5 h-3.5 text-[#A0AABB]" />
-                            : <ChevronUp className="w-3.5 h-3.5 text-[#A0AABB]" />
+                            ? <ChevronDown className="w-3.5 h-3.5 text-[var(--text-faint)]" />
+                            : <ChevronUp className="w-3.5 h-3.5 text-[var(--text-faint)]" />
                         }
                     </button>
 
@@ -636,7 +636,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
 
                                 return (
                                     <div key={kd.id} className="group/row">
-                                        <div className="flex items-center gap-3 py-2 px-2 -mx-2 rounded-lg hover:bg-[#F8F9FB] transition-colors">
+                                        <div className="flex items-center gap-3 py-2 px-2 -mx-2 rounded-lg hover:bg-[var(--bg-primary)] transition-colors">
                                             {/* Status toggle */}
                                             <button
                                                 onClick={() => handleStatusToggle(kd)}
@@ -658,7 +658,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                                             {/* Label */}
                                             <button
                                                 onClick={() => setExpandedId(isExpanded ? null : kd.id)}
-                                                className="flex-1 text-left text-sm text-[#1A1F2B] font-medium hover:text-[#2563EB] transition-colors flex items-center gap-1.5"
+                                                className="flex-1 text-left text-sm text-[var(--text-primary)] font-medium hover:text-[var(--accent)] transition-colors flex items-center gap-1.5"
                                             >
                                                 {getDateLabel(kd)}
                                                 {kd.ai_extracted && (
@@ -667,15 +667,15 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                                             </button>
 
                                             {/* Date */}
-                                            <span className="text-sm text-[#4A5568] font-mono tabular-nums">
+                                            <span className="text-sm text-[var(--text-secondary)] font-mono tabular-nums">
                                                 {formatDate(kd.date_value)}
                                             </span>
 
                                             {/* Days until badge */}
                                             {kd.status === 'upcoming' && (
-                                                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${days <= 7 ? 'bg-[#FEF2F2] text-[#DC2626]' :
+                                                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${days <= 7 ? 'bg-[var(--danger-bg)] text-[var(--danger)]' :
                                                         days <= 30 ? 'bg-[#FFF8E1] text-[#CA8A04]' :
-                                                            'bg-[#EBF1FF] text-[#2563EB]'
+                                                            'bg-[var(--accent-subtle)] text-[var(--accent)]'
                                                     }`}>
                                                     {days === 0 ? 'Today' : days === 1 ? '1d' : `${days}d`}
                                                 </span>
@@ -693,14 +693,14 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                                             <div className="opacity-0 group-hover/row:opacity-100 flex items-center gap-1 transition-opacity">
                                                 <button
                                                     onClick={() => { setEditDate(kd); setShowAddDialog(true); }}
-                                                    className="p-1 rounded text-[#A0AABB] hover:text-[#2563EB] hover:bg-[#EBF1FF] transition-colors"
+                                                    className="p-1 rounded text-[var(--text-faint)] hover:text-[var(--accent)] hover:bg-[var(--accent-subtle)] transition-colors"
                                                     title="Edit"
                                                 >
                                                     <FileText className="w-3.5 h-3.5" />
                                                 </button>
                                                 <button
                                                     onClick={() => setDeleteConfirmId(kd.id)}
-                                                    className="p-1 rounded text-[#A0AABB] hover:text-[#DC2626] hover:bg-[#FEF2F2] transition-colors"
+                                                    className="p-1 rounded text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-colors"
                                                     title="Delete"
                                                 >
                                                     <Trash2 className="w-3.5 h-3.5" />
@@ -710,12 +710,12 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
 
                                         {/* Expanded details */}
                                         {isExpanded && (
-                                            <div className="ml-9 mb-2 pl-3 border-l-2 border-[#E2E5EA] text-[11px] text-[#7A8599] space-y-1">
+                                            <div className="ml-9 mb-2 pl-3 border-l-2 border-[var(--border)] text-[11px] text-[var(--text-muted)] space-y-1">
                                                 {kd.contract_reference && (
-                                                    <div><span className="font-medium text-[#4A5568]">Contract Ref:</span> {kd.contract_reference}</div>
+                                                    <div><span className="font-medium text-[var(--text-secondary)]">Contract Ref:</span> {kd.contract_reference}</div>
                                                 )}
                                                 {kd.notes && (
-                                                    <div><span className="font-medium text-[#4A5568]">Notes:</span> {kd.notes}</div>
+                                                    <div><span className="font-medium text-[var(--text-secondary)]">Notes:</span> {kd.notes}</div>
                                                 )}
                                                 {kd.ai_extracted && kd.ai_confidence != null && (
                                                     <div className="flex items-center gap-1">
@@ -764,19 +764,19 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
 
             {/* Delete Confirmation */}
             {deleteConfirmId && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-                    <div className="bg-white border border-[#E2E5EA] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in">
-                        <h2 className="text-lg font-semibold text-[#1A1F2B] mb-2">Delete Key Date</h2>
-                        <p className="text-sm text-[#7A8599] mb-1">
-                            Are you sure you want to delete <span className="font-medium text-[#1A1F2B]">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
+                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in">
+                        <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Delete Key Date</h2>
+                        <p className="text-sm text-[var(--text-muted)] mb-1">
+                            Are you sure you want to delete <span className="font-medium text-[var(--text-primary)]">
                                 {getDateLabel(keyDates.find(d => d.id === deleteConfirmId)!)}
                             </span>?
                         </p>
-                        <p className="text-xs text-[#DC2626] mb-6">This action cannot be undone.</p>
+                        <p className="text-xs text-[var(--danger)] mb-6">This action cannot be undone.</p>
                         <div className="flex justify-end gap-3">
                             <button
                                 onClick={() => setDeleteConfirmId(null)}
-                                className="px-4 py-2 rounded-lg text-sm text-[#4A5568] hover:text-[#1A1F2B] hover:bg-[#F4F5F7] transition-colors"
+                                className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
                             >
                                 Cancel
                             </button>
@@ -786,7 +786,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                                     setDeleteConfirmId(null);
                                 }}
                                 disabled={deleteKeyDate.isPending}
-                                className="px-4 py-2 rounded-lg bg-[#DC2626] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
+                                className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
                             >
                                 {deleteKeyDate.isPending ? 'Deleting...' : 'Delete'}
                             </button>

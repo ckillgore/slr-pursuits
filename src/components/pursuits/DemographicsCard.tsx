@@ -89,15 +89,15 @@ export function DemographicsCard({ pursuit, onUpdate }: DemographicsCardProps) {
     return (
         <div className="card">
             <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-[#7A8599] uppercase tracking-wider">Demographics</h3>
+                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Demographics</h3>
                 <div className="flex items-center gap-2">
                     {lastUpdated && (
-                        <span className="text-[10px] text-[#A0AABB]">Updated {lastUpdated}</span>
+                        <span className="text-[10px] text-[var(--text-faint)]">Updated {lastUpdated}</span>
                     )}
                     <button
                         onClick={handleRefresh}
                         disabled={isLoading}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-[#2563EB] hover:bg-[#EBF1FF] disabled:opacity-50 transition-colors"
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-subtle)] disabled:opacity-50 transition-colors"
                         title="Refresh demographics"
                     >
                         {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
@@ -107,7 +107,7 @@ export function DemographicsCard({ pursuit, onUpdate }: DemographicsCardProps) {
             </div>
 
             {error && (
-                <div className="flex items-center gap-2 text-xs text-[#DC2626] mb-3 px-2 py-1.5 rounded-md bg-[#FEF2F2]">
+                <div className="flex items-center gap-2 text-xs text-[var(--danger)] mb-3 px-2 py-1.5 rounded-md bg-[var(--danger-bg)]">
                     <AlertCircle className="w-3 h-3 flex-shrink-0" />
                     {error}
                 </div>
@@ -115,15 +115,15 @@ export function DemographicsCard({ pursuit, onUpdate }: DemographicsCardProps) {
 
             {!hasData && !isLoading && !error && (
                 <div className="text-center py-6">
-                    <Users className="w-6 h-6 text-[#C8CDD5] mx-auto mb-2" />
-                    <p className="text-xs text-[#A0AABB]">
+                    <Users className="w-6 h-6 text-[var(--border-strong)] mx-auto mb-2" />
+                    <p className="text-xs text-[var(--text-faint)]">
                         {hasLocation || pursuit.address ? 'Click "Load" to pull demographics for this location.' : 'Set a location first, then load demographics.'}
                     </p>
                 </div>
             )}
 
             {isLoading && (
-                <div className="flex items-center justify-center py-8 gap-2 text-sm text-[#7A8599]">
+                <div className="flex items-center justify-center py-8 gap-2 text-sm text-[var(--text-muted)]">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Fetching demographics...
                 </div>
@@ -133,11 +133,11 @@ export function DemographicsCard({ pursuit, onUpdate }: DemographicsCardProps) {
                 <>
                     {/* Tabs */}
                     {(hasRings || hasBg) && (
-                        <div className="flex items-center gap-1 mb-3 border-b border-[#F0F1F4]">
+                        <div className="flex items-center gap-1 mb-3 border-b border-[var(--table-row-border)]">
                             {hasRings && (
                                 <button
                                     onClick={() => setActiveTab('rings')}
-                                    className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors -mb-px ${effectiveTab === 'rings' ? 'border-[#2563EB] text-[#2563EB]' : 'border-transparent text-[#7A8599] hover:text-[#4A5568]'}`}
+                                    className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors -mb-px ${effectiveTab === 'rings' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
                                 >
                                     Trade Area (1/3/5 mi)
                                 </button>
@@ -145,7 +145,7 @@ export function DemographicsCard({ pursuit, onUpdate }: DemographicsCardProps) {
                             {hasBg && (
                                 <button
                                     onClick={() => setActiveTab('block_group')}
-                                    className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors -mb-px ${effectiveTab === 'block_group' ? 'border-[#2563EB] text-[#2563EB]' : 'border-transparent text-[#7A8599] hover:text-[#4A5568]'}`}
+                                    className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors -mb-px ${effectiveTab === 'block_group' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
                                 >
                                     Census Tract
                                 </button>
@@ -190,10 +190,10 @@ function RingTable({ rings }: { rings: Record<string, any> }) {
         <div>
             <table className="w-full text-xs">
                 <thead>
-                    <tr className="border-b border-[#E2E5EA]">
-                        <th className="text-left text-[10px] font-semibold text-[#A0AABB] uppercase tracking-wider py-2 pr-3">Metric</th>
+                    <tr className="border-b border-[var(--border)]">
+                        <th className="text-left text-[10px] font-semibold text-[var(--text-faint)] uppercase tracking-wider py-2 pr-3">Metric</th>
                         {available.map((r) => (
-                            <th key={r} className="text-right text-[10px] font-semibold text-[#A0AABB] uppercase tracking-wider py-2 px-2 whitespace-nowrap">
+                            <th key={r} className="text-right text-[10px] font-semibold text-[var(--text-faint)] uppercase tracking-wider py-2 px-2 whitespace-nowrap">
                                 {r.replace('mi', ' Mile')}
                             </th>
                         ))}
@@ -201,12 +201,12 @@ function RingTable({ rings }: { rings: Record<string, any> }) {
                 </thead>
                 <tbody>
                     {rows.map((row) => (
-                        <tr key={row.key} className="border-b border-[#F0F1F4] last:border-b-0">
-                            <td className={`py-1.5 pr-3 ${row.highlight ? 'font-semibold text-[#1A1F2B]' : 'text-[#4A5568]'}`}>
+                        <tr key={row.key} className="border-b border-[var(--table-row-border)] last:border-b-0">
+                            <td className={`py-1.5 pr-3 ${row.highlight ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
                                 {row.label}
                             </td>
                             {available.map((r) => (
-                                <td key={r} className={`py-1.5 px-2 text-right tabular-nums ${row.highlight ? 'font-semibold text-[#1A1F2B]' : 'text-[#4A5568]'}`}>
+                                <td key={r} className={`py-1.5 px-2 text-right tabular-nums ${row.highlight ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
                                     {row.format(rings[r]?.[row.key])}
                                 </td>
                             ))}
@@ -214,7 +214,7 @@ function RingTable({ rings }: { rings: Record<string, any> }) {
                     ))}
                 </tbody>
             </table>
-            <p className="text-[10px] text-[#A0AABB] mt-2">Source: ESRI ArcGIS GeoEnrichment · US Census Bureau ACS</p>
+            <p className="text-[10px] text-[var(--text-faint)] mt-2">Source: ESRI ArcGIS GeoEnrichment · US Census Bureau ACS</p>
         </div>
     );
 }
@@ -226,7 +226,7 @@ function BlockGroupView({ data }: { data: Record<string, any> }) {
         <div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
                 <div>
-                    <div className="text-[10px] font-bold text-[#A0AABB] uppercase tracking-wider mb-1 mt-1">Population & Income</div>
+                    <div className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-1 mt-1">Population & Income</div>
                     <MetricRow icon={Users} label="Population" value={fmt(data.population)} highlight />
                     <MetricRow icon={Users} label="Median Age" value={fmt(data.median_age, 1)} />
                     <MetricRow icon={DollarSign} label="Median HH Income" value={fmtCurr(data.median_household_income)} highlight />
@@ -234,7 +234,7 @@ function BlockGroupView({ data }: { data: Record<string, any> }) {
                     <MetricRow icon={DollarSign} label="Households" value={fmt(data.number_of_households)} />
                 </div>
                 <div>
-                    <div className="text-[10px] font-bold text-[#A0AABB] uppercase tracking-wider mb-1 mt-1">Housing</div>
+                    <div className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-1 mt-1">Housing</div>
                     <MetricRow icon={Home} label="Median Rent" value={fmtCurr(data.median_rent)} highlight />
                     <MetricRow icon={Home} label="Median Home Value" value={fmtCurr(data.median_home_value)} />
                     <MetricRow icon={Home} label="Renter Occupied" value={fmtPct(data.renter_occupied_pct)} highlight />
@@ -244,8 +244,8 @@ function BlockGroupView({ data }: { data: Record<string, any> }) {
                 </div>
             </div>
             {/* Race/Ethnicity */}
-            <div className="mt-2 pt-2 border-t border-[#E2E5EA]">
-                <div className="text-[10px] font-bold text-[#A0AABB] uppercase tracking-wider mb-1">Race & Ethnicity</div>
+            <div className="mt-2 pt-2 border-t border-[var(--border)]">
+                <div className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-1">Race & Ethnicity</div>
                 <div className="grid grid-cols-4 gap-2">
                     {[
                         { label: 'White', value: fmtPct(data.race_white_pct) },
@@ -254,14 +254,14 @@ function BlockGroupView({ data }: { data: Record<string, any> }) {
                         { label: 'Asian', value: fmtPct(data.race_asian_pct) },
                     ].map((item) => (
                         <div key={item.label} className="text-center">
-                            <div className="text-sm font-semibold text-[#1A1F2B] tabular-nums">{item.value}</div>
-                            <div className="text-[10px] text-[#A0AABB]">{item.label}</div>
+                            <div className="text-sm font-semibold text-[var(--text-primary)] tabular-nums">{item.value}</div>
+                            <div className="text-[10px] text-[var(--text-faint)]">{item.label}</div>
                         </div>
                     ))}
                 </div>
             </div>
             {data._formatted_address && (
-                <p className="text-[10px] text-[#A0AABB] mt-2">
+                <p className="text-[10px] text-[var(--text-faint)] mt-2">
                     Census {data._geography || 'block group'} · {data._formatted_address}
                     {data._survey_years ? ` · ACS ${data._survey_years}` : ''}
                 </p>
@@ -272,12 +272,12 @@ function BlockGroupView({ data }: { data: Record<string, any> }) {
 
 function MetricRow({ icon: Icon, label, value, highlight }: { icon: React.ElementType; label: string; value: string; highlight?: boolean }) {
     return (
-        <div className={`flex items-center justify-between py-2 border-b border-[#F0F1F4] last:border-b-0 ${highlight ? 'bg-[#FAFBFE]' : ''}`}>
+        <div className={`flex items-center justify-between py-2 border-b border-[var(--table-row-border)] last:border-b-0 ${highlight ? 'bg-[#FAFBFE]' : ''}`}>
             <div className="flex items-center gap-2">
-                <Icon className={`w-3.5 h-3.5 ${highlight ? 'text-[#2563EB]' : 'text-[#A0AABB]'}`} />
-                <span className="text-xs text-[#4A5568]">{label}</span>
+                <Icon className={`w-3.5 h-3.5 ${highlight ? 'text-[var(--accent)]' : 'text-[var(--text-faint)]'}`} />
+                <span className="text-xs text-[var(--text-secondary)]">{label}</span>
             </div>
-            <span className={`text-sm font-semibold tabular-nums ${highlight ? 'text-[#2563EB]' : 'text-[#1A1F2B]'}`}>{value}</span>
+            <span className={`text-sm font-semibold tabular-nums ${highlight ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]'}`}>{value}</span>
         </div>
     );
 }

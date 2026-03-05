@@ -236,13 +236,13 @@ export function AssemblageMap({
                             .setLngLat(e.lngLat)
                             .setHTML(`
                                 <div style="font-family: system-ui, sans-serif; font-size: 11px; line-height: 1.5;">
-                                    <div style="font-weight: 700; color: #1A1F2B; margin-bottom: 2px;">${props.address}</div>
-                                    ${props.parcelNumber ? `<div style="color: #A0AABB; font-size: 10px;">APN: ${props.parcelNumber}</div>` : ''}
-                                    ${props.ownerName ? `<div style="color: #4A5568; margin-top: 3px;">📋 ${props.ownerName}</div>` : ''}
-                                    ${props.lotSizeSF > 0 ? `<div style="color: #4A5568;">📐 ${fmtNumber(props.lotSizeSF)} SF (${Number(props.lotSizeAcres).toFixed(2)} ac)</div>` : ''}
-                                    ${props.totalAssessedValue > 0 ? `<div style="color: #4A5568;">💰 ${fmtCurrency(props.totalAssessedValue)}</div>` : ''}
-                                    ${props.zoningCode ? `<div style="color: #4A5568;">🏗️ ${props.zoningCode}</div>` : ''}
-                                    <div style="margin-top: 4px; padding-top: 3px; border-top: 1px solid #E2E5EA; font-size: 10px; color: ${isSelected ? '#7C3AED' : '#A0AABB'}; font-weight: 600;">
+                                    <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 2px;">${props.address}</div>
+                                    ${props.parcelNumber ? `<div style="color: var(--text-faint); font-size: 10px;">APN: ${props.parcelNumber}</div>` : ''}
+                                    ${props.ownerName ? `<div style="color: var(--text-secondary); margin-top: 3px;">📋 ${props.ownerName}</div>` : ''}
+                                    ${props.lotSizeSF > 0 ? `<div style="color: var(--text-secondary);">📐 ${fmtNumber(props.lotSizeSF)} SF (${Number(props.lotSizeAcres).toFixed(2)} ac)</div>` : ''}
+                                    ${props.totalAssessedValue > 0 ? `<div style="color: var(--text-secondary);">💰 ${fmtCurrency(props.totalAssessedValue)}</div>` : ''}
+                                    ${props.zoningCode ? `<div style="color: var(--text-secondary);">🏗️ ${props.zoningCode}</div>` : ''}
+                                    <div style="margin-top: 4px; padding-top: 3px; border-top: 1px solid var(--border); font-size: 10px; color: ${isSelected ? '#7C3AED' : '#A0AABB'}; font-weight: 600;">
                                         ${isSelected ? '✓ Selected — click to remove' : 'Click to add to assemblage'}
                                     </div>
                                 </div>
@@ -327,8 +327,8 @@ export function AssemblageMap({
 
     if (!MAPBOX_TOKEN) {
         return (
-            <div className="w-full h-[400px] rounded-lg border border-[#E2E5EA] bg-[#FAFBFC] flex items-center justify-center">
-                <p className="text-xs text-[#A0AABB]">Add <code className="text-[10px] bg-[#F4F5F7] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env.local</p>
+            <div className="w-full h-[400px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] flex items-center justify-center">
+                <p className="text-xs text-[var(--text-faint)]">Add <code className="text-[10px] bg-[var(--bg-elevated)] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env.local</p>
             </div>
         );
     }
@@ -336,7 +336,7 @@ export function AssemblageMap({
     return (
         <div
             ref={containerRef}
-            className="w-full h-[300px] sm:h-[400px] rounded-lg overflow-hidden border border-[#E2E5EA]"
+            className="w-full h-[300px] sm:h-[400px] rounded-lg overflow-hidden border border-[var(--border)]"
         />
     );
 }

@@ -202,28 +202,28 @@ export default function DashboardPage() {
         {/* Page Header */}
         <div className="mb-6 md:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl md:text-2xl font-bold text-[#1A1F2B]">Pursuits</h1>
-            <p className="text-sm text-[#7A8599] mt-1">
+            <h1 className="text-xl md:text-2xl font-bold text-[var(--text-primary)]">Pursuits</h1>
+            <p className="text-sm text-[var(--text-muted)] mt-1">
               {pursuits.length} active pursuit{pursuits.length !== 1 ? 's' : ''}
             </p>
           </div>
           {/* View Mode Toggle */}
-          <div className="flex items-center rounded-lg bg-[#F4F5F7] p-0.5">
+          <div className="flex items-center rounded-lg bg-[var(--bg-elevated)] p-0.5">
             <button
               onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'grid' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'grid' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
             >
               <LayoutGrid className="w-4 h-4" /> Grid
             </button>
             <button
               onClick={() => setViewMode('list')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'list' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'list' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
             >
               <List className="w-4 h-4" /> List
             </button>
             <button
               onClick={() => setViewMode('map')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'map' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'map' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
             >
               <Map className="w-4 h-4" /> Map
             </button>
@@ -233,19 +233,19 @@ export default function DashboardPage() {
         {/* Filter Bar */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
           <div className="flex-1 min-w-[200px] relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0AABB]" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
             <input
               type="text"
               placeholder="Search pursuits..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] placeholder:text-[#A0AABB] focus:border-[#2563EB] focus:ring-2 focus:ring-[#EBF1FF] focus:outline-none transition-all"
+              className="w-full pl-10 pr-4 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-subtle)] focus:outline-none transition-all"
             />
           </div>
           <select
             value={stageFilter}
             onChange={(e) => setStageFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#4A5568] focus:border-[#2563EB] focus:outline-none"
+            className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
           >
             <option value="">All Stages</option>
             {stages.filter((s) => s.is_active).map((stage) => (
@@ -258,7 +258,7 @@ export default function DashboardPage() {
             <select
               value={regionFilter}
               onChange={(e) => setRegionFilter(e.target.value)}
-              className="px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#4A5568] focus:border-[#2563EB] focus:outline-none"
+              className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
             >
               <option value="">All Regions</option>
               {regions.map((r) => (
@@ -270,7 +270,7 @@ export default function DashboardPage() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'newest' | 'name' | 'city')}
-              className="px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#4A5568] focus:border-[#2563EB] focus:outline-none"
+              className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
             >
               <option value="newest">Newest First</option>
               <option value="name">Name A→Z</option>
@@ -282,7 +282,7 @@ export default function DashboardPage() {
         {/* Loading */}
         {loadingPursuits && (
           <div className="flex justify-center py-24">
-            <Loader2 className="w-8 h-8 animate-spin text-[#C8CDD5]" />
+            <Loader2 className="w-8 h-8 animate-spin text-[var(--border-strong)]" />
           </div>
         )}
 
@@ -297,16 +297,16 @@ export default function DashboardPage() {
 
         {/* === LIST VIEW === */}
         {!loadingPursuits && viewMode === 'list' && filteredPursuits.length > 0 && (
-          <div className="bg-white border border-[#E2E5EA] rounded-xl overflow-x-auto">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#E2E5EA] bg-[#FAFBFC]">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider">Name</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider hidden sm:table-cell">Location</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider">Stage</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider hidden md:table-cell">Units</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider">YOC</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-[#7A8599] uppercase tracking-wider hidden lg:table-cell">Updated</th>
+                <tr className="border-b border-[var(--border)] bg-[var(--bg-primary)]">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Name</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider hidden sm:table-cell">Location</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Stage</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider hidden md:table-cell">Units</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">YOC</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider hidden lg:table-cell">Updated</th>
                   <th className="w-10"></th>
                 </tr>
               </thead>
@@ -316,13 +316,13 @@ export default function DashboardPage() {
                   return (
                     <tr
                       key={p.id}
-                      className="group border-b border-[#F0F1F4] last:border-b-0 hover:bg-[#FAFBFC] cursor-pointer transition-colors"
+                      className="group border-b border-[var(--table-row-border)] last:border-b-0 hover:bg-[var(--bg-primary)] cursor-pointer transition-colors"
                       onClick={() => router.push(`/pursuits/${p.short_id}`)}
                     >
                       <td className="px-4 py-3">
-                        <span className="font-semibold text-[#1A1F2B] hover:text-[#2563EB] transition-colors">{p.name}</span>
+                        <span className="font-semibold text-[var(--text-primary)] hover:text-[var(--accent)] transition-colors">{p.name}</span>
                       </td>
-                      <td className="px-4 py-3 text-[#7A8599] hidden sm:table-cell">
+                      <td className="px-4 py-3 text-[var(--text-muted)] hidden sm:table-cell">
                         {[p.city, p.state].filter(Boolean).join(', ') || '—'}
                       </td>
                       <td className="px-4 py-3">
@@ -339,19 +339,19 @@ export default function DashboardPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-center text-[#4A5568] hidden md:table-cell">{p.primary_units ?? '—'}</td>
+                      <td className="px-4 py-3 text-center text-[var(--text-secondary)] hidden md:table-cell">{p.primary_units ?? '—'}</td>
                       <td className="px-4 py-3 text-right">
-                        <span className="font-bold text-[#0D7A3E]">
+                        <span className="font-bold text-[var(--success)]">
                           {p.best_yoc && p.best_yoc > 0 ? `${(p.best_yoc * 100).toFixed(1)}%` : '—'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right text-xs text-[#7A8599] hidden lg:table-cell">
+                      <td className="px-4 py-3 text-right text-xs text-[var(--text-muted)] hidden lg:table-cell">
                         {new Date(p.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </td>
                       <td className="px-4 py-1 text-right">
                         <button
                           onClick={(e) => { e.stopPropagation(); setDeletePursuitId(p.id); }}
-                          className="p-1.5 rounded-md text-[#A0AABB] hover:text-[#DC2626] hover:bg-[#FEF2F2] transition-all opacity-0 group-hover:opacity-100"
+                          className="p-1.5 rounded-md text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-all opacity-0 group-hover:opacity-100"
                           title="Delete pursuit"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -373,13 +373,13 @@ export default function DashboardPage() {
         {/* Empty State */}
         {!loadingPursuits && filteredPursuits.length === 0 && (
           <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-[#F4F5F7] flex items-center justify-center mb-4">
-              <Building2 className="w-8 h-8 text-[#A0AABB]" />
+            <div className="w-16 h-16 rounded-2xl bg-[var(--bg-elevated)] flex items-center justify-center mb-4">
+              <Building2 className="w-8 h-8 text-[var(--text-faint)]" />
             </div>
-            <h3 className="text-lg font-semibold text-[#4A5568] mb-2">
+            <h3 className="text-lg font-semibold text-[var(--text-secondary)] mb-2">
               {pursuits.length === 0 ? 'No pursuits yet' : 'No matching pursuits'}
             </h3>
-            <p className="text-sm text-[#7A8599] max-w-md">
+            <p className="text-sm text-[var(--text-muted)] max-w-md">
               {pursuits.length === 0
                 ? 'Get started by creating your first pursuit to evaluate a development site.'
                 : 'Try adjusting your search or filters.'}
@@ -387,7 +387,7 @@ export default function DashboardPage() {
             {pursuits.length === 0 && (
               <button
                 onClick={() => setShowNewPursuitDialog(true)}
-                className="mt-6 px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-[#1D4FD7] text-white text-sm font-medium transition-colors shadow-sm"
+                className="mt-6 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors shadow-sm"
               >
                 Create First Pursuit
               </button>
@@ -398,17 +398,17 @@ export default function DashboardPage() {
 
       {/* Delete Pursuit Confirmation Dialog */}
       {deletePursuitId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white border border-[#E2E5EA] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in mx-4">
-            <h2 className="text-lg font-semibold text-[#1A1F2B] mb-2">Delete Pursuit</h2>
-            <p className="text-sm text-[#7A8599] mb-1">
-              Are you sure you want to permanently delete <span className="font-medium text-[#1A1F2B]">{pursuits.find(p => p.id === deletePursuitId)?.name}</span> and all its one-pagers?
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in mx-4">
+            <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Delete Pursuit</h2>
+            <p className="text-sm text-[var(--text-muted)] mb-1">
+              Are you sure you want to permanently delete <span className="font-medium text-[var(--text-primary)]">{pursuits.find(p => p.id === deletePursuitId)?.name}</span> and all its one-pagers?
             </p>
-            <p className="text-xs text-[#DC2626] mb-6">This action cannot be undone.</p>
+            <p className="text-xs text-[var(--danger)] mb-6">This action cannot be undone.</p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setDeletePursuitId(null)}
-                className="px-4 py-2 rounded-lg text-sm text-[#4A5568] hover:text-[#1A1F2B] hover:bg-[#F4F5F7] transition-colors"
+                className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
               >
                 Cancel
               </button>
@@ -418,7 +418,7 @@ export default function DashboardPage() {
                   setDeletePursuitId(null);
                 }}
                 disabled={deletePursuitMutation.isPending}
-                className="px-4 py-2 rounded-lg bg-[#DC2626] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
+                className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
               >
                 {deletePursuitMutation.isPending ? 'Deleting...' : 'Delete Pursuit'}
               </button>
@@ -429,21 +429,21 @@ export default function DashboardPage() {
 
       {/* New Pursuit Dialog */}
       {showNewPursuitDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white border border-[#E2E5EA] rounded-xl p-6 w-full max-w-lg shadow-xl animate-fade-in mx-4">
-            <h2 className="text-lg font-semibold text-[#1A1F2B] mb-4">New Pursuit</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-lg shadow-xl animate-fade-in mx-4">
+            <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">New Pursuit</h2>
             <div className="space-y-4">
               {/* Name */}
               <div>
-                <label className="block text-xs font-semibold text-[#4A5568] mb-1.5 uppercase tracking-wider">
-                  Pursuit Name <span className="text-[#DC2626]">*</span>
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
+                  Pursuit Name <span className="text-[var(--danger)]">*</span>
                 </label>
                 <input
                   type="text"
                   value={newPursuitName}
                   onChange={(e) => setNewPursuitName(e.target.value)}
                   placeholder="e.g., Main & Elm Site"
-                  className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] placeholder:text-[#A0AABB] focus:border-[#2563EB] focus:ring-2 focus:ring-[#EBF1FF] focus:outline-none"
+                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-subtle)] focus:outline-none"
                   autoFocus
                 />
               </div>
@@ -451,19 +451,19 @@ export default function DashboardPage() {
               {/* Location toggle */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-[#4A5568] uppercase tracking-wider">Location</label>
-                  <div className="flex items-center rounded-md bg-[#F4F5F7] p-0.5 text-xs">
+                  <label className="block text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Location</label>
+                  <div className="flex items-center rounded-md bg-[var(--bg-elevated)] p-0.5 text-xs">
                     <button
                       type="button"
                       onClick={() => setAddressMode('search')}
-                      className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${addressMode === 'search' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599]'}`}
+                      className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${addressMode === 'search' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)]'}`}
                     >
                       <Search className="w-3 h-3" /> Address
                     </button>
                     <button
                       type="button"
                       onClick={() => setAddressMode('coords')}
-                      className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${addressMode === 'coords' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599]'}`}
+                      className={`flex items-center gap-1 px-2 py-1 rounded transition-colors ${addressMode === 'coords' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)]'}`}
                     >
                       <Navigation className="w-3 h-3" /> Coordinates
                     </button>
@@ -472,35 +472,35 @@ export default function DashboardPage() {
 
                 {addressMode === 'search' && (
                   <div className="relative">
-                    <div className="flex items-center gap-2 bg-[#FAFBFC] border border-[#E2E5EA] rounded-lg px-3 py-2">
-                      <MapPin className="w-3.5 h-3.5 text-[#A0AABB] flex-shrink-0" />
+                    <div className="flex items-center gap-2 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-2">
+                      <MapPin className="w-3.5 h-3.5 text-[var(--text-faint)] flex-shrink-0" />
                       <input
                         type="text"
                         value={addressSearch}
                         onChange={(e) => handleAddressSearch(e.target.value)}
                         placeholder="Search an address or place..."
-                        className="flex-1 bg-transparent text-sm text-[#1A1F2B] outline-none placeholder:text-[#A0AABB]"
+                        className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-faint)]"
                       />
                     </div>
                     {showSuggestions && suggestions.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white border border-[#E2E5EA] rounded-lg shadow-lg overflow-hidden max-h-48 overflow-y-auto">
+                      <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg shadow-lg overflow-hidden max-h-48 overflow-y-auto">
                         {suggestions.map((s: any) => (
                           <button
                             key={s.id}
                             onClick={() => selectAddressSuggestion(s)}
-                            className="w-full text-left px-3 py-2.5 text-sm text-[#1A1F2B] hover:bg-[#EBF1FF] transition-colors border-b border-[#F0F1F4] last:border-b-0"
+                            className="w-full text-left px-3 py-2.5 text-sm text-[var(--text-primary)] hover:bg-[var(--accent-subtle)] transition-colors border-b border-[var(--table-row-border)] last:border-b-0"
                           >
                             <div className="font-medium text-xs">{s.text}</div>
-                            <div className="text-[10px] text-[#7A8599] mt-0.5">{s.place_name}</div>
+                            <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{s.place_name}</div>
                           </button>
                         ))}
                       </div>
                     )}
                     {/* Show selected address details */}
                     {newLat !== null && (
-                      <div className="mt-2 px-3 py-2 bg-[#EBF1FF] rounded-lg text-xs text-[#1A1F2B]">
+                      <div className="mt-2 px-3 py-2 bg-[var(--accent-subtle)] rounded-lg text-xs text-[var(--text-primary)]">
                         <div className="font-medium">{newAddress}</div>
-                        <div className="text-[#7A8599] mt-0.5">
+                        <div className="text-[var(--text-muted)] mt-0.5">
                           {[newCity, newState, newZip].filter(Boolean).join(', ')}
                           {' · '}{newLat.toFixed(4)}, {newLng!.toFixed(4)}
                         </div>
@@ -519,7 +519,7 @@ export default function DashboardPage() {
                           value={coordLatStr}
                           onChange={(e) => setCoordLatStr(e.target.value)}
                           placeholder="Latitude (e.g., 30.267)"
-                          className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] placeholder:text-[#A0AABB] focus:border-[#2563EB] focus:outline-none"
+                          className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:outline-none"
                         />
                       </div>
                       <div>
@@ -529,7 +529,7 @@ export default function DashboardPage() {
                           value={coordLngStr}
                           onChange={(e) => setCoordLngStr(e.target.value)}
                           placeholder="Longitude (e.g., -97.743)"
-                          className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] placeholder:text-[#A0AABB] focus:border-[#2563EB] focus:outline-none"
+                          className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:outline-none"
                         />
                       </div>
                     </div>
@@ -537,14 +537,14 @@ export default function DashboardPage() {
                       type="button"
                       onClick={applyCoords}
                       disabled={!coordLatStr || !coordLngStr}
-                      className="text-xs text-[#2563EB] hover:text-[#1D4FD7] font-medium disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] font-medium disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       Geocode → Auto-fill address
                     </button>
                     {newLat !== null && (
-                      <div className="px-3 py-2 bg-[#EBF1FF] rounded-lg text-xs text-[#1A1F2B]">
+                      <div className="px-3 py-2 bg-[var(--accent-subtle)] rounded-lg text-xs text-[var(--text-primary)]">
                         <div className="font-medium">{newAddress || 'Coordinates set'}</div>
-                        <div className="text-[#7A8599] mt-0.5">
+                        <div className="text-[var(--text-muted)] mt-0.5">
                           {[newCity, newState, newZip].filter(Boolean).join(', ') || `${newLat.toFixed(4)}, ${newLng!.toFixed(4)}`}
                         </div>
                       </div>
@@ -555,13 +555,13 @@ export default function DashboardPage() {
 
               {/* Region */}
               <div>
-                <label className="block text-xs font-semibold text-[#4A5568] mb-1.5 uppercase tracking-wider">Region</label>
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Region</label>
                 <input
                   type="text"
                   value={newRegion}
                   onChange={(e) => setNewRegion(e.target.value)}
                   placeholder="e.g., DFW, Austin, Charlotte"
-                  className="w-full px-3 py-2 rounded-lg bg-white border border-[#E2E5EA] text-sm text-[#1A1F2B] placeholder:text-[#A0AABB] focus:border-[#2563EB] focus:ring-2 focus:ring-[#EBF1FF] focus:outline-none"
+                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-subtle)] focus:outline-none"
                 />
               </div>
             </div>
@@ -569,14 +569,14 @@ export default function DashboardPage() {
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => { resetNewPursuitForm(); setShowNewPursuitDialog(false); }}
-                className="px-4 py-2 rounded-lg text-sm text-[#4A5568] hover:text-[#1A1F2B] hover:bg-[#F4F5F7] transition-colors"
+                className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreatePursuit}
                 disabled={!newPursuitName.trim() || createPursuit.isPending}
-                className="px-4 py-2 rounded-lg bg-[#2563EB] hover:bg-[#1D4FD7] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors shadow-sm"
+                className="px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors shadow-sm"
               >
                 {createPursuit.isPending ? 'Creating...' : 'Create Pursuit'}
               </button>
@@ -631,7 +631,7 @@ function DashboardMap({ pursuits, stages }: DashboardMapProps) {
 
     locatedPursuits.forEach((p) => {
       const stageInfo = stageColorMap[p.stage_id || ''];
-      const color = stageInfo?.color || '#7A8599';
+      const color = stageInfo?.color || 'var(--text-muted)';
       const stageName = stageInfo?.name || 'Unknown';
 
       const el = document.createElement('div');
@@ -768,10 +768,10 @@ function DashboardMap({ pursuits, stages }: DashboardMapProps) {
 
   if (!MAPBOX_TOKEN) {
     return (
-      <div className="w-full h-[500px] rounded-xl border border-[#E2E5EA] bg-[#FAFBFC] flex items-center justify-center">
+      <div className="w-full h-[500px] rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] flex items-center justify-center">
         <div className="text-center">
-          <Map className="w-8 h-8 text-[#C8CDD5] mx-auto mb-3" />
-          <p className="text-sm text-[#7A8599]">Add <code className="text-xs bg-[#F4F5F7] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env.local to enable the map view.</p>
+          <Map className="w-8 h-8 text-[var(--border-strong)] mx-auto mb-3" />
+          <p className="text-sm text-[var(--text-muted)]">Add <code className="text-xs bg-[var(--bg-elevated)] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env.local to enable the map view.</p>
         </div>
       </div>
     );
@@ -781,18 +781,18 @@ function DashboardMap({ pursuits, stages }: DashboardMapProps) {
     <div className="relative">
       <div
         ref={containerRef}
-        className="w-full h-[600px] rounded-xl border border-[#E2E5EA] overflow-hidden"
+        className="w-full h-[600px] rounded-xl border border-[var(--border)] overflow-hidden"
       />
 
       {/* Style Switcher — top-right */}
-      <div className="absolute top-4 right-14 flex bg-white/95 backdrop-blur-sm rounded-lg border border-[#E2E5EA] shadow-sm overflow-hidden">
+      <div className="absolute top-4 right-14 flex bg-[var(--bg-card)]/95 backdrop-blur-sm rounded-lg border border-[var(--border)] shadow-sm overflow-hidden">
         {(Object.keys(STYLES) as MapStyleId[]).map((key) => (
           <button
             key={key}
             onClick={() => setActiveStyle(key)}
             className={`px-3 py-1.5 text-[11px] font-medium transition-colors ${activeStyle === key
-              ? 'bg-[#2563EB] text-white'
-              : 'text-[#4A5568] hover:bg-[#F4F5F7]'
+              ? 'bg-[var(--accent)] text-white'
+              : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
               }`}
           >
             {STYLES[key].label}
@@ -801,11 +801,11 @@ function DashboardMap({ pursuits, stages }: DashboardMapProps) {
       </div>
 
       {/* Legend */}
-      <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm rounded-lg border border-[#E2E5EA] shadow-sm px-3 py-2">
-        <div className="text-[10px] font-bold text-[#7A8599] uppercase tracking-wider mb-1.5">Stage Legend</div>
+      <div className="absolute bottom-4 left-4 bg-[var(--bg-card)]/95 backdrop-blur-sm rounded-lg border border-[var(--border)] shadow-sm px-3 py-2">
+        <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">Stage Legend</div>
         <div className="space-y-1">
           {stages.filter((s) => s.is_active).map((s) => (
-            <div key={s.id} className="flex items-center gap-2 text-xs text-[#4A5568]">
+            <div key={s.id} className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
               <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
               {s.name}
             </div>
@@ -813,10 +813,10 @@ function DashboardMap({ pursuits, stages }: DashboardMapProps) {
         </div>
       </div>
       {/* Count */}
-      <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm rounded-lg border border-[#E2E5EA] shadow-sm px-3 py-1.5 text-xs text-[#4A5568]">
+      <div className="absolute top-4 left-4 bg-[var(--bg-card)]/95 backdrop-blur-sm rounded-lg border border-[var(--border)] shadow-sm px-3 py-1.5 text-xs text-[var(--text-secondary)]">
         <span className="font-semibold">{locatedPursuits.length}</span> of {pursuits.length} pursuits on map
         {locatedPursuits.length < pursuits.length && (
-          <span className="text-[#A0AABB] ml-1">({pursuits.length - locatedPursuits.length} missing location)</span>
+          <span className="text-[var(--text-faint)] ml-1">({pursuits.length - locatedPursuits.length} missing location)</span>
         )}
       </div>
     </div>

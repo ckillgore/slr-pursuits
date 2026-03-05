@@ -225,18 +225,18 @@ export default function ReportsPage() {
         <AppShell>
             <div className="flex flex-col h-[calc(100vh-56px)]">
                 {/* ── Toolbar ────────────────────────────── */}
-                <div className="flex flex-col gap-2 px-3 sm:px-4 md:px-6 py-3 border-b border-[#E2E5EA] bg-white shrink-0">
+                <div className="flex flex-col gap-2 px-3 sm:px-4 md:px-6 py-3 border-b border-[var(--border)] bg-[var(--bg-card)] shrink-0">
                     {/* Top row: title + action buttons */}
                     <div className="flex items-center gap-3">
-                        <FileSpreadsheet className="w-5 h-5 text-[#7A8599] shrink-0" />
-                        <h1 className="text-lg font-semibold text-[#1A1F2B] mr-2 whitespace-nowrap">Reports</h1>
+                        <FileSpreadsheet className="w-5 h-5 text-[var(--text-muted)] shrink-0" />
+                        <h1 className="text-lg font-semibold text-[var(--text-primary)] mr-2 whitespace-nowrap">Reports</h1>
 
                         {/* Shared badge — inline on desktop, hidden on mobile (shown below) */}
                         <div className="hidden sm:block">
                             {selectedTemplate && (
                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${selectedTemplate.is_shared
-                                    ? 'bg-[#EBF1FF] text-[#2563EB]'
-                                    : 'bg-[#F4F5F7] text-[#7A8599]'
+                                    ? 'bg-[var(--accent-subtle)] text-[var(--accent)]'
+                                    : 'bg-[var(--bg-elevated)] text-[var(--text-muted)]'
                                     }`}>
                                     {selectedTemplate.is_shared ? (
                                         <><Globe className="w-3 h-3" /> Shared</>
@@ -251,15 +251,15 @@ export default function ReportsPage() {
                         <div className="relative shrink-0">
                             <button
                                 onClick={() => setTemplateDropdownOpen(!templateDropdownOpen)}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#E2E5EA] text-sm text-[#4A5568] hover:border-[#C8CDD5] transition-colors bg-white min-w-[140px] sm:min-w-[180px]"
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:border-[var(--border-strong)] transition-colors bg-[var(--bg-card)] min-w-[140px] sm:min-w-[180px]"
                         >
                             <span className="truncate flex items-center gap-1.5">
                                 {selectedTemplate ? (
                                     <>
                                         {selectedTemplate.is_shared ? (
-                                            <Globe className="w-3 h-3 text-[#2563EB] shrink-0" />
+                                            <Globe className="w-3 h-3 text-[var(--accent)] shrink-0" />
                                         ) : (
-                                            <Lock className="w-3 h-3 text-[#A0AABB] shrink-0" />
+                                            <Lock className="w-3 h-3 text-[var(--text-faint)] shrink-0" />
                                         )}
                                         {selectedTemplate.name}
                                     </>
@@ -267,13 +267,13 @@ export default function ReportsPage() {
                                     'New Report'
                                 )}
                             </span>
-                            <ChevronDown className="w-3.5 h-3.5 text-[#A0AABB] ml-auto shrink-0" />
+                            <ChevronDown className="w-3.5 h-3.5 text-[var(--text-faint)] ml-auto shrink-0" />
                         </button>
                         {templateDropdownOpen && (
-                            <div className="absolute top-full mt-1 left-0 w-80 bg-white border border-[#E2E5EA] rounded-xl shadow-xl py-1 z-20 animate-fade-in max-h-96 overflow-y-auto">
+                            <div className="absolute top-full mt-1 left-0 w-80 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl shadow-xl py-1 z-20 animate-fade-in max-h-96 overflow-y-auto">
                                 <button
                                     onClick={() => handleSelectTemplate(null)}
-                                    className="w-full px-4 py-2 text-sm text-left text-[#2563EB] hover:bg-[#F4F5F7] transition-colors flex items-center gap-2"
+                                    className="w-full px-4 py-2 text-sm text-left text-[var(--accent)] hover:bg-[var(--bg-elevated)] transition-colors flex items-center gap-2"
                                 >
                                     <Plus className="w-3.5 h-3.5" />
                                     New Report
@@ -282,22 +282,22 @@ export default function ReportsPage() {
                                 {/* Shared companywide templates */}
                                 {sharedTemplates.length > 0 && (
                                     <>
-                                        <div className="px-4 py-1.5 text-[10px] font-bold text-[#A0AABB] uppercase tracking-wider border-t border-[#F0F1F4] mt-1">
+                                        <div className="px-4 py-1.5 text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider border-t border-[var(--table-row-border)] mt-1">
                                             <Globe className="w-3 h-3 inline mr-1" /> Shared Companywide
                                         </div>
                                         {sharedTemplates.map(tpl => (
                                             <button
                                                 key={tpl.id}
                                                 onClick={() => handleSelectTemplate(tpl.id)}
-                                                className={`w-full px-4 py-2 text-sm text-left hover:bg-[#F4F5F7] transition-colors ${tpl.id === selectedTemplateId ? 'bg-[#EBF1FF] text-[#2563EB]' : 'text-[#4A5568]'
+                                                className={`w-full px-4 py-2 text-sm text-left hover:bg-[var(--bg-elevated)] transition-colors ${tpl.id === selectedTemplateId ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-secondary)]'
                                                     }`}
                                             >
                                                 <div className="font-medium flex items-center gap-1.5">
-                                                    <Globe className="w-3 h-3 text-[#2563EB]" />
+                                                    <Globe className="w-3 h-3 text-[var(--accent)]" />
                                                     {tpl.name}
                                                 </div>
                                                 {tpl.description && (
-                                                    <div className="text-[11px] text-[#A0AABB] truncate ml-[18px]">{tpl.description}</div>
+                                                    <div className="text-[11px] text-[var(--text-faint)] truncate ml-[18px]">{tpl.description}</div>
                                                 )}
                                             </button>
                                         ))}
@@ -307,22 +307,22 @@ export default function ReportsPage() {
                                 {/* Personal templates */}
                                 {personalTemplates.length > 0 && (
                                     <>
-                                        <div className="px-4 py-1.5 text-[10px] font-bold text-[#A0AABB] uppercase tracking-wider border-t border-[#F0F1F4] mt-1">
+                                        <div className="px-4 py-1.5 text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider border-t border-[var(--table-row-border)] mt-1">
                                             <Lock className="w-3 h-3 inline mr-1" /> My Reports
                                         </div>
                                         {personalTemplates.map(tpl => (
                                             <button
                                                 key={tpl.id}
                                                 onClick={() => handleSelectTemplate(tpl.id)}
-                                                className={`w-full px-4 py-2 text-sm text-left hover:bg-[#F4F5F7] transition-colors ${tpl.id === selectedTemplateId ? 'bg-[#EBF1FF] text-[#2563EB]' : 'text-[#4A5568]'
+                                                className={`w-full px-4 py-2 text-sm text-left hover:bg-[var(--bg-elevated)] transition-colors ${tpl.id === selectedTemplateId ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-secondary)]'
                                                     }`}
                                             >
                                                 <div className="font-medium flex items-center gap-1.5">
-                                                    <Lock className="w-3 h-3 text-[#A0AABB]" />
+                                                    <Lock className="w-3 h-3 text-[var(--text-faint)]" />
                                                     {tpl.name}
                                                 </div>
                                                 {tpl.description && (
-                                                    <div className="text-[11px] text-[#A0AABB] truncate ml-[18px]">{tpl.description}</div>
+                                                    <div className="text-[11px] text-[var(--text-faint)] truncate ml-[18px]">{tpl.description}</div>
                                                 )}
                                             </button>
                                         ))}
@@ -336,8 +336,8 @@ export default function ReportsPage() {
                         <div className="sm:hidden">
                             {selectedTemplate && (
                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap ${selectedTemplate.is_shared
-                                    ? 'bg-[#EBF1FF] text-[#2563EB]'
-                                    : 'bg-[#F4F5F7] text-[#7A8599]'
+                                    ? 'bg-[var(--accent-subtle)] text-[var(--accent)]'
+                                    : 'bg-[var(--bg-elevated)] text-[var(--text-muted)]'
                                     }`}>
                                     {selectedTemplate.is_shared ? (
                                         <><Globe className="w-3 h-3" /> Shared</>
@@ -353,8 +353,8 @@ export default function ReportsPage() {
                         <button
                             onClick={() => setShowConfig(!showConfig)}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${showConfig
-                                ? 'bg-[#EBF1FF] text-[#2563EB]'
-                                : 'text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7]'
+                                ? 'bg-[var(--accent-subtle)] text-[var(--accent)]'
+                                : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
                                 }`}
                         >
                             <Settings2 className="w-4 h-4" />
@@ -374,7 +374,7 @@ export default function ReportsPage() {
                                 setIsExportingXlsx(false);
                             }}
                             disabled={isExportingXlsx || filteredRows.length === 0}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7] disabled:opacity-40 transition-colors"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-40 transition-colors"
                             title="Export Excel"
                         >
                             {isExportingXlsx ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
@@ -404,7 +404,7 @@ export default function ReportsPage() {
                                 setIsExportingPdf(false);
                             }}
                             disabled={isExportingPdf || filteredRows.length === 0}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7] disabled:opacity-40 transition-colors"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-40 transition-colors"
                             title="Export PDF"
                         >
                             {isExportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
@@ -417,8 +417,8 @@ export default function ReportsPage() {
                                 onClick={handleToggleShare}
                                 disabled={shareTemplate.isPending || unshareTemplate.isPending}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${selectedTemplate.is_shared
-                                    ? 'text-[#2563EB] hover:bg-[#EBF1FF]'
-                                    : 'text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7]'
+                                    ? 'text-[var(--accent)] hover:bg-[var(--accent-subtle)]'
+                                    : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
                                     }`}
                                 title={selectedTemplate.is_shared ? 'Make personal (remove from companywide)' : 'Share companywide'}
                             >
@@ -434,7 +434,7 @@ export default function ReportsPage() {
                         {selectedTemplate && canEditTemplate && (
                             <button
                                 onClick={() => setShowSaveDialog('save')}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7] transition-colors"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
                             >
                                 <Save className="w-4 h-4" />
                                 Save
@@ -444,7 +444,7 @@ export default function ReportsPage() {
                         {/* Save As — always available (creates a new personal copy) */}
                         <button
                             onClick={() => setShowSaveDialog('save_as')}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[#7A8599] hover:text-[#4A5568] hover:bg-[#F4F5F7] transition-colors"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
                         >
                             <Copy className="w-4 h-4" />
                             Save As
@@ -454,7 +454,7 @@ export default function ReportsPage() {
                         {selectedTemplate && canDeleteTemplate && (
                             <button
                                 onClick={() => setShowDeleteConfirm(true)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[#A0AABB] hover:text-[#DC2626] hover:bg-[#FEF2F2] transition-colors"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-colors"
                             >
                                 <Trash2 className="w-4 h-4" />
                             </button>
@@ -465,40 +465,40 @@ export default function ReportsPage() {
                     {/* Bottom row: data source toggle */}
                     <div className="flex items-center gap-2 overflow-x-auto pb-0.5 -mb-0.5">
                         {/* Data Source Toggle */}
-                        <div className="flex items-center rounded-lg bg-[#F4F5F7] p-0.5 shrink-0">
+                        <div className="flex items-center rounded-lg bg-[var(--bg-elevated)] p-0.5 shrink-0">
                             <button
                                 onClick={() => handleDataSourceChange('pursuits')}
-                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'pursuits' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
+                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'pursuits' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
                             >
                                 <Building2 className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Pursuits</span><span className="sm:hidden">Purs.</span>
                             </button>
                             <button
                                 onClick={() => handleDataSourceChange('land_comps')}
-                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'land_comps' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
+                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'land_comps' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
                             >
                                 <Landmark className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Land Comps</span><span className="sm:hidden">Land</span>
                             </button>
                             <button
                                 onClick={() => handleDataSourceChange('predev_budgets')}
-                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'predev_budgets' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
+                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'predev_budgets' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
                             >
                                 <DollarSign className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Pre-Dev</span><span className="sm:hidden">Pre-D</span>
                             </button>
                             <button
                                 onClick={() => handleDataSourceChange('key_dates')}
-                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'key_dates' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
+                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'key_dates' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
                             >
                                 <Calendar className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Key Dates</span><span className="sm:hidden">Dates</span>
                             </button>
                             <button
                                 onClick={() => handleDataSourceChange('rent_comps')}
-                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'rent_comps' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
+                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'rent_comps' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
                             >
                                 <Home className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Rent Comps</span><span className="sm:hidden">Rent</span>
                             </button>
                             <button
                                 onClick={() => handleDataSourceChange('sale_comps')}
-                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'sale_comps' ? 'bg-white text-[#1A1F2B] shadow-sm' : 'text-[#7A8599] hover:text-[#4A5568]'}`}
+                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'sale_comps' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
                             >
                                 <Building2 className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Sale Comps</span><span className="sm:hidden">Sales</span>
                             </button>
@@ -508,7 +508,7 @@ export default function ReportsPage() {
 
                 {/* ── Read-only banner for shared templates the user can't edit ── */}
                 {selectedTemplate && selectedTemplate.is_shared && !canEditTemplate && (
-                    <div className="flex items-center gap-2 px-4 md:px-6 py-2 bg-[#EBF1FF] border-b border-[#D4DEF7] text-xs text-[#2563EB]">
+                    <div className="flex items-center gap-2 px-4 md:px-6 py-2 bg-[var(--accent-subtle)] border-b border-[#D4DEF7] text-xs text-[var(--accent)]">
                         <Globe className="w-3.5 h-3.5" />
                         This is a shared companywide report. You can view and use &quot;Save As&quot; to create your own copy, but only admins or owners can edit the original.
                     </div>
@@ -535,13 +535,13 @@ export default function ReportsPage() {
                             <KeyDateReport />
                         ) : isLoading ? (
                             <div className="flex justify-center py-24">
-                                <Loader2 className="w-8 h-8 animate-spin text-[#C8CDD5]" />
+                                <Loader2 className="w-8 h-8 animate-spin text-[var(--border-strong)]" />
                             </div>
                         ) : filteredRows.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-24 text-center">
-                                <FileSpreadsheet className="w-12 h-12 text-[#C8CDD5] mb-3" />
-                                <p className="text-sm text-[#7A8599] mb-1">No data to display</p>
-                                <p className="text-xs text-[#A0AABB]">
+                                <FileSpreadsheet className="w-12 h-12 text-[var(--border-strong)] mb-3" />
+                                <p className="text-sm text-[var(--text-muted)] mb-1">No data to display</p>
+                                <p className="text-xs text-[var(--text-faint)]">
                                     {reportData && reportData.length > 0
                                         ? 'Try adjusting your filters to see results.'
                                         : 'Create some pursuits with one-pagers to populate reports.'}
@@ -576,30 +576,30 @@ export default function ReportsPage() {
 
             {/* ── Delete Confirmation ────────────────── */}
             {showDeleteConfirm && selectedTemplate && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-                    <div className="bg-white border border-[#E2E5EA] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in">
-                        <h2 className="text-lg font-semibold text-[#1A1F2B] mb-2">Delete Template</h2>
-                        <p className="text-sm text-[#7A8599] mb-1">
-                            Are you sure you want to delete <span className="font-medium text-[#1A1F2B]">{selectedTemplate.name}</span>?
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
+                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in">
+                        <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Delete Template</h2>
+                        <p className="text-sm text-[var(--text-muted)] mb-1">
+                            Are you sure you want to delete <span className="font-medium text-[var(--text-primary)]">{selectedTemplate.name}</span>?
                         </p>
                         {selectedTemplate.is_shared && (
-                            <p className="text-xs text-[#DC2626] mb-1 flex items-center gap-1">
+                            <p className="text-xs text-[var(--danger)] mb-1 flex items-center gap-1">
                                 <Globe className="w-3 h-3" />
                                 This is a shared companywide report. Deleting it will remove it for all users.
                             </p>
                         )}
-                        <p className="text-xs text-[#DC2626] mb-6">This action cannot be undone.</p>
+                        <p className="text-xs text-[var(--danger)] mb-6">This action cannot be undone.</p>
                         <div className="flex justify-end gap-3">
                             <button
                                 onClick={() => setShowDeleteConfirm(false)}
-                                className="px-4 py-2 rounded-lg text-sm text-[#4A5568] hover:text-[#1A1F2B] hover:bg-[#F4F5F7] transition-colors"
+                                className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleDelete}
                                 disabled={deleteTemplate.isPending}
-                                className="px-4 py-2 rounded-lg bg-[#DC2626] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
+                                className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
                             >
                                 {deleteTemplate.isPending ? 'Deleting...' : 'Delete'}
                             </button>

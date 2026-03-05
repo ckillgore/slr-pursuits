@@ -67,7 +67,7 @@ export default function FieldNoteButton({ fieldKey, note, onNoteChange }: FieldN
                 onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
                 className={`p-0.5 rounded transition-colors ${hasNote
                         ? 'text-[var(--accent)] hover:text-[#1D4ED8]'
-                        : 'text-[#CBD2DC] hover:text-[var(--text-muted)] opacity-0 group-hover/note:opacity-100'
+                        : 'text-[var(--text-faint)] hover:text-[var(--text-muted)] opacity-0 group-hover/note:opacity-100'
                     } ${hasNote ? '' : 'focus:opacity-100'}`}
                 title={hasNote ? 'View/edit note' : 'Add a note'}
                 type="button"

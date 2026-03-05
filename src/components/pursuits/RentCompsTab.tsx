@@ -366,8 +366,8 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
             )}
             {/* Empty State */}
             {compMetrics.length === 0 && !showSearch && (
-                <div className="text-center py-16 border border-dashed border-[var(--border)] rounded-xl bg-[#FBFBFC]">
-                    <Building2 className="w-10 h-10 text-[#CBD2DC] mx-auto mb-3" />
+                <div className="text-center py-16 border border-dashed border-[var(--border)] rounded-xl bg-[var(--bg-primary)]">
+                    <Building2 className="w-10 h-10 text-[var(--text-faint)] mx-auto mb-3" />
                     <h3 className="text-sm font-semibold text-[var(--text-secondary)] mb-1">No rent comps yet</h3>
                     <p className="text-xs text-[var(--text-muted)] mb-4 max-w-xs mx-auto">
                         Search and add competitive properties to track rents, occupancy, and concessions.
@@ -537,7 +537,7 @@ function SearchPanel({
                                     </p>
                                 </div>
                                 {isLinked ? (
-                                    <span className="ml-3 text-xs text-[#10B981] font-medium px-2 py-1 bg-[#ECFDF5] rounded-full shrink-0">Added</span>
+                                    <span className="ml-3 text-xs text-[var(--success)] font-medium px-2 py-1 bg-[var(--success-bg)] rounded-full shrink-0">Added</span>
                                 ) : (
                                     <button onClick={() => onAdd(r.id)} disabled={isAdding} className="ml-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent-subtle)] text-[var(--accent)] text-xs font-medium hover:bg-[var(--badge-owner-bg)] disabled:opacity-50 shrink-0">
                                         {isAdding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
@@ -631,7 +631,7 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
                                     <button
                                         onClick={() => onToggleType(c.propertyId, c.compType)}
                                         className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${c.compType === 'primary'
-                                            ? 'bg-[#FEF3C7] text-[#92400E] hover:bg-[#FDE68A]'
+                                            ? 'bg-[var(--warning-bg)] text-[var(--warning)] hover:bg-[#FDE68A]'
                                             : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:bg-[var(--border)]'
                                             }`}
                                         title={`Click to switch to ${c.compType === 'primary' ? 'secondary' : 'primary'}`}
@@ -652,7 +652,7 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
                 </thead>
                 <tbody>
                     {rows.map((row, ri) => (
-                        <tr key={ri} className={`border-b border-[var(--bg-elevated)] ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[#FBFBFC]'}`}>
+                        <tr key={ri} className={`border-b border-[var(--bg-elevated)] ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]'}`}>
                             <td className="py-2.5 px-4 font-medium text-[var(--text-secondary)] sticky left-0 bg-inherit z-10">{row.label}</td>
                             <td className={`py-2.5 px-3 text-center text-[var(--text-muted)] ${row.bold ? 'font-semibold' : ''} ${row.multiline ? 'text-left max-w-[180px]' : ''}`}>
                                 {row.multiline ? <span className="line-clamp-3 text-[11px]">{row.avgValue}</span> : row.avgValue}
@@ -790,7 +790,7 @@ function BedTypeGrid({ comps, bed }: { comps: PropertyMetrics[]; bed: number }) 
     return (
         <table className="w-full text-xs min-w-[500px]">
             <thead>
-                <tr className="border-b border-[var(--border)] bg-[#FBFBFC]">
+                <tr className="border-b border-[var(--border)] bg-[var(--bg-primary)]">
                     <th className="text-left py-2 px-4 font-semibold text-[var(--text-muted)] min-w-[120px]">{bedLabel(bed)}</th>
                     <th className="text-center py-2 px-3 font-semibold text-[var(--text-muted)] min-w-[90px]">Comp Avg</th>
                     {perComp.map((c, i) => (
@@ -800,7 +800,7 @@ function BedTypeGrid({ comps, bed }: { comps: PropertyMetrics[]; bed: number }) 
             </thead>
             <tbody>
                 {rows.map((row, ri) => (
-                    <tr key={ri} className={`border-b border-[var(--bg-elevated)] ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[#FBFBFC]'}`}>
+                    <tr key={ri} className={`border-b border-[var(--bg-elevated)] ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]'}`}>
                         <td className="py-2 px-4 font-medium text-[var(--text-secondary)]">{row.label}</td>
                         <td className={`py-2 px-3 text-center text-[var(--text-muted)] ${row.bold ? 'font-semibold' : ''}`}>{row.avgValue}</td>
                         {row.values.map((v, vi) => (
@@ -953,7 +953,7 @@ function AmenitiesGrid({ comps }: { comps: PropertyMetrics[] }) {
                             {comps.map((c, i) => {
                                 const amenities = type === 'building' ? c.property.building_amenities : c.property.unit_amenities;
                                 return (
-                                    <tr key={i} className={`border-b border-[var(--bg-elevated)] ${i % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[#FBFBFC]'}`}>
+                                    <tr key={i} className={`border-b border-[var(--bg-elevated)] ${i % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]'}`}>
                                         <td className="py-2 px-4 font-medium text-[var(--accent)] sticky left-0 bg-inherit z-10 truncate">{c.name}</td>
                                         {allAmenities.map(a => (
                                             <td key={a} className="py-2 px-2 text-center">

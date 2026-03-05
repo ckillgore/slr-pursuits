@@ -142,7 +142,7 @@ export default function AdminUsersPage() {
     };
 
     const activityColor = (total: number) => {
-        if (total >= 50) return 'text-[var(--success)] bg-[#ECFDF5]';
+        if (total >= 50) return 'text-[var(--success)] bg-[var(--success-bg)]';
         if (total >= 20) return 'text-[var(--accent)] bg-[var(--accent-subtle)]';
         if (total >= 5) return 'text-[#D97706] bg-[var(--warning-bg)]';
         return 'text-[var(--text-muted)] bg-[var(--bg-elevated)]';
@@ -255,7 +255,7 @@ export default function AdminUsersPage() {
                                             </td>
                                             <td className="px-4 py-3 text-center hidden sm:table-cell">
                                                 {u.email_confirmed_at ? (
-                                                    <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${u.is_active ? 'bg-[#ECFDF5] text-[var(--success)]' : 'bg-[var(--danger-bg)] text-[var(--danger)]'}`}>
+                                                    <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${u.is_active ? 'bg-[var(--success-bg)] text-[var(--success)]' : 'bg-[var(--danger-bg)] text-[var(--danger)]'}`}>
                                                         {u.is_active ? 'Active' : 'Deactivated'}
                                                     </span>
                                                 ) : (
@@ -280,7 +280,7 @@ export default function AdminUsersPage() {
                                                 {u.role !== 'owner' && (
                                                     <button
                                                         onClick={() => handleUpdateUser(u.id, { is_active: !u.is_active })}
-                                                        className={`p-1.5 rounded-md transition-colors ${u.is_active ? 'text-[var(--success)] hover:bg-[#ECFDF5]' : 'text-[var(--danger)] hover:bg-[var(--danger-bg)]'}`}
+                                                        className={`p-1.5 rounded-md transition-colors ${u.is_active ? 'text-[var(--success)] hover:bg-[var(--success-bg)]' : 'text-[var(--danger)] hover:bg-[var(--danger-bg)]'}`}
                                                         title={u.is_active ? 'Deactivate user' : 'Reactivate user'}
                                                     >
                                                         {u.is_active ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
@@ -329,8 +329,8 @@ export default function AdminUsersPage() {
                     <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in mx-4">
                         {inviteSuccess ? (
                             <div className="text-center py-4">
-                                <div className="w-12 h-12 rounded-full bg-[#ECFDF5] flex items-center justify-center mx-auto mb-3">
-                                    <Mail className="w-6 h-6 text-[#10B981]" />
+                                <div className="w-12 h-12 rounded-full bg-[var(--success-bg)] flex items-center justify-center mx-auto mb-3">
+                                    <Mail className="w-6 h-6 text-[var(--success)]" />
                                 </div>
                                 <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-1">Invitation Sent!</h2>
                                 <p className="text-sm text-[var(--text-muted)]">

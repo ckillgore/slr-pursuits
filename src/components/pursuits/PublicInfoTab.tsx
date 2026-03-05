@@ -981,7 +981,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                             <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1.5">Conditional / Special Uses ({parcel.zoning.conditionalUses.length})</div>
                                             <div className="flex flex-wrap gap-1">
                                                 {parcel.zoning.conditionalUses.map((use, i) => (
-                                                    <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#92400E] capitalize">{use}</span>
+                                                    <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--warning-bg)] text-[var(--warning)] capitalize">{use}</span>
                                                 ))}
                                             </div>
                                         </div>

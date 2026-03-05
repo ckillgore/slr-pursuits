@@ -180,7 +180,7 @@ function MilestoneBar({
                             />
                             <button
                                 onClick={() => upsertMilestone.mutate({ id: m.id, is_confirmed: !m.is_confirmed, pursuit_id: pursuitId })}
-                                className={`text-[10px] uppercase tracking-wider font-semibold self-start px-2 py-0.5 rounded-full transition-colors ${m.is_confirmed ? 'bg-[#ECFDF5] text-[var(--success)]' : 'bg-[var(--warning-bg)] text-[#D97706]'}`}
+                                className={`text-[10px] uppercase tracking-wider font-semibold self-start px-2 py-0.5 rounded-full transition-colors ${m.is_confirmed ? 'bg-[var(--success-bg)] text-[var(--success)]' : 'bg-[var(--warning-bg)] text-[#D97706]'}`}
                             >
                                 {m.is_confirmed ? '✓ Confirmed' : 'Estimated'}
                             </button>
@@ -570,7 +570,7 @@ export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
             {/* Summary Stats Bar */}
             <div className="flex items-center gap-4 mb-4 flex-wrap">
                 <div className="flex items-center gap-1.5 text-sm">
-                    <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
+                    <CheckCircle2 className="w-4 h-4 text-[var(--success)]" />
                     <span className="text-[var(--text-primary)] font-medium">{stats.completed}/{stats.total}</span>
                     <span className="text-[var(--text-muted)]">complete</span>
                 </div>

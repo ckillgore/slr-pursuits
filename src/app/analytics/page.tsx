@@ -503,7 +503,7 @@ export default function AnalyticsPage() {
                                                     <td className="py-3 px-3 text-right text-[var(--text-secondary)] font-mono">{cr.fromCount}</td>
                                                     <td className="py-3 px-3 text-right text-[var(--text-secondary)] font-mono">{cr.toCount}</td>
                                                     <td className="py-3 px-3 text-right">
-                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${cr.rate >= 75 ? 'bg-[#ECFDF5] text-[#10B981]' :
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${cr.rate >= 75 ? 'bg-[var(--success-bg)] text-[var(--success)]' :
                                                             cr.rate >= 50 ? 'bg-[#FFF7ED] text-[#F59E0B]' :
                                                                 cr.rate >= 25 ? 'bg-[#FFF7ED] text-[#F97316]' :
                                                                     'bg-[var(--danger-bg)] text-[#EF4444]'

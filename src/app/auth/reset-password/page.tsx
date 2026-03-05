@@ -64,8 +64,8 @@ export default function ResetPasswordPage() {
                 <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 shadow-xl shadow-black/5">
                     {success ? (
                         <div className="text-center py-4">
-                            <div className="w-12 h-12 rounded-full bg-[#ECFDF5] flex items-center justify-center mx-auto mb-3">
-                                <CheckCircle className="w-6 h-6 text-[#10B981]" />
+                            <div className="w-12 h-12 rounded-full bg-[var(--success-bg)] flex items-center justify-center mx-auto mb-3">
+                                <CheckCircle className="w-6 h-6 text-[var(--success)]" />
                             </div>
                             <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-1">Password Updated</h2>
                             <p className="text-sm text-[var(--text-muted)]">Redirecting to dashboard...</p>

@@ -171,7 +171,7 @@ export default function SVGChart({ series, width = 700, height = 260, yLabel, fo
                             return (
                                 <g>
                                     <rect x={tooltipX} y={tooltipY} width={tooltipW} height={tooltipH} rx={6}
-                                        fill="white" stroke="var(--border)" strokeWidth={1} filter="drop-shadow(0 1px 3px rgba(0,0,0,0.08))" />
+                                        fill="var(--bg-card)" stroke="var(--border)" strokeWidth={1} filter="drop-shadow(0 1px 3px rgba(0,0,0,0.08))" />
                                     <text x={tooltipX + 8} y={tooltipY + 14} fill="var(--text-muted)" fontSize={10} fontWeight={500}>{hoverData.dateLabel}</text>
                                     {validPts.map((pt, i) => (
                                         <g key={i}>

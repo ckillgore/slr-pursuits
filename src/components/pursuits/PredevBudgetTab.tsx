@@ -410,7 +410,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             {/* Summary Cards */}
             <div className="grid grid-cols-3 gap-3">
                 <div className="card p-4 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#ECFDF5] flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-[var(--success-bg)] flex items-center justify-center shrink-0">
                         <CheckCircle2 className="w-5 h-5 text-[var(--success)]" />
                     </div>
                     <div>
@@ -533,7 +533,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                     return (
                                         <th
                                             key={mk}
-                                            className={`text-center px-1 py-2.5 text-[10px] font-bold uppercase tracking-wider border-b border-[var(--border)] ${locked ? 'bg-[#ECFDF5] text-[var(--success)]' : 'text-[var(--text-muted)]'
+                                            className={`text-center px-1 py-2.5 text-[10px] font-bold uppercase tracking-wider border-b border-[var(--border)] ${locked ? 'bg-[var(--success-bg)] text-[var(--success)]' : 'text-[var(--text-muted)]'
                                                 }`}
                                             style={{ minWidth: 100 }}
                                         >
@@ -596,7 +596,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                             return (
                                                 <td
                                                     key={mk}
-                                                    className={`border-[var(--table-row-border)] ${locked ? 'bg-[#ECFDF5]/40' : ''}`}
+                                                    className={`border-[var(--table-row-border)] ${locked ? 'bg-[var(--success-bg)]/40' : ''}`}
                                                 >
                                                     <EditableCell
                                                         value={value}

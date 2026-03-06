@@ -648,7 +648,7 @@ export default function ExplorePage() {
 
                 {/* Map Container */}
                 {MAPBOX_TOKEN ? (
-                    <div ref={mapContainerRef} className="w-full h-full" />
+                    <div ref={mapContainerRef} className="w-full h-full" style={{ touchAction: 'none' }} />
                 ) : (
                     <div className="w-full h-full bg-[var(--bg-primary)] flex items-center justify-center">
                         <div className="text-center">

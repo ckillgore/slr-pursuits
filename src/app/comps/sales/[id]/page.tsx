@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
 import { RichTextEditor } from '@/components/shared/RichTextEditor';
 import CommentTrigger from '@/components/shared/CommentTrigger';
+import { PublicInfoTab } from '@/components/pursuits/PublicInfoTab';
 import {
     useSaleComp, useUpdateSaleComp,
     useUpsertSaleTransaction, useDeleteSaleTransaction,
@@ -150,7 +151,7 @@ export default function SaleCompDetailPage() {
     const upsertTx = useUpsertSaleTransaction();
     const deleteTx = useDeleteSaleTransaction();
 
-    const [activeTab, setActiveTab] = useState<'details' | 'transactions'>('details');
+    const [activeTab, setActiveTab] = useState<'details' | 'transactions' | 'public'>('details');
     const [isEditingName, setIsEditingName] = useState(false);
     const [editName, setEditName] = useState('');
 
@@ -388,6 +389,7 @@ export default function SaleCompDetailPage() {
                     {[
                         { id: 'details' as const, label: 'Property Details' },
                         { id: 'transactions' as const, label: `Sales (${transactions.length})` },
+                        { id: 'public' as const, label: 'Public Information' },
                     ].map((tab) => (
                         <button
                             key={tab.id}
@@ -482,6 +484,20 @@ export default function SaleCompDetailPage() {
                             ))
                         )}
                     </div>
+                )}
+
+                {/* Public Information Tab */}
+                {activeTab === 'public' && (
+                    <PublicInfoTab
+                        latitude={comp.latitude}
+                        longitude={comp.longitude}
+                        pursuitName={comp.name}
+                        pursuitAddress={comp.address}
+                        siteAreaSF={comp.lot_size_sf || undefined}
+                        savedParcelData={comp.parcel_data}
+                        onSaveParcelData={(data) => updateField('parcel_data', data)}
+                        hideAssemblage
+                    />
                 )}
             </div>
         </AppShell>

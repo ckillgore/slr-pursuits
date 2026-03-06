@@ -16,7 +16,7 @@ interface AppShellProps {
 
 export function AppShell({ children, onNewPursuit }: AppShellProps) {
     const pathname = usePathname();
-    const { profile, isAdminOrOwner, isOwner, signOut } = useAuth();
+    const { profile, isAdminOrOwner, isOwner, isSessionLost, signOut } = useAuth();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
@@ -330,6 +330,21 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                             Sign Out
                         </button>
                     </nav>
+                </div>
+            )}
+
+            {/* Session lost banner — shown when auth state is lost so user can recover */}
+            {isSessionLost && (
+                <div className="bg-[var(--danger-bg)] border-b border-[var(--danger)] px-4 py-3 flex items-center justify-between gap-4">
+                    <p className="text-sm text-[var(--danger)]">
+                        Your session has expired. Please sign in again.
+                    </p>
+                    <button
+                        onClick={signOut}
+                        className="flex-shrink-0 px-4 py-1.5 rounded-lg bg-[var(--danger)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
+                    >
+                        Sign In
+                    </button>
                 </div>
             )}
 

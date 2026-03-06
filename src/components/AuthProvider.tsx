@@ -21,6 +21,8 @@ interface AuthContextType {
     isOwner: boolean;
     isAdmin: boolean;
     isAdminOrOwner: boolean;
+    /** Whether we had a session that was lost (user can't interact but isn't on /login) */
+    isSessionLost: boolean;
     signOut: () => Promise<void>;
 }
 
@@ -31,6 +33,7 @@ const AuthContext = createContext<AuthContextType>({
     isOwner: false,
     isAdmin: false,
     isAdminOrOwner: false,
+    isSessionLost: false,
     signOut: async () => { },
 });
 
@@ -43,7 +46,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isSessionLost, setIsSessionLost] = useState(false);
     const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
+    /** Tracks whether we ever had a valid session (to distinguish "not yet loaded" from "lost") */
+    const hadSessionRef = useRef(false);
 
     // Track latest profile in a ref so event listeners never read stale closure values
     const profileRef = useRef<UserProfile | null>(null);
@@ -111,6 +117,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 console.log('[Auth] Session initialized for:', currentUser?.email ?? 'no user');
                 setUser(currentUser);
                 if (currentUser) {
+                    hadSessionRef.current = true;
+                    setIsSessionLost(false);
                     const p = await fetchProfile(currentUser.id);
                     if (!mounted) return;
                     setProfile(p);
@@ -141,6 +149,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     console.log('[Auth] Signed out or no user');
                     setUser(null);
                     setProfile(null);
+                    // If we previously had a session and this wasn't triggered by
+                    // our own signOut(), mark the session as lost so the UI can
+                    // show a recovery option.
+                    if (hadSessionRef.current && event !== 'SIGNED_OUT') {
+                        setIsSessionLost(true);
+                    }
                     return;
                 }
 
@@ -164,6 +178,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 // SIGNED_IN or INITIAL_SESSION
                 console.log('[Auth] Sign-in event, fetching profile...');
+                hadSessionRef.current = true;
+                setIsSessionLost(false);
                 setUser(currentUser);
                 const p = await fetchProfile(currentUser.id);
                 if (mounted) {
@@ -181,15 +197,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (document.visibilityState !== 'visible' || !mounted) return;
 
             try {
-                const { error } = await supabase.auth.getUser();
-                if (error) {
-                    console.warn('[Auth] Session health check failed:', error.message);
-                    // Session is invalid — clear state, let the proxy handle the redirect
-                    // on next navigation, or redirect now if profile was loaded
-                    if (profileRef.current) {
+                const { data: { user: healthUser }, error } = await supabase.auth.getUser();
+                if (error || !healthUser) {
+                    console.warn('[Auth] Session health check failed:', error?.message ?? 'no user');
+                    // If we previously had a session, mark it as lost so the UI
+                    // can show a recovery option (sign-out button) instead of a
+                    // broken state where the user is stuck.
+                    if (hadSessionRef.current) {
                         setUser(null);
                         setProfile(null);
-                        window.location.href = '/login';
+                        setIsSessionLost(true);
+                    }
+                } else if (healthUser && !profileRef.current) {
+                    // Session is valid but profile was lost — recover it
+                    console.log('[Auth] Session valid, recovering lost profile...');
+                    setUser(healthUser);
+                    setIsSessionLost(false);
+                    const p = await fetchProfile(healthUser.id);
+                    if (mounted && p) {
+                        setProfile(p);
+                        console.log('[Auth] Profile recovered on visibility change:', p.email);
                     }
                 }
             } catch {
@@ -219,6 +246,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setUser(null);
         setProfile(null);
+        setIsSessionLost(false);
+        hadSessionRef.current = false;
         // Force a full page navigation to clear all client state
         window.location.href = '/login';
     };
@@ -228,7 +257,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const isAdminOrOwner = isOwner || isAdmin;
 
     return (
-        <AuthContext.Provider value={{ user, profile, isLoading, isOwner, isAdmin, isAdminOrOwner, signOut }}>
+        <AuthContext.Provider value={{ user, profile, isLoading, isOwner, isAdmin, isAdminOrOwner, isSessionLost, signOut }}>
             {children}
         </AuthContext.Provider>
     );

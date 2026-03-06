@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
 import { PublicInfoTab } from '@/components/pursuits/PublicInfoTab';
 import { RichTextEditor } from '@/components/shared/RichTextEditor';
+import { AddToPursuitButton } from '@/components/shared/AddToPursuitButton';
 import { useLandComp, useUpdateLandComp } from '@/hooks/useSupabaseQueries';
 import {
     ChevronLeft, Loader2, MapPin, Navigation, DollarSign, Calendar, Ruler,
@@ -267,7 +268,10 @@ export default function CompDetailPage() {
                                 </button>
                             </p>
                         </div>
-                        <CommentTrigger entityType="land_comp" entityId={comp.id} />
+                        <div className="flex items-center gap-2">
+                            <AddToPursuitButton compId={comp.id} compType="land" />
+                            <CommentTrigger entityType="land_comp" entityId={comp.id} />
+                        </div>
                     </div>
 
                     {/* Location editor */}

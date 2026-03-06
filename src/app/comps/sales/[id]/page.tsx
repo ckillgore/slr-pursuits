@@ -7,6 +7,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { RichTextEditor } from '@/components/shared/RichTextEditor';
 import CommentTrigger from '@/components/shared/CommentTrigger';
 import { PublicInfoTab } from '@/components/pursuits/PublicInfoTab';
+import { AddToPursuitButton } from '@/components/shared/AddToPursuitButton';
 import {
     useSaleComp, useUpdateSaleComp,
     useUpsertSaleTransaction, useDeleteSaleTransaction,
@@ -342,7 +343,10 @@ export default function SaleCompDetailPage() {
                                 </button>
                             </p>
                         </div>
-                        <CommentTrigger entityType="sale_comp" entityId={comp.id} />
+                        <div className="flex items-center gap-2">
+                            <AddToPursuitButton compId={comp.id} compType="sale" />
+                            <CommentTrigger entityType="sale_comp" entityId={comp.id} />
+                        </div>
                     </div>
 
                     {/* Location editor */}
@@ -415,6 +419,13 @@ export default function SaleCompDetailPage() {
                                 <EditableField label="Year Built" value={comp.year_built} onSave={(v) => updateField('year_built', v)} format="year" icon={Calendar} />
                                 <EditableField label="Total Units" value={comp.total_units} onSave={(v) => updateField('total_units', v)} format="number" icon={Hash} />
                                 <EditableField label="Total SF" value={comp.total_sf} onSave={(v) => updateField('total_sf', v)} format="number" icon={Ruler} />
+                                {comp.total_units && comp.total_sf && comp.total_units > 0 && (
+                                    <div className="flex items-center gap-2 py-2 px-1 border-b border-[var(--table-row-border)]">
+                                        <Ruler className="w-3.5 h-3.5 text-[var(--text-faint)]" />
+                                        <span className="text-xs text-[var(--text-muted)] flex-1">Avg Unit Size</span>
+                                        <span className="text-sm text-[var(--text-secondary)] tabular-nums">{formatNumber(Math.round(comp.total_sf / comp.total_units))} SF</span>
+                                    </div>
+                                )}
                                 <EditableField label="Lot Size (SF)" value={comp.lot_size_sf || null} onSave={(v) => updateField('lot_size_sf', v ?? 0)} format="number" icon={Ruler} />
                             </div>
                         </div>

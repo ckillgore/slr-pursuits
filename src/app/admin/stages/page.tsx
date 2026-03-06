@@ -1,13 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
+import { useAuth } from '@/components/AuthProvider';
+import { useRouter } from 'next/navigation';
 import { useStages, useUpsertStage } from '@/hooks/useSupabaseQueries';
 import Link from 'next/link';
 import { Plus, GripVertical, Loader2 } from 'lucide-react';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
 
 export default function StagesPage() {
+    const { isAdminOrOwner, isLoading: authLoading } = useAuth();
+    const router = useRouter();
+
+    useEffect(() => {
+        if (!authLoading && !isAdminOrOwner) router.push('/');
+    }, [authLoading, isAdminOrOwner, router]);
+
     const { data: stages = [], isLoading } = useStages();
     const upsertMutation = useUpsertStage();
 

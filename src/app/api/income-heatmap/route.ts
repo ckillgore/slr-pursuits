@@ -1,4 +1,12 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/app/api/_lib/auth';
+import { z } from 'zod';
+
+const BodySchema = z.object({
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+    radiusMiles: z.number().min(1).max(50).default(5),
+});
 
 /**
  * POST /api/income-heatmap
@@ -15,12 +23,16 @@ import { NextResponse } from 'next/server';
  */
 
 export async function POST(request: Request) {
-    try {
-        const { latitude, longitude, radiusMiles = 5 } = await request.json();
+    const { response: authError } = await requireAuth();
+    if (authError) return authError;
 
-        if (!latitude || !longitude) {
-            return NextResponse.json({ error: 'latitude and longitude are required' }, { status: 400 });
+    try {
+        const raw = await request.json();
+        const parsed = BodySchema.safeParse(raw);
+        if (!parsed.success) {
+            return NextResponse.json({ error: 'Invalid input', details: parsed.error.flatten() }, { status: 400 });
         }
+        const { latitude, longitude, radiusMiles } = parsed.data;
 
         // ─── Step 1: Get state/county FIPS from coordinates ───
         const fips = await getFipsFromCoords(latitude, longitude);

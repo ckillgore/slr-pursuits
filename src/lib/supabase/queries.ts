@@ -332,37 +332,44 @@ export async function duplicateOnePager(sourceId: string, newName: string): Prom
         .single();
     if (opError) throw opError;
 
-    // 4. Copy unit mix rows
-    const unitMix = await fetchUnitMix(sourceId);
-    if (unitMix.length > 0) {
-        const umPayload = unitMix.map(({ id: _rowId, one_pager_id: _opId, total_sf, effective_monthly_rent, effective_rent_per_sf, annual_rental_revenue, ...row }) => ({
-            ...row,
-            one_pager_id: newOP.id,
-        }));
-        const { error: umError } = await supabase.from('one_pager_unit_mix').insert(umPayload);
-        if (umError) throw umError;
-    }
+    // 4. Copy child rows — rollback the new one-pager on any failure
+    try {
+        const unitMix = await fetchUnitMix(sourceId);
+        if (unitMix.length > 0) {
+            const umPayload = unitMix.map(({ id: _rowId, one_pager_id: _opId, total_sf, effective_monthly_rent, effective_rent_per_sf, annual_rental_revenue, ...row }) => ({
+                ...row,
+                one_pager_id: newOP.id,
+            }));
+            const { error: umError } = await supabase.from('one_pager_unit_mix').insert(umPayload);
+            if (umError) throw umError;
+        }
 
-    // 5. Copy payroll rows
-    const payrollRows = await fetchPayroll(sourceId);
-    if (payrollRows.length > 0) {
-        const prPayload = payrollRows.map(({ id: _rowId, one_pager_id: _opId, total_comp_burdened, ...row }) => ({
-            ...row,
-            one_pager_id: newOP.id,
-        }));
-        const { error: prError } = await supabase.from('one_pager_payroll').insert(prPayload);
-        if (prError) throw prError;
-    }
+        const payrollRows = await fetchPayroll(sourceId);
+        if (payrollRows.length > 0) {
+            const prPayload = payrollRows.map(({ id: _rowId, one_pager_id: _opId, total_comp_burdened, ...row }) => ({
+                ...row,
+                one_pager_id: newOP.id,
+            }));
+            const { error: prError } = await supabase.from('one_pager_payroll').insert(prPayload);
+            if (prError) throw prError;
+        }
 
-    // 6. Copy soft cost details
-    const softCosts = await fetchSoftCostDetails(sourceId);
-    if (softCosts.length > 0) {
-        const scPayload = softCosts.map(({ id: _rowId, one_pager_id: _opId, ...row }) => ({
-            ...row,
-            one_pager_id: newOP.id,
-        }));
-        const { error: scError } = await supabase.from('one_pager_soft_cost_detail').insert(scPayload);
-        if (scError) throw scError;
+        const softCosts = await fetchSoftCostDetails(sourceId);
+        if (softCosts.length > 0) {
+            const scPayload = softCosts.map(({ id: _rowId, one_pager_id: _opId, ...row }) => ({
+                ...row,
+                one_pager_id: newOP.id,
+            }));
+            const { error: scError } = await supabase.from('one_pager_soft_cost_detail').insert(scPayload);
+            if (scError) throw scError;
+        }
+    } catch (childError) {
+        // Rollback: delete the partially-created one-pager and any children
+        await supabase.from('one_pager_unit_mix').delete().eq('one_pager_id', newOP.id);
+        await supabase.from('one_pager_payroll').delete().eq('one_pager_id', newOP.id);
+        await supabase.from('one_pager_soft_cost_detail').delete().eq('one_pager_id', newOP.id);
+        await supabase.from('one_pagers').delete().eq('id', newOP.id);
+        throw childError;
     }
 
     return newOP;

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
+import { requireAuth } from '@/app/api/_lib/auth';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -27,6 +28,9 @@ Important rules:
 - Note any extension provisions with their deadlines`;
 
 export async function POST(request: Request) {
+    const { response: authError } = await requireAuth();
+    if (authError) return authError;
+
     if (!GEMINI_API_KEY) {
         return NextResponse.json({ error: 'Gemini API key not configured' }, { status: 500 });
     }

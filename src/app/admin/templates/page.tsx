@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
 import { AppShell } from '@/components/layout/AppShell';
+import { useAuth } from '@/components/AuthProvider';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
     useTemplates,
@@ -17,6 +19,13 @@ import { Plus, Loader2, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { formatCurrency, formatPercent } from '@/lib/constants';
 
 export default function TemplatesPage() {
+    const { isAdminOrOwner, isLoading: authLoading } = useAuth();
+    const router = useRouter();
+
+    useEffect(() => {
+        if (!authLoading && !isAdminOrOwner) router.push('/');
+    }, [authLoading, isAdminOrOwner, router]);
+
     const { data: templates = [], isLoading } = useTemplates();
     const { data: productTypes = [] } = useProductTypes();
     const upsertTemplate = useUpsertTemplate();

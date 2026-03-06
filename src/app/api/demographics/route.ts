@@ -1,4 +1,12 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/app/api/_lib/auth';
+import { z } from 'zod';
+
+const BodySchema = z.object({
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
+    address: z.string().max(500).optional(),
+});
 
 /**
  * POST /api/demographics
@@ -19,7 +27,7 @@ async function fetchGeocodio(latitude: number, longitude: number) {
 
     try {
         const url = `https://api.geocod.io/v1.7/reverse?q=${latitude},${longitude}&fields=acs-demographics,acs-economics,acs-housing&api_key=${GEOCODIO_KEY}`;
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
         const data = await res.json();
         if (!res.ok || !data.results?.[0]) return null;
 
@@ -152,7 +160,7 @@ async function fetchEsriRings(latitude: number, longitude: number) {
 
         const res = await fetch(
             `https://geoenrich.arcgis.com/arcgis/rest/services/World/geoenrichmentserver/Geoenrichment/enrich?${params}`,
-            { method: 'GET' }
+            { method: 'GET', signal: AbortSignal.timeout(30_000) }
         );
 
         const data = await res.json();
@@ -182,10 +190,17 @@ async function fetchEsriRings(latitude: number, longitude: number) {
 // ===================== Combined endpoint =====================
 
 export async function POST(request: Request) {
+    const { response: authError } = await requireAuth();
+    if (authError) return authError;
+
     try {
-        const body = await request.json();
-        let { latitude, longitude } = body;
-        const { address } = body;
+        const raw = await request.json();
+        const parsed = BodySchema.safeParse(raw);
+        if (!parsed.success) {
+            return NextResponse.json({ error: 'Invalid input', details: parsed.error.flatten() }, { status: 400 });
+        }
+        let { latitude, longitude } = parsed.data;
+        const { address } = parsed.data;
 
         if (latitude == null || longitude == null) {
             if (!address) {

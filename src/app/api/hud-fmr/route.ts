@@ -1,27 +1,45 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/app/api/_lib/auth';
+import { z } from 'zod';
+
+const BodySchema = z.object({
+    zip: z.string().regex(/^\d{5}$/, 'Must be a 5-digit ZIP code'),
+    stateAbbr: z.string().length(2),
+});
 
 const HUD_API_TOKEN = process.env.HUD_API_TOKEN;
 const HUD_BASE = 'https://www.huduser.gov/hudapi/public/fmr';
 
 // In-memory cache: ZIP → metro entity ID
-// Avoids repeating the expensive metro search
+// Avoids repeating the expensive metro search. Bounded to 500 entries.
+const MAX_ZIP_CACHE = 500;
 const zipToMetroCache = new Map<string, string>();
 
+function cacheZip(zip: string, entityId: string) {
+    if (zipToMetroCache.size >= MAX_ZIP_CACHE) {
+        // Evict oldest entry (first inserted)
+        const firstKey = zipToMetroCache.keys().next().value;
+        if (firstKey) zipToMetroCache.delete(firstKey);
+    }
+    zipToMetroCache.set(zip, entityId);
+}
+
 export async function POST(request: Request) {
+    const { response: authError } = await requireAuth();
+    if (authError) return authError;
+
     try {
-        const { zip, stateAbbr } = await request.json();
+        const raw = await request.json();
+        const parsed = BodySchema.safeParse(raw);
+        if (!parsed.success) {
+            return NextResponse.json({ error: 'Invalid input', details: parsed.error.flatten() }, { status: 400 });
+        }
+        const { zip, stateAbbr } = parsed.data;
 
         if (!HUD_API_TOKEN) {
             return NextResponse.json(
                 { error: 'HUD_API_TOKEN must be configured in .env.local' },
                 { status: 500 }
-            );
-        }
-
-        if (!zip || !stateAbbr) {
-            return NextResponse.json(
-                { error: 'ZIP code and state abbreviation are required' },
-                { status: 400 }
             );
         }
 
@@ -59,7 +77,7 @@ export async function POST(request: Request) {
 
                     if (basicdata.some((e: any) => e.zip_code === zip)) {
                         entityId = metro.cbsa_code;
-                        zipToMetroCache.set(zip, entityId);
+                        cacheZip(zip, entityId);
                         console.log(`[HUD] Found ZIP ${zip} in metro: ${metro.area_name} (${metro.cbsa_code})`);
                         break;
                     }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/app/api/_lib/auth';
 
 /**
  * POST /api/hellodata/comparables
@@ -12,6 +13,9 @@ import { NextRequest, NextResponse } from 'next/server';
  * - Optional: excluded_ids, selected_ids, topN
  */
 export async function POST(req: NextRequest) {
+    const { response: authError } = await requireAuth();
+    if (authError) return authError;
+
     const apiKey = process.env.HELLODATA_API_KEY;
     if (!apiKey) {
         return NextResponse.json({ error: 'HELLODATA_API_KEY not configured' }, { status: 500 });
@@ -90,8 +94,9 @@ export async function POST(req: NextRequest) {
 
         if (!response.ok) {
             const errorText = await response.text();
+            console.error('[hellodata/comparables] API error:', response.status, errorText.slice(0, 200));
             return NextResponse.json(
-                { error: `Hellodata comparables error: ${response.status}`, details: errorText },
+                { error: `Comparables lookup failed (${response.status})` },
                 { status: response.status }
             );
         }

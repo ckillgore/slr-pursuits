@@ -1,4 +1,12 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/app/api/_lib/auth';
+import { z } from 'zod';
+
+const BodySchema = z.object({
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+    breakMinutes: z.number().min(1).max(60).default(15),
+});
 
 /**
  * POST /api/isochrone
@@ -36,7 +44,8 @@ async function getArcGISToken(): Promise<string> {
 
     const data = await res.json();
     if (!res.ok || data.error) {
-        throw new Error(`OAuth failed: ${data.error?.message || JSON.stringify(data)}`);
+        console.error('ArcGIS OAuth error:', data.error?.message || JSON.stringify(data));
+        throw new Error('ArcGIS authentication failed');
     }
 
     cachedToken = {
@@ -118,7 +127,8 @@ async function generateServiceArea(
     const data = await res.json();
 
     if (data.error) {
-        throw new Error(`Service Area error: ${JSON.stringify(data.error)}`);
+        console.error('ArcGIS Service Area error:', JSON.stringify(data.error));
+        throw new Error('Drive-time polygon generation failed');
     }
 
     const polygons = data.saPolygons?.features;
@@ -266,13 +276,16 @@ function ringsToGeoJSON(rings: number[][][]): GeoJSON.Feature {
 // ======================== Route Handler ========================
 
 export async function POST(request: Request) {
-    try {
-        const body = await request.json();
-        const { latitude, longitude, breakMinutes = 15 } = body;
+    const { response: authError } = await requireAuth();
+    if (authError) return authError;
 
-        if (!latitude || !longitude) {
-            return NextResponse.json({ error: 'latitude and longitude are required' }, { status: 400 });
+    try {
+        const raw = await request.json();
+        const parsed = BodySchema.safeParse(raw);
+        if (!parsed.success) {
+            return NextResponse.json({ error: 'Invalid input', details: parsed.error.flatten() }, { status: 400 });
         }
+        const { latitude, longitude, breakMinutes } = parsed.data;
 
         if (!CLIENT_ID || !CLIENT_SECRET) {
             return NextResponse.json(

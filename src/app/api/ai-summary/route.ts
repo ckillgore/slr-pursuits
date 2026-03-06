@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
+import { requireAuth } from '@/app/api/_lib/auth';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = 'gemini-3-flash-preview';
@@ -73,6 +74,9 @@ RULES:
 // ────────────────────────── Route ──────────────────────────
 
 export async function POST(request: Request) {
+    const { response: authError } = await requireAuth();
+    if (authError) return authError;
+
     try {
         if (!GEMINI_API_KEY) {
             return NextResponse.json(

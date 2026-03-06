@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { requireAuth } from '@/app/api/_lib/auth';
 
 /**
  * GET /api/hellodata/property?hellodataId=...&forceRefresh=...
@@ -14,6 +15,9 @@ import { createClient } from '@/lib/supabase/server';
  * Costs 1 Hellodata request (~$0.50) only on first add or explicit refresh.
  */
 export async function GET(req: NextRequest) {
+    const { user, response: authError } = await requireAuth();
+    if (authError) return authError;
+
     const apiKey = process.env.HELLODATA_API_KEY;
     if (!apiKey) {
         return NextResponse.json({ error: 'HELLODATA_API_KEY not configured' }, { status: 500 });
@@ -28,7 +32,6 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
 
     // Timing helper
     const timings: Record<string, number> = {};
@@ -68,7 +71,7 @@ export async function GET(req: NextRequest) {
         const apiStart = Date.now();
         const hdResponse = await fetch(
             `https://api.hellodata.ai/property/${hellodataId}`,
-            { headers: { 'x-api-key': apiKey } }
+            { headers: { 'x-api-key': apiKey }, signal: AbortSignal.timeout(30_000) }
         );
         time('api_fetch');
         console.log(`[hellodata] API call for ${hellodataId}: ${hdResponse.status} in ${Date.now() - apiStart}ms`);
@@ -83,8 +86,9 @@ export async function GET(req: NextRequest) {
 
         if (!hdResponse.ok) {
             const errorText = await hdResponse.text();
+            console.error('[hellodata/property] API error:', hdResponse.status, errorText.slice(0, 200));
             return NextResponse.json(
-                { error: `Hellodata API error: ${hdResponse.status}`, details: errorText },
+                { error: `Property fetch failed (${hdResponse.status})` },
                 { status: hdResponse.status }
             );
         }

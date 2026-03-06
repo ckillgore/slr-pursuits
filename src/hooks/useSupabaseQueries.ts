@@ -103,10 +103,19 @@ export function usePursuits() {
 }
 
 export function usePursuit(idOrShortId: string) {
+    const qc = useQueryClient();
     const isUuid = idOrShortId.length === 36 && idOrShortId.includes('-');
     return useQuery({
         queryKey: queryKeys.pursuit(idOrShortId),
-        queryFn: () => isUuid ? queries.fetchPursuit(idOrShortId) : queries.fetchPursuitByShortId(idOrShortId),
+        queryFn: async () => {
+            const data = isUuid ? await queries.fetchPursuit(idOrShortId) : await queries.fetchPursuitByShortId(idOrShortId);
+            // Cross-populate cache so UUID and short_id share data
+            const altKey = isUuid ? data.short_id : data.id;
+            if (altKey && altKey !== idOrShortId) {
+                qc.setQueryData(queryKeys.pursuit(altKey), data);
+            }
+            return data;
+        },
         enabled: !!idOrShortId,
     });
 }
@@ -155,10 +164,18 @@ export function useOnePagers(pursuitId: string) {
 }
 
 export function useOnePager(idOrShortId: string) {
+    const qc = useQueryClient();
     const isUuid = idOrShortId.length === 36 && idOrShortId.includes('-');
     return useQuery({
         queryKey: queryKeys.onePager(idOrShortId),
-        queryFn: () => isUuid ? queries.fetchOnePager(idOrShortId) : queries.fetchOnePagerByShortId(idOrShortId),
+        queryFn: async () => {
+            const data = isUuid ? await queries.fetchOnePager(idOrShortId) : await queries.fetchOnePagerByShortId(idOrShortId);
+            const altKey = isUuid ? data.short_id : data.id;
+            if (altKey && altKey !== idOrShortId) {
+                qc.setQueryData(queryKeys.onePager(altKey), data);
+            }
+            return data;
+        },
         enabled: !!idOrShortId,
     });
 }
@@ -581,10 +598,18 @@ export function useLandComps() {
 }
 
 export function useLandComp(idOrShortId: string) {
+    const qc = useQueryClient();
     const isUuid = idOrShortId.length === 36 && idOrShortId.includes('-');
     return useQuery({
         queryKey: queryKeys.landComp(idOrShortId),
-        queryFn: () => isUuid ? queries.fetchLandComp(idOrShortId) : queries.fetchLandCompByShortId(idOrShortId),
+        queryFn: async () => {
+            const data = isUuid ? await queries.fetchLandComp(idOrShortId) : await queries.fetchLandCompByShortId(idOrShortId);
+            const altKey = isUuid ? data.short_id : data.id;
+            if (altKey && altKey !== idOrShortId) {
+                qc.setQueryData(queryKeys.landComp(altKey), data);
+            }
+            return data;
+        },
         enabled: !!idOrShortId,
     });
 }
@@ -1054,10 +1079,18 @@ export function useSaleComps() {
 }
 
 export function useSaleComp(idOrShortId: string) {
+    const qc = useQueryClient();
     const isUuid = idOrShortId.length === 36 && idOrShortId.includes('-');
     return useQuery({
         queryKey: queryKeys.saleComp(idOrShortId),
-        queryFn: () => isUuid ? queries.fetchSaleComp(idOrShortId) : queries.fetchSaleCompByShortId(idOrShortId),
+        queryFn: async () => {
+            const data = isUuid ? await queries.fetchSaleComp(idOrShortId) : await queries.fetchSaleCompByShortId(idOrShortId);
+            const altKey = isUuid ? data.short_id : data.id;
+            if (altKey && altKey !== idOrShortId) {
+                qc.setQueryData(queryKeys.saleComp(altKey), data);
+            }
+            return data;
+        },
         enabled: !!idOrShortId,
     });
 }

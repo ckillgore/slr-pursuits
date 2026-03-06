@@ -1,12 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
+import { useAuth } from '@/components/AuthProvider';
+import { useRouter } from 'next/navigation';
 import { useProductTypes, useUpsertProductType } from '@/hooks/useSupabaseQueries';
 import Link from 'next/link';
 import { Plus, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 
 export default function ProductTypesPage() {
+    const { isAdminOrOwner, isLoading: authLoading } = useAuth();
+    const router = useRouter();
+
+    useEffect(() => {
+        if (!authLoading && !isAdminOrOwner) router.push('/');
+    }, [authLoading, isAdminOrOwner, router]);
+
     const { data: productTypes = [], isLoading } = useProductTypes();
     const upsertMutation = useUpsertProductType();
 

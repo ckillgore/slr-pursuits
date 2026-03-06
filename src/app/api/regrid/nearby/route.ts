@@ -1,4 +1,13 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/app/api/_lib/auth';
+import { z } from 'zod';
+
+const BodySchema = z.object({
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+    radiusMeters: z.number().min(1).max(32000).default(200),
+    excludeRegridIds: z.array(z.string()).default([]),
+});
 
 /**
  * POST /api/regrid/nearby
@@ -76,21 +85,21 @@ function parseNearbyParcel(feature: any): NearbyParcel {
 }
 
 export async function POST(request: Request) {
+    const { response: authError } = await requireAuth();
+    if (authError) return authError;
+
     try {
-        const body = await request.json();
-        const { latitude, longitude, radiusMeters = 200, excludeRegridIds = [] } = body;
+        const raw = await request.json();
+        const parsed = BodySchema.safeParse(raw);
+        if (!parsed.success) {
+            return NextResponse.json({ error: 'Invalid input', details: parsed.error.flatten() }, { status: 400 });
+        }
+        const { latitude, longitude, radiusMeters, excludeRegridIds } = parsed.data;
 
         if (!REGRID_API_KEY) {
             return NextResponse.json(
                 { error: 'REGRID_API_KEY must be configured' },
                 { status: 500 }
-            );
-        }
-
-        if (!latitude || !longitude) {
-            return NextResponse.json(
-                { error: 'latitude and longitude are required' },
-                { status: 400 }
             );
         }
 
@@ -107,6 +116,7 @@ export async function POST(request: Request) {
 
         const res = await fetch(url.toString(), {
             headers: { 'Accept': 'application/json' },
+            signal: AbortSignal.timeout(30_000),
         });
 
         if (!res.ok) {

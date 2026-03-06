@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/app/api/_lib/auth';
 
 const REGRID_API_KEY = process.env.REGRID_API_KEY || '';
 
@@ -17,6 +18,9 @@ const MVT_FIELDS = [
 ].join(',');
 
 export async function GET(request: Request) {
+    const { response: authError } = await requireAuth();
+    if (authError) return authError;
+
     try {
         const { searchParams } = new URL(request.url);
         const z = searchParams.get('z');
@@ -49,6 +53,7 @@ export async function GET(request: Request) {
 
         const res = await fetch(tileUrl, {
             headers: { 'Accept': 'application/vnd.mapbox-vector-tile' },
+            signal: AbortSignal.timeout(15_000),
         });
 
         // Diagnostic logging to debug market coverage issues

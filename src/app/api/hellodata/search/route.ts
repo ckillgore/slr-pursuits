@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/app/api/_lib/auth';
 
 /**
  * GET /api/hellodata/search?q=...&state=...&zip_code=...&lat=...&lon=...&max_distance=...
@@ -6,6 +7,9 @@ import { NextRequest, NextResponse } from 'next/server';
  * Proxies the Hellodata property search endpoint. This is a FREE endpoint.
  */
 export async function GET(req: NextRequest) {
+    const { response: authError } = await requireAuth();
+    if (authError) return authError;
+
     const apiKey = process.env.HELLODATA_API_KEY;
     if (!apiKey) {
         return NextResponse.json({ error: 'HELLODATA_API_KEY not configured' }, { status: 500 });
@@ -41,8 +45,9 @@ export async function GET(req: NextRequest) {
 
         if (!response.ok) {
             const errorText = await response.text();
+            console.error('[hellodata/search] API error:', response.status, errorText.slice(0, 200));
             return NextResponse.json(
-                { error: `Hellodata API error: ${response.status}`, details: errorText },
+                { error: `Search failed (${response.status})` },
                 { status: response.status }
             );
         }

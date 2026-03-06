@@ -1,4 +1,12 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/app/api/_lib/auth';
+import { z } from 'zod';
+
+const BodySchema = z.object({
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
+    address: z.string().max(500).optional(),
+});
 
 /**
  * POST /api/regrid
@@ -311,9 +319,16 @@ function mergeZoningData(parcel: ParcelRecord, zoningFeatures: any[]): void {
 // ======================== Route Handler ========================
 
 export async function POST(request: Request) {
+    const { response: authError } = await requireAuth();
+    if (authError) return authError;
+
     try {
-        const body = await request.json();
-        const { latitude, longitude, address } = body;
+        const raw = await request.json();
+        const parsed = BodySchema.safeParse(raw);
+        if (!parsed.success) {
+            return NextResponse.json({ error: 'Invalid input', details: parsed.error.flatten() }, { status: 400 });
+        }
+        const { latitude, longitude, address } = parsed.data;
 
         if (!REGRID_API_KEY) {
             return NextResponse.json(
@@ -336,6 +351,7 @@ export async function POST(request: Request) {
 
             const addrRes = await fetch(addrUrl.toString(), {
                 headers: { 'Accept': 'application/json' },
+                signal: AbortSignal.timeout(30_000),
             });
 
             if (addrRes.ok) {
@@ -356,6 +372,7 @@ export async function POST(request: Request) {
 
             const ptRes = await fetch(ptUrl.toString(), {
                 headers: { 'Accept': 'application/json' },
+                signal: AbortSignal.timeout(30_000),
             });
 
             if (ptRes.ok) {

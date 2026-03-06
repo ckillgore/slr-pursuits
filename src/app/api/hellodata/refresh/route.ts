@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { requireAuth } from '@/app/api/_lib/auth';
 import { HELLODATA_CACHE_TTL_DAYS } from '@/lib/calculations/hellodataCalculations';
 
 /**
@@ -14,13 +15,15 @@ import { HELLODATA_CACHE_TTL_DAYS } from '@/lib/calculations/hellodataCalculatio
  * Can be called manually from an admin UI or via a cron job.
  */
 export async function POST() {
+    const { user, response: authError } = await requireAuth();
+    if (authError) return authError;
+
     const apiKey = process.env.HELLODATA_API_KEY;
     if (!apiKey) {
         return NextResponse.json({ error: 'HELLODATA_API_KEY not configured' }, { status: 500 });
     }
 
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
 
     try {
         // 1. Find all properties linked to pursuits with active stages

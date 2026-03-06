@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { requireAuth } from '@/app/api/_lib/auth';
 
 /**
  * GET /api/hellodata/property?hellodataId=...&forceRefresh=...
@@ -14,7 +15,7 @@ import { createClient } from '@/lib/supabase/server';
  * Costs 1 Hellodata request (~$0.50) only on first add or explicit refresh.
  */
 export async function GET(req: NextRequest) {
-    const { response: authError } = await requireAuth();
+    const { user, response: authError } = await requireAuth();
     if (authError) return authError;
 
     const apiKey = process.env.HELLODATA_API_KEY;
@@ -31,7 +32,6 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
 
     // Timing helper
     const timings: Record<string, number> = {};

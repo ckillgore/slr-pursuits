@@ -43,6 +43,8 @@ export default function DashboardPage() {
   const [coordLatStr, setCoordLatStr] = useState('');
   const [coordLngStr, setCoordLngStr] = useState('');
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const coordTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isGeocodingCoords, setIsGeocodingCoords] = useState(false);
 
   // Derive unique regions from pursuits
   const regions = useMemo(() => {
@@ -114,14 +116,15 @@ export default function DashboardPage() {
     setShowSuggestions(false);
   }, []);
 
-  const applyCoords = () => {
-    const lat = parseFloat(coordLatStr);
-    const lng = parseFloat(coordLngStr);
+  const applyCoords = useCallback((latStr: string, lngStr: string) => {
+    const lat = parseFloat(latStr);
+    const lng = parseFloat(lngStr);
     if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
     setNewLat(lat);
     setNewLng(lng);
     // Reverse geocode to fill address
     if (MAPBOX_TOKEN) {
+      setIsGeocodingCoords(true);
       fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=address,place`)
         .then(r => r.json())
         .then(data => {
@@ -137,9 +140,10 @@ export default function DashboardPage() {
             setNewCounty(findCtx('district') || '');
           }
         })
-        .catch(() => { });
+        .catch(() => { })
+        .finally(() => setIsGeocodingCoords(false));
     }
-  };
+  }, []);
 
   const resetNewPursuitForm = () => {
     setNewPursuitName('');
@@ -517,7 +521,17 @@ export default function DashboardPage() {
                           type="number"
                           step="any"
                           value={coordLatStr}
-                          onChange={(e) => setCoordLatStr(e.target.value)}
+                          onChange={(e) => {
+                            setCoordLatStr(e.target.value);
+                            // Debounced auto-apply if both coords are valid
+                            const lng = parseFloat(coordLngStr);
+                            const lat = parseFloat(e.target.value);
+                            if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                              setNewLat(lat); setNewLng(lng); // Set immediately
+                              if (coordTimeoutRef.current) clearTimeout(coordTimeoutRef.current);
+                              coordTimeoutRef.current = setTimeout(() => applyCoords(e.target.value, coordLngStr), 500);
+                            }
+                          }}
                           placeholder="Latitude (e.g., 30.267)"
                           className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:outline-none"
                         />
@@ -527,20 +541,27 @@ export default function DashboardPage() {
                           type="number"
                           step="any"
                           value={coordLngStr}
-                          onChange={(e) => setCoordLngStr(e.target.value)}
+                          onChange={(e) => {
+                            setCoordLngStr(e.target.value);
+                            // Debounced auto-apply if both coords are valid
+                            const lat = parseFloat(coordLatStr);
+                            const lng = parseFloat(e.target.value);
+                            if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                              setNewLat(lat); setNewLng(lng); // Set immediately
+                              if (coordTimeoutRef.current) clearTimeout(coordTimeoutRef.current);
+                              coordTimeoutRef.current = setTimeout(() => applyCoords(coordLatStr, e.target.value), 500);
+                            }
+                          }}
                           placeholder="Longitude (e.g., -97.743)"
                           className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:outline-none"
                         />
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={applyCoords}
-                      disabled={!coordLatStr || !coordLngStr}
-                      className="text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] font-medium disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      Geocode → Auto-fill address
-                    </button>
+                    {isGeocodingCoords && (
+                      <div className="flex items-center gap-1.5 text-xs text-[var(--accent)]">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Reverse geocoding...
+                      </div>
+                    )}
                     {newLat !== null && (
                       <div className="px-3 py-2 bg-[var(--accent-subtle)] rounded-lg text-xs text-[var(--text-primary)]">
                         <div className="font-medium">{newAddress || 'Coordinates set'}</div>
@@ -575,7 +596,7 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={handleCreatePursuit}
-                disabled={!newPursuitName.trim() || createPursuit.isPending}
+                disabled={!newPursuitName.trim() || createPursuit.isPending || isGeocodingCoords}
                 className="px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors shadow-sm"
               >
                 {createPursuit.isPending ? 'Creating...' : 'Create Pursuit'}

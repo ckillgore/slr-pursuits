@@ -308,8 +308,8 @@ export default function ExplorePage() {
                 addRegridSource(map);
             });
 
-            // Track zoom level
-            map.on('zoomend', () => {
+            // Track zoom level — use 'zoom' event so pinch-to-zoom on touch devices is captured
+            map.on('zoom', () => {
                 setCurrentZoom(Math.round(map.getZoom()));
             });
 

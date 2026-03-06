@@ -284,6 +284,26 @@ function LandCompsSection({ pursuitId }: { pursuitId: string }) {
                                     </td>
                                 </tr>
                             ))}
+                            {linkedComps.length > 1 && (() => {
+                                const totalAcres = linkedComps.reduce((s: number, c: LandComp) => s + (c.site_area_sf || 0), 0) / SF_PER_ACRE;
+                                const priced = linkedComps.filter((c: LandComp) => c.sale_price && c.sale_price > 0);
+                                const avgPrice = priced.length > 0 ? priced.reduce((s: number, c: LandComp) => s + (c.sale_price ?? 0), 0) / priced.length : null;
+                                const psfComps = linkedComps.filter((c: LandComp) => c.sale_price_psf && c.sale_price_psf > 0);
+                                const avgPsf = psfComps.length > 0 ? psfComps.reduce((s: number, c: LandComp) => s + (c.sale_price_psf ?? 0), 0) / psfComps.length : null;
+                                return (
+                                    <tr className="bg-[var(--bg-elevated)] font-semibold border-t border-[var(--border)]">
+                                        <td className="py-1.5 px-2 text-[var(--text-primary)]">Total / Avg</td>
+                                        <td className="py-1.5 px-2 text-[var(--text-muted)] text-[10px]">{linkedComps.length} comps</td>
+                                        <td className="py-1.5 px-2 text-right tabular-nums text-[var(--text-primary)]">{totalAcres > 0 ? totalAcres.toFixed(2) : '—'}</td>
+                                        <td className="py-1.5 px-2 text-right tabular-nums text-[var(--text-primary)]">{fmtCur(avgPrice)}</td>
+                                        <td className="py-1.5 px-2 text-right tabular-nums text-[var(--text-secondary)]">{fmtCur(avgPsf, 2)}</td>
+                                        <td className="py-1.5 px-2"></td>
+                                        <td className="py-1.5 px-2"></td>
+                                        <td className="py-1.5 px-2"></td>
+                                        <td className="py-1.5 px-2"></td>
+                                    </tr>
+                                );
+                            })()}
                         </tbody>
                     </table>
                 </div>
@@ -516,6 +536,34 @@ function SaleCompsSection({ pursuitId }: { pursuitId: string }) {
                                     </tr>
                                 );
                             })}
+                            {linkedComps.length > 1 && (() => {
+                                const totalUnits = linkedComps.reduce((s: number, c: SaleComp) => s + (c.total_units ?? 0), 0);
+                                const totalSf = linkedComps.reduce((s: number, c: SaleComp) => s + (c.total_sf ?? 0), 0);
+                                const txData = linkedComps.map((c: SaleComp) => getLatestTx(c)).filter(Boolean) as SaleTransaction[];
+                                const pricedTx = txData.filter(t => t.sale_price && t.sale_price > 0);
+                                const avgPrice = pricedTx.length > 0 ? pricedTx.reduce((s, t) => s + (t.sale_price ?? 0), 0) / pricedTx.length : null;
+                                const ppuTx = txData.filter(t => t.price_per_unit && t.price_per_unit > 0);
+                                const avgPpu = ppuTx.length > 0 ? ppuTx.reduce((s, t) => s + (t.price_per_unit ?? 0), 0) / ppuTx.length : null;
+                                const capTx = txData.filter(t => t.cap_rate && t.cap_rate > 0);
+                                const avgCap = capTx.length > 0 ? capTx.reduce((s, t) => s + (t.cap_rate ?? 0), 0) / capTx.length : null;
+                                const builtComps = linkedComps.filter((c: SaleComp) => c.year_built && c.year_built > 0);
+                                const avgYearBuilt = builtComps.length > 0 ? Math.round(builtComps.reduce((s: number, c: SaleComp) => s + (c.year_built ?? 0), 0) / builtComps.length) : null;
+                                return (
+                                    <tr className="bg-[var(--bg-elevated)] font-semibold border-t border-[var(--border)]">
+                                        <td className="py-1.5 px-2 text-[var(--text-primary)]">Total / Avg</td>
+                                        <td className="py-1.5 px-2 text-[var(--text-muted)] text-[10px]">{linkedComps.length} comps</td>
+                                        <td className="py-1.5 px-2"></td>
+                                        <td className="py-1.5 px-2 text-center tabular-nums text-[var(--text-secondary)]">{avgYearBuilt ?? '—'}</td>
+                                        <td className="py-1.5 px-2 text-right tabular-nums text-[var(--text-primary)]">{fmtNum(totalUnits)}</td>
+                                        <td className="py-1.5 px-2 text-right tabular-nums text-[var(--text-secondary)]">{fmtNum(totalSf)}</td>
+                                        <td className="py-1.5 px-2"></td>
+                                        <td className="py-1.5 px-2 text-right tabular-nums text-[var(--text-primary)]">{fmtCur(avgPrice)}</td>
+                                        <td className="py-1.5 px-2 text-right tabular-nums text-[var(--text-secondary)]">{fmtCur(avgPpu)}</td>
+                                        <td className="py-1.5 px-2 text-right tabular-nums text-[var(--text-secondary)]">{avgCap ? `${avgCap.toFixed(2)}%` : '—'}</td>
+                                        <td className="py-1.5 px-2"></td>
+                                    </tr>
+                                );
+                            })()}
                         </tbody>
                     </table>
                 </div>

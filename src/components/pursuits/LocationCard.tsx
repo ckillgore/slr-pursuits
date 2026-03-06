@@ -290,13 +290,40 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
     };
 
     // Save edits
-    const saveEdits = () => {
+    const saveEdits = async () => {
         const parsedLat = parseFloat(editLat);
         const parsedLng = parseFloat(editLng);
         const hasManualCoords = !isNaN(parsedLat) && !isNaN(parsedLng) && parsedLat >= -90 && parsedLat <= 90 && parsedLng >= -180 && parsedLng <= 180;
 
-        if (hasManualCoords) {
-            // If user manually entered/edited coordinates, use those directly
+        // Detect if the user changed the address text (vs only editing lat/lng)
+        const addressChanged =
+            editAddress !== (pursuit.address || '') ||
+            editCity !== (pursuit.city || '') ||
+            editState !== (pursuit.state || '') ||
+            editZip !== (pursuit.zip || '');
+
+        // Detect if the user changed the coordinates manually
+        const coordsChanged =
+            hasManualCoords && (
+                parsedLat !== pursuit.latitude ||
+                parsedLng !== pursuit.longitude
+            );
+
+        if (coordsChanged && !addressChanged) {
+            // User only changed coords — save them directly
+            onUpdate({
+                address: editAddress,
+                city: editCity,
+                state: editState,
+                zip: editZip,
+                latitude: parsedLat,
+                longitude: parsedLng,
+            });
+        } else if (addressChanged) {
+            // User changed the address — always geocode to get fresh coords
+            await geocodeAddress(editAddress, editCity, editState, editZip);
+        } else if (hasManualCoords) {
+            // Nothing changed but user clicked save — save what's there
             onUpdate({
                 address: editAddress,
                 city: editCity,
@@ -306,8 +333,8 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                 longitude: parsedLng,
             });
         } else {
-            // Otherwise, geocode from address
-            geocodeAddress(editAddress, editCity, editState, editZip);
+            // No valid coords at all — try geocoding from address
+            await geocodeAddress(editAddress, editCity, editState, editZip);
         }
         setIsEditingAddress(false);
     };

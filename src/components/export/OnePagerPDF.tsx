@@ -378,10 +378,7 @@ export function OnePagerPDF({ onePager, pursuit, calc, productTypeName, unitMix,
 
     const renderFooter = () => (
         <View style={s.footer} fixed>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Image src="/images/slr-logo.png" style={{ width: 60, height: 'auto' }} />
-                <Text> · {pursuit.name} · {onePager.name}</Text>
-            </View>
+            <Text>{pursuit.name} · {onePager.name}</Text>
             <Text>Generated {new Date().toLocaleDateString('en-US')}</Text>
         </View>
     );

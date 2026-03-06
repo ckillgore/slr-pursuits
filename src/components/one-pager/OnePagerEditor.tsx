@@ -634,89 +634,6 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                     </table>
                 </div>
 
-                {/* ===== PREMIUMS CARD (Toggleable) ===== */}
-                <div className="card">
-                    <button
-                        onClick={() => setPremiumsExpanded(!premiumsExpanded)}
-                        className="flex items-center justify-between w-full"
-                    >
-                        <div className="flex items-center gap-1.5">
-                            {premiumsExpanded ? <ChevronDown className="w-3.5 h-3.5 text-[var(--text-faint)]" /> : <ChevronRight className="w-3.5 h-3.5 text-[var(--text-faint)]" />}
-                            <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Premiums</h3>
-                            {unitPremiums.length > 0 && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--accent-subtle)] text-[var(--accent)] font-semibold"
-                                >{unitPremiums.length}</span>
-                            )}
-                        </div>
-                        <span className="text-xs tabular-nums text-[var(--text-secondary)] font-medium">{formatCurrency(totalPremiumIncome)}/yr</span>
-                    </button>
-                    {premiumsExpanded && (
-                        <div className="mt-3 -mx-5 overflow-x-auto">
-                            <table className="data-table">
-                                <thead>
-                                    <tr>
-                                        <th className="text-left">Name</th>
-                                        <th className="text-right">Units</th>
-                                        <th className="text-right">$/Unit/Mo</th>
-                                        <th className="text-right">Annual</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {unitPremiums.map((premium) => {
-                                        const premiumAnnual = premium.unit_count * premium.rent_premium_per_unit_month * 12;
-                                        return (
-                                            <tr key={premium.id}>
-                                                <td>
-                                                    <div className="flex items-center gap-1 group/prem">
-                                                        <DebouncedTextInput
-                                                            value={premium.name}
-                                                            onCommit={(v: string) => upsertUnitPremium.mutate({ ...premium, name: v })}
-                                                            className="text-xs bg-transparent border-none text-[var(--text-secondary)] w-32 px-0 focus:outline-none focus:ring-0"
-                                                        />
-                                                        <button
-                                                            onClick={() => deleteUnitPremiumMutation.mutate({ id: premium.id, onePagerId: onePager.id })}
-                                                            className="text-[var(--text-faint)] hover:text-[var(--danger)] transition-colors opacity-0 group-hover/prem:opacity-100"
-                                                        >
-                                                            <X className="w-3 h-3" />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                                <td><InlineInput value={premium.unit_count} onChange={(v) => upsertUnitPremium.mutate({ ...premium, unit_count: v as number })} format="number" decimals={0} className="text-xs w-12" editAllMode={editAllMode} /></td>
-                                                <td><InlineInput value={premium.rent_premium_per_unit_month} onChange={(v) => upsertUnitPremium.mutate({ ...premium, rent_premium_per_unit_month: v as number })} format="currency" className="text-xs w-16" editAllMode={editAllMode} /></td>
-                                                <td className="text-right text-xs tabular-nums text-[var(--text-secondary)]">{formatCurrency(premiumAnnual)}</td>
-                                            </tr>
-                                        );
-                                    })}
-                                    <tr>
-                                        <td colSpan={4}>
-                                            <button
-                                                onClick={() => upsertUnitPremium.mutate({
-                                                    one_pager_id: onePager.id,
-                                                    name: 'New Premium',
-                                                    unit_count: 0,
-                                                    rent_premium_per_unit_month: 0,
-                                                    sort_order: unitPremiums.length,
-                                                })}
-                                                className="text-[10px] text-[var(--accent)] hover:text-[var(--accent-hover)] flex items-center gap-1 transition-colors"
-                                            >
-                                                <Plus className="w-3 h-3" /> Add Premium
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    {unitPremiums.length > 0 && (
-                                        <tr className="total-row">
-                                            <td>Total Premiums</td>
-                                            <td className="text-right tabular-nums">{unitPremiums.reduce((s, p) => s + p.unit_count, 0)}</td>
-                                            <td></td>
-                                            <td className="text-right tabular-nums font-bold">{formatCurrency(totalPremiumIncome)}</td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
-
                 {/* ===== UNIT MIX + PRO FORMA (spans 2 columns) ===== */}
                 <div className="lg:col-span-2 lg:self-start space-y-4">
                     <div className="card">
@@ -1095,6 +1012,89 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                         </div>
                     </div>
                 )}
+
+                {/* ===== PREMIUMS CARD (Toggleable, at bottom) ===== */}
+                <div className="card">
+                    <button
+                        onClick={() => setPremiumsExpanded(!premiumsExpanded)}
+                        className="flex items-center justify-between w-full"
+                    >
+                        <div className="flex items-center gap-1.5">
+                            {premiumsExpanded ? <ChevronDown className="w-3.5 h-3.5 text-[var(--text-faint)]" /> : <ChevronRight className="w-3.5 h-3.5 text-[var(--text-faint)]" />}
+                            <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Premiums</h3>
+                            {unitPremiums.length > 0 && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--accent-subtle)] text-[var(--accent)] font-semibold"
+                                >{unitPremiums.length}</span>
+                            )}
+                        </div>
+                        <span className="text-xs tabular-nums text-[var(--text-secondary)] font-medium">{formatCurrency(totalPremiumIncome)}/yr</span>
+                    </button>
+                    {premiumsExpanded && (
+                        <div className="mt-3 -mx-5 overflow-x-auto">
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        <th className="text-left">Name</th>
+                                        <th className="text-right">Units</th>
+                                        <th className="text-right">$/Unit/Mo</th>
+                                        <th className="text-right">Annual</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {unitPremiums.map((premium) => {
+                                        const premiumAnnual = premium.unit_count * premium.rent_premium_per_unit_month * 12;
+                                        return (
+                                            <tr key={premium.id}>
+                                                <td>
+                                                    <div className="flex items-center gap-1 group/prem">
+                                                        <DebouncedTextInput
+                                                            value={premium.name}
+                                                            onCommit={(v: string) => upsertUnitPremium.mutate({ ...premium, name: v })}
+                                                            className="text-xs bg-transparent border-none text-[var(--text-secondary)] w-32 px-0 focus:outline-none focus:ring-0"
+                                                        />
+                                                        <button
+                                                            onClick={() => deleteUnitPremiumMutation.mutate({ id: premium.id, onePagerId: onePager.id })}
+                                                            className="text-[var(--text-faint)] hover:text-[var(--danger)] transition-colors opacity-0 group-hover/prem:opacity-100"
+                                                        >
+                                                            <X className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                                <td><InlineInput value={premium.unit_count} onChange={(v) => upsertUnitPremium.mutate({ ...premium, unit_count: v as number })} format="number" decimals={0} className="text-xs w-12" editAllMode={editAllMode} /></td>
+                                                <td><InlineInput value={premium.rent_premium_per_unit_month} onChange={(v) => upsertUnitPremium.mutate({ ...premium, rent_premium_per_unit_month: v as number })} format="currency" className="text-xs w-16" editAllMode={editAllMode} /></td>
+                                                <td className="text-right text-xs tabular-nums text-[var(--text-secondary)]">{formatCurrency(premiumAnnual)}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                    <tr>
+                                        <td colSpan={4}>
+                                            <button
+                                                onClick={() => { setPremiumsExpanded(true); upsertUnitPremium.mutate({
+                                                    one_pager_id: onePager.id,
+                                                    name: 'New Premium',
+                                                    unit_count: 0,
+                                                    rent_premium_per_unit_month: 0,
+                                                    sort_order: unitPremiums.length,
+                                                }); }}
+                                                className="text-[10px] text-[var(--accent)] hover:text-[var(--accent-hover)] flex items-center gap-1 transition-colors"
+                                            >
+                                                <Plus className="w-3 h-3" /> Add Premium
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {unitPremiums.length > 0 && (
+                                        <tr className="total-row">
+                                            <td>Total Premiums</td>
+                                            <td className="text-right tabular-nums">{unitPremiums.reduce((s, p) => s + p.unit_count, 0)}</td>
+                                            <td></td>
+                                            <td className="text-right tabular-nums font-bold">{formatCurrency(totalPremiumIncome)}</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
 
                 {/* ===== SENSITIVITY ANALYSIS (full width, collapsible) ===== */}
                 <div className="lg:col-span-3">

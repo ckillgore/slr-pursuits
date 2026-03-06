@@ -21,7 +21,7 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('');
   const [regionFilter, setRegionFilter] = useState<string>('');
-  const [sortBy, setSortBy] = useState<'newest' | 'name' | 'city'>('newest');
+  const [sortBy, setSortBy] = useState<'updated' | 'newest' | 'name' | 'city'>('updated');
   const [viewMode, setViewMode] = useState<'grid' | 'map' | 'list'>('grid');
 
   // New Pursuit dialog state
@@ -73,8 +73,11 @@ export default function DashboardPage() {
         filtered.sort((a, b) => (a.city || '').localeCompare(b.city || ''));
         break;
       case 'newest':
-      default:
         filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        break;
+      case 'updated':
+      default:
+        filtered.sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
         break;
     }
     return filtered;
@@ -273,9 +276,10 @@ export default function DashboardPage() {
           {(viewMode === 'grid' || viewMode === 'list') && (
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'newest' | 'name' | 'city')}
+              onChange={(e) => setSortBy(e.target.value as 'updated' | 'newest' | 'name' | 'city')}
               className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
             >
+              <option value="updated">Last Updated</option>
               <option value="newest">Newest First</option>
               <option value="name">Name A→Z</option>
               <option value="city">City A→Z</option>

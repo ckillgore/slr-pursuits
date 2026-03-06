@@ -238,7 +238,7 @@ export default function MarketStudyTab({ pursuitId, pursuitName }: MarketStudyTa
     const monthLabel = now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-5">
             {/* Header */}
             <div>
                 <h2 className="text-lg font-semibold text-[var(--text-primary)]">
@@ -247,78 +247,76 @@ export default function MarketStudyTab({ pursuitId, pursuitName }: MarketStudyTa
                 <p className="text-xs text-[var(--text-muted)] mt-0.5">{compSummaries.length} properties · Source: HelloData</p>
             </div>
 
-            {/* ── Two-column layout: Summary Table + Stock Table ── */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                {/* Market Summary Table */}
-                <div className="space-y-2">
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Market Summary</h3>
-                    <div className="border border-[var(--border)] rounded-xl overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-xs">
-                                <thead>
-                                    <tr className="bg-[var(--accent)] text-white">
-                                        <th className="py-2 px-2 text-left font-semibold whitespace-nowrap">Apartment Name</th>
-                                        <th className="py-2 px-2 text-center font-semibold whitespace-nowrap">Map</th>
-                                        <th className="py-2 px-2 text-left font-semibold whitespace-nowrap">Type</th>
-                                        <th className="py-2 px-2 text-center font-semibold whitespace-nowrap">Built</th>
-                                        <th className="py-2 px-2 text-right font-semibold whitespace-nowrap">Units</th>
-                                        <th className="py-2 px-2 text-right font-semibold whitespace-nowrap">Avg SF</th>
-                                        <th className="py-2 px-2 text-right font-semibold whitespace-nowrap">Mkt Rent</th>
-                                        <th className="py-2 px-2 text-right font-semibold whitespace-nowrap">Rent/SF</th>
-                                        <th className="py-2 px-2 text-right font-semibold whitespace-nowrap">Eff Rent</th>
-                                        <th className="py-2 px-2 text-right font-semibold whitespace-nowrap">Eff/SF</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {compSummaries.map((c, i) => (
-                                        <tr key={i} className="border-b border-[var(--table-row-border)] last:border-b-0 hover:bg-[var(--bg-primary)]">
-                                            <td className="py-2 px-2 font-semibold text-[var(--accent)] whitespace-nowrap truncate max-w-[160px]">{c.name}</td>
-                                            <td className="py-2 px-2 text-center">
-                                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: c.color }}>{c.mapNode}</span>
-                                            </td>
-                                            <td className="py-2 px-2 text-[var(--text-secondary)]">{c.projectType}</td>
-                                            <td className="py-2 px-2 text-center text-[var(--text-secondary)]">{c.yearBuilt ?? '—'}</td>
-                                            <td className="py-2 px-2 text-right tabular-nums text-[var(--text-primary)]">{fmtNum(c.unitCount)}</td>
-                                            <td className="py-2 px-2 text-right tabular-nums text-[var(--text-secondary)]">{fmtNum(c.avgUnitSize)}</td>
-                                            <td className="py-2 px-2 text-right tabular-nums font-medium text-[var(--text-primary)]">{fmtCur(c.marketRent)}</td>
-                                            <td className="py-2 px-2 text-right tabular-nums text-[var(--text-secondary)]">{fmtCur(c.marketRentSf, 2)}</td>
-                                            <td className="py-2 px-2 text-right tabular-nums text-[var(--text-primary)]">{fmtCur(c.effectiveRent)}</td>
-                                            <td className="py-2 px-2 text-right tabular-nums text-[var(--text-secondary)]">{fmtCur(c.effectiveRentSf, 2)}</td>
-                                        </tr>
-                                    ))}
-                                    {summaryTotals && (
-                                        <tr className="bg-[var(--bg-elevated)] font-bold border-t-2 border-[var(--border)]">
-                                            <td className="py-2 px-2 text-[var(--text-primary)]">Grand Total</td>
-                                            <td></td><td></td><td></td>
-                                            <td className="py-2 px-2 text-right tabular-nums text-[var(--text-primary)]">{fmtNum(summaryTotals.unitCount)}</td>
-                                            <td className="py-2 px-2 text-right tabular-nums text-[var(--text-secondary)]">{fmtNum(summaryTotals.avgUnitSize)}</td>
-                                            <td className="py-2 px-2 text-right tabular-nums text-[var(--text-primary)]">{fmtCur(summaryTotals.marketRent)}</td>
-                                            <td className="py-2 px-2 text-right tabular-nums text-[var(--text-secondary)]">{fmtCur(summaryTotals.marketRentSf, 2)}</td>
-                                            <td className="py-2 px-2 text-right tabular-nums text-[var(--text-primary)]">{fmtCur(summaryTotals.effectiveRent)}</td>
-                                            <td className="py-2 px-2 text-right tabular-nums text-[var(--text-secondary)]">{fmtCur(summaryTotals.effectiveRentSf, 2)}</td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+            {/* ── Market Summary Table (full width) ── */}
+            <div className="space-y-1.5">
+                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Market Summary</h3>
+                <div className="border border-[var(--border)] rounded-xl overflow-hidden">
+                    <table className="w-full text-[11px]">
+                        <thead>
+                            <tr className="bg-[var(--accent)] text-white">
+                                <th className="py-1.5 px-1.5 text-left font-semibold">Property</th>
+                                <th className="py-1.5 px-1 text-center font-semibold w-8">#</th>
+                                <th className="py-1.5 px-1.5 text-left font-semibold">Type</th>
+                                <th className="py-1.5 px-1 text-center font-semibold">Built</th>
+                                <th className="py-1.5 px-1.5 text-right font-semibold">Units</th>
+                                <th className="py-1.5 px-1.5 text-right font-semibold">Avg SF</th>
+                                <th className="py-1.5 px-1.5 text-right font-semibold">Mkt Rent</th>
+                                <th className="py-1.5 px-1.5 text-right font-semibold">Rent/SF</th>
+                                <th className="py-1.5 px-1.5 text-right font-semibold">Eff Rent</th>
+                                <th className="py-1.5 px-1.5 text-right font-semibold">Eff/SF</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {compSummaries.map((c, i) => (
+                                <tr key={i} className="border-b border-[var(--table-row-border)] last:border-b-0 hover:bg-[var(--bg-primary)]">
+                                    <td className="py-1 px-1.5 font-semibold text-[var(--accent)] whitespace-nowrap truncate max-w-[180px]">{c.name}</td>
+                                    <td className="py-1 px-1 text-center">
+                                        <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full text-[9px] font-bold text-white" style={{ backgroundColor: c.color }}>{c.mapNode}</span>
+                                    </td>
+                                    <td className="py-1 px-1.5 text-[var(--text-secondary)]">{c.projectType}</td>
+                                    <td className="py-1 px-1 text-center text-[var(--text-secondary)]">{c.yearBuilt ?? '—'}</td>
+                                    <td className="py-1 px-1.5 text-right tabular-nums text-[var(--text-primary)]">{fmtNum(c.unitCount)}</td>
+                                    <td className="py-1 px-1.5 text-right tabular-nums text-[var(--text-secondary)]">{fmtNum(c.avgUnitSize)}</td>
+                                    <td className="py-1 px-1.5 text-right tabular-nums font-medium text-[var(--text-primary)]">{fmtCur(c.marketRent)}</td>
+                                    <td className="py-1 px-1.5 text-right tabular-nums text-[var(--text-secondary)]">{fmtCur(c.marketRentSf, 2)}</td>
+                                    <td className="py-1 px-1.5 text-right tabular-nums text-[var(--text-primary)]">{fmtCur(c.effectiveRent)}</td>
+                                    <td className="py-1 px-1.5 text-right tabular-nums text-[var(--text-secondary)]">{fmtCur(c.effectiveRentSf, 2)}</td>
+                                </tr>
+                            ))}
+                            {summaryTotals && (
+                                <tr className="bg-[var(--bg-elevated)] font-bold border-t-2 border-[var(--border)]">
+                                    <td className="py-1.5 px-1.5 text-[var(--text-primary)]">Grand Total</td>
+                                    <td></td><td></td><td></td>
+                                    <td className="py-1.5 px-1.5 text-right tabular-nums text-[var(--text-primary)]">{fmtNum(summaryTotals.unitCount)}</td>
+                                    <td className="py-1.5 px-1.5 text-right tabular-nums text-[var(--text-secondary)]">{fmtNum(summaryTotals.avgUnitSize)}</td>
+                                    <td className="py-1.5 px-1.5 text-right tabular-nums text-[var(--text-primary)]">{fmtCur(summaryTotals.marketRent)}</td>
+                                    <td className="py-1.5 px-1.5 text-right tabular-nums text-[var(--text-secondary)]">{fmtCur(summaryTotals.marketRentSf, 2)}</td>
+                                    <td className="py-1.5 px-1.5 text-right tabular-nums text-[var(--text-primary)]">{fmtCur(summaryTotals.effectiveRent)}</td>
+                                    <td className="py-1.5 px-1.5 text-right tabular-nums text-[var(--text-secondary)]">{fmtCur(summaryTotals.effectiveRentSf, 2)}</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
+            </div>
 
+            {/* ── Two-column: Stock Table + Map ── */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
                 {/* Market Stock by Unit Type */}
-                <div className="space-y-2">
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Market Stock by Unit Type</h3>
+                <div className="space-y-1.5">
+                    <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Market Stock by Unit Type</h3>
                     <div className="border border-[var(--border)] rounded-xl overflow-hidden">
-                        <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
-                            <table className="w-full text-xs">
+                        <div className="overflow-y-auto" style={{ maxHeight: '520px' }}>
+                            <table className="w-full text-[11px]">
                                 <thead className="sticky top-0 z-10">
                                     <tr className="bg-[var(--accent)] text-white">
-                                        <th className="py-2 px-2 text-left font-semibold whitespace-nowrap">Unit Mix Analysis</th>
-                                        <th className="py-2 px-2 text-right font-semibold whitespace-nowrap">Units</th>
-                                        <th className="py-2 px-2 text-right font-semibold whitespace-nowrap">Avg SF</th>
-                                        <th className="py-2 px-2 text-right font-semibold whitespace-nowrap">Mkt Rent</th>
-                                        <th className="py-2 px-2 text-right font-semibold whitespace-nowrap">Rent/SF</th>
-                                        <th className="py-2 px-2 text-right font-semibold whitespace-nowrap">Eff Rent</th>
-                                        <th className="py-2 px-2 text-right font-semibold whitespace-nowrap">Eff/SF</th>
+                                        <th className="py-1.5 px-1.5 text-left font-semibold">Unit Mix Analysis</th>
+                                        <th className="py-1.5 px-1.5 text-right font-semibold">Units</th>
+                                        <th className="py-1.5 px-1.5 text-right font-semibold">Avg SF</th>
+                                        <th className="py-1.5 px-1.5 text-right font-semibold">Mkt Rent</th>
+                                        <th className="py-1.5 px-1.5 text-right font-semibold">Rent/SF</th>
+                                        <th className="py-1.5 px-1.5 text-right font-semibold">Eff Rent</th>
+                                        <th className="py-1.5 px-1.5 text-right font-semibold">Eff/SF</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -332,18 +330,18 @@ export default function MarketStudyTab({ pursuitId, pursuitName }: MarketStudyTa
                                                 ${isSubtotal ? 'bg-[var(--bg-primary)] font-semibold' : ''}
                                                 ${!isSubtotal && !isGrandTotal ? 'hover:bg-[var(--bg-primary)]' : ''}
                                             `}>
-                                                <td className={`py-1.5 px-2 whitespace-nowrap ${isSubtotal || isGrandTotal ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] pl-6'}`}>
+                                                <td className={`py-1 px-1.5 whitespace-nowrap ${isSubtotal || isGrandTotal ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] pl-5'}`}>
                                                     <div className="flex items-center gap-1.5">
                                                         {isSubtotal && bedColor && <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: bedColor }} />}
                                                         {row.label}
                                                     </div>
                                                 </td>
-                                                <td className={`py-1.5 px-2 text-right tabular-nums ${isSubtotal || isGrandTotal ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>{fmtNum(row.unitCount)}</td>
-                                                <td className={`py-1.5 px-2 text-right tabular-nums ${isSubtotal || isGrandTotal ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>{fmtNum(row.avgUnitSize)}</td>
-                                                <td className={`py-1.5 px-2 text-right tabular-nums ${isSubtotal || isGrandTotal ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}`}>{fmtCur(row.marketRent)}</td>
-                                                <td className={`py-1.5 px-2 text-right tabular-nums ${isSubtotal || isGrandTotal ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>{fmtCur(row.marketRentSf, 2)}</td>
-                                                <td className={`py-1.5 px-2 text-right tabular-nums ${isSubtotal || isGrandTotal ? 'text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}`}>{fmtCur(row.effectiveRent)}</td>
-                                                <td className={`py-1.5 px-2 text-right tabular-nums ${isSubtotal || isGrandTotal ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>{fmtCur(row.effectiveRentSf, 2)}</td>
+                                                <td className={`py-1 px-1.5 text-right tabular-nums ${isSubtotal || isGrandTotal ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>{fmtNum(row.unitCount)}</td>
+                                                <td className={`py-1 px-1.5 text-right tabular-nums ${isSubtotal || isGrandTotal ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>{fmtNum(row.avgUnitSize)}</td>
+                                                <td className={`py-1 px-1.5 text-right tabular-nums ${isSubtotal || isGrandTotal ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}`}>{fmtCur(row.marketRent)}</td>
+                                                <td className={`py-1 px-1.5 text-right tabular-nums ${isSubtotal || isGrandTotal ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>{fmtCur(row.marketRentSf, 2)}</td>
+                                                <td className={`py-1 px-1.5 text-right tabular-nums ${isSubtotal || isGrandTotal ? 'text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}`}>{fmtCur(row.effectiveRent)}</td>
+                                                <td className={`py-1 px-1.5 text-right tabular-nums ${isSubtotal || isGrandTotal ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>{fmtCur(row.effectiveRentSf, 2)}</td>
                                             </tr>
                                         );
                                     })}
@@ -352,10 +350,10 @@ export default function MarketStudyTab({ pursuitId, pursuitName }: MarketStudyTa
                         </div>
                     </div>
                 </div>
-            </div>
 
-            {/* ── Embedded Map ── */}
-            <StudyMap comps={compSummaries} />
+                {/* Embedded Map (right column) */}
+                <StudyMap comps={compSummaries} />
+            </div>
         </div>
     );
 }

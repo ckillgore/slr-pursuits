@@ -37,6 +37,7 @@ import {
 import type { HellodataProperty, HellodataUnit, HellodataConcession, PursuitRentComp, HellodataSearchResult } from '@/types';
 import type { PropertyMetrics as SharedPropertyMetrics } from './rent-comps/types';
 import { RentTrendsSection, BubbleChartSection, OccupancySection, LeasingActivitySection, ConcessionsSection, FeesSection, QualitySection, MarketContextSection, RentRollSection, CompMapSection } from './rent-comps/RentCompSections';
+import MarketStudyTab from './MarketStudyTab';
 
 interface RentCompsTabProps {
     pursuitId: string;
@@ -208,7 +209,7 @@ function computeMetrics(rc: PursuitRentComp): PropertyMetrics | null {
 // Main Component
 // ============================================================
 
-type SectionKey = 'overview' | 'map' | 'unitBreakdown' | 'rankings' | 'amenities' | 'rentTrends' | 'bubbleChart' | 'occupancy' | 'leasing' | 'rentRoll' | 'concessions' | 'fees' | 'quality' | 'market';
+type SectionKey = 'marketStudy' | 'overview' | 'map' | 'unitBreakdown' | 'rankings' | 'amenities' | 'rentTrends' | 'bubbleChart' | 'occupancy' | 'leasing' | 'rentRoll' | 'concessions' | 'fees' | 'quality' | 'market';
 
 export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
     const { data: rentComps = [], isLoading } = usePursuitRentComps(pursuitId);
@@ -222,7 +223,7 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
     const [showSearch, setShowSearch] = useState(false);
     const [addingPropertyId, setAddingPropertyId] = useState<string | null>(null);
     const [unlinkConfirmId, setUnlinkConfirmId] = useState<string | null>(null);
-    const [activeSection, setActiveSection] = useState<SectionKey>('overview');
+    const [activeSection, setActiveSection] = useState<SectionKey>('marketStudy');
     const [compFilter, setCompFilter] = useState<'all' | 'primary'>('all');
 
     // Pre-compute metrics for all comps
@@ -387,6 +388,7 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
                     {/* Section Tabs */}
                     <div className="flex items-center gap-0.5 border-b border-[var(--border)] overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
                         {([
+                            { key: 'marketStudy' as SectionKey, label: 'Market Study' },
                             { key: 'overview' as SectionKey, label: 'Overview' },
                             { key: 'map' as SectionKey, label: 'Map' },
                             { key: 'rentRoll' as SectionKey, label: 'Rent Roll' },
@@ -419,6 +421,8 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
                     </div>
 
                     {/* SECTION: Comp Overview Grid */}
+                    {activeSection === 'marketStudy' && <MarketStudyTab pursuitId={pursuitId} />}
+
                     {activeSection === 'overview' && (
                         <CompOverviewGrid
                             comps={compMetrics}

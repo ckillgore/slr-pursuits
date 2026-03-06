@@ -277,3 +277,88 @@
 - [ ] **Security hardening: Soft deletes** — Add `deleted_at` column to critical tables (pursuits, land_comps, key_dates) instead of hard deletes, to allow recovery from accidental deletion
 - [ ] **Backfill `created_by`** — Write SQL to set `created_by` on existing pursuits/one-pagers with null values (historical data won't show activity without this)
 
+---
+
+# One-Pager — Formatting & Display Fixes (3/6)
+
+- [x] **Management fee — show two decimal places** — Changed `decimals={1}` → `decimals={2}` on mgmt fee InlineInput
+- [x] **HC/NRSF — round without decimals in hard cost sensitivity table** — Changed `formatCurrency(row.adjustedValue, 2)` → `formatCurrency(row.adjustedValue, 0)`
+- [x] **Payroll & property tax — reduce text size** — Changed toggle buttons from `text-sm` to `text-xs`
+- [ ] **FAR — decide net or gross building size** — ⚠️ Decision needed: should Floor Area Ratio use net or gross building size? Currently unclear which is being used. Capture as open question and revisit
+- [x] **Sensitivity table colors in dark mode** — Added CSS variables `--sensitivity-deep-green`, `--sensitivity-faint-green`, `--sensitivity-deep-red` with dark theme overrides; updated `yocBgColor()` to use them
+- [x] **Stage dropdown in dark mode** — Changed `<option>` background from `#fff` to `var(--bg-card)`
+
+---
+
+# One-Pager — Feature Enhancements (3/6)
+
+## Unit Mix Total Row
+- [x] **Add Monthly Rent to total row** — Already implemented: weighted average monthly rent (total annual rev ÷ total units ÷ 12) shows in the unit mix total row
+
+## Revenue Card
+- [ ] **Improve layout of revenue card** — Refine the visual layout and information density of the revenue summary card
+
+## Unit Density Recommendations
+- [ ] **Adjust suggested unit density for product subtypes** — Currently density recommendations only consider the main product type (e.g. "Wrap") but not the subtype (e.g. "5 Over 2"). Subtypes like 5 Over 2 have a higher standard density per acre than base Wrap. Update the recommendation logic to be subtype-aware
+
+## Unit Premiums
+- [ ] **Add unit premiums feature to revenue card** — New capability for users to capture rent premiums as an add-on in the one-pager:
+  - Add premium input fields (extra rent $/unit/month and rent $/SF impact)
+  - Show premiums in the revenue card alongside Other Income
+  - Display both base rent and rent-with-premium figures
+  - Premiums represent upgrades/features that command additional rent above base (e.g. balcony, view, finishes)
+
+## Card/Row Comments
+- [ ] **Add comment capability to one-pager tables** — Allow users to add comments/notes to:
+  - Unit Mix table (at the table/card level since there aren't per-row comments per unit type)
+  - Land Cost row
+  - Hard Cost input section
+  - Soft Cost input section
+  - Consider implementing at the card level with a notes/comment field per card. Extend existing `FieldNoteButton.tsx` pattern or build a similar card-level annotation
+
+## Parking
+- [ ] **Add parking spaces input** — New input field for total parking spaces on the one-pager. Calculate and display parking spaces per unit ratio
+
+## PDF Export
+- [ ] **PDF export — match expanded/collapsed state** — One-pager PDF export currently includes property tax but excludes payroll. Both should be included in the PDF if their cards are "expanded" by the user in the UI, and hidden if collapsed. Match the PDF output to the user's current expanded/collapsed card state. Files: `OnePagerPDF.tsx`
+
+---
+
+# Comparables & Market Data (3/6)
+
+## Land Comps & Sale Comps — Persistence
+- [ ] **Save land comps and sale comps to database** — Ensure land comps and sale comps are properly persisting to the database (verify save flow end-to-end)
+- [ ] **Auto-fill address from Mapbox API** — When adding a land or sale comp, use Mapbox geocoding API to auto-fill address fields
+- [ ] **Add ability to relate land and sale comps to a pursuit** — Similar to how rent comps can be linked to a pursuit, add the same association capability for land comps and sale comps
+
+## Sale Comps — Display Fixes
+- [ ] **Add rents-at-sale info to sale comps** — Include rent information at time of sale in the sale comp data
+- [ ] **Fix year of construction display** — Year of construction currently shows with a comma (e.g. "2,024" instead of "2024"); remove number formatting on year fields
+
+## Rent Comps — Fixes & Enhancements
+- [ ] **Fix weird characters on rent comps** — Investigate and fix encoding/character display issues on rent comp data
+- [ ] **Verify list/map component views on comps are working** — Confirm that both list view and map view render correctly for comps
+- [ ] **Bubble chart drilldown** — When user clicks a bubble on the rent/size bubble chart in the rent comps page, provide a drilldown showing the underlying property details. File: `RentCompSections.tsx`
+
+## Market Study Tab (New Feature)
+- [ ] **Market study tab in rent comps section** — New tab that replicates the AT&T PRM internal market study exhibit used in investment memos and internal reviews. Should include:
+  - Map visualization
+  - Market summary narrative
+  - Market stock breakdown by unit type with SF allocations/groupings
+
+---
+
+# Reports & Export (3/6)
+
+- [x] **Reorder reports toggle options** — Changed order to: Pursuits, Rent Comps, Land Comps, Pre-Dev, Key Dates, Sale Comps
+- [ ] **Inject SLR logo on PDF report exports** — Add the SLR company logo to PDF report exports. Files: `ReportPDF.tsx`, `OnePagerPDF.tsx`
+
+---
+
+# Product Guidelines Feature (3/6)
+
+- [ ] **Product Guidelines capture** — New feature to capture a summary of detailed Smartsheet product guidelines within the platform. Product Guidelines are base assumptions for product selections across units, building, site, and amenities that feed into precon pricing. This would:
+  - Provide a way to link to or embed relevant Smartsheet data
+  - Store a summarized version of the guidelines within the pursuit
+  - Surface key assumptions that inform the financial model
+  - Scope and design TBD — research Smartsheet API integration options

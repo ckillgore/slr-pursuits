@@ -10,12 +10,15 @@ import {
     useUnitMix,
     usePayroll,
     useSoftCostDetails,
+    useUnitPremiums,
     useUpsertUnitMixRow,
     useDeleteUnitMixRow,
     useUpsertPayrollRow,
     useDeletePayrollRow,
     useUpsertSoftCostRow,
     useDeleteSoftCostRow,
+    useUpsertUnitPremium,
+    useDeleteUnitPremium,
     useDuplicateOnePager,
     useArchiveOnePager,
 } from '@/hooks/useSupabaseQueries';
@@ -35,7 +38,7 @@ import {
     calcSensitivityMatrix,
 } from '@/lib/calculations/sensitivity';
 import { formatCurrency, formatPercent, formatNumber, SF_PER_ACRE } from '@/lib/constants';
-import type { Pursuit, OnePager } from '@/types';
+import type { Pursuit, OnePager, UnitPremium } from '@/types';
 import {
     ChevronLeft,
     Pencil,
@@ -51,6 +54,7 @@ import {
     Redo2,
     FileDown,
     X,
+    Car,
 } from 'lucide-react';
 import * as queries from '@/lib/supabase/queries';
 
@@ -78,8 +82,16 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     const deleteSoftCostRowMutation = useDeleteSoftCostRow();
     const duplicateOnePager = useDuplicateOnePager();
     const archiveOnePager = useArchiveOnePager();
+    const { data: unitPremiums = [] } = useUnitPremiums(onePager.id);
+    const upsertUnitPremium = useUpsertUnitPremium();
+    const deleteUnitPremiumMutation = useDeleteUnitPremium();
 
     const productType = productTypes.find((pt) => pt.id === onePager.product_type_id);
+    // If a subtype has its own density range, use that; otherwise fall back to parent
+    const subProductType = productType?.sub_product_types?.find((spt) => spt.id === onePager.sub_product_type_id);
+    const effectiveDensityLow = (subProductType?.density_low != null ? subProductType.density_low : productType?.density_low) ?? 0;
+    const effectiveDensityHigh = (subProductType?.density_high != null ? subProductType.density_high : productType?.density_high) ?? 0;
+    const densityLabel = subProductType?.density_low != null ? subProductType.name : productType?.name ?? '';
 
     const [payrollExpanded, setPayrollExpanded] = useState(true);
     const [taxExpanded, setTaxExpanded] = useState(false);
@@ -110,8 +122,8 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
         payroll: sortedPayroll,
         softCostDetails,
         siteAreaSf: pursuit.site_area_sf,
-        productTypeDensityLow: productType?.density_low,
-        productTypeDensityHigh: productType?.density_high,
+        productTypeDensityLow: effectiveDensityLow,
+        productTypeDensityHigh: effectiveDensityHigh,
     });
 
     // ============================================================
@@ -288,13 +300,16 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
         }
     };
 
-    // Density status
+    // Density status — use effective (subtype-overridden) range
     const densityStatus = (() => {
         if (!productType || calc.density_units_per_acre === 0) return null;
-        if (calc.density_units_per_acre < productType.density_low) return 'below';
-        if (calc.density_units_per_acre > productType.density_high) return 'above';
+        if (calc.density_units_per_acre < effectiveDensityLow) return 'below';
+        if (calc.density_units_per_acre > effectiveDensityHigh) return 'above';
         return 'within';
     })();
+
+    // Total premium income (annual)
+    const totalPremiumIncome = unitPremiums.reduce((sum, p) => sum + (p.unit_count * p.rent_premium_per_unit_month * 12), 0);
 
     // ============================================================
     // Sensitivity Analysis (memoized)
@@ -391,7 +406,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                 const { pdf } = await import('@react-pdf/renderer');
                                 const { OnePagerPDF } = await import('@/components/export/OnePagerPDF');
                                 const pt = productTypes?.find((p) => p.id === onePager.product_type_id);
-                                const doc = <OnePagerPDF onePager={onePager} pursuit={pursuit} calc={calc} productTypeName={pt?.name} unitMix={sortedUnitMix} payroll={sortedPayroll} softCostDetails={softCostDetails} />;
+                                const doc = <OnePagerPDF onePager={onePager} pursuit={pursuit} calc={calc} productTypeName={pt?.name} unitMix={sortedUnitMix} payroll={sortedPayroll} softCostDetails={softCostDetails} showPayroll={payrollExpanded} showPropertyTax={taxExpanded} />;
                                 const blob = await pdf(doc).toBlob();
                                 const url = URL.createObjectURL(blob);
                                 const a = document.createElement('a');
@@ -509,10 +524,10 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                             <div className={`text-xs px-2.5 py-1.5 rounded-md ${densityStatus === 'within' ? 'bg-[var(--success-bg)] text-[var(--success)]' :
                                 densityStatus ? 'bg-[var(--warning-bg)] text-[var(--warning)]' : 'text-[var(--text-muted)]'
                                 }`}>
-                                {densityStatus === 'within' && `✓ Within range for ${productType.name} (${productType.density_low}–${productType.density_high})`}
-                                {densityStatus === 'below' && `⚠ Below range for ${productType.name} (${productType.density_low}–${productType.density_high})`}
-                                {densityStatus === 'above' && `⚠ Above range for ${productType.name} (${productType.density_low}–${productType.density_high})`}
-                                {!densityStatus && `Range: ${productType.density_low}–${productType.density_high} units/acre`}
+                                {densityStatus === 'within' && `✓ Within range for ${densityLabel} (${effectiveDensityLow}–${effectiveDensityHigh})`}
+                                {densityStatus === 'below' && `⚠ Below range for ${densityLabel} (${effectiveDensityLow}–${effectiveDensityHigh})`}
+                                {densityStatus === 'above' && `⚠ Above range for ${densityLabel} (${effectiveDensityLow}–${effectiveDensityHigh})`}
+                                {!densityStatus && `Range: ${effectiveDensityLow}–${effectiveDensityHigh} units/acre`}
                             </div>
                         )}
                         {productType && pursuit.site_area_sf > 0 && calc.recommended_units_low > 0 && (
@@ -528,58 +543,150 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                         {pursuit.site_area_sf > 0 && calc.total_gbsf > 0 && (
                             <FieldRow label="FAR (GBSF / Site SF)" value={formatNumber(calc.total_gbsf / pursuit.site_area_sf, 2)} display />
                         )}
+                        <div className="border-t border-[var(--table-row-border)] pt-2 mt-1">
+                            <FieldRow label="Parking Spaces" noteKey="parking_spaces" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}>
+                                <InlineInput value={onePager.parking_spaces} onChange={(v) => updateField('parking_spaces', v)} format="number" decimals={0} editAllMode={editAllMode} />
+                            </FieldRow>
+                            {onePager.parking_spaces > 0 && onePager.total_units > 0 && (
+                                <FieldRow label="Spaces / Unit" value={formatNumber(onePager.parking_spaces / onePager.total_units, 2)} display />
+                            )}
+                        </div>
                     </div>
                 </div>
 
                 {/* ===== REVENUE ===== */}
                 <div className="card">
                     <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4">Revenue</h3>
-                    <div className="space-y-2">
-                        <FieldRow label="Gross Potential Rent" value={formatCurrency(calc.gross_potential_rent)} display />
-
-                        {/* Other Income — inline: assumption left, amount right */}
-                        <div className="flex items-center justify-between py-1">
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-[var(--text-muted)]">Other Income</span>
-                                <FieldNoteButton fieldKey="other_income_per_unit_month" note={fieldNotes['other_income_per_unit_month']} onNoteChange={updateFieldNote} />
-                                <InlineInput value={onePager.other_income_per_unit_month} onChange={(v) => updateField('other_income_per_unit_month', v)} format="currency" className="text-xs w-20" editAllMode={editAllMode} />
-                                <span className="text-[10px] text-[var(--text-faint)]">/unit/mo</span>
-                            </div>
-                            <span className="text-xs tabular-nums text-[var(--text-secondary)]">{formatCurrency(calc.other_income)}</span>
-                        </div>
-
-                        <div className="border-t border-[var(--table-row-border)] pt-1">
-                            <FieldRow label="Gross Potential Revenue" value={formatCurrency(calc.gross_potential_revenue)} display />
-                        </div>
-
-                        {/* Vacancy — inline: assumption left, amount right */}
-                        <div className="flex items-center justify-between py-1">
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-[var(--text-muted)]">Vacancy & Loss</span>
-                                <FieldNoteButton fieldKey="vacancy_rate" note={fieldNotes['vacancy_rate']} onNoteChange={updateFieldNote} />
-                                <InlineInput value={onePager.vacancy_rate} onChange={(v) => updateField('vacancy_rate', v)} format="percent" decimals={1} className="text-xs w-16" editAllMode={editAllMode} />
-                            </div>
-                            <span className="text-xs tabular-nums text-[var(--danger)]">{calc.vacancy_loss > 0 ? `(${formatCurrency(calc.vacancy_loss)})` : '—'}</span>
-                        </div>
-
-                        <div className="pt-2 border-t-2 border-[var(--border)]">
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm font-bold text-[var(--text-primary)]">Net Revenue</span>
-                                <span className="text-sm font-bold tabular-nums text-[var(--text-primary)]">{formatCurrency(calc.net_revenue)}</span>
-                            </div>
-                            <div className="flex gap-4 mt-1.5">
-                                <span className="text-[10px] text-[var(--text-faint)]">$/Unit: <span className="text-[var(--text-secondary)] font-medium">{onePager.total_units > 0 ? formatCurrency(calc.net_revenue / onePager.total_units) : '—'}</span></span>
-                                <span className="text-[10px] text-[var(--text-faint)]">$/SF: <span className="text-[var(--text-secondary)] font-medium">{calc.total_nrsf > 0 ? formatCurrency(calc.net_revenue / calc.total_nrsf, 2) : '—'}</span></span>
-                            </div>
-                        </div>
-                    </div>
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th className="text-left"></th>
+                                <th className="text-right">Total</th>
+                                <th className="text-right">$/Unit</th>
+                                <th className="text-right">$/SF</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td className="text-[var(--text-secondary)] text-xs font-medium">Gross Potential Rent</td>
+                                <td className="text-right text-xs tabular-nums text-[var(--text-primary)] font-medium">{formatCurrency(calc.gross_potential_rent)}</td>
+                                <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{onePager.total_units > 0 ? formatCurrency(calc.gross_potential_rent / onePager.total_units / 12) : '—'}<span className="text-[9px] text-[var(--text-faint)]">/mo</span></td>
+                                <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{calc.weighted_avg_rent_per_sf > 0 ? formatCurrency(calc.weighted_avg_rent_per_sf, 2) : '—'}</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-xs text-[var(--text-secondary)]">Other Income</span>
+                                        <FieldNoteButton fieldKey="other_income_per_unit_month" note={fieldNotes['other_income_per_unit_month']} onNoteChange={updateFieldNote} />
+                                    </div>
+                                </td>
+                                <td className="text-right text-xs tabular-nums text-[var(--text-secondary)]">{formatCurrency(calc.other_income)}</td>
+                                <td>
+                                    <div className="flex items-center justify-end gap-0.5">
+                                        <InlineInput value={onePager.other_income_per_unit_month} onChange={(v) => updateField('other_income_per_unit_month', v)} format="currency" className="text-xs w-16" editAllMode={editAllMode} />
+                                        <span className="text-[9px] text-[var(--text-faint)]">/mo</span>
+                                    </div>
+                                </td>
+                                <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{calc.total_nrsf > 0 ? formatCurrency(calc.other_income / calc.total_nrsf, 2) : '—'}</td>
+                            </tr>
+                            {/* Premium rows — each editable inline */}
+                            {unitPremiums.map((premium) => {
+                                const premiumAnnual = premium.unit_count * premium.rent_premium_per_unit_month * 12;
+                                return (
+                                    <tr key={premium.id}>
+                                        <td>
+                                            <div className="flex items-center gap-1">
+                                                <DebouncedTextInput
+                                                    value={premium.name}
+                                                    onCommit={(v: string) => upsertUnitPremium.mutate({ ...premium, name: v })}
+                                                    className="text-xs bg-transparent border-none text-[var(--text-secondary)] w-24 px-0 focus:outline-none focus:ring-0"
+                                                />
+                                                <button
+                                                    onClick={() => deleteUnitPremiumMutation.mutate({ id: premium.id, onePagerId: onePager.id })}
+                                                    className="text-[var(--text-faint)] hover:text-[var(--danger)] transition-colors"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                        <td className="text-right text-xs tabular-nums text-[var(--text-secondary)]">{formatCurrency(premiumAnnual)}</td>
+                                        <td>
+                                            <div className="flex items-center justify-end gap-0.5">
+                                                <InlineInput
+                                                    value={premium.unit_count}
+                                                    onChange={(v) => upsertUnitPremium.mutate({ ...premium, unit_count: v as number })}
+                                                    format="number"
+                                                    decimals={0}
+                                                    className="text-xs w-10"
+                                                    editAllMode={editAllMode}
+                                                />
+                                                <span className="text-[9px] text-[var(--text-faint)]">×</span>
+                                                <InlineInput
+                                                    value={premium.rent_premium_per_unit_month}
+                                                    onChange={(v) => upsertUnitPremium.mutate({ ...premium, rent_premium_per_unit_month: v as number })}
+                                                    format="currency"
+                                                    className="text-xs w-14"
+                                                    editAllMode={editAllMode}
+                                                />
+                                            </div>
+                                        </td>
+                                        <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{calc.total_nrsf > 0 ? formatCurrency(premiumAnnual / calc.total_nrsf, 2) : '—'}</td>
+                                    </tr>
+                                );
+                            })}
+                            {/* Add premium button */}
+                            <tr>
+                                <td colSpan={4}>
+                                    <button
+                                        onClick={() => upsertUnitPremium.mutate({
+                                            one_pager_id: onePager.id,
+                                            name: 'New Premium',
+                                            unit_count: 0,
+                                            rent_premium_per_unit_month: 0,
+                                            sort_order: unitPremiums.length,
+                                        })}
+                                        className="text-[10px] text-[var(--accent)] hover:text-[var(--accent-hover)] flex items-center gap-1 transition-colors"
+                                    >
+                                        <Plus className="w-3 h-3" /> Add Premium
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr style={{ borderTop: '1px solid var(--table-row-border)' }}>
+                                <td className="text-[var(--text-primary)] text-xs font-medium">Gross Potential Revenue</td>
+                                <td className="text-right text-xs tabular-nums text-[var(--text-primary)] font-medium">{formatCurrency(calc.gross_potential_revenue + totalPremiumIncome)}</td>
+                                <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{onePager.total_units > 0 ? formatCurrency((calc.gross_potential_revenue + totalPremiumIncome) / onePager.total_units) : '—'}</td>
+                                <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{calc.total_nrsf > 0 ? formatCurrency((calc.gross_potential_revenue + totalPremiumIncome) / calc.total_nrsf, 2) : '—'}</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-xs text-[var(--danger)]">Vacancy & Loss</span>
+                                        <FieldNoteButton fieldKey="vacancy_rate" note={fieldNotes['vacancy_rate']} onNoteChange={updateFieldNote} />
+                                        <InlineInput value={onePager.vacancy_rate} onChange={(v) => updateField('vacancy_rate', v)} format="percent" decimals={1} className="text-xs w-14" editAllMode={editAllMode} />
+                                    </div>
+                                </td>
+                                <td className="text-right text-xs tabular-nums text-[var(--danger)]">{calc.vacancy_loss > 0 ? `(${formatCurrency(calc.vacancy_loss)})` : '—'}</td>
+                                <td className="text-right text-xs tabular-nums text-[var(--danger)]">{onePager.total_units > 0 && calc.vacancy_loss > 0 ? `(${formatCurrency(calc.vacancy_loss / onePager.total_units)})` : '—'}</td>
+                                <td className="text-right text-xs tabular-nums text-[var(--danger)]">{calc.total_nrsf > 0 && calc.vacancy_loss > 0 ? `(${formatCurrency(calc.vacancy_loss / calc.total_nrsf, 2)})` : '—'}</td>
+                            </tr>
+                            <tr className="total-row">
+                                <td className="font-bold">Net Revenue</td>
+                                <td className="text-right tabular-nums font-bold text-[var(--text-primary)]">{formatCurrency(calc.net_revenue + totalPremiumIncome)}</td>
+                                <td className="text-right tabular-nums font-bold">{onePager.total_units > 0 ? formatCurrency((calc.net_revenue + totalPremiumIncome) / onePager.total_units) : '—'}</td>
+                                <td className="text-right tabular-nums font-bold">{calc.total_nrsf > 0 ? formatCurrency((calc.net_revenue + totalPremiumIncome) / calc.total_nrsf, 2) : '—'}</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
 
                 {/* ===== UNIT MIX + PRO FORMA (spans 2 columns) ===== */}
                 <div className="lg:col-span-2 lg:self-start space-y-4">
                     <div className="card">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Unit Mix</h3>
+                            <div className="flex items-center gap-1.5 group/note">
+                                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Unit Mix</h3>
+                                <FieldNoteButton fieldKey="card_unit_mix" note={fieldNotes['card_unit_mix']} onNoteChange={updateFieldNote} />
+                            </div>
                             <button
                                 onClick={() => {
                                     const newId = crypto.randomUUID();
@@ -730,8 +837,9 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                 </tr>
                                 <tr>
                                     <td className="text-[var(--text-secondary)] text-xs font-medium">
-                                        <div className="flex items-center gap-1.5">
+                                        <div className="flex items-center gap-1.5 group/note">
                                             Soft Cost
+                                            <FieldNoteButton fieldKey="card_soft_costs" note={fieldNotes['card_soft_costs']} onNoteChange={updateFieldNote} />
                                             <button
                                                 onClick={() => {
                                                     updateField('use_detailed_soft_costs', !onePager.use_detailed_soft_costs);
@@ -833,7 +941,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                             <OpExRow label="Turnover" value={onePager.opex_turnover} units={onePager.total_units} onChange={(v) => updateField('opex_turnover', v)} editAllMode={editAllMode} noteKey="opex_turnover" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
                             <OpExRow label="Miscellaneous" value={onePager.opex_misc} units={onePager.total_units} onChange={(v) => updateField('opex_misc', v)} editAllMode={editAllMode} noteKey="opex_misc" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
                             <tr>
-                                <td><button onClick={() => setPayrollExpanded(!payrollExpanded)} className="flex items-center gap-1 text-[var(--accent)] hover:text-[var(--accent-hover)] text-sm font-medium">
+                                <td><button onClick={() => setPayrollExpanded(!payrollExpanded)} className="flex items-center gap-1 text-[var(--accent)] hover:text-[var(--accent-hover)] text-xs font-medium">
                                     {payrollExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />} Payroll & Related
                                 </button></td>
                                 <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{onePager.total_units > 0 ? formatCurrency(calc.payroll_total / onePager.total_units) : '—'}</td>
@@ -854,11 +962,11 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                             <OpExRow label="Insurance" value={onePager.opex_insurance} units={onePager.total_units} onChange={(v) => updateField('opex_insurance', v)} editAllMode={editAllMode} noteKey="opex_insurance" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
                             <tr>
                                 <td className="text-[var(--text-secondary)] text-xs">Mgmt Fee</td>
-                                <td><InlineInput value={onePager.mgmt_fee_pct} onChange={(v) => updateField('mgmt_fee_pct', v)} format="percent" decimals={1} className="text-xs" editAllMode={editAllMode} /></td>
+                                <td><InlineInput value={onePager.mgmt_fee_pct} onChange={(v) => updateField('mgmt_fee_pct', v)} format="percent" decimals={2} className="text-xs" editAllMode={editAllMode} /></td>
                                 <td className="text-right text-xs tabular-nums text-[var(--text-secondary)]">{formatCurrency(calc.mgmt_fee_total)}</td>
                             </tr>
                             <tr>
-                                <td><button onClick={() => setTaxExpanded(!taxExpanded)} className="flex items-center gap-1 text-[var(--accent)] hover:text-[var(--accent-hover)] text-sm font-medium">
+                                <td><button onClick={() => setTaxExpanded(!taxExpanded)} className="flex items-center gap-1 text-[var(--accent)] hover:text-[var(--accent-hover)] text-xs font-medium">
                                     {taxExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />} Property Tax
                                 </button></td>
                                 <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{calc.property_tax_per_unit > 0 ? formatCurrency(calc.property_tax_per_unit) : '—'}</td>
@@ -880,7 +988,10 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                 {payrollExpanded && (
                     <div className="card animate-fade-in">
                         <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Payroll Detail</h3>
+                            <div className="flex items-center gap-1.5 group/note">
+                                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Payroll Detail</h3>
+                                <FieldNoteButton fieldKey="card_payroll" note={fieldNotes['card_payroll']} onNoteChange={updateFieldNote} />
+                            </div>
                             <div className="flex gap-2">
                                 <button onClick={() => handleAddPayroll('employee')} className="text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] font-medium">+ Employee</button>
                                 <button onClick={() => handleAddPayroll('contract')} className="text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] font-medium">+ Contract</button>
@@ -985,7 +1096,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                             const isBase = row.step === 0;
                                             return (
                                                 <tr key={i} className={isBase ? 'bg-[var(--accent-subtle)]' : ''}>
-                                                    <td className={`tabular-nums ${isBase ? 'font-bold text-[var(--accent)]' : 'text-[var(--text-secondary)]'}`}>{formatCurrency(row.adjustedValue, 2)}</td>
+                                                    <td className={`tabular-nums ${isBase ? 'font-bold text-[var(--accent)]' : 'text-[var(--text-secondary)]'}`}>{formatCurrency(row.adjustedValue, 0)}</td>
                                                     <td className="text-right text-xs tabular-nums text-[var(--text-secondary)]">{formatCurrency(row.totalBudget)}</td>
                                                     <td className="text-right text-xs tabular-nums text-[var(--text-secondary)]">{formatCurrency(row.noi)}</td>
                                                     <td className={`text-right text-xs tabular-nums font-semibold ${yocColor(row.yoc, calc.unlevered_yield_on_cost)}`}>{row.yoc > 0 ? formatPercent(row.yoc) : '—'}</td>
@@ -1207,11 +1318,11 @@ function yocColor(yoc: number, base: number): string {
 function yocBgColor(yoc: number, base: number): string {
     if (yoc <= 0 || base <= 0) return 'transparent';
     const ratio = yoc / base;
-    if (ratio >= 1.10) return '#DCFCE7'; // deep green
-    if (ratio >= 1.05) return 'var(--success-bg)'; // light green
-    if (ratio >= 1.01) return '#F0FFF4'; // faint green
-    if (ratio <= 0.90) return '#FEE2E2'; // deep red
-    if (ratio <= 0.95) return 'var(--danger-bg)'; // light red
-    if (ratio <= 0.99) return 'var(--warning-bg)'; // faint amber
+    if (ratio >= 1.10) return 'var(--sensitivity-deep-green)';
+    if (ratio >= 1.05) return 'var(--success-bg)';
+    if (ratio >= 1.01) return 'var(--sensitivity-faint-green)';
+    if (ratio <= 0.90) return 'var(--sensitivity-deep-red)';
+    if (ratio <= 0.95) return 'var(--danger-bg)';
+    if (ratio <= 0.99) return 'var(--warning-bg)';
     return 'transparent';
 }

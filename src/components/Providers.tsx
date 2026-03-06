@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect, type ReactNode } from 'react';
 import { AuthProvider } from '@/components/AuthProvider';
+import { SessionGuard } from '@/components/SessionGuard';
 import { useThemeStore } from '@/store/useThemeStore';
 
 /**
@@ -35,10 +36,12 @@ export function Providers({ children }: { children: ReactNode }) {
 
     return (
         <AuthProvider>
-            <QueryClientProvider client={queryClient}>
-                <ThemeInitializer />
-                {children}
-            </QueryClientProvider>
+            <SessionGuard>
+                <QueryClientProvider client={queryClient}>
+                    <ThemeInitializer />
+                    {children}
+                </QueryClientProvider>
+            </SessionGuard>
         </AuthProvider>
     );
 }

@@ -30,7 +30,7 @@ function EditableField({ label, value, onSave, format = 'text', icon: Icon }: {
     label: string;
     value: string | number | null;
     onSave: (val: string | number | null) => void;
-    format?: 'text' | 'currency' | 'number' | 'date' | 'percent';
+    format?: 'text' | 'currency' | 'number' | 'date' | 'percent' | 'year';
     icon?: any;
 }) {
     const [editing, setEditing] = useState(false);
@@ -59,6 +59,7 @@ function EditableField({ label, value, onSave, format = 'text', icon: Icon }: {
         if (value === null || value === undefined || value === '') return '—';
         if (format === 'currency') return formatCurrency(value as number);
         if (format === 'number') return formatNumber(value as number);
+        if (format === 'year') return String(Math.round(value as number));
         if (format === 'percent') return `${((value as number) * 100).toFixed(2)}%`;
         if (format === 'date' && value) return new Date(value as string).toLocaleDateString();
         return String(value);
@@ -270,7 +271,7 @@ export default function SaleCompDetailPage() {
                             <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Property Information</h3>
                             <div>
                                 <EditableField label="Property Type" value={comp.property_type} onSave={(v) => updateField('property_type', v)} icon={Building2} />
-                                <EditableField label="Year Built" value={comp.year_built} onSave={(v) => updateField('year_built', v)} format="number" icon={Calendar} />
+                                <EditableField label="Year Built" value={comp.year_built} onSave={(v) => updateField('year_built', v)} format="year" icon={Calendar} />
                                 <EditableField label="Total Units" value={comp.total_units} onSave={(v) => updateField('total_units', v)} format="number" icon={Hash} />
                                 <EditableField label="Total SF" value={comp.total_sf} onSave={(v) => updateField('total_sf', v)} format="number" icon={Ruler} />
                                 <EditableField label="Lot Size (SF)" value={comp.lot_size_sf || null} onSave={(v) => updateField('lot_size_sf', v ?? 0)} format="number" icon={Ruler} />

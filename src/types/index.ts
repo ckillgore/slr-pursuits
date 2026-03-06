@@ -27,6 +27,8 @@ export interface SubProductType {
   id: string;
   product_type_id: string;
   name: string;
+  density_low: number | null;
+  density_high: number | null;
   sort_order: number;
   is_active: boolean;
 }
@@ -162,6 +164,19 @@ export interface SoftCostDetailRow {
   sort_order: number;
 }
 
+// --- Unit Premium ---
+
+export interface UnitPremium {
+  id: string;
+  one_pager_id: string;
+  name: string;
+  unit_count: number;
+  rent_premium_per_unit_month: number;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // --- One-Pager ---
 
 export interface OnePager {
@@ -177,6 +192,7 @@ export interface OnePager {
   is_archived: boolean;
   // Site & Density
   total_units: number;
+  parking_spaces: number;
   efficiency_ratio: number;
   // Revenue
   other_income_per_unit_month: number;
@@ -227,6 +243,7 @@ export interface OnePager {
   unit_mix?: UnitMixRow[];
   payroll?: PayrollRow[];
   soft_cost_details?: SoftCostDetailRow[];
+  unit_premiums?: UnitPremium[];
   // Joined references
   product_type?: ProductType;
   sub_product_type?: SubProductType;

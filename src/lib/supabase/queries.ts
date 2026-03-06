@@ -9,6 +9,7 @@ import type {
     UnitMixRow,
     PayrollRow,
     SoftCostDetailRow,
+    UnitPremium,
     PursuitStage,
     ProductType,
     DataModelTemplate,
@@ -284,7 +285,7 @@ export async function createOnePager(
 
 export async function updateOnePager(id: string, updates: Partial<OnePager>, expectedUpdatedAt?: string) {
     // Strip joined/virtual fields
-    const { unit_mix, payroll, soft_cost_details, product_type, sub_product_type, ...payload } = updates as OnePager;
+    const { unit_mix, payroll, soft_cost_details, unit_premiums, product_type, sub_product_type, ...payload } = updates as OnePager;
 
     let query = supabase
         .from('one_pagers')
@@ -363,11 +364,22 @@ export async function duplicateOnePager(sourceId: string, newName: string): Prom
             const { error: scError } = await supabase.from('one_pager_soft_cost_detail').insert(scPayload);
             if (scError) throw scError;
         }
+
+        const premiums = await fetchUnitPremiums(sourceId);
+        if (premiums.length > 0) {
+            const upPayload = premiums.map(({ id: _rowId, one_pager_id: _opId, created_at: _ca, updated_at: _ua, ...row }) => ({
+                ...row,
+                one_pager_id: newOP.id,
+            }));
+            const { error: upError } = await supabase.from('unit_premiums').insert(upPayload);
+            if (upError) throw upError;
+        }
     } catch (childError) {
         // Rollback: delete the partially-created one-pager and any children
         await supabase.from('one_pager_unit_mix').delete().eq('one_pager_id', newOP.id);
         await supabase.from('one_pager_payroll').delete().eq('one_pager_id', newOP.id);
         await supabase.from('one_pager_soft_cost_detail').delete().eq('one_pager_id', newOP.id);
+        await supabase.from('unit_premiums').delete().eq('one_pager_id', newOP.id);
         await supabase.from('one_pagers').delete().eq('id', newOP.id);
         throw childError;
     }
@@ -394,6 +406,7 @@ export async function deleteOnePager(id: string) {
     await supabase.from('one_pager_unit_mix').delete().eq('one_pager_id', id);
     await supabase.from('one_pager_payroll').delete().eq('one_pager_id', id);
     await supabase.from('one_pager_soft_cost_detail').delete().eq('one_pager_id', id);
+    await supabase.from('unit_premiums').delete().eq('one_pager_id', id);
     const { error } = await supabase.from('one_pagers').delete().eq('id', id);
     if (error) throw error;
 }
@@ -506,6 +519,36 @@ export async function upsertSoftCostRow(row: Partial<SoftCostDetailRow> & { id?:
 
 export async function deleteSoftCostRow(id: string) {
     const { error } = await supabase.from('one_pager_soft_cost_detail').delete().eq('id', id);
+    if (error) throw error;
+}
+
+// ============================================================
+// Unit Premiums
+// ============================================================
+
+export async function fetchUnitPremiums(onePagerId: string): Promise<UnitPremium[]> {
+    const { data, error } = await supabase
+        .from('unit_premiums')
+        .select('*')
+        .eq('one_pager_id', onePagerId)
+        .order('sort_order');
+    if (error) throw error;
+    return data ?? [];
+}
+
+export async function upsertUnitPremium(row: Partial<UnitPremium> & { id?: string; one_pager_id: string }) {
+    const { created_at, updated_at, ...payload } = row as UnitPremium;
+    const { data, error } = await supabase
+        .from('unit_premiums')
+        .upsert(payload)
+        .select()
+        .single();
+    if (error) throw error;
+    return data;
+}
+
+export async function deleteUnitPremium(id: string) {
+    const { error } = await supabase.from('unit_premiums').delete().eq('id', id);
     if (error) throw error;
 }
 

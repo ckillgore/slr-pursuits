@@ -95,9 +95,10 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
     const [yAxis, setYAxis] = useState<'total' | 'psf'>('total');
     const [rentType, setRentType] = useState<'asking' | 'effective'>('asking');
     const [hoveredBubble, setHoveredBubble] = useState<number | null>(null);
+    const [selectedBubble, setSelectedBubble] = useState<number | null>(null);
 
     const bubbles = useMemo(() => {
-        const results: { label: string; sqft: number; rent: number; count: number; color: string }[] = [];
+        const results: { label: string; sqft: number; rent: number; count: number; color: string; units: HellodataUnit[] }[] = [];
 
         if (groupBy === 'property') {
             comps.forEach((c, i) => {
@@ -105,7 +106,7 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
                 if (units.length === 0) return;
                 const avgSqft = units.reduce((s: number, u: HellodataUnit) => s + (u.sqft ?? 0), 0) / units.length;
                 const avgRent = (rentType === 'asking' ? getAverageAskingRent(units) : getAverageEffectiveRent(units)) ?? 0;
-                results.push({ label: c.name, sqft: Math.round(avgSqft), rent: yAxis === 'psf' && avgSqft > 0 ? avgRent / avgSqft : avgRent, count: c.property.number_units ?? units.length, color: COMP_COLORS[i % COMP_COLORS.length] });
+                results.push({ label: c.name, sqft: Math.round(avgSqft), rent: yAxis === 'psf' && avgSqft > 0 ? avgRent / avgSqft : avgRent, count: c.property.number_units ?? units.length, color: COMP_COLORS[i % COMP_COLORS.length], units });
             });
         } else if (groupBy === 'type') {
             const bedGroups: Record<number, HellodataUnit[]> = {};
@@ -116,7 +117,7 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
                 const avgSqft = valid.reduce((s, u) => s + (u.sqft ?? 0), 0) / valid.length;
                 const avgRent = (rentType === 'asking' ? getAverageAskingRent(valid) : getAverageEffectiveRent(valid)) ?? 0;
                 const bedNum = Number(bed);
-                results.push({ label: bedNum === 0 ? 'Studio' : `${bed} BR`, sqft: Math.round(avgSqft), rent: yAxis === 'psf' && avgSqft > 0 ? avgRent / avgSqft : avgRent, count: valid.length, color: COMP_COLORS[bedNum % COMP_COLORS.length] });
+                results.push({ label: bedNum === 0 ? 'Studio' : `${bed} BR`, sqft: Math.round(avgSqft), rent: yAxis === 'psf' && avgSqft > 0 ? avgRent / avgSqft : avgRent, count: valid.length, color: COMP_COLORS[bedNum % COMP_COLORS.length], units: valid });
             });
         } else {
             comps.forEach((c, ci) => {
@@ -127,12 +128,15 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
                     if (valid.length === 0) return;
                     const avgSqft = valid.reduce((s, u) => s + (u.sqft ?? 0), 0) / valid.length;
                     const avgRent = (rentType === 'asking' ? getAverageAskingRent(valid) : getAverageEffectiveRent(valid)) ?? 0;
-                    results.push({ label: `${c.name.slice(0, 8)}/${fp}`, sqft: Math.round(avgSqft), rent: yAxis === 'psf' && avgSqft > 0 ? avgRent / avgSqft : avgRent, count: valid.length, color: COMP_COLORS[ci % COMP_COLORS.length] });
+                    results.push({ label: `${c.name.slice(0, 8)}/${fp}`, sqft: Math.round(avgSqft), rent: yAxis === 'psf' && avgSqft > 0 ? avgRent / avgSqft : avgRent, count: valid.length, color: COMP_COLORS[ci % COMP_COLORS.length], units: valid });
                 });
             });
         }
         return results;
     }, [comps, groupBy, yAxis, rentType]);
+
+    // Reset selection when filters change
+    useMemo(() => { setSelectedBubble(null); }, [groupBy, yAxis, rentType]);
 
     const maxRent = Math.max(...bubbles.map(b => b.rent), 1);
     const maxSqft = Math.max(...bubbles.map(b => b.sqft), 1);
@@ -147,12 +151,18 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
         r: Math.max(6, Math.min(30, (b.count / maxCount) * 25 + 5)),
     });
 
+    const drilldownUnits = selectedBubble !== null && bubbles[selectedBubble]
+        ? bubbles[selectedBubble].units
+            .filter((u: HellodataUnit) => u.sqft && (u.price || u.effective_price))
+            .sort((a: HellodataUnit, b: HellodataUnit) => (a.bed ?? 99) - (b.bed ?? 99) || (a.sqft ?? 0) - (b.sqft ?? 0))
+        : [];
+
     return (
         <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                     <h3 className="text-sm font-semibold text-[var(--text-primary)]">Rent vs. Size</h3>
-                    <p className="text-xs text-[var(--text-muted)]">Bubble size = unit count. X = avg sqft, Y = avg rent.</p>
+                    <p className="text-xs text-[var(--text-muted)]">Bubble size = unit count. Click a bubble to see individual units.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <select value={groupBy} onChange={e => setGroupBy(e.target.value as 'property' | 'type' | 'floorplan')} className="text-[11px] sm:text-xs border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--text-secondary)] bg-[var(--bg-card)]">
@@ -180,10 +190,14 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
                         {bubbles.map((b, i) => {
                             const { cx, cy, r } = getBubblePos(b);
                             const isHovered = hoveredBubble === i;
-                            const isDimmed = hoveredBubble !== null && !isHovered;
-                            return (<g key={i} style={{ cursor: 'pointer' }} onMouseEnter={() => setHoveredBubble(i)}>
+                            const isSelected = selectedBubble === i;
+                            const isDimmed = (hoveredBubble !== null || selectedBubble !== null) && !isHovered && !isSelected;
+                            return (<g key={i} style={{ cursor: 'pointer' }}
+                                onMouseEnter={() => setHoveredBubble(i)}
+                                onClick={() => setSelectedBubble(selectedBubble === i ? null : i)}>
                                 <circle cx={cx} cy={cy} r={r} fill={b.color} fillOpacity={isDimmed ? 0.15 : 0.6} stroke={b.color}
-                                    strokeWidth={isHovered ? 2.5 : 1.5} style={{ transition: 'all 0.15s ease' }} />
+                                    strokeWidth={isSelected ? 3 : isHovered ? 2.5 : 1.5} style={{ transition: 'all 0.15s ease' }} />
+                                {isSelected && <circle cx={cx} cy={cy} r={r + 3} fill="none" stroke={b.color} strokeWidth={1.5} strokeDasharray="3,2" opacity={0.6} />}
                                 <text x={cx} y={cy - r - 4} textAnchor="middle" fill="var(--text-secondary)" fontSize={9} fontWeight={500}
                                     opacity={isDimmed ? 0.25 : 1}>{b.label}</text>
                                 {/* Larger hit area */}
@@ -204,7 +218,7 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
                                         fill="var(--bg-card)" stroke="var(--border)" strokeWidth={1} filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))" />
                                     <circle cx={tx + 10} cy={ty + 14} r={4} fill={b.color} />
                                     <text x={tx + 18} y={ty + 18} fill="var(--text-primary)" fontSize={11} fontWeight={600}>{b.label.slice(0, 20)}</text>
-                                    <text x={tx + 10} y={ty + 34} fill="var(--text-muted)" fontSize={10}>Sqft: <tspan fill="var(--text-primary)" fontWeight={500}>{b.sqft.toLocaleString()} ftÂ²</tspan></text>
+                                    <text x={tx + 10} y={ty + 34} fill="var(--text-muted)" fontSize={10}>Sqft: <tspan fill="var(--text-primary)" fontWeight={500}>{b.sqft.toLocaleString()} ft²</tspan></text>
                                     <text x={tx + 10} y={ty + 48} fill="var(--text-muted)" fontSize={10}>{rentType === 'asking' ? 'Asking' : 'Eff.'}: <tspan fill="var(--text-primary)" fontWeight={500}>{fmtR}</tspan></text>
                                     <text x={tx + 10} y={ty + 62} fill="var(--text-muted)" fontSize={10}>Units: <tspan fill="var(--text-primary)" fontWeight={500}>{b.count}</tspan></text>
                                 </g>
@@ -215,6 +229,53 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
                     </svg>
                 )}
             </div>
+
+            {/* Drilldown Detail Table */}
+            {selectedBubble !== null && bubbles[selectedBubble] && drilldownUnits.length > 0 && (
+                <div className="border border-[var(--border)] rounded-xl bg-[var(--bg-card)] overflow-hidden animate-fade-in">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)] bg-[var(--bg-primary)]">
+                        <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: bubbles[selectedBubble].color }} />
+                            <h4 className="text-xs font-semibold text-[var(--text-primary)]">
+                                {bubbles[selectedBubble].label} — {drilldownUnits.length} Unit{drilldownUnits.length !== 1 ? 's' : ''}
+                            </h4>
+                        </div>
+                        <button onClick={() => setSelectedBubble(null)} className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] font-medium">✕ Close</button>
+                    </div>
+                    <div className="overflow-x-auto max-h-[320px] overflow-y-auto">
+                        <table className="w-full text-xs min-w-[500px]">
+                            <thead className="sticky top-0 bg-[var(--bg-card)] z-10">
+                                <tr className="border-b border-[var(--border)]">
+                                    <th className="text-left py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase">Floorplan</th>
+                                    <th className="text-center py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase">Bed/Bath</th>
+                                    <th className="text-right py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase">Sqft</th>
+                                    <th className="text-right py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase">Asking</th>
+                                    <th className="text-right py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase">Effective</th>
+                                    <th className="text-right py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase">$/SF</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {drilldownUnits.map((u: HellodataUnit, i: number) => {
+                                    const psf = u.sqft && u.price ? u.price / u.sqft : null;
+                                    return (
+                                        <tr key={i} className="border-b border-[var(--table-row-border)] last:border-b-0 hover:bg-[var(--bg-primary)]">
+                                            <td className="py-2 px-3 font-medium text-[var(--text-primary)]">{u.floorplan_name || '—'}</td>
+                                            <td className="py-2 px-3 text-center text-[var(--text-secondary)]">
+                                                {u.bed !== null ? (u.bed === 0 ? 'Studio' : `${u.bed}`) : '—'}
+                                                {u.bath !== null ? `/${u.bath}` : ''}
+                                            </td>
+                                            <td className="py-2 px-3 text-right tabular-nums text-[var(--text-secondary)]">{u.sqft?.toLocaleString() ?? '—'}</td>
+                                            <td className="py-2 px-3 text-right tabular-nums font-medium text-[var(--text-primary)]">{u.price ? `$${u.price.toLocaleString()}` : '—'}</td>
+                                            <td className="py-2 px-3 text-right tabular-nums text-[var(--text-secondary)]">{u.effective_price ? `$${u.effective_price.toLocaleString()}` : '—'}</td>
+                                            <td className="py-2 px-3 text-right tabular-nums text-[var(--text-muted)]">{psf ? `$${psf.toFixed(2)}` : '—'}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

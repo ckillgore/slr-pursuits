@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 /**
- * Next.js proxy (formerly middleware) for Supabase Auth.
+ * Next.js proxy for Supabase Auth.
  * - Refreshes the auth session on every request (keeps cookies in sync)
  * - Redirects unauthenticated users to /login
  * - Prevents logged-in users from accessing /login

@@ -30,6 +30,7 @@ import { PredevBudgetTab } from '@/components/pursuits/PredevBudgetTab';
 import { KeyDatesTab } from '@/components/pursuits/KeyDatesTab';
 import ChecklistTab from '@/components/pursuits/ChecklistTab';
 import RentCompsTab from '@/components/pursuits/RentCompsTab';
+import MarketStudyTab from '@/components/pursuits/MarketStudyTab';
 import { InlineInput } from '@/components/one-pager/InlineInput';
 import CommentTrigger from '@/components/shared/CommentTrigger';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
@@ -83,7 +84,7 @@ export default function PursuitDetailPage() {
     const [selectedTemplateId, setSelectedTemplateId] = useState('');
     const [isEditingName, setIsEditingName] = useState(false);
     const [editName, setEditName] = useState('');
-    const [activeTab, setActiveTab] = useState<'overview' | 'onepagers' | 'demographics' | 'publicinfo' | 'rent_comps' | 'predev' | 'keydates' | 'checklist'>(
+    const [activeTab, setActiveTab] = useState<'overview' | 'onepagers' | 'demographics' | 'publicinfo' | 'rent_comps' | 'market_study' | 'predev' | 'keydates' | 'checklist'>(
         initialTab === 'onepagers' ? 'onepagers' : initialTab === 'predev' ? 'predev' : initialTab === 'keydates' ? 'keydates' : initialTab === 'checklist' ? 'checklist' : initialTab === 'rent_comps' ? 'rent_comps' : 'overview'
     );
 
@@ -330,7 +331,7 @@ export default function PursuitDetailPage() {
                             }}
                         >
                             {stages.filter((s) => s.is_active).map((s) => (
-                                <option key={s.id} value={s.id} style={{ background: '#fff', color: 'var(--text-primary)' }}>{s.name}</option>
+                                <option key={s.id} value={s.id} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>{s.name}</option>
                             ))}
                         </select>
                         <CommentTrigger entityType="pursuit" entityId={pursuitUuid} />
@@ -451,6 +452,18 @@ export default function PursuitDetailPage() {
                     >
                         Rent Comps
                         {activeTab === 'rent_comps' && (
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('market_study')}
+                        className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'market_study'
+                            ? 'text-[var(--accent)]'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                            }`}
+                    >
+                        Market Study
+                        {activeTab === 'market_study' && (
                             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
                         )}
                     </button>
@@ -991,6 +1004,11 @@ export default function PursuitDetailPage() {
                 {/* ===== RENT COMPS TAB ===== */}
                 {activeTab === 'rent_comps' && (
                     <RentCompsTab pursuitId={pursuitUuid} />
+                )}
+
+                {/* ===== MARKET STUDY TAB ===== */}
+                {activeTab === 'market_study' && (
+                    <MarketStudyTab pursuitId={pursuitUuid} pursuitName={pursuit.name} />
                 )}
 
                 {/* ===== PRE-DEV BUDGET TAB ===== */}

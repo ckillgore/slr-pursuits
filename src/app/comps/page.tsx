@@ -629,7 +629,7 @@ export default function CompsPage() {
                             </div>
                         )}
 
-                        {!loadingSaleComps && filteredSaleComps.length > 0 && (
+                        {!loadingSaleComps && filteredSaleComps.length > 0 && (viewMode === 'grid' || viewMode === 'map') && viewMode === 'grid' && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {filteredSaleComps.map((sc) => {
                                     const txs = (sc.sale_transactions ?? []).sort(
@@ -705,6 +705,85 @@ export default function CompsPage() {
                                         </div>
                                     );
                                 })}
+                            </div>
+                        )}
+
+                        {/* Sale Comps List View */}
+                        {!loadingSaleComps && viewMode === 'list' && filteredSaleComps.length > 0 && (
+                            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-[var(--border)] bg-[var(--bg-primary)]">
+                                            <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Name</th>
+                                            <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider hidden sm:table-cell">Location</th>
+                                            <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider hidden md:table-cell">Type</th>
+                                            <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider hidden md:table-cell">Units</th>
+                                            <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Last Sale</th>
+                                            <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider hidden lg:table-cell">Cap Rate</th>
+                                            <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider hidden lg:table-cell">Year Built</th>
+                                            {isAdminOrOwner && <th className="w-10"></th>}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredSaleComps.map((sc) => {
+                                            const txs = (sc.sale_transactions ?? []).sort(
+                                                (a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime()
+                                            );
+                                            const latest = txs[0];
+                                            return (
+                                                <tr
+                                                    key={sc.id}
+                                                    className="group border-b border-[var(--table-row-border)] last:border-b-0 hover:bg-[var(--bg-primary)] cursor-pointer transition-colors"
+                                                    onClick={() => router.push(`/comps/sales/${sc.short_id}`)}
+                                                >
+                                                    <td className="px-4 py-3">
+                                                        <span className="font-semibold text-[var(--text-primary)] hover:text-[var(--accent)] transition-colors">{sc.name}</span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-[var(--text-muted)] hidden sm:table-cell">
+                                                        {[sc.city, sc.state].filter(Boolean).join(', ') || '—'}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-[var(--text-secondary)] hidden md:table-cell">
+                                                        {sc.property_type || '—'}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right text-[var(--text-secondary)] hidden md:table-cell">
+                                                        {sc.total_units || '—'}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right font-semibold text-[var(--text-primary)]">
+                                                        {latest?.sale_price ? formatCurrency(latest.sale_price) : '—'}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right text-[var(--text-secondary)] hidden lg:table-cell">
+                                                        {latest?.cap_rate ? `${(latest.cap_rate * 100).toFixed(2)}%` : '—'}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right text-xs text-[var(--text-muted)] hidden lg:table-cell">
+                                                        {sc.year_built ?? '—'}
+                                                    </td>
+                                                    {isAdminOrOwner && (
+                                                        <td className="px-4 py-1 text-right">
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); setDeleteSaleCompId(sc.id); }}
+                                                                className="p-1.5 rounded-md text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-all opacity-0 group-hover:opacity-100"
+                                                                title="Delete sale comp"
+                                                            >
+                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </td>
+                                                    )}
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        {/* Sale Comps Map View — reuse pattern but show message since sale comps may lack geocoded locations */}
+                        {!loadingSaleComps && viewMode === 'map' && (
+                            <div className="flex items-center justify-center py-20 text-center">
+                                <div>
+                                    <MapPin className="w-8 h-8 text-[var(--border-strong)] mx-auto mb-2" />
+                                    <p className="text-sm text-[var(--text-muted)]">Map view coming soon for sale comps</p>
+                                    <p className="text-xs text-[var(--text-faint)] mt-1">Switch to Grid or List view to browse</p>
+                                </div>
                             </div>
                         )}
 

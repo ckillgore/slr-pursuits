@@ -5,6 +5,7 @@ import {
     Page,
     Text,
     View,
+    Image,
     StyleSheet,
     Font,
 } from '@react-pdf/renderer';
@@ -296,6 +297,8 @@ interface OnePagerPDFProps {
     unitMix: UnitMixRow[];
     payroll: PayrollRow[];
     softCostDetails: SoftCostDetailRow[];
+    showPayroll?: boolean;
+    showPropertyTax?: boolean;
 }
 
 function MetricRow({ label, value }: { label: string; value: string }) {
@@ -338,7 +341,7 @@ function SensitivityTable({
     );
 }
 
-export function OnePagerPDF({ onePager, pursuit, calc, productTypeName, unitMix, payroll, softCostDetails }: OnePagerPDFProps) {
+export function OnePagerPDF({ onePager, pursuit, calc, productTypeName, unitMix, payroll, softCostDetails, showPayroll = true, showPropertyTax = true }: OnePagerPDFProps) {
     const unitMixRows = onePager.unit_mix || [];
 
     // ── Compute sensitivities for page 2 ──
@@ -365,7 +368,7 @@ export function OnePagerPDF({ onePager, pursuit, calc, productTypeName, unitMix,
                 </Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
-                <Text style={s.brand}>SLR<Text style={s.brandSub}> Pursuits</Text></Text>
+                <Image src="/images/slr-logo.png" style={{ width: 100, height: 'auto', marginBottom: 2 }} />
                 <Text style={{ fontSize: 7, color: colors.light, marginTop: 2 }}>
                     {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </Text>
@@ -375,7 +378,10 @@ export function OnePagerPDF({ onePager, pursuit, calc, productTypeName, unitMix,
 
     const renderFooter = () => (
         <View style={s.footer} fixed>
-            <Text>SLR Pursuits · {pursuit.name} · {onePager.name}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Image src="/images/slr-logo.png" style={{ width: 60, height: 'auto' }} />
+                <Text> · {pursuit.name} · {onePager.name}</Text>
+            </View>
             <Text>Generated {new Date().toLocaleDateString('en-US')}</Text>
         </View>
     );
@@ -460,7 +466,7 @@ export function OnePagerPDF({ onePager, pursuit, calc, productTypeName, unitMix,
                         <MetricRow label="Turnover" value={fmtCurrency(onePager.opex_turnover)} />
                         <MetricRow label="Insurance" value={fmtCurrency(onePager.opex_insurance)} />
                         <MetricRow label="Capex Reserves" value={fmtCurrency(onePager.opex_capex_reserves)} />
-                        <MetricRow label="Mgmt Fee" value={fmtPct(onePager.mgmt_fee_pct, 1)} />
+                        <MetricRow label="Mgmt Fee" value={fmtPct(onePager.mgmt_fee_pct, 2)} />
                         <View style={s.totalRow}>
                             <Text style={s.totalLabel}>Total OpEx</Text>
                             <Text style={s.totalValue}>{fmtCurrency(calc.total_opex)}</Text>
@@ -488,12 +494,16 @@ export function OnePagerPDF({ onePager, pursuit, calc, productTypeName, unitMix,
                         <MetricRow label="Cost / Unit" value={fmtCurrency(calc.cost_per_unit)} />
                         <MetricRow label="Cost / NRSF" value={fmtCurrency(calc.cost_per_nrsf, 2)} />
 
-                        {/* Property Tax */}
-                        <Text style={s.sectionTitle}>Property Tax</Text>
-                        <MetricRow label="Mil Rate" value={fmtNumber(onePager.tax_mil_rate, 4)} />
-                        <MetricRow label="Assessed Value" value={fmtCurrency(calc.assessed_value)} />
-                        <MetricRow label="Annual Property Tax" value={fmtCurrency(calc.property_tax_total)} />
-                        <MetricRow label="Tax / Unit" value={fmtCurrency(calc.property_tax_per_unit)} />
+                        {/* Property Tax — conditionally included */}
+                        {showPropertyTax && (
+                            <>
+                                <Text style={s.sectionTitle}>Property Tax</Text>
+                                <MetricRow label="Mil Rate" value={fmtNumber(onePager.tax_mil_rate, 4)} />
+                                <MetricRow label="Assessed Value" value={fmtCurrency(calc.assessed_value)} />
+                                <MetricRow label="Annual Property Tax" value={fmtCurrency(calc.property_tax_total)} />
+                                <MetricRow label="Tax / Unit" value={fmtCurrency(calc.property_tax_per_unit)} />
+                            </>
+                        )}
 
                         {/* Returns */}
                         <Text style={s.sectionTitle}>Returns</Text>
@@ -632,7 +642,7 @@ export function OnePagerPDF({ onePager, pursuit, calc, productTypeName, unitMix,
                             title="Hard Cost Sensitivity"
                             headers={['HC/NRSF', 'Budget', 'NOI', 'YOC']}
                             rows={hcSens.map((r) => ({
-                                col1: fmtCurrency(r.adjustedValue, 2),
+                                col1: fmtCurrency(r.adjustedValue, 0),
                                 col2: fmtCurrency(r.totalBudget),
                                 col3: fmtCurrency(r.noi),
                                 col4: r.yoc > 0 ? fmtPct(r.yoc) : '—',

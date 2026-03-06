@@ -17,6 +17,7 @@ export const queryKeys = {
     unitMix: (onePagerId: string) => ['unit-mix', onePagerId] as const,
     payroll: (onePagerId: string) => ['payroll', onePagerId] as const,
     softCosts: (onePagerId: string) => ['soft-costs', onePagerId] as const,
+    unitPremiums: (onePagerId: string) => ['unit-premiums', onePagerId] as const,
     reportTemplates: ['report-templates'] as const,
     reportData: ['report-data'] as const,
     analyticsData: ['analytics-data'] as const,
@@ -396,6 +397,40 @@ export function useDeleteSoftCostRow() {
             queries.deleteSoftCostRow(id),
         onSuccess: (_, { onePagerId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.softCosts(onePagerId) });
+        },
+    });
+}
+
+// ============================================================
+// Unit Premiums
+// ============================================================
+
+export function useUnitPremiums(onePagerId: string) {
+    return useQuery({
+        queryKey: queryKeys.unitPremiums(onePagerId),
+        queryFn: () => queries.fetchUnitPremiums(onePagerId),
+        enabled: !!onePagerId,
+    });
+}
+
+export function useUpsertUnitPremium() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (row: Partial<import('@/types').UnitPremium> & { id?: string; one_pager_id: string }) =>
+            queries.upsertUnitPremium(row),
+        onSuccess: (_, variables) => {
+            qc.invalidateQueries({ queryKey: queryKeys.unitPremiums(variables.one_pager_id) });
+        },
+    });
+}
+
+export function useDeleteUnitPremium() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, onePagerId }: { id: string; onePagerId: string }) =>
+            queries.deleteUnitPremium(id),
+        onSuccess: (_, { onePagerId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.unitPremiums(onePagerId) });
         },
     });
 }

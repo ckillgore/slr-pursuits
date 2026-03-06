@@ -39,6 +39,11 @@
   --shadow-dropdown: 0 10px 40px rgba(0, 0, 0, 0.08);
   --table-row-border: #F0F1F4;
 
+  /* Sensitivity table */
+  --sensitivity-deep-green: #DCFCE7;
+  --sensitivity-faint-green: #F0FFF4;
+  --sensitivity-deep-red: #FEE2E2;
+
   /* Role badges */
   --badge-owner-bg: #DBEAFE;
   --badge-owner-text: #1E40AF;
@@ -82,6 +87,11 @@
   --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.30), 0 1px 3px rgba(0, 0, 0, 0.15);
   --shadow-dropdown: 0 10px 40px rgba(0, 0, 0, 0.40);
   --table-row-border: #242836;
+
+  /* Sensitivity table — Dark */
+  --sensitivity-deep-green: #0D3320;
+  --sensitivity-faint-green: #0F2918;
+  --sensitivity-deep-red: #3B1215;
 
   /* Role badges — Dark */
   --badge-owner-bg: #1E3A5F;

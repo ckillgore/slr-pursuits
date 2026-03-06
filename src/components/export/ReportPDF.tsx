@@ -11,6 +11,7 @@ import {
     Page,
     Text,
     View,
+    Image,
     StyleSheet,
     Font,
 } from '@react-pdf/renderer';
@@ -344,7 +345,7 @@ export function ReportPDF({ config, groupTree, flatRows, isGrouped, totalAggrega
                         </Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={s.brand}>SLR<Text style={s.brandSub}> Pursuits</Text></Text>
+                        <Image src="/images/slr-logo.png" style={{ width: 80, height: 'auto', marginBottom: 2 }} />
                         <Text style={s.dateText}>{dateStr}</Text>
                     </View>
                 </View>
@@ -370,7 +371,10 @@ export function ReportPDF({ config, groupTree, flatRows, isGrouped, totalAggrega
 
                 {/* Footer */}
                 <View style={s.footer} fixed>
-                    <Text>SLR Pursuits · {reportTitle}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Image src="/images/slr-logo.png" style={{ width: 50, height: 'auto' }} />
+                        <Text> · {reportTitle}</Text>
+                    </View>
                     <Text>Generated {dateStr}</Text>
                 </View>
             </Page>

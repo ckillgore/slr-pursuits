@@ -473,6 +473,12 @@ export default function ReportsPage() {
                                 <Building2 className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Pursuits</span><span className="sm:hidden">Purs.</span>
                             </button>
                             <button
+                                onClick={() => handleDataSourceChange('rent_comps')}
+                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'rent_comps' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                            >
+                                <Home className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Rent Comps</span><span className="sm:hidden">Rent</span>
+                            </button>
+                            <button
                                 onClick={() => handleDataSourceChange('land_comps')}
                                 className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'land_comps' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
                             >
@@ -489,12 +495,6 @@ export default function ReportsPage() {
                                 className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'key_dates' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
                             >
                                 <Calendar className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Key Dates</span><span className="sm:hidden">Dates</span>
-                            </button>
-                            <button
-                                onClick={() => handleDataSourceChange('rent_comps')}
-                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'rent_comps' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
-                            >
-                                <Home className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Rent Comps</span><span className="sm:hidden">Rent</span>
                             </button>
                             <button
                                 onClick={() => handleDataSourceChange('sale_comps')}

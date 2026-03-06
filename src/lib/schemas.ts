@@ -24,6 +24,7 @@ export const onePagerSchema = z.object({
     sub_product_type_id: z.string().uuid().nullable().default(null),
     // Site & Density
     total_units: z.number().int().min(0).default(0),
+    parking_spaces: z.number().int().min(0).default(0),
     efficiency_ratio: z.number().min(0).max(1).default(0.85),
     // Revenue
     other_income_per_unit_month: z.number().min(0).default(0),
@@ -101,6 +102,8 @@ export const productTypeSchema = z.object({
 export const subProductTypeSchema = z.object({
     product_type_id: z.string().uuid(),
     name: z.string().trim().min(1, 'Name is required'),
+    density_low: z.number().min(0).nullable().default(null),
+    density_high: z.number().min(0).nullable().default(null),
     sort_order: z.number().int().default(0),
     is_active: z.boolean().default(true),
 });

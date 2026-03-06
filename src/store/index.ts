@@ -59,19 +59,19 @@ const defaultProductTypes: ProductType[] = [
     {
         id: 'pt4', name: 'Wrap', density_low: 35, density_high: 55, sort_order: 4, is_active: true,
         sub_product_types: [
-            { id: 'spt1', product_type_id: 'pt4', name: '3-Story Wrap', sort_order: 1, is_active: true },
-            { id: 'spt2', product_type_id: 'pt4', name: '4-Story Wrap', sort_order: 2, is_active: true },
-            { id: 'spt3', product_type_id: 'pt4', name: '5-Story Wrap', sort_order: 3, is_active: true },
-            { id: 'spt4', product_type_id: 'pt4', name: '5 Over 1 Wrap', sort_order: 4, is_active: true },
-            { id: 'spt5', product_type_id: 'pt4', name: '5 Over 2 Wrap', sort_order: 5, is_active: true },
+            { id: 'spt1', product_type_id: 'pt4', name: '3-Story Wrap', density_low: null, density_high: null, sort_order: 1, is_active: true },
+            { id: 'spt2', product_type_id: 'pt4', name: '4-Story Wrap', density_low: null, density_high: null, sort_order: 2, is_active: true },
+            { id: 'spt3', product_type_id: 'pt4', name: '5-Story Wrap', density_low: null, density_high: null, sort_order: 3, is_active: true },
+            { id: 'spt4', product_type_id: 'pt4', name: '5 Over 1 Wrap', density_low: null, density_high: null, sort_order: 4, is_active: true },
+            { id: 'spt5', product_type_id: 'pt4', name: '5 Over 2 Wrap', density_low: null, density_high: null, sort_order: 5, is_active: true },
         ],
     },
     { id: 'pt5', name: 'Mid Rise', density_low: 50, density_high: 80, sort_order: 5, is_active: true, sub_product_types: [] },
     {
         id: 'pt6', name: 'High Rise', density_low: 80, density_high: 150, sort_order: 6, is_active: true,
         sub_product_types: [
-            { id: 'spt6', product_type_id: 'pt6', name: 'High Rise with Adjacent Garage', sort_order: 1, is_active: true },
-            { id: 'spt7', product_type_id: 'pt6', name: 'High Rise Podium', sort_order: 2, is_active: true },
+            { id: 'spt6', product_type_id: 'pt6', name: 'High Rise with Adjacent Garage', density_low: null, density_high: null, sort_order: 1, is_active: true },
+            { id: 'spt7', product_type_id: 'pt6', name: 'High Rise Podium', density_low: null, density_high: null, sort_order: 2, is_active: true },
         ],
     },
     { id: 'pt7', name: 'Other', density_low: 10, density_high: 150, sort_order: 7, is_active: true, sub_product_types: [] },

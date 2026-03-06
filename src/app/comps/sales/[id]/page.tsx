@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
@@ -12,9 +12,11 @@ import {
 } from '@/hooks/useSupabaseQueries';
 import {
     ChevronLeft, Loader2, DollarSign, Calendar, Building2, Ruler,
-    User, Pencil, Check, X, Plus, Trash2, TrendingUp, Hash,
+    User, Pencil, Check, X, Plus, Trash2, TrendingUp, Hash, MapPin, Navigation, Search,
 } from 'lucide-react';
 import type { SaleComp, SaleTransaction } from '@/types';
+
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
 function formatCurrency(val: number | null) {
     if (!val) return '—';
@@ -152,6 +154,16 @@ export default function SaleCompDetailPage() {
     const [isEditingName, setIsEditingName] = useState(false);
     const [editName, setEditName] = useState('');
 
+    // Location editing
+    const [editingLocation, setEditingLocation] = useState(false);
+    const [locMode, setLocMode] = useState<'search' | 'coords'>('search');
+    const [locSearch, setLocSearch] = useState('');
+    const [locSuggestions, setLocSuggestions] = useState<any[]>([]);
+    const [showLocSuggestions, setShowLocSuggestions] = useState(false);
+    const [locLatStr, setLocLatStr] = useState('');
+    const [locLngStr, setLocLngStr] = useState('');
+    const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     const updateField = useCallback((field: keyof SaleComp, value: unknown) => {
         if (!comp) return;
         updateComp.mutate({ id: comp.id, updates: { [field]: value } as Partial<SaleComp>, queryId: compId });
@@ -171,6 +183,86 @@ export default function SaleCompDetailPage() {
         if (!comp) return;
         deleteTx.mutate({ id: txId, saleCompId: comp.id });
     }, [comp, deleteTx]);
+
+    // Address autocomplete for location editing
+    const handleLocSearch = useCallback((query: string) => {
+        setLocSearch(query);
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+        if (!query.trim() || !MAPBOX_TOKEN) { setLocSuggestions([]); setShowLocSuggestions(false); return; }
+        searchTimeoutRef.current = setTimeout(async () => {
+            try {
+                const res = await fetch(
+                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&types=address,poi,place&country=US&limit=5`
+                );
+                const data = await res.json();
+                setLocSuggestions(data.features || []);
+                setShowLocSuggestions(true);
+            } catch { /* ignore */ }
+        }, 300);
+    }, []);
+
+    const selectLocSuggestion = useCallback((feature: any) => {
+        if (!comp) return;
+        const [lng, lat] = feature.center;
+        const context = feature.context || [];
+        const findCtx = (type: string) => context.find((c: any) => c.id?.startsWith(type))?.text || '';
+        const parts = feature.place_name.split(',');
+        updateComp.mutate({
+            id: comp.id,
+            updates: {
+                address: parts[0]?.trim() || '',
+                city: findCtx('place') || '',
+                state: findCtx('region') || '',
+                zip: findCtx('postcode') || '',
+                county: findCtx('district') || '',
+                latitude: lat,
+                longitude: lng,
+            },
+            queryId: compId,
+        });
+        setLocSearch('');
+        setLocSuggestions([]);
+        setShowLocSuggestions(false);
+        setEditingLocation(false);
+    }, [comp, updateComp, compId]);
+
+    const applyLocCoords = useCallback(() => {
+        if (!comp) return;
+        const lat = parseFloat(locLatStr);
+        const lng = parseFloat(locLngStr);
+        if (isNaN(lat) || isNaN(lng)) return;
+        const updates: Partial<SaleComp> = { latitude: lat, longitude: lng };
+        if (MAPBOX_TOKEN) {
+            fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=address,place`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.features?.length > 0) {
+                        const f = data.features[0];
+                        const ctx = f.context || [];
+                        const findCtx = (type: string) => ctx.find((c: any) => c.id?.startsWith(type))?.text || '';
+                        const parts = f.place_name.split(',');
+                        updateComp.mutate({
+                            id: comp.id,
+                            updates: {
+                                ...updates,
+                                address: parts[0]?.trim() || '',
+                                city: findCtx('place') || '',
+                                state: findCtx('region') || '',
+                                zip: findCtx('postcode') || '',
+                                county: findCtx('district') || '',
+                            },
+                            queryId: compId,
+                        });
+                    } else {
+                        updateComp.mutate({ id: comp.id, updates, queryId: compId });
+                    }
+                })
+                .catch(() => updateComp.mutate({ id: comp.id, updates, queryId: compId }));
+        } else {
+            updateComp.mutate({ id: comp.id, updates, queryId: compId });
+        }
+        setEditingLocation(false);
+    }, [comp, updateComp, locLatStr, locLngStr, compId]);
 
     const transactions = (comp?.sale_transactions ?? []).sort(
         (a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime()
@@ -233,15 +325,62 @@ export default function SaleCompDetailPage() {
                             )}
                             <p className="text-sm text-[var(--text-muted)] mt-0.5">
                                 {[comp.address, comp.city, comp.state, comp.zip].filter(Boolean).join(', ') || 'No address set'}
+                                {comp.latitude && comp.longitude && (
+                                    <span className="text-[10px] text-[var(--text-faint)] ml-2">({comp.latitude.toFixed(4)}, {comp.longitude.toFixed(4)})</span>
+                                )}
                                 {comp.property_type && (
                                     <span className="ml-2 text-[10px] bg-[#EEF2FF] text-[var(--accent)] px-1.5 py-0.5 rounded-full font-medium">
                                         {comp.property_type}
                                     </span>
                                 )}
+                                <button
+                                    onClick={() => setEditingLocation(!editingLocation)}
+                                    className="ml-2 text-[10px] text-[var(--accent)] hover:underline"
+                                >
+                                    {editingLocation ? 'Cancel' : 'Edit Location'}
+                                </button>
                             </p>
                         </div>
                         <CommentTrigger entityType="sale_comp" entityId={comp.id} />
                     </div>
+
+                    {/* Location editor */}
+                    {editingLocation && (
+                        <div className="mt-3 p-3 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg space-y-2">
+                            <div className="flex gap-2">
+                                <button onClick={() => setLocMode('search')} className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium ${locMode === 'search' ? 'bg-[#EEF2FF] text-[var(--accent)] border border-[var(--accent)]/30' : 'text-[var(--text-muted)] border border-[var(--border)]'}`}>
+                                    <MapPin className="w-3 h-3" /> Address
+                                </button>
+                                <button onClick={() => setLocMode('coords')} className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium ${locMode === 'coords' ? 'bg-[#EEF2FF] text-[var(--accent)] border border-[var(--accent)]/30' : 'text-[var(--text-muted)] border border-[var(--border)]'}`}>
+                                    <Navigation className="w-3 h-3" /> Coords
+                                </button>
+                            </div>
+                            {locMode === 'search' ? (
+                                <div className="relative">
+                                    <div className="relative flex items-center">
+                                        <Search className="absolute left-2.5 w-3.5 h-3.5 text-[var(--text-faint)] pointer-events-none" />
+                                        <input value={locSearch} onChange={(e) => handleLocSearch(e.target.value)} placeholder="Search address..." className="w-full pl-8 pr-3 py-2 rounded border border-[var(--border)] text-sm focus:border-[var(--accent)] focus:outline-none" autoFocus />
+                                    </div>
+                                    {showLocSuggestions && locSuggestions.length > 0 && (
+                                        <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+                                            {locSuggestions.map((s: any) => (
+                                                <button key={s.id} onClick={() => selectLocSuggestion(s)} className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]">
+                                                    <div className="font-medium text-xs">{s.text}</div>
+                                                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{s.place_name}</div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="flex gap-2">
+                                    <input value={locLatStr} onChange={(e) => setLocLatStr(e.target.value)} placeholder="Latitude" className="flex-1 px-3 py-2 rounded border border-[var(--border)] text-sm" />
+                                    <input value={locLngStr} onChange={(e) => setLocLngStr(e.target.value)} placeholder="Longitude" className="flex-1 px-3 py-2 rounded border border-[var(--border)] text-sm" />
+                                    <button onClick={applyLocCoords} className="px-3 py-2 rounded bg-[var(--accent)] text-white text-sm font-medium">Apply</button>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Tabs */}

@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/components/AuthProvider';
-import { useLandComps, useCreateLandComp, useDeleteLandComp, useSaleComps, useCreateSaleComp, useDeleteSaleComp } from '@/hooks/useSupabaseQueries';
+import { useLandComps, useCreateLandComp, useDeleteLandComp, useSaleComps, useCreateSaleComp, useDeleteSaleComp, useProductTypes } from '@/hooks/useSupabaseQueries';
 import {
     Search, Landmark, Loader2, Plus, Trash2, MapPin, Navigation, DollarSign,
     Calendar, Ruler, LayoutGrid, List, Map, Building2, TrendingUp,
@@ -120,6 +120,107 @@ function CompsMap({ comps }: { comps: LandComp[] }) {
     );
 }
 
+// ======================== Sale Comps Map ========================
+
+function SaleCompsMap({ comps }: { comps: SaleComp[] }) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const mapRef = useRef<any>(null);
+    const markersRef = useRef<any[]>([]);
+
+    const locatedComps = useMemo(
+        () => comps.filter((c) => c.latitude != null && c.longitude != null),
+        [comps]
+    );
+
+    useEffect(() => {
+        if (!MAPBOX_TOKEN || !containerRef.current) return;
+
+        let map: any;
+        import('mapbox-gl').then((mapboxgl) => {
+            const mbgl = mapboxgl.default || mapboxgl;
+            mbgl.accessToken = MAPBOX_TOKEN;
+
+            let center: [number, number] = [-97.7431, 32.0];
+            let zoom = 4;
+            if (locatedComps.length === 1) {
+                center = [locatedComps[0].longitude!, locatedComps[0].latitude!];
+                zoom = 12;
+            } else if (locatedComps.length > 1) {
+                const bounds = new mbgl.LngLatBounds();
+                locatedComps.forEach((c) => bounds.extend([c.longitude!, c.latitude!]));
+                center = bounds.getCenter().toArray() as [number, number];
+            }
+
+            if (containerRef.current) containerRef.current.innerHTML = '';
+
+            map = new mbgl.Map({
+                container: containerRef.current!,
+                style: 'mapbox://styles/mapbox/light-v11',
+                center,
+                zoom,
+                interactive: true,
+            });
+
+            map.addControl(new mbgl.NavigationControl({ showCompass: true }), 'top-right');
+            mapRef.current = map;
+
+            map.on('load', () => {
+                if (locatedComps.length > 1) {
+                    const bounds = new mbgl.LngLatBounds();
+                    locatedComps.forEach((c) => bounds.extend([c.longitude!, c.latitude!]));
+                    map.fitBounds(bounds, { padding: 60, maxZoom: 14 });
+                }
+
+                locatedComps.forEach((c) => {
+                    const txs = (c.sale_transactions ?? []).sort(
+                        (a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime()
+                    );
+                    const latest = txs[0];
+                    const priceLabel = latest?.sale_price ? formatCurrency(latest.sale_price) : '';
+                    const el = document.createElement('div');
+                    el.style.cssText = 'cursor:pointer;display:flex;flex-direction:column;align-items:center;';
+                    el.innerHTML = `
+                        <div style="background:#6366F1;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.15);line-height:1.3;text-align:center;">
+                            ${c.name}
+                            ${priceLabel ? `<div style="font-weight:400;font-size:8px;opacity:0.85;">${priceLabel}</div>` : ''}
+                        </div>
+                        <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #6366F1;"></div>
+                    `;
+                    const marker = new mbgl.Marker({ element: el })
+                        .setLngLat([c.longitude!, c.latitude!])
+                        .addTo(map);
+                    el.addEventListener('click', () => { window.location.href = `/comps/sales/${c.short_id}`; });
+                    markersRef.current.push(marker);
+                });
+            });
+        });
+
+        return () => {
+            markersRef.current.forEach((m) => m.remove());
+            markersRef.current = [];
+            if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [locatedComps]);
+
+    if (locatedComps.length === 0) {
+        return (
+            <div className="flex items-center justify-center py-20 text-center">
+                <div>
+                    <MapPin className="w-8 h-8 text-[var(--border-strong)] mx-auto mb-2" />
+                    <p className="text-sm text-[var(--text-muted)]">No sale comps with location data</p>
+                    <p className="text-xs text-[var(--text-faint)] mt-1">Add an address when creating sale comps to see them on the map</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="relative bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden" style={{ height: 'calc(100vh - 220px)', minHeight: 400 }}>
+            <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+        </div>
+    );
+}
 // ======================== Main Page ========================
 
 export default function CompsPage() {
@@ -168,6 +269,17 @@ export default function CompsPage() {
     const [salePropertyType, setSalePropertyType] = useState('');
     const [saleSearchQuery, setSaleSearchQuery] = useState('');
     const [saleSortBy, setSaleSortBy] = useState<'newest' | 'name'>('newest');
+    const [saleLat, setSaleLat] = useState<number | null>(null);
+    const [saleLng, setSaleLng] = useState<number | null>(null);
+    const [saleCounty, setSaleCounty] = useState('');
+    const [saleZip, setSaleZip] = useState('');
+    const [saleAddressSearch, setSaleAddressSearch] = useState('');
+    const [saleSuggestions, setSaleSuggestions] = useState<any[]>([]);
+    const [showSaleSuggestions, setShowSaleSuggestions] = useState(false);
+    const saleSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Product types from DB
+    const { data: productTypes = [] } = useProductTypes();
 
     const filteredSaleComps = useMemo(() => {
         const list = saleComps.filter((c) => {
@@ -187,6 +299,43 @@ export default function CompsPage() {
         return list;
     }, [saleComps, saleSearchQuery, saleSortBy]);
 
+    // Sale comp address autocomplete
+    const handleSaleAddressSearch = useCallback((query: string) => {
+        setSaleAddressSearch(query);
+        setSaleAddress(query);
+        if (saleSearchTimeoutRef.current) clearTimeout(saleSearchTimeoutRef.current);
+        if (!query.trim() || query.length < 3 || !MAPBOX_TOKEN) {
+            setSaleSuggestions([]); setShowSaleSuggestions(false); return;
+        }
+        saleSearchTimeoutRef.current = setTimeout(async () => {
+            try {
+                const res = await fetch(
+                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&types=address,poi,place&country=US&limit=5`
+                );
+                const data = await res.json();
+                setSaleSuggestions(data.features || []);
+                setShowSaleSuggestions(true);
+            } catch { /* ignore */ }
+        }, 300);
+    }, []);
+
+    const selectSaleSuggestion = useCallback((feature: any) => {
+        const [lng, lat] = feature.center;
+        const context = feature.context || [];
+        const findCtx = (type: string) => context.find((c: any) => c.id?.startsWith(type))?.text || '';
+        const parts = feature.place_name.split(',');
+        setSaleAddress(parts[0]?.trim() || '');
+        setSaleCity(findCtx('place') || '');
+        setSaleState(findCtx('region') || '');
+        setSaleZip(findCtx('postcode') || '');
+        setSaleCounty(findCtx('district') || '');
+        setSaleLat(lat);
+        setSaleLng(lng);
+        setSaleAddressSearch(feature.place_name);
+        setSaleSuggestions([]);
+        setShowSaleSuggestions(false);
+    }, []);
+
     const handleCreateSaleComp = async () => {
         if (!saleName.trim()) return;
         try {
@@ -195,10 +344,10 @@ export default function CompsPage() {
                 address: saleAddress,
                 city: saleCity,
                 state: saleState,
-                county: '',
-                zip: '',
-                latitude: null,
-                longitude: null,
+                county: saleCounty,
+                zip: saleZip,
+                latitude: saleLat,
+                longitude: saleLng,
                 property_type: salePropertyType || null,
                 year_built: null,
                 total_units: null,
@@ -209,6 +358,8 @@ export default function CompsPage() {
                 parcel_data_updated_at: null,
             });
             setSaleName(''); setSaleAddress(''); setSaleCity(''); setSaleState(''); setSalePropertyType('');
+            setSaleLat(null); setSaleLng(null); setSaleCounty(''); setSaleZip('');
+            setSaleAddressSearch(''); setSaleSuggestions([]); setShowSaleSuggestions(false);
             setShowNewSaleDialog(false);
             router.push(`/comps/sales/${created.short_id}`);
         } catch (err) {
@@ -370,11 +521,11 @@ export default function CompsPage() {
                             </button>
                         </div>
                         <button
-                            onClick={() => setShowNewDialog(true)}
-                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#0D9488] hover:bg-[#0F766E] text-white text-sm font-medium transition-colors shadow-sm"
+                            onClick={() => activeSection === 'land' ? setShowNewDialog(true) : setShowNewSaleDialog(true)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors shadow-sm ${activeSection === 'land' ? 'bg-[#0D9488] hover:bg-[#0F766E]' : 'bg-[var(--accent)] hover:bg-[#4F46E5]'}`}
                         >
                             <Plus className="w-4 h-4" />
-                            New Comp
+                            {activeSection === 'land' ? 'New Land Comp' : 'New Sale Comp'}
                         </button>
                     </div>
                 </div>
@@ -615,12 +766,6 @@ export default function CompsPage() {
                                 <option value="newest">Newest First</option>
                                 <option value="name">Name A→Z</option>
                             </select>
-                            <button
-                                onClick={() => setShowNewSaleDialog(true)}
-                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[#4F46E5] text-white text-sm font-medium transition-colors shadow-sm"
-                            >
-                                <Plus className="w-4 h-4" /> New Sale Comp
-                            </button>
                         </div>
 
                         {loadingSaleComps && (
@@ -776,15 +921,9 @@ export default function CompsPage() {
                             </div>
                         )}
 
-                        {/* Sale Comps Map View — reuse pattern but show message since sale comps may lack geocoded locations */}
+                        {/* Sale Comps Map View */}
                         {!loadingSaleComps && viewMode === 'map' && (
-                            <div className="flex items-center justify-center py-20 text-center">
-                                <div>
-                                    <MapPin className="w-8 h-8 text-[var(--border-strong)] mx-auto mb-2" />
-                                    <p className="text-sm text-[var(--text-muted)]">Map view coming soon for sale comps</p>
-                                    <p className="text-xs text-[var(--text-faint)] mt-1">Switch to Grid or List view to browse</p>
-                                </div>
-                            </div>
+                            <SaleCompsMap comps={filteredSaleComps} />
                         )}
 
                         {!loadingSaleComps && filteredSaleComps.length === 0 && (
@@ -936,15 +1075,38 @@ export default function CompsPage() {
                                     autoFocus
                                 />
                             </div>
-                            <div>
+                            <div className="relative">
                                 <label className="text-xs font-semibold text-[var(--text-muted)] uppercase mb-1 block">Address</label>
-                                <input
-                                    value={saleAddress}
-                                    onChange={(e) => setSaleAddress(e.target.value)}
-                                    placeholder="123 Main St"
-                                    className="w-full px-3 py-2 rounded-lg border border-[var(--border)] text-sm focus:border-[#6366F1] focus:outline-none"
-                                />
+                                <div className="relative flex items-center">
+                                    <Search className="absolute left-2.5 w-3.5 h-3.5 text-[var(--text-faint)] pointer-events-none" />
+                                    <input
+                                        value={saleAddressSearch}
+                                        onChange={(e) => handleSaleAddressSearch(e.target.value)}
+                                        placeholder="Search for an address..."
+                                        className="w-full pl-8 pr-3 py-2 rounded-lg border border-[var(--border)] text-sm focus:border-[#6366F1] focus:outline-none"
+                                    />
+                                </div>
+                                {showSaleSuggestions && saleSuggestions.length > 0 && (
+                                    <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+                                        {saleSuggestions.map((s: any) => (
+                                            <button
+                                                key={s.id}
+                                                onClick={() => selectSaleSuggestion(s)}
+                                                className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
+                                            >
+                                                <div className="font-medium text-xs">{s.text}</div>
+                                                <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{s.place_name}</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
+                            {saleLat !== null && (
+                                <div className="text-xs text-[var(--success)] bg-[var(--success-bg)] px-2.5 py-1.5 rounded-md">
+                                    ✓ Location set: {saleLat.toFixed(4)}, {saleLng!.toFixed(4)}
+                                    {saleAddress && ` — ${saleAddress}`}
+                                </div>
+                            )}
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="text-xs font-semibold text-[var(--text-muted)] uppercase mb-1 block">City</label>
@@ -971,11 +1133,9 @@ export default function CompsPage() {
                                     className="w-full px-3 py-2 rounded-lg border border-[var(--border)] text-sm focus:border-[#6366F1] focus:outline-none"
                                 >
                                     <option value="">Select type...</option>
-                                    <option value="Multifamily">Multifamily</option>
-                                    <option value="Multifamily w/ Retail">Multifamily w/ Retail</option>
-                                    <option value="Mixed-Use">Mixed-Use</option>
-                                    <option value="Land">Land</option>
-                                    <option value="Other">Other</option>
+                                    {productTypes.filter(pt => pt.is_active).map(pt => (
+                                        <option key={pt.id} value={pt.name}>{pt.name}</option>
+                                    ))}
                                 </select>
                             </div>
                         </div>

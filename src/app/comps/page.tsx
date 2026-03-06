@@ -242,6 +242,11 @@ export default function CompsPage() {
     const [showNewDialog, setShowNewDialog] = useState(false);
     const [deleteCompId, setDeleteCompId] = useState<string | null>(null);
 
+    // Shared filters
+    const [filterState, setFilterState] = useState('');
+    const [filterCity, setFilterCity] = useState('');
+    const [saleFilterPropertyType, setSaleFilterPropertyType] = useState('');
+
     // Create form state
     const [newName, setNewName] = useState('');
     const [newAddress, setNewAddress] = useState('');
@@ -283,6 +288,9 @@ export default function CompsPage() {
 
     const filteredSaleComps = useMemo(() => {
         const list = saleComps.filter((c) => {
+            if (filterState && c.state !== filterState) return false;
+            if (filterCity && c.city !== filterCity) return false;
+            if (saleFilterPropertyType && c.property_type !== saleFilterPropertyType) return false;
             if (!saleSearchQuery) return true;
             const q = saleSearchQuery.toLowerCase();
             return (
@@ -297,7 +305,7 @@ export default function CompsPage() {
             default: list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         }
         return list;
-    }, [saleComps, saleSearchQuery, saleSortBy]);
+    }, [saleComps, saleSearchQuery, saleSortBy, filterState, filterCity, saleFilterPropertyType]);
 
     // Sale comp address autocomplete
     const handleSaleAddressSearch = useCallback((query: string) => {
@@ -367,8 +375,38 @@ export default function CompsPage() {
         }
     };
 
+    // Derive unique filter values for land comps
+    const landStates = useMemo(() => {
+        const states = [...new Set(comps.map(c => c.state).filter(Boolean))] as string[];
+        return states.sort();
+    }, [comps]);
+    const landCities = useMemo(() => {
+        const cities = [...new Set(
+            comps.filter(c => !filterState || c.state === filterState).map(c => c.city).filter(Boolean)
+        )] as string[];
+        return cities.sort();
+    }, [comps, filterState]);
+
+    // Derive unique filter values for sale comps
+    const saleStates = useMemo(() => {
+        const states = [...new Set(saleComps.map(c => c.state).filter(Boolean))] as string[];
+        return states.sort();
+    }, [saleComps]);
+    const saleCities = useMemo(() => {
+        const cities = [...new Set(
+            saleComps.filter(c => !filterState || c.state === filterState).map(c => c.city).filter(Boolean)
+        )] as string[];
+        return cities.sort();
+    }, [saleComps, filterState]);
+    const salePropertyTypes = useMemo(() => {
+        const types = [...new Set(saleComps.map(c => c.property_type).filter(Boolean))] as string[];
+        return types.sort();
+    }, [saleComps]);
+
     const filtered = useMemo(() => {
         const list = comps.filter((c) => {
+            if (filterState && c.state !== filterState) return false;
+            if (filterCity && c.city !== filterCity) return false;
             if (!searchQuery) return true;
             const q = searchQuery.toLowerCase();
             return (
@@ -385,7 +423,7 @@ export default function CompsPage() {
             default: list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         }
         return list;
-    }, [comps, searchQuery, sortBy]);
+    }, [comps, searchQuery, sortBy, filterState, filterCity]);
 
     // Address autocomplete
     const handleAddressSearch = useCallback((query: string) => {
@@ -533,13 +571,13 @@ export default function CompsPage() {
                 {/* Tab Bar */}
                 <div className="flex gap-1 mb-6 border-b border-[var(--border)]">
                     <button
-                        onClick={() => setActiveSection('land')}
+                        onClick={() => { setActiveSection('land'); setFilterState(''); setFilterCity(''); }}
                         className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${activeSection === 'land' ? 'text-[#0D9488] border-[#0D9488]' : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'}`}
                     >
                         <Landmark className="w-4 h-4" /> Land Comps
                     </button>
                     <button
-                        onClick={() => setActiveSection('sales')}
+                        onClick={() => { setActiveSection('sales'); setFilterState(''); setFilterCity(''); setSaleFilterPropertyType(''); }}
                         className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${activeSection === 'sales' ? 'text-[var(--accent)] border-[#6366F1]' : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'}`}
                     >
                         <Building2 className="w-4 h-4" /> Sale Comps
@@ -562,15 +600,35 @@ export default function CompsPage() {
                             />
                         </div>
                         {(viewMode === 'grid' || viewMode === 'list') && (
-                            <select
-                                value={sortBy}
-                                onChange={(e) => setSortBy(e.target.value as any)}
-                                className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[#0D9488] focus:outline-none"
-                            >
-                                <option value="newest">Newest First</option>
-                                <option value="name">Name A→Z</option>
-                                <option value="price">Highest Price</option>
-                            </select>
+                            <>
+                                <select
+                                    value={filterState}
+                                    onChange={(e) => { setFilterState(e.target.value); setFilterCity(''); }}
+                                    className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[#0D9488] focus:outline-none"
+                                >
+                                    <option value="">All States</option>
+                                    {landStates.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                                {filterState && landCities.length > 0 && (
+                                    <select
+                                        value={filterCity}
+                                        onChange={(e) => setFilterCity(e.target.value)}
+                                        className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[#0D9488] focus:outline-none"
+                                    >
+                                        <option value="">All Cities</option>
+                                        {landCities.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                )}
+                                <select
+                                    value={sortBy}
+                                    onChange={(e) => setSortBy(e.target.value as any)}
+                                    className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[#0D9488] focus:outline-none"
+                                >
+                                    <option value="newest">Newest First</option>
+                                    <option value="name">Name A→Z</option>
+                                    <option value="price">Highest Price</option>
+                                </select>
+                            </>
                         )}
                     </div>
 
@@ -758,6 +816,34 @@ export default function CompsPage() {
                                     className="w-full pl-10 pr-4 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[#6366F1] focus:ring-2 focus:ring-[#6366F1]/10 focus:outline-none transition-all"
                                 />
                             </div>
+                            <select
+                                value={filterState}
+                                onChange={(e) => { setFilterState(e.target.value); setFilterCity(''); }}
+                                className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[#6366F1] focus:outline-none"
+                            >
+                                <option value="">All States</option>
+                                {saleStates.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                            {filterState && saleCities.length > 0 && (
+                                <select
+                                    value={filterCity}
+                                    onChange={(e) => setFilterCity(e.target.value)}
+                                    className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[#6366F1] focus:outline-none"
+                                >
+                                    <option value="">All Cities</option>
+                                    {saleCities.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            )}
+                            {salePropertyTypes.length > 0 && (
+                                <select
+                                    value={saleFilterPropertyType}
+                                    onChange={(e) => setSaleFilterPropertyType(e.target.value)}
+                                    className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[#6366F1] focus:outline-none"
+                                >
+                                    <option value="">All Types</option>
+                                    {salePropertyTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            )}
                             <select
                                 value={saleSortBy}
                                 onChange={(e) => setSaleSortBy(e.target.value as any)}

@@ -1701,6 +1701,78 @@ export async function updateRentCompType(
 }
 
 // ============================================================
+// Pursuit Land Comps (junction)
+// ============================================================
+
+/** Fetch land comps linked to a pursuit */
+export async function fetchPursuitLandComps(pursuitId: string): Promise<(LandComp & { _link_id: string })[]> {
+    const { data, error } = await supabase
+        .from('pursuit_land_comps')
+        .select(`*, land_comp:land_comps(*)`)
+        .eq('pursuit_id', pursuitId)
+        .order('sort_order');
+    if (error) throw error;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data ?? []).map((row: any) => ({ ...row.land_comp, _link_id: row.id }));
+}
+
+/** Link an existing land comp to a pursuit */
+export async function linkLandCompToPursuit(pursuitId: string, landCompId: string): Promise<void> {
+    const { data: { session } } = await supabase.auth.getSession();
+    const { error } = await supabase
+        .from('pursuit_land_comps')
+        .upsert({ pursuit_id: pursuitId, land_comp_id: landCompId, added_by: session?.user?.id ?? null },
+            { onConflict: 'pursuit_id, land_comp_id' });
+    if (error) throw error;
+}
+
+/** Unlink a land comp from a pursuit */
+export async function unlinkLandCompFromPursuit(pursuitId: string, landCompId: string): Promise<void> {
+    const { error } = await supabase
+        .from('pursuit_land_comps')
+        .delete()
+        .eq('pursuit_id', pursuitId)
+        .eq('land_comp_id', landCompId);
+    if (error) throw error;
+}
+
+// ============================================================
+// Pursuit Sale Comps (junction)
+// ============================================================
+
+/** Fetch sale comps linked to a pursuit, with transactions */
+export async function fetchPursuitSaleComps(pursuitId: string): Promise<(SaleComp & { _link_id: string })[]> {
+    const { data, error } = await supabase
+        .from('pursuit_sale_comps')
+        .select(`*, sale_comp:sale_comps(*, sale_transactions(*))`)
+        .eq('pursuit_id', pursuitId)
+        .order('sort_order');
+    if (error) throw error;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data ?? []).map((row: any) => ({ ...row.sale_comp, _link_id: row.id }));
+}
+
+/** Link an existing sale comp to a pursuit */
+export async function linkSaleCompToPursuit(pursuitId: string, saleCompId: string): Promise<void> {
+    const { data: { session } } = await supabase.auth.getSession();
+    const { error } = await supabase
+        .from('pursuit_sale_comps')
+        .upsert({ pursuit_id: pursuitId, sale_comp_id: saleCompId, added_by: session?.user?.id ?? null },
+            { onConflict: 'pursuit_id, sale_comp_id' });
+    if (error) throw error;
+}
+
+/** Unlink a sale comp from a pursuit */
+export async function unlinkSaleCompFromPursuit(pursuitId: string, saleCompId: string): Promise<void> {
+    const { error } = await supabase
+        .from('pursuit_sale_comps')
+        .delete()
+        .eq('pursuit_id', pursuitId)
+        .eq('sale_comp_id', saleCompId);
+    if (error) throw error;
+}
+
+// ============================================================
 // Entity Comments
 // ============================================================
 

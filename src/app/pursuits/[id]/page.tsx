@@ -30,6 +30,7 @@ import { PredevBudgetTab } from '@/components/pursuits/PredevBudgetTab';
 import { KeyDatesTab } from '@/components/pursuits/KeyDatesTab';
 import ChecklistTab from '@/components/pursuits/ChecklistTab';
 import RentCompsTab from '@/components/pursuits/RentCompsTab';
+import PursuitCompsTab from '@/components/pursuits/PursuitCompsTab';
 import { InlineInput } from '@/components/one-pager/InlineInput';
 import CommentTrigger from '@/components/shared/CommentTrigger';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
@@ -83,7 +84,7 @@ export default function PursuitDetailPage() {
     const [selectedTemplateId, setSelectedTemplateId] = useState('');
     const [isEditingName, setIsEditingName] = useState(false);
     const [editName, setEditName] = useState('');
-    const [activeTab, setActiveTab] = useState<'overview' | 'onepagers' | 'demographics' | 'publicinfo' | 'rent_comps' | 'predev' | 'keydates' | 'checklist'>(
+    const [activeTab, setActiveTab] = useState<'overview' | 'onepagers' | 'demographics' | 'publicinfo' | 'rent_comps' | 'comps' | 'predev' | 'keydates' | 'checklist'>(
         initialTab === 'onepagers' ? 'onepagers' : initialTab === 'predev' ? 'predev' : initialTab === 'keydates' ? 'keydates' : initialTab === 'checklist' ? 'checklist' : initialTab === 'rent_comps' ? 'rent_comps' : 'overview'
     );
 
@@ -451,6 +452,18 @@ export default function PursuitDetailPage() {
                     >
                         Rent Comps
                         {activeTab === 'rent_comps' && (
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('comps')}
+                        className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'comps'
+                            ? 'text-[var(--accent)]'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                            }`}
+                    >
+                        Comps
+                        {activeTab === 'comps' && (
                             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
                         )}
                     </button>
@@ -993,6 +1006,10 @@ export default function PursuitDetailPage() {
                     <RentCompsTab pursuitId={pursuitUuid} />
                 )}
 
+                {/* ===== COMPS TAB (Land & Sale) ===== */}
+                {activeTab === 'comps' && (
+                    <PursuitCompsTab pursuitId={pursuitUuid} />
+                )}
 
                 {/* ===== PRE-DEV BUDGET TAB ===== */}
                 {activeTab === 'predev' && (

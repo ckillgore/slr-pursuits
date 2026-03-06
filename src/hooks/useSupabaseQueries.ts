@@ -34,6 +34,8 @@ export const queryKeys = {
     myMentionCount: (userId: string) => ['my-mention-count', userId] as const,
     saleComps: ['sale-comps'] as const,
     saleComp: (id: string) => ['sale-comps', id] as const,
+    pursuitLandComps: (pursuitId: string) => ['pursuit-land-comps', pursuitId] as const,
+    pursuitSaleComps: (pursuitId: string) => ['pursuit-sale-comps', pursuitId] as const,
 };
 
 // ============================================================
@@ -1189,5 +1191,73 @@ export function useSaleCompReportData() {
     return useQuery({
         queryKey: ['sale-comp-report-data'] as const,
         queryFn: queries.fetchSaleCompReportData,
+    });
+}
+
+// ============================================================
+// Pursuit Land Comps
+// ============================================================
+
+export function usePursuitLandComps(pursuitId: string) {
+    return useQuery({
+        queryKey: queryKeys.pursuitLandComps(pursuitId),
+        queryFn: () => queries.fetchPursuitLandComps(pursuitId),
+        enabled: !!pursuitId,
+    });
+}
+
+export function useLinkLandCompToPursuit() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ pursuitId, landCompId }: { pursuitId: string; landCompId: string }) =>
+            queries.linkLandCompToPursuit(pursuitId, landCompId),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitLandComps(pursuitId) });
+        },
+    });
+}
+
+export function useUnlinkLandCompFromPursuit() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ pursuitId, landCompId }: { pursuitId: string; landCompId: string }) =>
+            queries.unlinkLandCompFromPursuit(pursuitId, landCompId),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitLandComps(pursuitId) });
+        },
+    });
+}
+
+// ============================================================
+// Pursuit Sale Comps
+// ============================================================
+
+export function usePursuitSaleComps(pursuitId: string) {
+    return useQuery({
+        queryKey: queryKeys.pursuitSaleComps(pursuitId),
+        queryFn: () => queries.fetchPursuitSaleComps(pursuitId),
+        enabled: !!pursuitId,
+    });
+}
+
+export function useLinkSaleCompToPursuit() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ pursuitId, saleCompId }: { pursuitId: string; saleCompId: string }) =>
+            queries.linkSaleCompToPursuit(pursuitId, saleCompId),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitSaleComps(pursuitId) });
+        },
+    });
+}
+
+export function useUnlinkSaleCompFromPursuit() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ pursuitId, saleCompId }: { pursuitId: string; saleCompId: string }) =>
+            queries.unlinkSaleCompFromPursuit(pursuitId, saleCompId),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitSaleComps(pursuitId) });
+        },
     });
 }

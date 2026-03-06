@@ -461,9 +461,11 @@ export function OnePagerPDF({ onePager, pursuit, calc, productTypeName, unitMix,
                         <MetricRow label="Marketing" value={fmtCurrency(onePager.opex_marketing)} />
                         <MetricRow label="G&A" value={fmtCurrency(onePager.opex_general_admin)} />
                         <MetricRow label="Turnover" value={fmtCurrency(onePager.opex_turnover)} />
+                        <MetricRow label="Payroll & Related" value={fmtCurrency(calc.payroll_total)} />
                         <MetricRow label="Insurance" value={fmtCurrency(onePager.opex_insurance)} />
                         <MetricRow label="Capex Reserves" value={fmtCurrency(onePager.opex_capex_reserves)} />
                         <MetricRow label="Mgmt Fee" value={fmtPct(onePager.mgmt_fee_pct, 2)} />
+                        <MetricRow label="Property Tax" value={fmtCurrency(calc.property_tax_total)} />
                         <View style={s.totalRow}>
                             <Text style={s.totalLabel}>Total OpEx</Text>
                             <Text style={s.totalValue}>{fmtCurrency(calc.total_opex)}</Text>

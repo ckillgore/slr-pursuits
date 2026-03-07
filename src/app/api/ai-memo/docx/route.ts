@@ -73,7 +73,32 @@ export async function POST(request: Request) {
         const pursuitId = payload.pursuitData?.id; // UUID from the Database
         
         // --- 1. Aggregation / Context String ---
-        const rawJsonString = JSON.stringify(payload, null, 2);
+        // Strip out massive GeoJSON, coordinate arrays, and raw API responses that blow up the token count
+        const cleanPayload = JSON.parse(JSON.stringify(payload));
+        if (cleanPayload.pursuitData) {
+            delete cleanPayload.pursuitData.parcel_data;
+            delete cleanPayload.pursuitData.parcel_assemblage;
+            delete cleanPayload.pursuitData.drive_time_data;
+            delete cleanPayload.pursuitData.income_heatmap_data;
+            // The AI doesn't need to read 10,000 sets of GPS coordinates.
+        }
+        
+        // Strip raw Hellodata scraped HTTP responses from rent comps
+        if (Array.isArray(cleanPayload.rentComps)) {
+            cleanPayload.rentComps.forEach((comp: any) => {
+                delete comp.raw_response;
+                delete comp.occupancy_over_time; // huge arrays
+            });
+        }
+
+        // Strip geometry from land comps
+        if (Array.isArray(cleanPayload.landComps)) {
+            cleanPayload.landComps.forEach((comp: any) => {
+                delete comp.parcel_data;
+            });
+        }
+
+        const rawJsonString = JSON.stringify(cleanPayload, null, 2);
 
         // --- 2. Model #1: Analyst (Gemini) ---
         console.log('[AI Memo] Pass 1: Gemini Analyst analyzing %d chars of raw data...', rawJsonString.length);

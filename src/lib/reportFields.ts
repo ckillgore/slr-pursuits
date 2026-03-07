@@ -433,7 +433,8 @@ export function getFieldCategoriesForSource(source: ReportDataSource) {
     const allowedCategories = source === 'land_comps' ? COMP_CATEGORIES
         : source === 'key_dates' ? KEY_DATE_CATEGORIES
             : source === 'rent_comps' ? RENT_COMP_CATEGORIES
-                : PURSUIT_CATEGORIES;
+                : source === 'sale_comps' ? SALE_COMP_CATEGORIES
+                    : PURSUIT_CATEGORIES;
     return REPORT_FIELD_CATEGORIES.filter(c => allowedCategories.has(c.category));
 }
 

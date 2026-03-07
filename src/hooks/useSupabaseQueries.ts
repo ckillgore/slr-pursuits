@@ -1187,6 +1187,18 @@ export function useDeleteSaleTransaction() {
     });
 }
 
+export function useUpdateSaleTransaction() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, updates }: { id: string; updates: Partial<import('@/types').SaleTransaction> }) =>
+            queries.updateSaleTransaction(id, updates),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: queryKeys.saleComps });
+            qc.invalidateQueries({ queryKey: ['sale-comp-report-data'] });
+        },
+    });
+}
+
 export function useSaleCompReportData() {
     return useQuery({
         queryKey: ['sale-comp-report-data'] as const,

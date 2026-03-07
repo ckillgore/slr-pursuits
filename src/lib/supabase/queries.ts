@@ -1913,6 +1913,17 @@ export async function deleteSaleTransaction(id: string) {
     if (error) throw error;
 }
 
+export async function updateSaleTransaction(id: string, updates: Partial<SaleTransaction>) {
+    const { data, error } = await supabase
+        .from('sale_transactions')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as SaleTransaction;
+}
+
 /**
  * Fetch sale comps as ReportRow[] for the report engine.
  * Uses the most recent transaction's sale data for the report row.

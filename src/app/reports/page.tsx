@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import type { ReportFieldDef } from '@/lib/reportFields';
 import { AppShell } from '@/components/layout/AppShell';
 import { ReportTable } from '@/components/reports/ReportTable';
 import { ReportConfigPanel } from '@/components/reports/ReportConfigPanel';
@@ -20,6 +21,11 @@ import {
     useRentCompReportData,
     useSaleCompReportData,
     useStages,
+    useUpdatePursuit,
+    useUpdateOnePager,
+    useUpdateLandComp,
+    useUpdateSaleComp,
+    useUpdateSaleTransaction,
 } from '@/hooks/useSupabaseQueries';
 import { useReportEngine } from '@/hooks/useReportEngine';
 import { useAuth } from '@/components/AuthProvider';
@@ -42,6 +48,7 @@ import {
     Calendar,
     Home,
     FileDown,
+    Pencil,
 } from 'lucide-react';
 
 const DEFAULT_PURSUIT_CONFIG: ReportConfig = {
@@ -99,6 +106,12 @@ export default function ReportsPage() {
     const shareTemplate = useShareReportTemplate();
     const unshareTemplate = useUnshareReportTemplate();
 
+    const updatePursuit = useUpdatePursuit();
+    const updateOnePager = useUpdateOnePager();
+    const updateLandComp = useUpdateLandComp();
+    const updateSaleComp = useUpdateSaleComp();
+    const updateSaleTransaction = useUpdateSaleTransaction();
+
     const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
     const [dataSource, setDataSource] = useState<ReportDataSource>('pursuits');
     const [config, setConfig] = useState<ReportConfig>(DEFAULT_PURSUIT_CONFIG);
@@ -108,6 +121,7 @@ export default function ReportsPage() {
     const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false);
     const [isExportingPdf, setIsExportingPdf] = useState(false);
     const [isExportingXlsx, setIsExportingXlsx] = useState(false);
+    const [editMode, setEditMode] = useState(false);
 
     // Load template config when selected
     useEffect(() => {
@@ -181,6 +195,49 @@ export default function ReportsPage() {
                 : { field, direction: 'asc' },
         }));
     }, []);
+
+    const handleCellEdit = useCallback((row: import('@/lib/supabase/queries').ReportRow, field: ReportFieldDef, rawValue: string | number | null) => {
+        if (!field.editTarget || !field.dbColumn) return;
+
+        const updates = { [field.dbColumn]: rawValue };
+
+        switch (field.editTarget) {
+            case 'pursuit':
+                updatePursuit.mutate({ id: row.pursuit.id, updates });
+                break;
+            case 'one_pager':
+                if (row.onePager?.id) {
+                    updateOnePager.mutate({ id: row.onePager.id, updates });
+                }
+                break;
+            case 'land_comp':
+                if (row.comp?.id) {
+                    updateLandComp.mutate({ id: row.comp.id, updates });
+                }
+                break;
+            case 'sale_comp':
+                if (row.saleComp?.id) {
+                    updateSaleComp.mutate({ id: row.saleComp.id, updates });
+                }
+                break;
+            case 'sale_transaction': {
+                // Find the latest transaction ID
+                const txs = row.saleComp?.sale_transactions ?? [];
+                const sorted = [...txs].sort((a, b) =>
+                    new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime()
+                );
+                const txId = sorted[0]?.id;
+                if (txId) {
+                    // Cap rate is stored as whole number (5 = 5%) but edited as decimal
+                    const txUpdates = field.dbColumn === 'cap_rate' && typeof rawValue === 'number'
+                        ? { [field.dbColumn]: rawValue * 100 }
+                        : updates;
+                    updateSaleTransaction.mutate({ id: txId, updates: txUpdates });
+                }
+                break;
+            }
+        }
+    }, [updatePursuit, updateOnePager, updateLandComp, updateSaleComp, updateSaleTransaction]);
 
     const handleSelectTemplate = (id: string | null) => {
         setSelectedTemplateId(id);
@@ -358,6 +415,20 @@ export default function ReportsPage() {
 
                         {/* Action buttons */}
                         <div className="flex items-center gap-1 ml-auto">
+                        {/* Edit mode toggle */}
+                        {dataSource !== 'predev_budgets' && dataSource !== 'key_dates' && dataSource !== 'rent_comps' && (
+                            <button
+                                onClick={() => setEditMode(!editMode)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${editMode
+                                    ? 'bg-amber-500/15 text-amber-600'
+                                    : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
+                                    }`}
+                                title={editMode ? 'Exit edit mode' : 'Edit cells inline'}
+                            >
+                                <Pencil className="w-4 h-4" />
+                                {editMode ? 'Editing' : 'Edit'}
+                            </button>
+                        )}
                         <button
                             onClick={() => setShowConfig(!showConfig)}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${showConfig
@@ -564,6 +635,8 @@ export default function ReportsPage() {
                                 totalAggregates={totalAggregates}
                                 stages={stages}
                                 onSort={handleSort}
+                                editMode={editMode}
+                                onCellEdit={handleCellEdit}
                             />
                         )}
                     </div>

@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, ArrowUpDown } from 'lucide-react';
 import type { ReportConfig, ReportFieldKey, PursuitStage } from '@/types';
 import type { ReportRow } from '@/lib/supabase/queries';
 import type { GroupNode } from '@/hooks/useReportEngine';
 import { REPORT_FIELD_MAP } from '@/lib/reportFields';
+import type { ReportFieldDef } from '@/lib/reportFields';
 
 interface ReportTableProps {
     config: ReportConfig;
@@ -16,6 +17,137 @@ interface ReportTableProps {
     totalAggregates: Record<string, number | null>;
     stages?: PursuitStage[];
     onSort: (field: ReportFieldKey) => void;
+    editMode?: boolean;
+    onCellEdit?: (row: ReportRow, field: ReportFieldDef, rawValue: string | number | null) => void;
+}
+
+// ── Inline edit cell ────────────────────────────────
+function EditableCell({
+    row,
+    col,
+    stages,
+    editMode,
+    onCellEdit,
+}: {
+    row: ReportRow;
+    col: ReportFieldDef;
+    stages?: PursuitStage[];
+    editMode?: boolean;
+    onCellEdit?: (row: ReportRow, field: ReportFieldDef, rawValue: string | number | null) => void;
+}) {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState('');
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const currentValue = col.getValue(row, stages);
+    const formatted = col.format(currentValue);
+    const isEditable = editMode && col.editable && col.editTarget && col.dbColumn;
+
+    const startEdit = useCallback(() => {
+        if (!isEditable) return;
+        // Prepare raw value for editing
+        let editableValue = '';
+        if (currentValue !== null && currentValue !== undefined) {
+            if (col.type === 'percent' && typeof currentValue === 'number') {
+                // Convert decimal to percentage for editing (0.05 → 5)
+                editableValue = String(Math.round(currentValue * 10000) / 100);
+            } else if (col.type === 'date' && typeof currentValue === 'string') {
+                // Format as YYYY-MM-DD for date input
+                editableValue = currentValue.split('T')[0];
+            } else {
+                editableValue = String(currentValue);
+            }
+        }
+        setDraft(editableValue);
+        setEditing(true);
+    }, [isEditable, currentValue, col.type]);
+
+    useEffect(() => {
+        if (editing && inputRef.current) {
+            inputRef.current.focus();
+            inputRef.current.select();
+        }
+    }, [editing]);
+
+    const commit = useCallback(() => {
+        setEditing(false);
+        if (!onCellEdit || !col.dbColumn || !col.editTarget) return;
+        const trimmed = draft.trim();
+        if (trimmed === '' && currentValue === null) return; // no change
+        if (trimmed === String(currentValue)) return; // no change
+
+        let rawValue: string | number | null;
+        if (trimmed === '') {
+            rawValue = null;
+        } else if (col.type === 'number' || col.type === 'currency') {
+            // Strip $ , formatting
+            const num = parseFloat(trimmed.replace(/[$,]/g, ''));
+            rawValue = isNaN(num) ? null : num;
+        } else if (col.type === 'percent') {
+            // User enters "5" meaning 5%, store as decimal
+            const num = parseFloat(trimmed.replace(/%/g, ''));
+            rawValue = isNaN(num) ? null : num / 100;
+        } else {
+            rawValue = trimmed;
+        }
+        onCellEdit(row, col, rawValue);
+    }, [draft, currentValue, col, row, onCellEdit]);
+
+    const cancel = useCallback(() => {
+        setEditing(false);
+    }, []);
+
+    if (editing) {
+        return (
+            <input
+                ref={inputRef}
+                type={col.type === 'date' ? 'date' : 'text'}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={commit}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter') commit();
+                    if (e.key === 'Escape') cancel();
+                }}
+                className="w-full px-1.5 py-0.5 text-xs rounded border border-[var(--accent)] bg-[var(--bg-card)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] tabular-nums"
+                style={{ minWidth: '60px' }}
+            />
+        );
+    }
+
+    // Pursuit name link
+    if (col.key === 'pursuit_name') {
+        return (
+            <Link href={`/pursuits/${(row.pursuit as any).short_id || row.pursuit.id}`} className="text-[var(--accent)] hover:underline font-medium">
+                {formatted}
+            </Link>
+        );
+    }
+
+    // Sale comp / land comp name link
+    if (col.key === 'sc_name' && row.saleComp) {
+        return (
+            <Link href={`/comps/sales/${(row.saleComp as any).short_id || row.saleComp.id}`} className="text-[var(--accent)] hover:underline font-medium">
+                {formatted}
+            </Link>
+        );
+    }
+    if (col.key === 'comp_name' && row.comp) {
+        return (
+            <Link href={`/comps/${(row.comp as any).short_id || row.comp.id}`} className="text-[var(--accent)] hover:underline font-medium">
+                {formatted}
+            </Link>
+        );
+    }
+
+    return (
+        <span
+            onClick={isEditable ? startEdit : undefined}
+            className={isEditable ? 'cursor-pointer hover:bg-[var(--accent-subtle)] hover:outline hover:outline-1 hover:outline-dashed hover:outline-[var(--accent)]/40 rounded px-0.5 -mx-0.5 transition-colors' : undefined}
+        >
+            {formatted}
+        </span>
+    );
 }
 
 export function ReportTable({
@@ -26,6 +158,8 @@ export function ReportTable({
     totalAggregates,
     stages,
     onSort,
+    editMode,
+    onCellEdit,
 }: ReportTableProps) {
     const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
@@ -65,13 +199,13 @@ export function ReportTable({
                         }`}
                     style={ci === 0 ? { paddingLeft: `${depth * 24 + 12}px` } : undefined}
                 >
-                    {col.key === 'pursuit_name' ? (
-                        <Link href={`/pursuits/${row.pursuit.short_id || row.pursuit.id}`} className="text-[var(--accent)] hover:underline font-medium">
-                            {col.format(col.getValue(row, stages))}
-                        </Link>
-                    ) : (
-                        col.format(col.getValue(row, stages))
-                    )}
+                    <EditableCell
+                        row={row}
+                        col={col}
+                        stages={stages}
+                        editMode={editMode}
+                        onCellEdit={onCellEdit}
+                    />
                 </td>
             ))}
         </tr>

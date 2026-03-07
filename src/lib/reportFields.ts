@@ -8,6 +8,8 @@ import { formatCurrency, formatNumber, formatPercent } from '@/lib/constants';
 
 export type FieldType = 'text' | 'number' | 'currency' | 'percent' | 'date';
 
+export type EditTarget = 'pursuit' | 'one_pager' | 'land_comp' | 'sale_comp' | 'sale_transaction';
+
 export interface ReportFieldDef {
     key: ReportFieldKey;
     label: string;
@@ -21,6 +23,10 @@ export interface ReportFieldDef {
     aggregation?: 'sum' | 'avg' | 'none';
     // For key date fields, we use a separate accessor
     getKeyDateValue?: (row: KeyDateReportRow, stages?: PursuitStage[]) => string | number | null;
+    /** Inline editing metadata — omit all for read-only fields */
+    editable?: boolean;
+    dbColumn?: string;
+    editTarget?: EditTarget;
 }
 
 const SF_PER_ACRE = 43_560;
@@ -52,28 +58,28 @@ function fmtDate(v: string | number | null): string {
 
 export const REPORT_FIELDS: ReportFieldDef[] = [
     // ── Pursuit fields ────────────────────────────────
-    { key: 'pursuit_name', label: 'Pursuit Name', category: 'Pursuit', type: 'text', groupable: false, filterable: true, getValue: (r) => r.pursuit.name, format: fmtText },
-    { key: 'address', label: 'Address', category: 'Pursuit', type: 'text', groupable: false, filterable: true, getValue: (r) => r.pursuit.address, format: fmtText },
-    { key: 'city', label: 'City', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit.city, format: fmtText },
-    { key: 'state', label: 'State', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit.state, format: fmtText },
-    { key: 'county', label: 'County', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit.county, format: fmtText },
-    { key: 'zip', label: 'Zip', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit.zip, format: fmtText },
-    { key: 'region', label: 'Region', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit.region, format: fmtText },
+    { key: 'pursuit_name', label: 'Pursuit Name', category: 'Pursuit', type: 'text', groupable: false, filterable: true, getValue: (r) => r.pursuit.name, format: fmtText, editable: true, dbColumn: 'name', editTarget: 'pursuit' },
+    { key: 'address', label: 'Address', category: 'Pursuit', type: 'text', groupable: false, filterable: true, getValue: (r) => r.pursuit.address, format: fmtText, editable: true, dbColumn: 'address', editTarget: 'pursuit' },
+    { key: 'city', label: 'City', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit.city, format: fmtText, editable: true, dbColumn: 'city', editTarget: 'pursuit' },
+    { key: 'state', label: 'State', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit.state, format: fmtText, editable: true, dbColumn: 'state', editTarget: 'pursuit' },
+    { key: 'county', label: 'County', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit.county, format: fmtText, editable: true, dbColumn: 'county', editTarget: 'pursuit' },
+    { key: 'zip', label: 'Zip', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit.zip, format: fmtText, editable: true, dbColumn: 'zip', editTarget: 'pursuit' },
+    { key: 'region', label: 'Region', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit.region, format: fmtText, editable: true, dbColumn: 'region', editTarget: 'pursuit' },
     {
         key: 'stage', label: 'Stage', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r, stages) => {
             const s = r.pursuit.stage ?? stages?.find(s => s.id === r.pursuit.stage_id);
             return s?.name ?? '—';
         }, format: fmtText
     },
-    { key: 'site_area_sf', label: 'Site Area (SF)', category: 'Pursuit', type: 'number', groupable: false, filterable: true, getValue: (r) => r.pursuit.site_area_sf, format: fmtNumber },
+    { key: 'site_area_sf', label: 'Site Area (SF)', category: 'Pursuit', type: 'number', groupable: false, filterable: true, getValue: (r) => r.pursuit.site_area_sf, format: fmtNumber, editable: true, dbColumn: 'site_area_sf', editTarget: 'pursuit' },
     { key: 'site_area_acres', label: 'Site Area (Ac)', category: 'Pursuit', type: 'number', groupable: false, filterable: true, getValue: (r) => r.pursuit.site_area_sf > 0 ? r.pursuit.site_area_sf / SF_PER_ACRE : null, format: (v) => v !== null ? formatNumber(Number(v), 2) : '—' },
     { key: 'pursuit_created_at', label: 'Date Created', category: 'Pursuit', type: 'date', groupable: false, filterable: true, getValue: (r) => r.pursuit.created_at, format: fmtDate },
     { key: 'pursuit_updated_at', label: 'Last Updated', category: 'Pursuit', type: 'date', groupable: false, filterable: true, getValue: (r) => r.pursuit.updated_at, format: fmtDate },
 
     // ── One-Pager identity ────────────────────────────
-    { key: 'one_pager_name', label: 'Scenario Name', category: 'One-Pager', type: 'text', groupable: false, filterable: true, getValue: (r) => r.onePager?.name ?? null, format: fmtText },
+    { key: 'one_pager_name', label: 'Scenario Name', category: 'One-Pager', type: 'text', groupable: false, filterable: true, getValue: (r) => r.onePager?.name ?? null, format: fmtText, editable: true, dbColumn: 'name', editTarget: 'one_pager' },
     { key: 'product_type', label: 'Product Type', category: 'One-Pager', type: 'text', groupable: true, filterable: true, getValue: (r) => r.onePager?.product_type?.name ?? null, format: fmtText },
-    { key: 'total_units', label: 'Total Units', category: 'One-Pager', type: 'number', groupable: false, filterable: true, getValue: (r) => r.onePager?.total_units ?? null, format: fmtNumber },
+    { key: 'total_units', label: 'Total Units', category: 'One-Pager', type: 'number', groupable: false, filterable: true, getValue: (r) => r.onePager?.total_units ?? null, format: fmtNumber, editable: true, dbColumn: 'total_units', editTarget: 'one_pager' },
     {
         key: 'unit_avg_size', label: 'Unit Avg Size (SF)', category: 'One-Pager', type: 'number', groupable: false, filterable: true, getValue: (r) => {
             const op = r.onePager;
@@ -96,7 +102,7 @@ export const REPORT_FIELDS: ReportFieldDef[] = [
     { key: 'calc_hard_cost', label: 'Hard Cost', category: 'Budget', type: 'currency', groupable: false, filterable: true, getValue: (r) => r.onePager?.calc_hard_cost ?? null, format: fmtCurrency },
     { key: 'calc_soft_cost', label: 'Soft Cost', category: 'Budget', type: 'currency', groupable: false, filterable: true, getValue: (r) => r.onePager?.calc_soft_cost ?? null, format: fmtCurrency },
     { key: 'calc_cost_per_unit', label: 'Cost / Unit', category: 'Budget', type: 'currency', groupable: false, filterable: true, getValue: (r) => r.onePager?.calc_cost_per_unit ?? null, format: fmtCurrency },
-    { key: 'land_cost', label: 'Land Cost', category: 'Budget', type: 'currency', groupable: false, filterable: true, getValue: (r) => r.onePager?.land_cost ?? null, format: fmtCurrency },
+    { key: 'land_cost', label: 'Land Cost', category: 'Budget', type: 'currency', groupable: false, filterable: true, getValue: (r) => r.onePager?.land_cost ?? null, format: fmtCurrency, editable: true, dbColumn: 'land_cost', editTarget: 'one_pager' },
     {
         key: 'land_cost_per_unit', label: 'Land Cost / Unit', category: 'Budget', type: 'currency', groupable: false, filterable: true, getValue: (r) => {
             const op = r.onePager;
@@ -133,14 +139,14 @@ export const REPORT_FIELDS: ReportFieldDef[] = [
     // ── Assumptions ───────────────────────────────────
     { key: 'calc_total_nrsf', label: 'Total NRSF', category: 'Assumptions', type: 'number', groupable: false, filterable: true, getValue: (r) => r.onePager?.calc_total_nrsf ?? null, format: fmtNumber },
     { key: 'calc_total_gbsf', label: 'Total GBSF', category: 'Assumptions', type: 'number', groupable: false, filterable: true, getValue: (r) => r.onePager?.calc_total_gbsf ?? null, format: fmtNumber },
-    { key: 'efficiency_ratio', label: 'Efficiency Ratio', category: 'Assumptions', type: 'percent', groupable: false, filterable: true, getValue: (r) => r.onePager?.efficiency_ratio ?? null, format: fmtPercent },
-    { key: 'vacancy_rate', label: 'Vacancy Rate', category: 'Assumptions', type: 'percent', groupable: false, filterable: true, getValue: (r) => r.onePager?.vacancy_rate ?? null, format: fmtPercent },
-    { key: 'hard_cost_per_nrsf', label: 'Hard Cost / NRSF', category: 'Assumptions', type: 'currency', groupable: false, filterable: true, getValue: (r) => r.onePager?.hard_cost_per_nrsf ?? null, format: fmtCurrency },
-    { key: 'soft_cost_pct', label: 'Soft Cost %', category: 'Assumptions', type: 'percent', groupable: false, filterable: true, getValue: (r) => r.onePager?.soft_cost_pct ?? null, format: fmtPercent },
-    { key: 'other_income_per_unit_month', label: 'Other Income/Unit/Mo', category: 'Assumptions', type: 'currency', groupable: false, filterable: true, getValue: (r) => r.onePager?.other_income_per_unit_month ?? null, format: fmtCurrency },
-    { key: 'mgmt_fee_pct', label: 'Mgmt Fee %', category: 'Assumptions', type: 'percent', groupable: false, filterable: true, getValue: (r) => r.onePager?.mgmt_fee_pct ?? null, format: fmtPercent },
-    { key: 'payroll_burden_pct', label: 'Payroll Burden %', category: 'Assumptions', type: 'percent', groupable: false, filterable: true, getValue: (r) => r.onePager?.payroll_burden_pct ?? null, format: fmtPercent },
-    { key: 'tax_mil_rate', label: 'Tax Millage Rate', category: 'Assumptions', type: 'number', groupable: false, filterable: true, getValue: (r) => r.onePager?.tax_mil_rate ?? null, format: (v) => v !== null ? formatNumber(Number(v), 4) : '—' },
+    { key: 'efficiency_ratio', label: 'Efficiency Ratio', category: 'Assumptions', type: 'percent', groupable: false, filterable: true, getValue: (r) => r.onePager?.efficiency_ratio ?? null, format: fmtPercent, editable: true, dbColumn: 'efficiency_ratio', editTarget: 'one_pager' },
+    { key: 'vacancy_rate', label: 'Vacancy Rate', category: 'Assumptions', type: 'percent', groupable: false, filterable: true, getValue: (r) => r.onePager?.vacancy_rate ?? null, format: fmtPercent, editable: true, dbColumn: 'vacancy_rate', editTarget: 'one_pager' },
+    { key: 'hard_cost_per_nrsf', label: 'Hard Cost / NRSF', category: 'Assumptions', type: 'currency', groupable: false, filterable: true, getValue: (r) => r.onePager?.hard_cost_per_nrsf ?? null, format: fmtCurrency, editable: true, dbColumn: 'hard_cost_per_nrsf', editTarget: 'one_pager' },
+    { key: 'soft_cost_pct', label: 'Soft Cost %', category: 'Assumptions', type: 'percent', groupable: false, filterable: true, getValue: (r) => r.onePager?.soft_cost_pct ?? null, format: fmtPercent, editable: true, dbColumn: 'soft_cost_pct', editTarget: 'one_pager' },
+    { key: 'other_income_per_unit_month', label: 'Other Income/Unit/Mo', category: 'Assumptions', type: 'currency', groupable: false, filterable: true, getValue: (r) => r.onePager?.other_income_per_unit_month ?? null, format: fmtCurrency, editable: true, dbColumn: 'other_income_per_unit_month', editTarget: 'one_pager' },
+    { key: 'mgmt_fee_pct', label: 'Mgmt Fee %', category: 'Assumptions', type: 'percent', groupable: false, filterable: true, getValue: (r) => r.onePager?.mgmt_fee_pct ?? null, format: fmtPercent, editable: true, dbColumn: 'mgmt_fee_pct', editTarget: 'one_pager' },
+    { key: 'payroll_burden_pct', label: 'Payroll Burden %', category: 'Assumptions', type: 'percent', groupable: false, filterable: true, getValue: (r) => r.onePager?.payroll_burden_pct ?? null, format: fmtPercent, editable: true, dbColumn: 'payroll_burden_pct', editTarget: 'one_pager' },
+    { key: 'tax_mil_rate', label: 'Tax Millage Rate', category: 'Assumptions', type: 'number', groupable: false, filterable: true, getValue: (r) => r.onePager?.tax_mil_rate ?? null, format: (v) => v !== null ? formatNumber(Number(v), 4) : '—', editable: true, dbColumn: 'tax_mil_rate', editTarget: 'one_pager' },
 ];
 
 // ── Category sets for source filtering ──
@@ -152,21 +158,21 @@ const RENT_COMP_CATEGORIES = new Set(['Rent Comp']);
 
 // ── Land comp field definitions ──
 const COMP_FIELDS: ReportFieldDef[] = [
-    { key: 'comp_name', label: 'Comp Name', category: 'Land Comp', type: 'text', groupable: false, filterable: true, getValue: (r) => r.comp?.name ?? r.pursuit.name, format: fmtText },
-    { key: 'comp_address', label: 'Address', category: 'Land Comp', type: 'text', groupable: false, filterable: true, getValue: (r) => r.comp?.address ?? '', format: fmtText },
-    { key: 'comp_city', label: 'City', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.city ?? '', format: fmtText },
-    { key: 'comp_state', label: 'State', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.state ?? '', format: fmtText },
-    { key: 'comp_county', label: 'County', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.county ?? '', format: fmtText },
-    { key: 'comp_zip', label: 'Zip', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.zip ?? '', format: fmtText },
-    { key: 'comp_site_area_sf', label: 'Site Area (SF)', category: 'Land Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.comp?.site_area_sf ?? null, format: fmtNumber },
+    { key: 'comp_name', label: 'Comp Name', category: 'Land Comp', type: 'text', groupable: false, filterable: true, getValue: (r) => r.comp?.name ?? r.pursuit.name, format: fmtText, editable: true, dbColumn: 'name', editTarget: 'land_comp' },
+    { key: 'comp_address', label: 'Address', category: 'Land Comp', type: 'text', groupable: false, filterable: true, getValue: (r) => r.comp?.address ?? '', format: fmtText, editable: true, dbColumn: 'address', editTarget: 'land_comp' },
+    { key: 'comp_city', label: 'City', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.city ?? '', format: fmtText, editable: true, dbColumn: 'city', editTarget: 'land_comp' },
+    { key: 'comp_state', label: 'State', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.state ?? '', format: fmtText, editable: true, dbColumn: 'state', editTarget: 'land_comp' },
+    { key: 'comp_county', label: 'County', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.county ?? '', format: fmtText, editable: true, dbColumn: 'county', editTarget: 'land_comp' },
+    { key: 'comp_zip', label: 'Zip', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.zip ?? '', format: fmtText, editable: true, dbColumn: 'zip', editTarget: 'land_comp' },
+    { key: 'comp_site_area_sf', label: 'Site Area (SF)', category: 'Land Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.comp?.site_area_sf ?? null, format: fmtNumber, editable: true, dbColumn: 'site_area_sf', editTarget: 'land_comp' },
     { key: 'comp_site_area_acres', label: 'Site Area (Ac)', category: 'Land Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.comp && r.comp.site_area_sf > 0 ? r.comp.site_area_sf / SF_PER_ACRE : null, format: (v) => v !== null ? formatNumber(Number(v), 2) : '—' },
-    { key: 'comp_sale_price', label: 'Sale Price', category: 'Land Comp', type: 'currency', groupable: false, filterable: true, getValue: (r) => r.comp?.sale_price ?? null, format: fmtCurrency },
-    { key: 'comp_sale_price_psf', label: 'Price / SF', category: 'Land Comp', type: 'currency', groupable: false, filterable: true, getValue: (r) => r.comp?.sale_price_psf ?? null, format: fmtCurrency },
-    { key: 'comp_sale_date', label: 'Sale Date', category: 'Land Comp', type: 'date', groupable: false, filterable: true, getValue: (r) => r.comp?.sale_date ?? null, format: fmtDate },
-    { key: 'comp_buyer', label: 'Buyer', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.buyer ?? null, format: fmtText },
-    { key: 'comp_seller', label: 'Seller', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.seller ?? null, format: fmtText },
-    { key: 'comp_zoning', label: 'Zoning', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.zoning ?? null, format: fmtText },
-    { key: 'comp_land_use', label: 'Land Use', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.land_use ?? null, format: fmtText },
+    { key: 'comp_sale_price', label: 'Sale Price', category: 'Land Comp', type: 'currency', groupable: false, filterable: true, getValue: (r) => r.comp?.sale_price ?? null, format: fmtCurrency, editable: true, dbColumn: 'sale_price', editTarget: 'land_comp' },
+    { key: 'comp_sale_price_psf', label: 'Price / SF', category: 'Land Comp', type: 'currency', groupable: false, filterable: true, getValue: (r) => r.comp?.sale_price_psf ?? null, format: fmtCurrency, editable: true, dbColumn: 'sale_price_psf', editTarget: 'land_comp' },
+    { key: 'comp_sale_date', label: 'Sale Date', category: 'Land Comp', type: 'date', groupable: false, filterable: true, getValue: (r) => r.comp?.sale_date ?? null, format: fmtDate, editable: true, dbColumn: 'sale_date', editTarget: 'land_comp' },
+    { key: 'comp_buyer', label: 'Buyer', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.buyer ?? null, format: fmtText, editable: true, dbColumn: 'buyer', editTarget: 'land_comp' },
+    { key: 'comp_seller', label: 'Seller', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.seller ?? null, format: fmtText, editable: true, dbColumn: 'seller', editTarget: 'land_comp' },
+    { key: 'comp_zoning', label: 'Zoning', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.zoning ?? null, format: fmtText, editable: true, dbColumn: 'zoning', editTarget: 'land_comp' },
+    { key: 'comp_land_use', label: 'Land Use', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.land_use ?? null, format: fmtText, editable: true, dbColumn: 'land_use', editTarget: 'land_comp' },
     { key: 'comp_created_at', label: 'Date Added', category: 'Land Comp', type: 'date', groupable: false, filterable: true, getValue: (r) => r.comp?.created_at ?? null, format: fmtDate },
 ];
 
@@ -320,16 +326,16 @@ REPORT_FIELDS.push(...RENT_COMP_FIELDS);
 
 // ── Sale Comp field definitions ──
 const SALE_COMP_FIELDS: ReportFieldDef[] = [
-    { key: 'sc_name' as ReportFieldKey, label: 'Property Name', category: 'Sale Comp', type: 'text', groupable: false, filterable: true, getValue: (r) => r.saleComp?.name ?? r.pursuit.name, format: fmtText },
-    { key: 'sc_address' as ReportFieldKey, label: 'Address', category: 'Sale Comp', type: 'text', groupable: false, filterable: true, getValue: (r) => r.saleComp?.address ?? r.pursuit.address, format: fmtText },
-    { key: 'sc_city' as ReportFieldKey, label: 'City', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.city ?? r.pursuit.city, format: fmtText },
-    { key: 'sc_state' as ReportFieldKey, label: 'State', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.state ?? r.pursuit.state, format: fmtText },
-    { key: 'sc_county' as ReportFieldKey, label: 'County', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.county ?? '', format: fmtText },
-    { key: 'sc_zip' as ReportFieldKey, label: 'Zip', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.zip ?? '', format: fmtText },
-    { key: 'sc_property_type' as ReportFieldKey, label: 'Property Type', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.property_type ?? null, format: fmtText },
-    { key: 'sc_year_built' as ReportFieldKey, label: 'Year Built', category: 'Sale Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.saleComp?.year_built ?? null, format: (v) => v !== null ? String(Math.round(Number(v))) : '—', aggregation: 'avg' },
-    { key: 'sc_total_units' as ReportFieldKey, label: 'Total Units', category: 'Sale Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.saleComp?.total_units ?? null, format: fmtNumber },
-    { key: 'sc_total_sf' as ReportFieldKey, label: 'Total SF', category: 'Sale Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.saleComp?.total_sf ?? null, format: fmtNumber },
+    { key: 'sc_name' as ReportFieldKey, label: 'Property Name', category: 'Sale Comp', type: 'text', groupable: false, filterable: true, getValue: (r) => r.saleComp?.name ?? r.pursuit.name, format: fmtText, editable: true, dbColumn: 'name', editTarget: 'sale_comp' },
+    { key: 'sc_address' as ReportFieldKey, label: 'Address', category: 'Sale Comp', type: 'text', groupable: false, filterable: true, getValue: (r) => r.saleComp?.address ?? r.pursuit.address, format: fmtText, editable: true, dbColumn: 'address', editTarget: 'sale_comp' },
+    { key: 'sc_city' as ReportFieldKey, label: 'City', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.city ?? r.pursuit.city, format: fmtText, editable: true, dbColumn: 'city', editTarget: 'sale_comp' },
+    { key: 'sc_state' as ReportFieldKey, label: 'State', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.state ?? r.pursuit.state, format: fmtText, editable: true, dbColumn: 'state', editTarget: 'sale_comp' },
+    { key: 'sc_county' as ReportFieldKey, label: 'County', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.county ?? '', format: fmtText, editable: true, dbColumn: 'county', editTarget: 'sale_comp' },
+    { key: 'sc_zip' as ReportFieldKey, label: 'Zip', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.zip ?? '', format: fmtText, editable: true, dbColumn: 'zip', editTarget: 'sale_comp' },
+    { key: 'sc_property_type' as ReportFieldKey, label: 'Property Type', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.property_type ?? null, format: fmtText, editable: true, dbColumn: 'property_type', editTarget: 'sale_comp' },
+    { key: 'sc_year_built' as ReportFieldKey, label: 'Year Built', category: 'Sale Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.saleComp?.year_built ?? null, format: (v) => v !== null ? String(Math.round(Number(v))) : '—', aggregation: 'avg', editable: true, dbColumn: 'year_built', editTarget: 'sale_comp' },
+    { key: 'sc_total_units' as ReportFieldKey, label: 'Total Units', category: 'Sale Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.saleComp?.total_units ?? null, format: fmtNumber, editable: true, dbColumn: 'total_units', editTarget: 'sale_comp' },
+    { key: 'sc_total_sf' as ReportFieldKey, label: 'Total SF', category: 'Sale Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.saleComp?.total_sf ?? null, format: fmtNumber, editable: true, dbColumn: 'total_sf', editTarget: 'sale_comp' },
     {
         key: 'sc_avg_unit_size' as ReportFieldKey, label: 'Avg Unit Size', category: 'Sale Comp', type: 'number', groupable: false, filterable: true,
         getValue: (r) => {
@@ -338,7 +344,7 @@ const SALE_COMP_FIELDS: ReportFieldDef[] = [
             return Math.round(sc.total_sf / sc.total_units);
         }, format: fmtNumber, aggregation: 'avg'
     },
-    { key: 'sc_lot_size_sf' as ReportFieldKey, label: 'Lot Size (SF)', category: 'Sale Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.saleComp?.lot_size_sf || null, format: fmtNumber },
+    { key: 'sc_lot_size_sf' as ReportFieldKey, label: 'Lot Size (SF)', category: 'Sale Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.saleComp?.lot_size_sf || null, format: fmtNumber, editable: true, dbColumn: 'lot_size_sf', editTarget: 'sale_comp' },
     // Transaction-derived fields (from latest transaction)
     {
         key: 'sc_sale_date' as ReportFieldKey, label: 'Sale Date', category: 'Sale Comp', type: 'date', groupable: false, filterable: true,
@@ -346,7 +352,7 @@ const SALE_COMP_FIELDS: ReportFieldDef[] = [
             const txs = r.saleComp?.sale_transactions ?? [];
             const sorted = [...txs].sort((a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime());
             return sorted[0]?.sale_date ?? null;
-        }, format: fmtDate
+        }, format: fmtDate, editable: true, dbColumn: 'sale_date', editTarget: 'sale_transaction'
     },
     {
         key: 'sc_sale_price' as ReportFieldKey, label: 'Sale Price', category: 'Sale Comp', type: 'currency', groupable: false, filterable: true,
@@ -354,7 +360,7 @@ const SALE_COMP_FIELDS: ReportFieldDef[] = [
             const txs = r.saleComp?.sale_transactions ?? [];
             const sorted = [...txs].sort((a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime());
             return sorted[0]?.sale_price ?? null;
-        }, format: fmtCurrency
+        }, format: fmtCurrency, editable: true, dbColumn: 'sale_price', editTarget: 'sale_transaction'
     },
     {
         key: 'sc_cap_rate' as ReportFieldKey, label: 'Cap Rate', category: 'Sale Comp', type: 'percent', groupable: false, filterable: true,
@@ -363,7 +369,7 @@ const SALE_COMP_FIELDS: ReportFieldDef[] = [
             const sorted = [...txs].sort((a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime());
             const capRate = sorted[0]?.cap_rate;
             return capRate != null ? capRate / 100 : null;
-        }, format: fmtPercent, aggregation: 'avg'
+        }, format: fmtPercent, aggregation: 'avg', editable: true, dbColumn: 'cap_rate', editTarget: 'sale_transaction'
     },
     {
         key: 'sc_price_per_unit' as ReportFieldKey, label: '$ / Unit', category: 'Sale Comp', type: 'currency', groupable: false, filterable: true,
@@ -374,7 +380,7 @@ const SALE_COMP_FIELDS: ReportFieldDef[] = [
             const price = sorted[0]?.sale_price;
             const units = r.saleComp?.total_units;
             return price && units && units > 0 ? price / units : null;
-        }, format: fmtCurrency, aggregation: 'avg'
+        }, format: fmtCurrency, aggregation: 'avg', editable: true, dbColumn: 'price_per_unit', editTarget: 'sale_transaction'
     },
     {
         key: 'sc_price_per_sf' as ReportFieldKey, label: '$ / SF', category: 'Sale Comp', type: 'currency', groupable: false, filterable: true,
@@ -385,7 +391,7 @@ const SALE_COMP_FIELDS: ReportFieldDef[] = [
             const price = sorted[0]?.sale_price;
             const sf = r.saleComp?.total_sf;
             return price && sf && sf > 0 ? price / sf : null;
-        }, format: fmtCurrency, aggregation: 'avg'
+        }, format: fmtCurrency, aggregation: 'avg', editable: true, dbColumn: 'price_per_sf', editTarget: 'sale_transaction'
     },
     {
         key: 'sc_buyer' as ReportFieldKey, label: 'Buyer', category: 'Sale Comp', type: 'text', groupable: true, filterable: true,
@@ -393,7 +399,7 @@ const SALE_COMP_FIELDS: ReportFieldDef[] = [
             const txs = r.saleComp?.sale_transactions ?? [];
             const sorted = [...txs].sort((a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime());
             return sorted[0]?.buyer ?? null;
-        }, format: fmtText
+        }, format: fmtText, editable: true, dbColumn: 'buyer', editTarget: 'sale_transaction'
     },
     {
         key: 'sc_seller' as ReportFieldKey, label: 'Seller', category: 'Sale Comp', type: 'text', groupable: true, filterable: true,
@@ -401,7 +407,7 @@ const SALE_COMP_FIELDS: ReportFieldDef[] = [
             const txs = r.saleComp?.sale_transactions ?? [];
             const sorted = [...txs].sort((a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime());
             return sorted[0]?.seller ?? null;
-        }, format: fmtText
+        }, format: fmtText, editable: true, dbColumn: 'seller', editTarget: 'sale_transaction'
     },
     { key: 'sc_created_at' as ReportFieldKey, label: 'Date Added', category: 'Sale Comp', type: 'date', groupable: false, filterable: true, getValue: (r) => r.saleComp?.created_at ?? null, format: fmtDate },
 ];

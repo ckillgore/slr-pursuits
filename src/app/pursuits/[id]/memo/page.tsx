@@ -24,7 +24,6 @@ import {
 import {
     ChevronLeft,
     Loader2,
-    Printer,
     Map,
     Building2,
     DollarSign,
@@ -300,26 +299,18 @@ export default function MemoPage() {
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={handleExportDocx}
-                            disabled={isExporting || !pursuit.executive_memo}
-                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
-                        >
-                            {isExporting ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                                <FileDown className="w-4 h-4" />
-                            )}
-                            {isExporting ? 'Exporting…' : 'Download DOCX'}
-                        </button>
-                        <button
-                            onClick={() => window.print()}
-                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm font-medium transition-colors"
-                        >
-                            <Printer className="w-4 h-4" /> Print
-                        </button>
-                    </div>
+                    <button
+                        onClick={handleExportDocx}
+                        disabled={isExporting || !pursuit.executive_memo}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
+                    >
+                        {isExporting ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <FileDown className="w-4 h-4" />
+                        )}
+                        {isExporting ? 'Exporting…' : 'Download DOCX'}
+                    </button>
                 </div>
 
                 {/* Main Content Area */}
@@ -438,55 +429,7 @@ export default function MemoPage() {
                 </div>
             </div>
 
-            {/* Print Styles */}
-            <style dangerouslySetInnerHTML={{__html: `
-                @media print {
-                    @page { margin: 0.75in; }
-                    body { 
-                        background: white !important; 
-                        color: black !important;
-                    }
-                    header, nav, aside { display: none !important; }
-                    .print\\:hidden { display: none !important; }
-                    .rich-text-editor { 
-                        border: none !important; 
-                        box-shadow: none !important;
-                    }
-                    .rich-text-editor > div:first-child { 
-                        display: none !important; 
-                    }
-                    .rich-text-editor-content {
-                        font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-                        font-size: 11pt;
-                        line-height: 1.6;
-                        color: black !important;
-                    }
-                    .rich-text-editor-content h1, 
-                    .rich-text-editor-content h2, 
-                    .rich-text-editor-content h3 {
-                        page-break-after: avoid;
-                        color: black !important;
-                    }
-                    .rich-text-editor-content table {
-                        width: 100%;
-                        border-collapse: collapse;
-                        margin: 1em 0;
-                    }
-                    .rich-text-editor-content th,
-                    .rich-text-editor-content td {
-                        border: 1px solid #ccc;
-                        padding: 6px 10px;
-                        text-align: left;
-                    }
-                    .rich-text-editor-content th {
-                        background-color: #f5f5f5 !important;
-                        -webkit-print-color-adjust: exact;
-                        font-weight: bold;
-                    }
-                    .page-break-before { page-break-before: always; }
-                    .page-break-avoid { page-break-inside: avoid; }
-                }
-            `}} />
+
         </AppShell>
     );
 }

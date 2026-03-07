@@ -431,7 +431,6 @@ export default function PursuitDetailPage() {
                             </button>
                         </div>
                     </div>
-                    </div>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6 pt-4 border-t border-[var(--table-row-border)]">
@@ -1235,6 +1234,7 @@ export default function PursuitDetailPage() {
                         </div>
                     </div>
                 )}
+            </div>
         </AppShell>
     );
 }

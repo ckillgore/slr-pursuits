@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
@@ -31,6 +31,7 @@ import {
     BarChart3,
     Landmark,
     TrendingUp,
+    FileDown,
 } from 'lucide-react';
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/constants';
 import type { OnePager } from '@/types';
@@ -214,6 +215,36 @@ export default function MemoPage() {
         });
     };
 
+    // DOCX Export
+    const [isExporting, setIsExporting] = useState(false);
+    const handleExportDocx = useCallback(async () => {
+        if (!pursuit) return;
+        setIsExporting(true);
+        try {
+            const res = await fetch('/api/ai-memo/export-docx', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pursuitId: pursuit.id }),
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Export failed');
+            }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Deal_Summary_${pursuit.name.replace(/[^a-zA-Z0-9]/g, '_')}.docx`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('DOCX export failed:', err);
+            alert('Failed to export DOCX. Please try again.');
+        } finally {
+            setIsExporting(false);
+        }
+    }, [pursuit]);
+
     // Build PropertyMetrics for the chart components
     const compMetrics = useMemo(() => {
         return rentComps
@@ -269,12 +300,26 @@ export default function MemoPage() {
                         </p>
                     </div>
 
-                    <button
-                        onClick={() => window.print()}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors shadow-sm"
-                    >
-                        <Printer className="w-4 h-4" /> Print to PDF
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={handleExportDocx}
+                            disabled={isExporting || !pursuit.executive_memo}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
+                        >
+                            {isExporting ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <FileDown className="w-4 h-4" />
+                            )}
+                            {isExporting ? 'Exporting…' : 'Download DOCX'}
+                        </button>
+                        <button
+                            onClick={() => window.print()}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm font-medium transition-colors"
+                        >
+                            <Printer className="w-4 h-4" /> Print
+                        </button>
+                    </div>
                 </div>
 
                 {/* Main Content Area */}

@@ -579,7 +579,7 @@ export default function ExplorePage() {
                 {/* Mapbox controls override */}
                 <style dangerouslySetInnerHTML={{ __html: `
                     .mapboxgl-ctrl-top-right {
-                        top: 60px !important;
+                        top: 80px !important;
                     }
                 ` }} />
 
@@ -715,7 +715,7 @@ export default function ExplorePage() {
 
                 {/* Mobile Tap Popup — floating card */}
                 {mobilePopup && (
-                    <div className="absolute bottom-6 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-[26rem] z-30 animate-fade-in">
+                    <div className="absolute bottom-24 left-4 right-4 md:bottom-12 md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-[26rem] z-30 animate-fade-in">
                         <div className="bg-[var(--bg-card)]/95 backdrop-blur-sm border border-[var(--border)] shadow-2xl rounded-2xl px-4 py-3">
                             {/* Close button */}
                             <button

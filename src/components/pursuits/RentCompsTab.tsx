@@ -619,8 +619,8 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
 
     return (
         <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
-            <table className="w-full text-xs min-w-[600px]">
-                <thead>
+                <table className="w-full text-xs min-w-full md:min-w-[600px] block md:table">
+                <thead className="hidden md:table-header-group">
                     <tr className="border-b-2 border-[var(--border)] bg-[var(--bg-primary)]">
                         <th className="text-left py-3 px-4 font-semibold text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10 min-w-[140px]"></th>
                         <th className="text-center py-3 px-3 font-semibold text-[var(--text-muted)] min-w-[100px]">
@@ -654,19 +654,34 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
                         ))}
                     </tr>
                 </thead>
-                <tbody>
+                <tbody className="block md:table-row-group">
                     {rows.map((row, ri) => (
-                        <tr key={ri} className={`border-b border-[var(--bg-elevated)] ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]'}`}>
-                            <td className="py-2.5 px-4 font-medium text-[var(--text-secondary)] sticky left-0 bg-inherit z-10">{row.label}</td>
-                            <td className={`py-2.5 px-3 text-center text-[var(--text-muted)] ${row.bold ? 'font-semibold' : ''} ${row.multiline ? 'text-left max-w-[180px]' : ''}`}>
-                                {row.multiline ? <span className="line-clamp-3 text-[11px]">{row.avgValue}</span> : row.avgValue}
+                        <tr key={ri} className={`block md:table-row border border-[var(--border)] md:border-b md:border-x-0 md:border-t-0 mb-4 md:mb-0 rounded-xl md:rounded-none overflow-hidden ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]'}`}>
+                            
+                            {/* Mobile Section Header */}
+                            <td className="block md:hidden py-3 px-4 font-bold text-sm text-[var(--text-primary)] bg-[var(--bg-elevated)] border-b border-[var(--border)]">
+                                {row.label}
+                            </td>
+
+                            <td className="hidden md:table-cell py-2.5 px-4 font-medium text-[var(--text-secondary)] sticky left-0 bg-inherit z-10">{row.label}</td>
+                            
+                            <td className="flex justify-between items-center md:table-cell py-2.5 px-4 md:px-3 text-left md:text-center text-[var(--text-muted)] border-b border-[var(--border)] md:border-0">
+                                <span className="md:hidden font-medium text-[var(--text-faint)]">Comp Avg</span>
+                                <span className={`${row.bold ? 'font-semibold' : ''} ${row.multiline ? 'text-right md:text-left max-w-[180px]' : ''}`}>
+                                    {row.multiline ? <span className="line-clamp-3 text-[11px]">{row.avgValue}</span> : row.avgValue}
+                                </span>
                             </td>
                             {comps.map((_, ci) => (
-                                <td key={ci} className={`py-2.5 px-3 text-center text-[var(--text-primary)] ${row.bold ? 'font-semibold' : ''} ${row.multiline ? 'text-left max-w-[180px]' : ''}`}>
-                                    {row.multiline
-                                        ? <span className="line-clamp-3 text-[11px]">{row.values(ci)}</span>
-                                        : row.values(ci).split('\n').map((line, li) => <div key={li}>{line}</div>)
-                                    }
+                                <td key={ci} className="flex flex-col sm:flex-row sm:justify-between sm:items-center md:table-cell py-2.5 px-4 md:px-3 text-left md:text-center text-[var(--text-primary)] border-b border-[var(--table-row-border)] md:border-0 last:border-0">
+                                    <div className="md:hidden mb-1 sm:mb-0">
+                                       <span className="font-semibold text-[var(--accent)] text-xs truncate max-w-[200px] inline-block">{comps[ci].name}</span>
+                                    </div>
+                                    <div className={`${row.bold ? 'font-semibold' : ''} ${row.multiline ? 'text-left max-w-[250px] md:max-w-[180px]' : ''}`}>
+                                        {row.multiline
+                                            ? <span className="line-clamp-3 text-[11px]">{row.values(ci)}</span>
+                                            : row.values(ci).split('\n').map((line, li) => <div key={li}>{line}</div>)
+                                        }
+                                    </div>
                                 </td>
                             ))}
                         </tr>

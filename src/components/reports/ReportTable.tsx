@@ -243,14 +243,15 @@ export function ReportTable({
 
     // Render a data row
     const renderRow = (row: ReportRow, depth: number, idx: number) => (
-        <tr key={`row-${row.pursuit.id}-${idx}`} className="hover:bg-[var(--bg-primary)] transition-colors">
+        <tr key={`row-${row.pursuit.id}-${idx}`} className="block md:table-row bg-[var(--bg-card)] md:bg-transparent hover:bg-[var(--bg-primary)] transition-colors border border-[var(--border)] md:border-0 mb-4 md:mb-0 rounded-lg md:rounded-none overflow-hidden hover:shadow-sm md:hover:shadow-none">
             {columns.map((col, ci) => (
                 <td
                     key={col.key}
-                    className={`px-3 py-2 text-xs text-[var(--text-secondary)] border-b border-[var(--table-row-border)] whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right tabular-nums' : ''
+                    className={`flex justify-between items-center md:table-cell px-3 py-2 text-xs text-[var(--text-secondary)] border-b border-[var(--table-row-border)] ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'md:text-right tabular-nums' : ''
                         }`}
                     style={ci === 0 ? { paddingLeft: `${depth * 24 + 12}px` } : undefined}
                 >
+                    <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase tracking-wide mr-4">{col.label}</span>
                     <EditableCell
                         row={row}
                         col={col}
@@ -275,28 +276,31 @@ export function ReportTable({
 
         // Group header row
         elements.push(
-            <tr key={`group-${path}`} className="bg-[var(--bg-primary)] hover:bg-[var(--table-row-border)] cursor-pointer transition-colors" onClick={() => toggleCollapse(path)}>
+            <tr key={`group-${path}`} className="block md:table-row bg-[var(--bg-primary)] hover:bg-[var(--table-row-border)] cursor-pointer transition-colors border border-[var(--border)] md:border-0 mb-3 md:mb-0 rounded-lg md:rounded-none overflow-hidden" onClick={() => toggleCollapse(path)}>
                 <td
-                    className="px-3 py-2 text-xs font-semibold text-[var(--text-primary)] border-b border-[var(--border)] whitespace-nowrap"
+                    className="block md:table-cell px-3 py-2 text-xs font-semibold text-[var(--text-primary)] border-b border-[var(--border)]"
                     style={{ paddingLeft: `${depth * 24 + 8}px` }}
                     colSpan={1}
                 >
                     <span className="inline-flex items-center gap-1.5">
                         {isCollapsed ? <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" /> : <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" />}
-                        <span className="text-[10px] text-[var(--text-faint)] font-normal uppercase">{fieldLabel}:</span>
-                        {node.label}
+                        <span className="text-[10px] text-[var(--text-faint)] font-normal uppercase whitespace-nowrap">{fieldLabel}:</span>
+                        <span className="truncate">{node.label}</span>
                         <span className="text-[10px] text-[var(--text-faint)] font-normal ml-1">({count})</span>
                     </span>
                 </td>
                 {columns.slice(1).map(col => (
                     <td
                         key={col.key}
-                        className={`px-3 py-2 text-[10px] text-[var(--text-muted)] border-b border-[var(--border)] whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right tabular-nums' : ''
+                        className={`flex justify-between items-center md:table-cell px-3 py-2 text-[10px] text-[var(--text-muted)] border-b border-[var(--border)] whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'md:text-right tabular-nums' : ''
                             }`}
                     >
-                        {node.aggregates[col.key] !== undefined && node.aggregates[col.key] !== null
-                            ? formatAggregate(col.key, node.aggregates[col.key])
-                            : ''}
+                        <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase tracking-wide mr-4">{col.label}</span>
+                        <span>
+                            {node.aggregates[col.key] !== undefined && node.aggregates[col.key] !== null
+                                ? formatAggregate(col.key, node.aggregates[col.key])
+                                : ''}
+                        </span>
                     </td>
                 ))}
             </tr>
@@ -317,9 +321,9 @@ export function ReportTable({
     };
 
     return (
-        <div className="overflow-auto rounded-lg border border-[var(--border)]">
-            <table className="w-full min-w-max">
-                <thead className="sticky top-0 z-10">
+        <div className="overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] md:bg-transparent p-2 md:p-0">
+            <table className="w-full min-w-full md:min-w-max block md:table">
+                <thead className="hidden md:table-header-group sticky top-0 z-10">
                     <tr className="bg-[var(--bg-primary)]">
                         {columns.map(col => (
                             <th
@@ -338,7 +342,7 @@ export function ReportTable({
                         ))}
                     </tr>
                 </thead>
-                <tbody>
+                <tbody className="block md:table-row-group">
                     {isGrouped ? (
                         groupTree.flatMap(node => renderGroup(node, 0, ''))
                     ) : (
@@ -346,18 +350,21 @@ export function ReportTable({
                     )}
 
                     {/* Totals row */}
-                    <tr className="bg-[var(--bg-elevated)] font-semibold">
+                    <tr className="block md:table-row bg-[var(--bg-elevated)] font-semibold border border-[var(--border)] md:border-0 mt-4 md:mt-0 rounded-lg md:rounded-none overflow-hidden">
                         {columns.map((col, ci) => (
                             <td
                                 key={col.key}
-                                className={`px-3 py-2 text-[11px] text-[var(--text-primary)] border-t-2 border-[var(--border)] whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right tabular-nums' : ''
+                                className={`flex justify-between items-center md:table-cell px-3 py-2 text-[11px] text-[var(--text-primary)] border-b border-[var(--border)] md:border-b-0 md:border-t-2 md:whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'md:text-right tabular-nums' : ''
                                     }`}
                             >
-                                {ci === 0 && !totalAggregates[col.key]
-                                    ? `Total (${totalAggregates['_count'] ?? 0})`
-                                    : totalAggregates[col.key] !== undefined && totalAggregates[col.key] !== null
-                                        ? formatAggregate(col.key, totalAggregates[col.key])
-                                        : ''}
+                                <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase tracking-wide mr-4">{col.label}</span>
+                                <span>
+                                    {ci === 0 && !totalAggregates[col.key]
+                                        ? `Total (${totalAggregates['_count'] ?? 0})`
+                                        : totalAggregates[col.key] !== undefined && totalAggregates[col.key] !== null
+                                            ? formatAggregate(col.key, totalAggregates[col.key])
+                                            : ''}
+                                </span>
                             </td>
                         ))}
                     </tr>

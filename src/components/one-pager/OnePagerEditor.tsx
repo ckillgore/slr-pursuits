@@ -956,8 +956,8 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                 <FieldNoteButton fieldKey="card_payroll" note={fieldNotes['card_payroll']} onNoteChange={updateFieldNote} />
                             </div>
                             <div className="flex gap-2">
-                                <button onClick={() => handleAddPayroll('employee')} className="text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] font-medium">+ Employee</button>
-                                <button onClick={() => handleAddPayroll('contract')} className="text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] font-medium">+ Contract</button>
+                                <button type="button" onClick={(e) => { e.preventDefault(); handleAddPayroll('employee'); }} className="px-3 py-1.5 rounded-lg bg-[var(--accent-subtle)] text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white transition-colors text-xs font-semibold">+ Employee</button>
+                                <button type="button" onClick={(e) => { e.preventDefault(); handleAddPayroll('contract'); }} className="px-3 py-1.5 rounded-lg bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-[var(--border)] transition-colors text-xs font-semibold">+ Contract</button>
                             </div>
                         </div>
                         <table className="data-table">

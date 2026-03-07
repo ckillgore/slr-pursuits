@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, FileDown, FileSpreadsheet } from 'lucide-react';
 import { usePursuitRentComps } from '@/hooks/useHellodataQueries';
 import {
     getAverageAskingRent,
@@ -237,14 +237,68 @@ export default function MarketStudyTab({ pursuitId, pursuitName }: MarketStudyTa
     const now = new Date();
     const monthLabel = now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
+    const [isExportingPdf, setIsExportingPdf] = useState(false);
+    const [isExportingXlsx, setIsExportingXlsx] = useState(false);
+
     return (
         <div className="space-y-5">
             {/* Header */}
-            <div>
-                <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-                    {pursuitName ? `${pursuitName} — ` : ''}Rent Comps — {monthLabel}
-                </h2>
-                <p className="text-xs text-[var(--text-muted)] mt-0.5">{compSummaries.length} properties · Source: HelloData</p>
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+                        {pursuitName ? `${pursuitName} — ` : ''}Rent Comps — {monthLabel}
+                    </h2>
+                    <p className="text-xs text-[var(--text-muted)] mt-0.5">{compSummaries.length} properties · Source: HelloData</p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Export Excel */}
+                    <button
+                        onClick={async () => {
+                            setIsExportingXlsx(true);
+                            try {
+                                const { exportMarketStudyToExcel } = await import('@/components/export/exportMarketStudyExcel');
+                                await exportMarketStudyToExcel({ pursuitName, compSummaries, summaryTotals, stockRows });
+                            } catch (err) {
+                                console.error('Excel export failed:', err);
+                            }
+                            setIsExportingXlsx(false);
+                        }}
+                        disabled={isExportingXlsx}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-40 transition-colors"
+                        title="Export to Excel"
+                    >
+                        {isExportingXlsx ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileSpreadsheet className="w-3.5 h-3.5" />}
+                        XLSX
+                    </button>
+                    {/* Export PDF */}
+                    <button
+                        onClick={async () => {
+                            setIsExportingPdf(true);
+                            try {
+                                const { pdf } = await import('@react-pdf/renderer');
+                                const { MarketStudyPDF } = await import('@/components/export/MarketStudyPDF');
+                                const doc = <MarketStudyPDF pursuitName={pursuitName} compSummaries={compSummaries} summaryTotals={summaryTotals} stockRows={stockRows} />;
+                                const blob = await pdf(doc).toBlob();
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                const safeName = (pursuitName || 'Market_Study').replace(/[^a-zA-Z0-9-_ ]/g, '');
+                                a.download = `${safeName}_Market_Study.pdf`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                            } catch (err) {
+                                console.error('PDF export failed:', err);
+                            }
+                            setIsExportingPdf(false);
+                        }}
+                        disabled={isExportingPdf}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-40 transition-colors"
+                        title="Export to PDF"
+                    >
+                        {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+                        PDF
+                    </button>
+                </div>
             </div>
 
             {/* ── Market Summary Table (full width) ── */}

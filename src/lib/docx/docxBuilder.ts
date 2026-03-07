@@ -356,7 +356,7 @@ export async function buildMemoDocx(data: MemoDocxData): Promise<Buffer> {
     const addressLine = [pursuit.address, pursuit.city, pursuit.state, pursuit.zip].filter(Boolean).join(', ');
 
     // ──── TITLE PAGE ────
-    const titleSection: Paragraph[] = [
+    const titleSection: (Paragraph | Table)[] = [
         new Paragraph({ spacing: { before: 2400 }, children: [] }), // top spacer
         new Paragraph({
             alignment: AlignmentType.CENTER,

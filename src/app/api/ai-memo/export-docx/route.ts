@@ -178,7 +178,7 @@ export async function POST(request: Request) {
         // ──── 8. Return as downloadable file ────
         const filename = `Deal_Summary_${pursuit.name.replace(/[^a-zA-Z0-9]/g, '_')}.docx`;
 
-        return new NextResponse(docxBuffer, {
+        return new NextResponse(new Uint8Array(docxBuffer), {
             status: 200,
             headers: {
                 'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

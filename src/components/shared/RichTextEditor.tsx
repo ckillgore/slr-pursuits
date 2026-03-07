@@ -20,7 +20,7 @@ import {
 
 interface RichTextEditorProps {
     content: string | Record<string, unknown> | null;
-    onChange: (json: Record<string, unknown>, html: string) => void;
+    onChange: (json: Record<string, unknown>, html?: string) => void;
     placeholder?: string;
     /** Debounce delay in ms before calling onChange. Default 500. */
     debounceMs?: number;

@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
@@ -7,7 +8,7 @@ import { usePursuit, useUpdatePursuit } from '@/hooks/useSupabaseQueries';
 import { usePursuitRentComps } from '@/hooks/useHellodataQueries';
 import { RichTextEditor } from '@/components/shared/RichTextEditor';
 import { LocationCard } from '@/components/pursuits/LocationCard';
-import { RentCompSections } from '@/components/pursuits/rent-comps/RentCompSections';
+import { RentTrendsSection, BubbleChartSection } from '@/components/pursuits/rent-comps/RentCompSections';
 import { ChevronLeft, Loader2, Printer, Map, Building2 } from 'lucide-react';
 
 export default function MemoPage() {
@@ -18,13 +19,28 @@ export default function MemoPage() {
     const { data: rentComps = [] } = usePursuitRentComps(pursuitId);
     const { mutate: updatePursuit } = useUpdatePursuit();
 
-    const handleSaveMemo = (json: Record<string, unknown>, html: string) => {
-        if (!pursuit) return;
+    const handleSaveMemo = (json: Record<string, unknown>, html?: string) => {
+        if (!pursuit || !html) return;
         updatePursuit({
             id: pursuit.id,
             updates: { executive_memo: html }
         });
     };
+
+    // Build PropertyMetrics for the chart components
+    const compMetrics = useMemo(() => {
+        return rentComps
+            .filter(rc => rc.property)
+            .map(rc => {
+                const p = rc.property!;
+                return {
+                    name: p.building_name || p.street_address || 'Unknown',
+                    property: p,
+                    units: (p.units || []) as any[],
+                    concessions: (p.concessions || []) as any[],
+                };
+            });
+    }, [rentComps]);
 
     if (loadingPursuit) {
         return (
@@ -106,20 +122,22 @@ export default function MemoPage() {
                                 Exhibit A: Site & Location Map
                             </h2>
                             <div className="mb-16 page-break-avoid">
-                                <LocationCard pursuit={pursuit} pursuitId={pursuit.id} />
+                                <LocationCard pursuit={pursuit} onUpdate={() => {}} />
                             </div>
 
-                            {rentComps.length > 0 && (
+                            {compMetrics.length > 0 && (
                                 <div className="page-break-before">
                                     <h2 className="text-xl font-bold text-[var(--text-primary)] mb-8 flex items-center gap-2">
                                         <Building2 className="w-5 h-5 text-[var(--accent)]" /> 
                                         Exhibit B: Competitive Rent Comparables
                                     </h2>
-                                    <div className="card p-6">
-                                        <RentCompSections 
-                                            rentComps={rentComps} 
-                                            pursuit={pursuit}
-                                        />
+                                    <div className="space-y-8">
+                                        <div className="card p-6">
+                                            <BubbleChartSection comps={compMetrics} />
+                                        </div>
+                                        <div className="card p-6">
+                                            <RentTrendsSection comps={compMetrics} />
+                                        </div>
                                     </div>
                                 </div>
                             )}

@@ -432,9 +432,10 @@ export default function PursuitDetailPage() {
                         </div>
                     </div>
                     </div>
+                </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6 pt-4 border-t border-[var(--table-row-border)]">
-                        <div>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6 pt-4 border-t border-[var(--table-row-border)]">
+                    <div>
                             <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Site Area (SF)</div>
                             <InlineInput value={pursuit.site_area_sf} onChange={(val) => handleUpdatePursuit({ site_area_sf: val })} format="number" decimals={0} align="left" className="text-lg font-semibold" />
                         </div>
@@ -475,7 +476,6 @@ export default function PursuitDetailPage() {
                             />
                         </div>
                     </div>
-                </div>
 
                 {/* Tab Bar */}
                 <div className="flex items-center gap-1 mb-6 border-b border-[var(--border)] overflow-x-auto">
@@ -1235,7 +1235,6 @@ export default function PursuitDetailPage() {
                         </div>
                     </div>
                 )}
-            </div>
-        </AppShell >
+        </AppShell>
     );
 }

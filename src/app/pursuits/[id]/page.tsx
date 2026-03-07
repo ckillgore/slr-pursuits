@@ -987,13 +987,13 @@ export default function PursuitDetailPage() {
                                                                         e.stopPropagation();
                                                                         handleUpdatePursuit({ primary_one_pager_id: isPrimary ? null : op.id });
                                                                     }}
-                                                                    className={`p-0.5 rounded transition-all ${isPrimary
+                                                                    className={`p-1 -m-1 rounded transition-all ${isPrimary
                                                                         ? 'text-[#F59E0B] opacity-100'
-                                                                        : 'text-[var(--text-faint)] opacity-0 group-hover/card:opacity-100 hover:text-[#F59E0B]'
+                                                                        : 'text-[var(--text-muted)] opacity-30 hover:opacity-100 hover:text-[#F59E0B]'
                                                                         }`}
                                                                     title={isPrimary ? 'Primary scenario (used in reports)' : 'Set as primary scenario'}
                                                                 >
-                                                                    <Star className={`w-3.5 h-3.5 ${isPrimary ? 'fill-current' : ''}`} />
+                                                                    <Star className={`w-4 h-4 ${isPrimary ? 'fill-current' : ''}`} />
                                                                 </button>
                                                             </h3>
                                                             {pt && <span className="text-xs text-[var(--text-muted)] mt-1 inline-block">{pt.name}</span>}

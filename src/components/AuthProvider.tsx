@@ -138,12 +138,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         getSession();
 
+        // Cross-tab sync channel — declared early so onAuthStateChange can reference it
+        let authChannel: BroadcastChannel | null = null;
+
         // Listen for auth state changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event: AuthChangeEvent, session: Session | null) => {
                 if (!mounted) return;
                 console.log('[Auth] State change:', event);
                 const currentUser = session?.user ?? null;
+
+                // Broadcast to other tabs so they re-sync immediately
+                try { authChannel?.postMessage({ event, userId: currentUser?.id ?? null }); } catch { /* ignore */ }
 
                 if (event === 'SIGNED_OUT' || !currentUser) {
                     console.log('[Auth] Signed out or no user');
@@ -190,6 +196,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
         );
 
+        // ── Cross-tab session sync via BroadcastChannel ──
+        // When another tab signs in/out or refreshes the token, this tab
+        // re-reads the session from the shared cookie jar so all tabs stay
+        // in sync without waiting for a visibility change.
+        try {
+            authChannel = new BroadcastChannel('supabase-auth-sync');
+            authChannel.onmessage = async (e: MessageEvent) => {
+                if (!mounted) return;
+                const { event: remoteEvent, userId } = e.data as { event: string; userId: string | null };
+                console.log('[Auth] Cross-tab sync received:', remoteEvent);
+
+                if (remoteEvent === 'SIGNED_OUT' || !userId) {
+                    // Another tab signed out — clear this tab's state too
+                    setUser(null);
+                    setProfile(null);
+                    hadSessionRef.current = false;
+                    setIsSessionLost(false);
+                    window.location.href = '/login';
+                    return;
+                }
+
+                // Another tab signed in or refreshed the token.
+                // Re-read session from cookies (shared across tabs) to pick up
+                // the new token without triggering another refresh ourselves.
+                try {
+                    const { data: { user: syncedUser } } = await supabase.auth.getUser();
+                    if (!mounted) return;
+                    if (syncedUser) {
+                        setUser(syncedUser);
+                        hadSessionRef.current = true;
+                        setIsSessionLost(false);
+                        // Recover profile if needed
+                        if (!profileRef.current) {
+                            const p = await fetchProfile(syncedUser.id);
+                            if (mounted && p) setProfile(p);
+                        }
+                    }
+                } catch {
+                    console.warn('[Auth] Cross-tab sync: failed to re-read session');
+                }
+            };
+        } catch {
+            // BroadcastChannel not available — fall back to visibility-change only
+            console.warn('[Auth] BroadcastChannel not available, multi-tab sync limited');
+        }
+
         // Session health check: verify session when tab becomes visible again.
         // If the user's session expired while the tab was in the background,
         // this catches it immediately instead of leaving a broken UI.
@@ -232,6 +284,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             subscription.unsubscribe();
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+            try { authChannel?.close(); } catch { /* ignore */ }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);

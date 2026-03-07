@@ -356,9 +356,9 @@ export default function PursuitDetailPage() {
                 </Link>
 
                 {/* Header Card */}
-                <div className="card mb-6">
-                    <div className="flex items-start justify-between">
-                        <div className="flex-1">
+                <div className="card mb-6 overflow-hidden">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div className="flex-1 min-w-0">
                             {isEditingName ? (
                                 <input
                                     type="text"
@@ -380,53 +380,57 @@ export default function PursuitDetailPage() {
                                 />
                             ) : (
                                 <h1
-                                    className="text-2xl font-bold text-[var(--text-primary)] cursor-pointer hover:text-[var(--accent)] transition-colors group flex items-center gap-2"
+                                    className="text-2xl font-bold text-[var(--text-primary)] cursor-pointer hover:text-[var(--accent)] transition-colors group flex items-center gap-2 truncate"
                                     onClick={() => { setEditName(pursuit.name); setIsEditingName(true); }}
                                 >
                                     {pursuit.name}
-                                    <Pencil className="w-4 h-4 opacity-0 group-hover:opacity-40 transition-opacity" />
+                                    <Pencil className="w-4 h-4 opacity-0 group-hover:opacity-40 transition-opacity flex-shrink-0" />
                                 </h1>
                             )}
                             {(pursuit.city || pursuit.state) && (
-                                <div className="flex items-center gap-1.5 mt-2 text-[var(--text-muted)] text-sm">
-                                    <MapPin className="w-3.5 h-3.5" />
-                                    {[pursuit.address, pursuit.city, pursuit.state].filter(Boolean).join(', ')}
+                                <div className="flex items-center gap-1.5 mt-2 text-[var(--text-muted)] text-sm truncate">
+                                    <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                                    <span className="truncate">{[pursuit.address, pursuit.city, pursuit.state].filter(Boolean).join(', ')}</span>
                                 </div>
                             )}
                         </div>
-                        <select
-                            value={pursuit.stage_id || ''}
-                            onChange={(e) => handleUpdatePursuit({ stage_id: e.target.value, stage_changed_at: new Date().toISOString() })}
-                            className="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors"
-                            style={{
-                                backgroundColor: stage ? `${stage.color}10` : 'var(--bg-elevated)',
-                                color: stage?.color ?? 'var(--text-secondary)',
-                                borderColor: stage ? `${stage.color}30` : 'var(--border)',
-                            }}
-                        >
-                            {stages.filter((s) => s.is_active).map((s) => (
-                                <option key={s.id} value={s.id} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>{s.name}</option>
-                            ))}
-                        </select>
-                        <div className="flex items-center gap-2">
+                        
+                        <div className="flex items-center gap-2 lg:gap-3 flex-wrap lg:flex-nowrap">
+                            <select
+                                value={pursuit.stage_id || ''}
+                                onChange={(e) => handleUpdatePursuit({ stage_id: e.target.value, stage_changed_at: new Date().toISOString() })}
+                                className="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors flex-shrink-0"
+                                style={{
+                                    backgroundColor: stage ? `${stage.color}10` : 'var(--bg-elevated)',
+                                    color: stage?.color ?? 'var(--text-secondary)',
+                                    borderColor: stage ? `${stage.color}30` : 'var(--border)',
+                                }}
+                            >
+                                {stages.filter((s) => s.is_active).map((s) => (
+                                    <option key={s.id} value={s.id} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>{s.name}</option>
+                                ))}
+                            </select>
+                            
                             <button
                                 onClick={generateMemo}
                                 disabled={memoLoading}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors disabled:opacity-50"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors disabled:opacity-50 flex-shrink-0 shadow-sm"
                             >
                                 {memoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                                <span className="hidden sm:inline">Generate Memo (.docx)</span>
-                                <span className="sm:hidden">Memo</span>
+                                <span>Generate Memo</span>
                             </button>
+                            
                             <CommentTrigger entityType="pursuit" entityId={pursuitUuid} />
+                            
+                            <button
+                                onClick={() => setDeletePursuitConfirm(true)}
+                                className="p-2 rounded-lg text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-colors flex-shrink-0"
+                                title="Delete pursuit"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
                         </div>
-                        <button
-                            onClick={() => setDeletePursuitConfirm(true)}
-                            className="ml-auto p-2 rounded-lg text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-colors"
-                            title="Delete pursuit"
-                        >
-                            <Trash2 className="w-4 h-4" />
-                        </button>
+                    </div>
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6 pt-4 border-t border-[var(--table-row-border)]">

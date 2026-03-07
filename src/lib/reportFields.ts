@@ -11,7 +11,7 @@ export type FieldType = 'text' | 'number' | 'currency' | 'percent' | 'date';
 export interface ReportFieldDef {
     key: ReportFieldKey;
     label: string;
-    category: 'Pursuit' | 'One-Pager' | 'Returns' | 'Budget' | 'Revenue' | 'OpEx' | 'Assumptions' | 'Land Comp' | 'Key Date' | 'Rent Comp';
+    category: 'Pursuit' | 'One-Pager' | 'Returns' | 'Budget' | 'Revenue' | 'OpEx' | 'Assumptions' | 'Land Comp' | 'Key Date' | 'Rent Comp' | 'Sale Comp';
     type: FieldType;
     getValue: (row: ReportRow, stages?: PursuitStage[]) => string | number | null;
     format: (value: string | number | null) => string;
@@ -145,6 +145,7 @@ export const REPORT_FIELDS: ReportFieldDef[] = [
 
 // ── Category sets for source filtering ──
 const COMP_CATEGORIES = new Set(['Land Comp']);
+const SALE_COMP_CATEGORIES = new Set(['Sale Comp']);
 const PURSUIT_CATEGORIES = new Set(['Pursuit', 'One-Pager', 'Returns', 'Budget', 'Revenue', 'OpEx', 'Assumptions']);
 const KEY_DATE_CATEGORIES = new Set(['Key Date']);
 const RENT_COMP_CATEGORIES = new Set(['Rent Comp']);
@@ -317,6 +318,95 @@ const RENT_COMP_FIELDS: ReportFieldDef[] = [
 ];
 REPORT_FIELDS.push(...RENT_COMP_FIELDS);
 
+// ── Sale Comp field definitions ──
+const SALE_COMP_FIELDS: ReportFieldDef[] = [
+    { key: 'sc_name' as ReportFieldKey, label: 'Property Name', category: 'Sale Comp', type: 'text', groupable: false, filterable: true, getValue: (r) => r.saleComp?.name ?? r.pursuit.name, format: fmtText },
+    { key: 'sc_address' as ReportFieldKey, label: 'Address', category: 'Sale Comp', type: 'text', groupable: false, filterable: true, getValue: (r) => r.saleComp?.address ?? r.pursuit.address, format: fmtText },
+    { key: 'sc_city' as ReportFieldKey, label: 'City', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.city ?? r.pursuit.city, format: fmtText },
+    { key: 'sc_state' as ReportFieldKey, label: 'State', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.state ?? r.pursuit.state, format: fmtText },
+    { key: 'sc_county' as ReportFieldKey, label: 'County', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.county ?? '', format: fmtText },
+    { key: 'sc_zip' as ReportFieldKey, label: 'Zip', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.zip ?? '', format: fmtText },
+    { key: 'sc_property_type' as ReportFieldKey, label: 'Property Type', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.property_type ?? null, format: fmtText },
+    { key: 'sc_year_built' as ReportFieldKey, label: 'Year Built', category: 'Sale Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.saleComp?.year_built ?? null, format: (v) => v !== null ? String(Math.round(Number(v))) : '—', aggregation: 'avg' },
+    { key: 'sc_total_units' as ReportFieldKey, label: 'Total Units', category: 'Sale Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.saleComp?.total_units ?? null, format: fmtNumber },
+    { key: 'sc_total_sf' as ReportFieldKey, label: 'Total SF', category: 'Sale Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.saleComp?.total_sf ?? null, format: fmtNumber },
+    {
+        key: 'sc_avg_unit_size' as ReportFieldKey, label: 'Avg Unit Size', category: 'Sale Comp', type: 'number', groupable: false, filterable: true,
+        getValue: (r) => {
+            const sc = r.saleComp;
+            if (!sc?.total_units || !sc?.total_sf || sc.total_units === 0) return null;
+            return Math.round(sc.total_sf / sc.total_units);
+        }, format: fmtNumber, aggregation: 'avg'
+    },
+    { key: 'sc_lot_size_sf' as ReportFieldKey, label: 'Lot Size (SF)', category: 'Sale Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.saleComp?.lot_size_sf || null, format: fmtNumber },
+    // Transaction-derived fields (from latest transaction)
+    {
+        key: 'sc_sale_date' as ReportFieldKey, label: 'Sale Date', category: 'Sale Comp', type: 'date', groupable: false, filterable: true,
+        getValue: (r) => {
+            const txs = r.saleComp?.sale_transactions ?? [];
+            const sorted = [...txs].sort((a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime());
+            return sorted[0]?.sale_date ?? null;
+        }, format: fmtDate
+    },
+    {
+        key: 'sc_sale_price' as ReportFieldKey, label: 'Sale Price', category: 'Sale Comp', type: 'currency', groupable: false, filterable: true,
+        getValue: (r) => {
+            const txs = r.saleComp?.sale_transactions ?? [];
+            const sorted = [...txs].sort((a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime());
+            return sorted[0]?.sale_price ?? null;
+        }, format: fmtCurrency
+    },
+    {
+        key: 'sc_cap_rate' as ReportFieldKey, label: 'Cap Rate', category: 'Sale Comp', type: 'percent', groupable: false, filterable: true,
+        getValue: (r) => {
+            const txs = r.saleComp?.sale_transactions ?? [];
+            const sorted = [...txs].sort((a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime());
+            const capRate = sorted[0]?.cap_rate;
+            return capRate != null ? capRate / 100 : null;
+        }, format: fmtPercent, aggregation: 'avg'
+    },
+    {
+        key: 'sc_price_per_unit' as ReportFieldKey, label: '$ / Unit', category: 'Sale Comp', type: 'currency', groupable: false, filterable: true,
+        getValue: (r) => {
+            const txs = r.saleComp?.sale_transactions ?? [];
+            const sorted = [...txs].sort((a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime());
+            if (sorted[0]?.price_per_unit) return sorted[0].price_per_unit;
+            const price = sorted[0]?.sale_price;
+            const units = r.saleComp?.total_units;
+            return price && units && units > 0 ? price / units : null;
+        }, format: fmtCurrency, aggregation: 'avg'
+    },
+    {
+        key: 'sc_price_per_sf' as ReportFieldKey, label: '$ / SF', category: 'Sale Comp', type: 'currency', groupable: false, filterable: true,
+        getValue: (r) => {
+            const txs = r.saleComp?.sale_transactions ?? [];
+            const sorted = [...txs].sort((a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime());
+            if (sorted[0]?.price_per_sf) return sorted[0].price_per_sf;
+            const price = sorted[0]?.sale_price;
+            const sf = r.saleComp?.total_sf;
+            return price && sf && sf > 0 ? price / sf : null;
+        }, format: fmtCurrency, aggregation: 'avg'
+    },
+    {
+        key: 'sc_buyer' as ReportFieldKey, label: 'Buyer', category: 'Sale Comp', type: 'text', groupable: true, filterable: true,
+        getValue: (r) => {
+            const txs = r.saleComp?.sale_transactions ?? [];
+            const sorted = [...txs].sort((a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime());
+            return sorted[0]?.buyer ?? null;
+        }, format: fmtText
+    },
+    {
+        key: 'sc_seller' as ReportFieldKey, label: 'Seller', category: 'Sale Comp', type: 'text', groupable: true, filterable: true,
+        getValue: (r) => {
+            const txs = r.saleComp?.sale_transactions ?? [];
+            const sorted = [...txs].sort((a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime());
+            return sorted[0]?.seller ?? null;
+        }, format: fmtText
+    },
+    { key: 'sc_created_at' as ReportFieldKey, label: 'Date Added', category: 'Sale Comp', type: 'date', groupable: false, filterable: true, getValue: (r) => r.saleComp?.created_at ?? null, format: fmtDate },
+];
+REPORT_FIELDS.push(...SALE_COMP_FIELDS);
+
 // Index by key for fast lookup
 export const REPORT_FIELD_MAP: Record<ReportFieldKey, ReportFieldDef> = Object.fromEntries(
     REPORT_FIELDS.map(f => [f.key, f])
@@ -351,6 +441,7 @@ export function getGroupableFieldsForSource(source: ReportDataSource) {
     const allowedCategories = source === 'land_comps' ? COMP_CATEGORIES
         : source === 'key_dates' ? KEY_DATE_CATEGORIES
             : source === 'rent_comps' ? RENT_COMP_CATEGORIES
-                : PURSUIT_CATEGORIES;
+                : source === 'sale_comps' ? SALE_COMP_CATEGORIES
+                    : PURSUIT_CATEGORIES;
     return GROUPABLE_FIELDS.filter(f => allowedCategories.has(f.category));
 }

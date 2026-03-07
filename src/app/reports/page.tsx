@@ -76,6 +76,14 @@ const DEFAULT_RENT_COMP_CONFIG: ReportConfig = {
     sortBy: undefined,
 };
 
+const DEFAULT_SALE_COMP_CONFIG: ReportConfig = {
+    dataSource: 'sale_comps',
+    groupBy: ['sc_city'],
+    columns: ['sc_name', 'sc_address', 'sc_city', 'sc_state', 'sc_property_type', 'sc_total_units', 'sc_year_built', 'sc_sale_price', 'sc_cap_rate', 'sc_price_per_unit', 'sc_sale_date'],
+    filters: [],
+    sortBy: undefined,
+};
+
 export default function ReportsPage() {
     const { data: templates = [], isLoading: loadingTemplates } = useReportTemplates();
     const { data: reportData, isLoading: loadingData } = useReportData();
@@ -160,7 +168,7 @@ export default function ReportsPage() {
         if (source === 'land_comps') setConfig(DEFAULT_COMP_CONFIG);
         else if (source === 'key_dates') setConfig(DEFAULT_KEY_DATES_CONFIG);
         else if (source === 'rent_comps') setConfig(DEFAULT_RENT_COMP_CONFIG);
-        else if (source === 'sale_comps') setConfig(DEFAULT_COMP_CONFIG); // reuse comp config as starting point
+        else if (source === 'sale_comps') setConfig(DEFAULT_SALE_COMP_CONFIG);
         else if (source === 'pursuits') setConfig(DEFAULT_PURSUIT_CONFIG);
         // For predev_budgets, config panel is not used — the budget report has its own controls
     };

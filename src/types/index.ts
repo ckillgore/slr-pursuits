@@ -506,7 +506,14 @@ export type ReportFieldKey =
   | 'rc_pursuit_name' | 'rc_property_name' | 'rc_address' | 'rc_city' | 'rc_state'
   | 'rc_msa' | 'rc_comp_type' | 'rc_year_built' | 'rc_units'
   | 'rc_avg_sqft' | 'rc_quality' | 'rc_asking_rent' | 'rc_effective_rent'
-  | 'rc_asking_psf' | 'rc_effective_psf' | 'rc_leased_pct' | 'rc_concession';
+  | 'rc_asking_psf' | 'rc_effective_psf' | 'rc_leased_pct' | 'rc_concession'
+  // Sale Comp fields
+  | 'sc_name' | 'sc_address' | 'sc_city' | 'sc_state' | 'sc_county' | 'sc_zip'
+  | 'sc_property_type' | 'sc_year_built' | 'sc_total_units' | 'sc_total_sf'
+  | 'sc_avg_unit_size' | 'sc_lot_size_sf'
+  | 'sc_sale_date' | 'sc_sale_price' | 'sc_cap_rate'
+  | 'sc_price_per_unit' | 'sc_price_per_sf'
+  | 'sc_buyer' | 'sc_seller' | 'sc_created_at';
 
 export type ReportFilterOperator = 'equals' | 'not_equals' | 'contains' | 'gt' | 'lt' | 'gte' | 'lte' | 'in';
 

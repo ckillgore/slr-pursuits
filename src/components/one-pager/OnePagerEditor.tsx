@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import {
     useProductTypes,
     useUpdateOnePager,
@@ -21,6 +22,7 @@ import {
     useDeleteUnitPremium,
     useDuplicateOnePager,
     useArchiveOnePager,
+    queryKeys,
 } from '@/hooks/useSupabaseQueries';
 import { useCalculations } from '@/hooks/useCalculations';
 import { useAutoSave } from '@/hooks/useAutoSave';
@@ -67,6 +69,7 @@ interface OnePagerEditorProps {
 
 export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorProps) {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const { data: productTypes = [] } = useProductTypes();
     const { data: unitMixRows = [], isLoading: loadingUnitMix } = useUnitMix(onePager.id);
     const { data: payrollRows = [], isLoading: loadingPayroll } = usePayroll(onePager.id);
@@ -110,8 +113,12 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     // Realtime subscription for multi-user sync
     useRealtimeOnePager(onePager.id);
 
+    const pendingUpdatesRef = useRef<Partial<OnePager>>({});
+
     const { save, status: saveStatus } = useAutoSave(async (data: { id: string; updates: Partial<OnePager> }) => {
-        await queries.updateOnePager(data.id, data.updates);
+        // Clear the pending updates so subsequent edits accumulate in a fresh batch
+        pendingUpdatesRef.current = {};
+        await updateOnePagerMutation.mutateAsync({ id: data.id, updates: data.updates, queryId });
     });
 
     const sortedUnitMix = useMemo(() => [...unitMixRows].sort((a, b) => a.sort_order - b.sort_order), [unitMixRows]);
@@ -154,11 +161,9 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
         if (key === lastSyncedCalcRef.current) return;
         lastSyncedCalcRef.current = key;
 
-        // Debounce to avoid hammering the DB on rapid changes
-        const timer = setTimeout(() => {
-            save({ id: onePager.id, updates: calcSnapshot });
-        }, 600);
-        return () => clearTimeout(timer);
+        // Add the calc fields to the pending queue and hit the unified debouncer
+        pendingUpdatesRef.current = { ...pendingUpdatesRef.current, ...calcSnapshot };
+        save({ id: onePager.id, updates: { ...pendingUpdatesRef.current } });
     }, [calc, sortedUnitMix, onePager.id, save]);
 
     // ============================================================
@@ -173,7 +178,6 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                 case 'onePager': {
                     const updates: Partial<OnePager> = { [action.field]: value };
                     updateOnePagerMutation.mutate({ id: action.entityId, updates, queryId });
-                    save({ id: action.entityId, updates });
                     break;
                 }
                 case 'unitMix': {
@@ -200,26 +204,21 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
             const oldValue = (onePager as unknown as Record<string, unknown>)[field];
             pushUndo({ entity: 'onePager', entityId: onePager.id, field, oldValue, newValue: value });
 
-            const updates: Partial<OnePager> = {
-                [field]: value,
-                total_units: sortedUnitMix.reduce((s, r) => s + r.unit_count, 0),
-                calc_total_nrsf: calc.total_nrsf,
-                calc_total_gbsf: calc.total_gbsf,
-                calc_gpr: calc.gross_potential_rent,
-                calc_net_revenue: calc.net_revenue,
-                calc_total_budget: calc.total_budget,
-                calc_hard_cost: calc.hard_cost,
-                calc_soft_cost: calc.soft_cost,
-                calc_total_opex: calc.total_opex,
-                calc_noi: calc.noi,
-                calc_yoc: calc.unlevered_yield_on_cost,
-                calc_cost_per_unit: calc.cost_per_unit,
-                calc_noi_per_unit: calc.noi_per_unit,
-            };
-            updateOnePagerMutation.mutate({ id: onePager.id, updates, queryId });
-            save({ id: onePager.id, updates });
+            const updates: Partial<OnePager> = { [field]: value };
+
+            // 1. Accumulate the pending updates
+            pendingUpdatesRef.current = { ...pendingUpdatesRef.current, ...updates };
+
+            // 2. Optimistically update the query cache so UI reacts instantly
+            queryClient.setQueryData(queryKeys.onePager(onePager.id), (old: any) => old ? { ...old, ...updates } : old);
+            if (queryId && queryId !== onePager.id) {
+                queryClient.setQueryData(queryKeys.onePager(queryId), (old: any) => old ? { ...old, ...updates } : old);
+            }
+
+            // 3. Debounce save through the shared auto-save mechanism
+            save({ id: onePager.id, updates: { ...pendingUpdatesRef.current } });
         },
-        [updateOnePagerMutation, onePager, calc, save, pushUndo, queryId]
+        [queryClient, onePager.id, save, pushUndo, queryId]
     );
 
     // Field-level notes helper
@@ -245,11 +244,16 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                 const delta = (typeof value === 'number' ? value : 0) - (typeof oldValue === 'number' ? oldValue : 0);
                 const newTotal = currentTotal + delta;
                 const calcUpdates: Partial<OnePager> = { total_units: newTotal };
-                updateOnePagerMutation.mutate({ id: onePager.id, updates: calcUpdates, queryId });
-                save({ id: onePager.id, updates: calcUpdates });
+                
+                pendingUpdatesRef.current = { ...pendingUpdatesRef.current, ...calcUpdates };
+                queryClient.setQueryData(queryKeys.onePager(onePager.id), (old: any) => old ? { ...old, ...calcUpdates } : old);
+                if (queryId && queryId !== onePager.id) {
+                    queryClient.setQueryData(queryKeys.onePager(queryId), (old: any) => old ? { ...old, ...calcUpdates } : old);
+                }
+                save({ id: onePager.id, updates: { ...pendingUpdatesRef.current } });
             }
         },
-        [upsertUnitMixRow, updateOnePagerMutation, onePager.id, pushUndo, sortedUnitMix, save, queryId]
+        [upsertUnitMixRow, queryClient, onePager.id, pushUndo, sortedUnitMix, save, queryId]
     );
 
     const handleAddPayroll = useCallback(

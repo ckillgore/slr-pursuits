@@ -315,7 +315,7 @@ export async function duplicateOnePager(sourceId: string, newName: string): Prom
 
     // 2. Strip IDs, timestamps, computed, and joined fields — keep assumptions only
     const {
-        id: _id, created_at: _ca, updated_at: _ua,
+        id: _id, short_id: _sid, created_at: _ca, updated_at: _ua,
         unit_mix: _um, payroll: _pr, soft_cost_details: _scd,
         product_type: _pt, sub_product_type: _spt, product_types: _pts,
         calc_total_nrsf, calc_total_gbsf, calc_gpr, calc_net_revenue,

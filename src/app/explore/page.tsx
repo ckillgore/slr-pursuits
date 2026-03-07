@@ -215,7 +215,7 @@ export default function ExplorePage() {
     const { data: stages = [] } = useStages();
 
     // Track zoom for parcel visibility message
-    const [currentZoom, setCurrentZoom] = useState(4);
+    const [showZoomMsg, setShowZoomMsg] = useState(true);
 
     // ── Regrid tile source helper ──
     const addRegridSource = useCallback((map: any) => {
@@ -310,7 +310,7 @@ export default function ExplorePage() {
 
             // Track zoom level — use 'zoom' event so pinch-to-zoom on touch devices is captured
             map.on('zoom', () => {
-                setCurrentZoom(Math.round(map.getZoom()));
+                setShowZoomMsg(map.getZoom() < 14);
             });
 
             // Detect touch device
@@ -573,12 +573,16 @@ export default function ExplorePage() {
         }
     }, [panelParcel, createName, clickedLngLat, createComp]);
 
-    // ── Derived ──
-    const showZoomMsg = currentZoom < 14;
-
     return (
         <AppShell>
             <div className="relative" style={{ height: 'calc(100vh - 56px)' }}>
+                {/* Mapbox controls override */}
+                <style dangerouslySetInnerHTML={{ __html: `
+                    .mapboxgl-ctrl-top-right {
+                        top: 60px !important;
+                    }
+                ` }} />
+
                 {/* Search Bar — floating overlay */}
                 <div className="absolute top-4 left-4 z-20 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
                     <div className="relative">
@@ -711,7 +715,7 @@ export default function ExplorePage() {
 
                 {/* Mobile Tap Popup — fixed at bottom of screen */}
                 {mobilePopup && (
-                    <div className="absolute bottom-0 left-0 right-0 z-30 md:hidden animate-fade-in">
+                    <div className="absolute bottom-0 left-0 right-0 z-30 animate-fade-in">
                         <div className="bg-[var(--bg-card)]/95 backdrop-blur-sm border-t border-[var(--border)] shadow-2xl px-4 py-3 safe-area-pb">
                             {/* Close button */}
                             <button

@@ -713,10 +713,10 @@ export default function ExplorePage() {
                     </div>
                 )}
 
-                {/* Mobile Tap Popup — fixed at bottom of screen */}
+                {/* Mobile Tap Popup — floating card */}
                 {mobilePopup && (
-                    <div className="absolute bottom-0 left-0 right-0 z-30 animate-fade-in">
-                        <div className="bg-[var(--bg-card)]/95 backdrop-blur-sm border-t border-[var(--border)] shadow-2xl px-4 py-3 safe-area-pb">
+                    <div className="absolute bottom-6 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 md:w-[26rem] z-30 animate-fade-in">
+                        <div className="bg-[var(--bg-card)]/95 backdrop-blur-sm border border-[var(--border)] shadow-2xl rounded-2xl px-4 py-3">
                             {/* Close button */}
                             <button
                                 onClick={() => setMobilePopup(null)}

@@ -28,6 +28,7 @@ export default function MemoPage() {
     };
 
     // Build PropertyMetrics for the chart components
+    // The chart sections only use name, property, units, concessions internally
     const compMetrics = useMemo(() => {
         return rentComps
             .filter(rc => rc.property)
@@ -39,7 +40,7 @@ export default function MemoPage() {
                     units: (p.units || []) as any[],
                     concessions: (p.concessions || []) as any[],
                 };
-            });
+            }) as any[];
     }, [rentComps]);
 
     if (loadingPursuit) {

@@ -228,7 +228,7 @@ export default function PursuitDetailPage() {
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = \`\${pursuit.name.replace(/\\s+/g, '_')}_Investment_Memo.docx\`;
+            a.download = `${pursuit.name.replace(/\s+/g, '_')}_Investment_Memo.docx`;
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);

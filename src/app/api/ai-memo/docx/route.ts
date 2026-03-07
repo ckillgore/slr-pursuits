@@ -3,6 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/app/api/_lib/auth';
 import { createClient } from '@/lib/supabase/server';
+// @ts-ignore
 import HTMLtoDOCX from 'html-to-docx';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -107,7 +108,7 @@ export async function POST(request: Request) {
             messages: [
                 {
                     role: 'user',
-                    content: \`Here is the Investment Fact-Sheet:\\n\\n\${factSheet}\`
+                    content: `Here is the Investment Fact-Sheet:\n\n${factSheet}`
                 }
             ],
             temperature: 0.3,
@@ -138,8 +139,7 @@ export async function POST(request: Request) {
         // --- 4. Convert HTML to DOCX ---
         console.log('[AI Memo] Pass 3: Converting HTML to DOCX...');
         
-        // Wrap with some basic styling for docx conversion if needed
-        const fullHtml = \`
+        const fullHtml = `
             <!DOCTYPE html>
             <html>
                 <head>
@@ -147,10 +147,10 @@ export async function POST(request: Request) {
                     <title>Investment Memo</title>
                 </head>
                 <body style="font-family: Arial, sans-serif;">
-                    \${htmlContent}
+                    ${htmlContent}
                 </body>
             </html>
-        \`;
+        `;
 
         const fileBuffer = await HTMLtoDOCX(fullHtml, null, {
             table: { row: { cantSplit: true } },

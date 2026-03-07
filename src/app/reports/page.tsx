@@ -93,11 +93,6 @@ const DEFAULT_SALE_COMP_CONFIG: ReportConfig = {
 
 export default function ReportsPage() {
     const { data: templates = [], isLoading: loadingTemplates } = useReportTemplates();
-    const { data: reportData, isLoading: loadingData } = useReportData();
-    const { data: compReportData, isLoading: loadingCompData } = useLandCompReportData();
-    const { data: keyDateReportData, isLoading: loadingKeyDateData } = useKeyDateReportData();
-    const { data: rentCompReportData, isLoading: loadingRentCompData } = useRentCompReportData();
-    const { data: saleCompReportData, isLoading: loadingSaleCompData } = useSaleCompReportData();
     const { data: stages = [] } = useStages();
     const { user, profile, isAdminOrOwner } = useAuth();
     const createTemplate = useCreateReportTemplate();
@@ -114,6 +109,14 @@ export default function ReportsPage() {
 
     const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
     const [dataSource, setDataSource] = useState<ReportDataSource>('pursuits');
+
+    // ── Only fetch the active data source (gated queries) ──────────
+    const { data: reportData, isLoading: loadingData } = useReportData({ enabled: dataSource === 'pursuits' });
+    const { data: compReportData, isLoading: loadingCompData } = useLandCompReportData({ enabled: dataSource === 'land_comps' });
+    const { data: keyDateReportData, isLoading: loadingKeyDateData } = useKeyDateReportData({ enabled: dataSource === 'key_dates' });
+    const { data: rentCompReportData, isLoading: loadingRentCompData } = useRentCompReportData({ enabled: dataSource === 'rent_comps' });
+    const { data: saleCompReportData, isLoading: loadingSaleCompData } = useSaleCompReportData({ enabled: dataSource === 'sale_comps' });
+
     const [config, setConfig] = useState<ReportConfig>(DEFAULT_PURSUIT_CONFIG);
     const [showConfig, setShowConfig] = useState(true);
     const [showSaveDialog, setShowSaveDialog] = useState<'save' | 'save_as' | null>(null);

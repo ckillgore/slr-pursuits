@@ -182,11 +182,11 @@ export function useFindComparables() {
 // Pursuit Rent Comps (CRUD)
 // ============================================================
 
-export function usePursuitRentComps(pursuitId: string) {
+export function usePursuitRentComps(pursuitId: string, opts?: { enabled?: boolean }) {
     return useQuery<PursuitRentComp[]>({
         queryKey: hellodataKeys.rentComps(pursuitId),
         queryFn: () => queries.fetchPursuitRentComps(pursuitId),
-        enabled: !!pursuitId,
+        enabled: !!pursuitId && (opts?.enabled ?? true),
     });
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
@@ -21,16 +21,6 @@ import { usePursuitRentComps } from '@/hooks/useHellodataQueries';
 import { upsertPayrollRow } from '@/lib/supabase/queries';
 import { formatCurrency, formatNumber, SF_PER_ACRE } from '@/lib/constants';
 import { LocationCard } from '@/components/pursuits/LocationCard';
-import { DemographicsCard } from '@/components/pursuits/DemographicsCard';
-import { DriveTimeMap } from '@/components/pursuits/DriveTimeMap';
-import { GrowthTrendsCard } from '@/components/pursuits/GrowthTrendsCard';
-import { IncomeHeatMap } from '@/components/pursuits/IncomeHeatMap';
-import { PublicInfoTab } from '@/components/pursuits/PublicInfoTab';
-import { PredevBudgetTab } from '@/components/pursuits/PredevBudgetTab';
-import { KeyDatesTab } from '@/components/pursuits/KeyDatesTab';
-import ChecklistTab from '@/components/pursuits/ChecklistTab';
-import RentCompsTab from '@/components/pursuits/RentCompsTab';
-import PursuitCompsTab from '@/components/pursuits/PursuitCompsTab';
 import { InlineInput } from '@/components/one-pager/InlineInput';
 import CommentTrigger from '@/components/shared/CommentTrigger';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
@@ -58,6 +48,28 @@ import {
 import type { OnePager } from '@/types';
 import { RichTextEditor } from '@/components/shared/RichTextEditor';
 
+// ── Lazy-loaded tab components ──────────────────────────────
+// Each tab is a separate JS chunk that only downloads when the user clicks it.
+// This dramatically reduces the initial page bundle on mobile.
+const DemographicsCard = lazy(() => import('@/components/pursuits/DemographicsCard').then(m => ({ default: m.DemographicsCard })));
+const DriveTimeMap = lazy(() => import('@/components/pursuits/DriveTimeMap').then(m => ({ default: m.DriveTimeMap })));
+const GrowthTrendsCard = lazy(() => import('@/components/pursuits/GrowthTrendsCard').then(m => ({ default: m.GrowthTrendsCard })));
+const IncomeHeatMap = lazy(() => import('@/components/pursuits/IncomeHeatMap').then(m => ({ default: m.IncomeHeatMap })));
+const PublicInfoTab = lazy(() => import('@/components/pursuits/PublicInfoTab').then(m => ({ default: m.PublicInfoTab })));
+const PredevBudgetTab = lazy(() => import('@/components/pursuits/PredevBudgetTab').then(m => ({ default: m.PredevBudgetTab })));
+const KeyDatesTab = lazy(() => import('@/components/pursuits/KeyDatesTab').then(m => ({ default: m.KeyDatesTab })));
+const ChecklistTab = lazy(() => import('@/components/pursuits/ChecklistTab'));
+const RentCompsTab = lazy(() => import('@/components/pursuits/RentCompsTab'));
+const PursuitCompsTab = lazy(() => import('@/components/pursuits/PursuitCompsTab'));
+
+function TabLoader() {
+    return (
+        <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-[var(--accent)]" />
+        </div>
+    );
+}
+
 export default function PursuitDetailPage() {
     const params = useParams();
     const router = useRouter();
@@ -68,7 +80,6 @@ export default function PursuitDetailPage() {
     const { data: pursuit, isLoading: loadingPursuit } = usePursuit(pursuitId);
     const pursuitUuid = pursuit?.id ?? ''; // real UUID for child queries
     const { data: stages = [] } = useStages();
-    const { data: productTypes = [] } = useProductTypes();
     const { data: onePagers = [], isLoading: loadingOnePagers } = useOnePagers(pursuitUuid);
     const updatePursuit = useUpdatePursuit();
     const createOnePager = useCreateOnePager();
@@ -88,10 +99,15 @@ export default function PursuitDetailPage() {
         initialTab === 'onepagers' ? 'onepagers' : initialTab === 'predev' ? 'predev' : initialTab === 'keydates' ? 'keydates' : initialTab === 'checklist' ? 'checklist' : initialTab === 'rent_comps' ? 'rent_comps' : 'overview'
     );
 
-    // KPI data hooks
-    const { data: predevBudget } = usePredevBudget(pursuitUuid);
-    const { data: keyDates = [] } = useKeyDates(pursuitUuid);
-    const { data: rentComps = [] } = usePursuitRentComps(pursuitUuid);
+    // Only load product types and templates when one-pagers tab is active (creation dialog)
+    const needsOnePagerDeps = activeTab === 'onepagers';
+    const { data: productTypes = [] } = useProductTypes({ enabled: needsOnePagerDeps });
+
+    // KPI data hooks — only fetch when the tab is active or on overview (which shows KPI cards)
+    const needsOverviewData = activeTab === 'overview';
+    const { data: predevBudget } = usePredevBudget(pursuitUuid, { enabled: needsOverviewData || activeTab === 'predev' });
+    const { data: keyDates = [] } = useKeyDates(pursuitUuid, { enabled: needsOverviewData || activeTab === 'keydates' });
+    const { data: rentComps = [] } = usePursuitRentComps(pursuitUuid, { enabled: needsOverviewData || activeTab === 'rent_comps' });
 
     // AI Summary state
     const [aiSummary, setAiSummary] = useState<string | null>(null);
@@ -166,7 +182,7 @@ export default function PursuitDetailPage() {
         }
     }, [pursuit, onePagers, rentComps]);
 
-    const { data: templates = [] } = useTemplates();
+    const { data: templates = [] } = useTemplates({ enabled: needsOnePagerDeps });
     const matchingTemplates = templates.filter(
         (t) => t.is_active && (!newProductTypeId || t.product_type_id === newProductTypeId)
     );
@@ -946,7 +962,7 @@ export default function PursuitDetailPage() {
 
                 {/* ===== DEMOGRAPHIC DATA TAB ===== */}
                 {activeTab === 'demographics' && (
-                    <>
+                    <Suspense fallback={<TabLoader />}>
                         {/* Demographics */}
                         <div className="mb-6">
                             <DemographicsCard pursuit={pursuit} onUpdate={handleUpdatePursuit} />
@@ -978,11 +994,12 @@ export default function PursuitDetailPage() {
                                 onSaveIncomeData={(data) => handleUpdatePursuit({ income_heatmap_data: data } as any)}
                             />
                         </div>
-                    </>
+                    </Suspense>
                 )}
 
                 {/* ===== PUBLIC INFORMATION TAB ===== */}
                 {activeTab === 'publicinfo' && (
+                    <Suspense fallback={<TabLoader />}>
                     <PublicInfoTab
                         latitude={pursuit.latitude}
                         longitude={pursuit.longitude}
@@ -999,31 +1016,42 @@ export default function PursuitDetailPage() {
                             parcel_assemblage: data,
                         } as any)}
                     />
+                    </Suspense>
                 )}
 
                 {/* ===== RENT COMPS TAB ===== */}
                 {activeTab === 'rent_comps' && (
-                    <RentCompsTab pursuitId={pursuitUuid} />
+                    <Suspense fallback={<TabLoader />}>
+                        <RentCompsTab pursuitId={pursuitUuid} />
+                    </Suspense>
                 )}
 
                 {/* ===== COMPS TAB (Land & Sale) ===== */}
                 {activeTab === 'comps' && (
-                    <PursuitCompsTab pursuitId={pursuitUuid} />
+                    <Suspense fallback={<TabLoader />}>
+                        <PursuitCompsTab pursuitId={pursuitUuid} />
+                    </Suspense>
                 )}
 
                 {/* ===== PRE-DEV BUDGET TAB ===== */}
                 {activeTab === 'predev' && (
-                    <PredevBudgetTab pursuitId={pursuitUuid} />
+                    <Suspense fallback={<TabLoader />}>
+                        <PredevBudgetTab pursuitId={pursuitUuid} />
+                    </Suspense>
                 )}
 
                 {/* ===== KEY DATES TAB ===== */}
                 {activeTab === 'keydates' && (
-                    <KeyDatesTab pursuitId={pursuitUuid} />
+                    <Suspense fallback={<TabLoader />}>
+                        <KeyDatesTab pursuitId={pursuitUuid} />
+                    </Suspense>
                 )}
 
                 {/* ===== CHECKLIST TAB ===== */}
                 {activeTab === 'checklist' && (
-                    <ChecklistTab pursuitId={pursuitUuid} />
+                    <Suspense fallback={<TabLoader />}>
+                        <ChecklistTab pursuitId={pursuitUuid} />
+                    </Suspense>
                 )}
 
                 {/* New One-Pager Dialog */}

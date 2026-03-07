@@ -70,10 +70,11 @@ export function useDeleteStage() {
 // Product Types
 // ============================================================
 
-export function useProductTypes() {
+export function useProductTypes(opts?: { enabled?: boolean }) {
     return useQuery({
         queryKey: queryKeys.productTypes,
         queryFn: queries.fetchProductTypes,
+        enabled: opts?.enabled ?? true,
     });
 }
 
@@ -479,10 +480,11 @@ export function useArchivePursuit() {
 // Data Model Templates
 // ============================================================
 
-export function useTemplates() {
+export function useTemplates(opts?: { enabled?: boolean }) {
     return useQuery({
         queryKey: ['templates'],
         queryFn: () => queries.fetchTemplates(),
+        enabled: opts?.enabled ?? true,
     });
 }
 
@@ -584,10 +586,11 @@ export function useUnshareReportTemplate() {
 // Report Data
 // ============================================================
 
-export function useReportData() {
+export function useReportData(opts?: { enabled?: boolean }) {
     return useQuery({
         queryKey: queryKeys.reportData,
         queryFn: queries.fetchReportData,
+        enabled: opts?.enabled ?? true,
     });
 }
 
@@ -609,17 +612,19 @@ export function useUpdateStageHistoryDate() {
     });
 }
 
-export function useLandCompReportData() {
+export function useLandCompReportData(opts?: { enabled?: boolean }) {
     return useQuery({
         queryKey: ['land-comp-report-data'] as const,
         queryFn: queries.fetchLandCompReportData,
+        enabled: opts?.enabled ?? true,
     });
 }
 
-export function useRentCompReportData() {
+export function useRentCompReportData(opts?: { enabled?: boolean }) {
     return useQuery({
         queryKey: ['rent-comp-report-data'] as const,
         queryFn: queries.fetchAllRentComps,
+        enabled: opts?.enabled ?? true,
     });
 }
 
@@ -686,11 +691,11 @@ export function useDeleteLandComp() {
 // Pre-Dev Budgets
 // ============================================================
 
-export function usePredevBudget(pursuitId: string) {
+export function usePredevBudget(pursuitId: string, opts?: { enabled?: boolean }) {
     return useQuery({
         queryKey: ['predev-budget', pursuitId] as const,
         queryFn: () => queries.fetchPredevBudget(pursuitId),
-        enabled: !!pursuitId,
+        enabled: !!pursuitId && (opts?.enabled ?? true),
     });
 }
 
@@ -825,11 +830,11 @@ export function useDeleteKeyDateType() {
 // Key Dates (Per-Pursuit)
 // ============================================================
 
-export function useKeyDates(pursuitId: string) {
+export function useKeyDates(pursuitId: string, opts?: { enabled?: boolean }) {
     return useQuery({
         queryKey: ['key-dates', pursuitId] as const,
         queryFn: () => queries.fetchKeyDates(pursuitId),
-        enabled: !!pursuitId,
+        enabled: !!pursuitId && (opts?.enabled ?? true),
     });
 }
 
@@ -855,10 +860,11 @@ export function useDeleteKeyDate() {
     });
 }
 
-export function useKeyDateReportData() {
+export function useKeyDateReportData(opts?: { enabled?: boolean }) {
     return useQuery({
         queryKey: ['key-date-report-data'] as const,
         queryFn: queries.fetchKeyDateReportData,
+        enabled: opts?.enabled ?? true,
     });
 }
 
@@ -1199,10 +1205,11 @@ export function useUpdateSaleTransaction() {
     });
 }
 
-export function useSaleCompReportData() {
+export function useSaleCompReportData(opts?: { enabled?: boolean }) {
     return useQuery({
         queryKey: ['sale-comp-report-data'] as const,
         queryFn: queries.fetchSaleCompReportData,
+        enabled: opts?.enabled ?? true,
     });
 }
 

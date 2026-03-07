@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, ArrowUpDown } from 'lucide-react';
 import type { ReportConfig, ReportFieldKey, PursuitStage } from '@/types';
@@ -28,20 +28,39 @@ function EditableCell({
     stages,
     editMode,
     onCellEdit,
+    allRows,
 }: {
     row: ReportRow;
     col: ReportFieldDef;
     stages?: PursuitStage[];
     editMode?: boolean;
     onCellEdit?: (row: ReportRow, field: ReportFieldDef, rawValue: string | number | null) => void;
+    allRows: ReportRow[];
 }) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
+    const selectRef = useRef<HTMLSelectElement>(null);
 
     const currentValue = col.getValue(row, stages);
     const formatted = col.format(currentValue);
     const isEditable = editMode && col.editable && col.editTarget && col.dbColumn;
+
+    // Compute options for dropdown fields
+    const hasOptions = isEditable && col.editOptions;
+    const options = useMemo(() => {
+        if (!hasOptions) return null;
+        if (Array.isArray(col.editOptions)) return col.editOptions;
+        // Dynamic: derive unique values from all rows for this field
+        const vals = new Set<string>();
+        for (const r of allRows) {
+            const v = col.getValue(r, stages);
+            if (v !== null && v !== undefined && String(v).trim() !== '' && String(v) !== '—') {
+                vals.add(String(v));
+            }
+        }
+        return [...vals].sort();
+    }, [hasOptions, col, allRows, stages]);
 
     const startEdit = useCallback(() => {
         if (!isEditable) return;
@@ -63,11 +82,15 @@ function EditableCell({
     }, [isEditable, currentValue, col.type]);
 
     useEffect(() => {
-        if (editing && inputRef.current) {
-            inputRef.current.focus();
-            inputRef.current.select();
+        if (editing) {
+            if (options && selectRef.current) {
+                selectRef.current.focus();
+            } else if (inputRef.current) {
+                inputRef.current.focus();
+                inputRef.current.select();
+            }
         }
-    }, [editing]);
+    }, [editing, options]);
 
     const commit = useCallback(() => {
         setEditing(false);
@@ -98,6 +121,35 @@ function EditableCell({
     }, []);
 
     if (editing) {
+        // Dropdown select for fields with options
+        if (options) {
+            return (
+                <select
+                    ref={selectRef}
+                    value={draft}
+                    onChange={(e) => {
+                        setDraft(e.target.value);
+                        // Auto-commit on select change
+                        setEditing(false);
+                        if (onCellEdit && col.dbColumn && col.editTarget) {
+                            const val = e.target.value || null;
+                            onCellEdit(row, col, val);
+                        }
+                    }}
+                    onBlur={cancel}
+                    onKeyDown={(e) => { if (e.key === 'Escape') cancel(); }}
+                    className="w-full px-1 py-0.5 text-xs rounded border border-[var(--accent)] bg-[var(--bg-card)] text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                    style={{ minWidth: '70px' }}
+                >
+                    <option value="">—</option>
+                    {options.map((opt: string) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                </select>
+            );
+        }
+
+        // Regular text/number/date input
         return (
             <input
                 ref={inputRef}
@@ -205,6 +257,7 @@ export function ReportTable({
                         stages={stages}
                         editMode={editMode}
                         onCellEdit={onCellEdit}
+                        allRows={flatRows}
                     />
                 </td>
             ))}

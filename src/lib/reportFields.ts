@@ -27,9 +27,18 @@ export interface ReportFieldDef {
     editable?: boolean;
     dbColumn?: string;
     editTarget?: EditTarget;
+    /** Static option list for dropdown, or 'dynamic' = derive from column data */
+    editOptions?: string[] | 'dynamic';
 }
 
 const SF_PER_ACRE = 43_560;
+
+// US states for dropdown selectors
+export const US_STATES = [
+    'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
+    'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
+    'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC',
+];
 
 function fmtCurrency(v: string | number | null): string {
     if (v === null || v === '' || v === undefined) return '—';
@@ -61,10 +70,10 @@ export const REPORT_FIELDS: ReportFieldDef[] = [
     { key: 'pursuit_name', label: 'Pursuit Name', category: 'Pursuit', type: 'text', groupable: false, filterable: true, getValue: (r) => r.pursuit.name, format: fmtText, editable: true, dbColumn: 'name', editTarget: 'pursuit' },
     { key: 'address', label: 'Address', category: 'Pursuit', type: 'text', groupable: false, filterable: true, getValue: (r) => r.pursuit.address, format: fmtText, editable: true, dbColumn: 'address', editTarget: 'pursuit' },
     { key: 'city', label: 'City', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit.city, format: fmtText, editable: true, dbColumn: 'city', editTarget: 'pursuit' },
-    { key: 'state', label: 'State', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit.state, format: fmtText, editable: true, dbColumn: 'state', editTarget: 'pursuit' },
+    { key: 'state', label: 'State', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit.state, format: fmtText, editable: true, dbColumn: 'state', editTarget: 'pursuit', editOptions: US_STATES },
     { key: 'county', label: 'County', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit.county, format: fmtText, editable: true, dbColumn: 'county', editTarget: 'pursuit' },
     { key: 'zip', label: 'Zip', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit.zip, format: fmtText, editable: true, dbColumn: 'zip', editTarget: 'pursuit' },
-    { key: 'region', label: 'Region', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit.region, format: fmtText, editable: true, dbColumn: 'region', editTarget: 'pursuit' },
+    { key: 'region', label: 'Region', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r) => r.pursuit.region, format: fmtText, editable: true, dbColumn: 'region', editTarget: 'pursuit', editOptions: 'dynamic' },
     {
         key: 'stage', label: 'Stage', category: 'Pursuit', type: 'text', groupable: true, filterable: true, getValue: (r, stages) => {
             const s = r.pursuit.stage ?? stages?.find(s => s.id === r.pursuit.stage_id);
@@ -161,7 +170,7 @@ const COMP_FIELDS: ReportFieldDef[] = [
     { key: 'comp_name', label: 'Comp Name', category: 'Land Comp', type: 'text', groupable: false, filterable: true, getValue: (r) => r.comp?.name ?? r.pursuit.name, format: fmtText, editable: true, dbColumn: 'name', editTarget: 'land_comp' },
     { key: 'comp_address', label: 'Address', category: 'Land Comp', type: 'text', groupable: false, filterable: true, getValue: (r) => r.comp?.address ?? '', format: fmtText, editable: true, dbColumn: 'address', editTarget: 'land_comp' },
     { key: 'comp_city', label: 'City', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.city ?? '', format: fmtText, editable: true, dbColumn: 'city', editTarget: 'land_comp' },
-    { key: 'comp_state', label: 'State', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.state ?? '', format: fmtText, editable: true, dbColumn: 'state', editTarget: 'land_comp' },
+    { key: 'comp_state', label: 'State', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.state ?? '', format: fmtText, editable: true, dbColumn: 'state', editTarget: 'land_comp', editOptions: US_STATES },
     { key: 'comp_county', label: 'County', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.county ?? '', format: fmtText, editable: true, dbColumn: 'county', editTarget: 'land_comp' },
     { key: 'comp_zip', label: 'Zip', category: 'Land Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.comp?.zip ?? '', format: fmtText, editable: true, dbColumn: 'zip', editTarget: 'land_comp' },
     { key: 'comp_site_area_sf', label: 'Site Area (SF)', category: 'Land Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.comp?.site_area_sf ?? null, format: fmtNumber, editable: true, dbColumn: 'site_area_sf', editTarget: 'land_comp' },
@@ -329,10 +338,10 @@ const SALE_COMP_FIELDS: ReportFieldDef[] = [
     { key: 'sc_name' as ReportFieldKey, label: 'Property Name', category: 'Sale Comp', type: 'text', groupable: false, filterable: true, getValue: (r) => r.saleComp?.name ?? r.pursuit.name, format: fmtText, editable: true, dbColumn: 'name', editTarget: 'sale_comp' },
     { key: 'sc_address' as ReportFieldKey, label: 'Address', category: 'Sale Comp', type: 'text', groupable: false, filterable: true, getValue: (r) => r.saleComp?.address ?? r.pursuit.address, format: fmtText, editable: true, dbColumn: 'address', editTarget: 'sale_comp' },
     { key: 'sc_city' as ReportFieldKey, label: 'City', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.city ?? r.pursuit.city, format: fmtText, editable: true, dbColumn: 'city', editTarget: 'sale_comp' },
-    { key: 'sc_state' as ReportFieldKey, label: 'State', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.state ?? r.pursuit.state, format: fmtText, editable: true, dbColumn: 'state', editTarget: 'sale_comp' },
+    { key: 'sc_state' as ReportFieldKey, label: 'State', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.state ?? r.pursuit.state, format: fmtText, editable: true, dbColumn: 'state', editTarget: 'sale_comp', editOptions: US_STATES },
     { key: 'sc_county' as ReportFieldKey, label: 'County', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.county ?? '', format: fmtText, editable: true, dbColumn: 'county', editTarget: 'sale_comp' },
     { key: 'sc_zip' as ReportFieldKey, label: 'Zip', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.zip ?? '', format: fmtText, editable: true, dbColumn: 'zip', editTarget: 'sale_comp' },
-    { key: 'sc_property_type' as ReportFieldKey, label: 'Property Type', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.property_type ?? null, format: fmtText, editable: true, dbColumn: 'property_type', editTarget: 'sale_comp' },
+    { key: 'sc_property_type' as ReportFieldKey, label: 'Property Type', category: 'Sale Comp', type: 'text', groupable: true, filterable: true, getValue: (r) => r.saleComp?.property_type ?? null, format: fmtText, editable: true, dbColumn: 'property_type', editTarget: 'sale_comp', editOptions: 'dynamic' },
     { key: 'sc_year_built' as ReportFieldKey, label: 'Year Built', category: 'Sale Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.saleComp?.year_built ?? null, format: (v) => v !== null ? String(Math.round(Number(v))) : '—', aggregation: 'avg', editable: true, dbColumn: 'year_built', editTarget: 'sale_comp' },
     { key: 'sc_total_units' as ReportFieldKey, label: 'Total Units', category: 'Sale Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.saleComp?.total_units ?? null, format: fmtNumber, editable: true, dbColumn: 'total_units', editTarget: 'sale_comp' },
     { key: 'sc_total_sf' as ReportFieldKey, label: 'Total SF', category: 'Sale Comp', type: 'number', groupable: false, filterable: true, getValue: (r) => r.saleComp?.total_sf ?? null, format: fmtNumber, editable: true, dbColumn: 'total_sf', editTarget: 'sale_comp' },

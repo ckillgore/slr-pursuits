@@ -325,7 +325,12 @@ export default function ExplorePage() {
                 if (!e.features?.length) return;
                 map.getCanvas().style.cursor = 'pointer';
 
-                const feature = e.features[0];
+                // Filter overlapping features for the highest-value (main) property to avoid business/personal property
+                const feature = e.features.reduce((prev: any, current: any) => {
+                    const prevVal = prev.properties?.parval ? parseFloat(prev.properties.parval) : 0;
+                    const currVal = current.properties?.parval ? parseFloat(current.properties.parval) : 0;
+                    return (currVal > prevVal) ? current : prev;
+                }, e.features[0]);
                 const props = feature.properties || {};
 
                 // Update hover state
@@ -377,7 +382,14 @@ export default function ExplorePage() {
             map.on('click', 'parcels-fill', (e: any) => {
                 if (!e.features?.length) return;
                 const lngLat = e.lngLat;
-                const props = e.features[0].properties || {};
+                
+                // Filter overlapping features for the highest-value (main) property to avoid business/personal property
+                const bestFeature = e.features.reduce((prev: any, current: any) => {
+                    const prevVal = prev.properties?.parval ? parseFloat(prev.properties.parval) : 0;
+                    const currVal = current.properties?.parval ? parseFloat(current.properties.parval) : 0;
+                    return (currVal > prevVal) ? current : prev;
+                }, e.features[0]);
+                const props = bestFeature.properties || {};
 
                 // On touch devices, show mobile popup first instead of immediately loading details
                 if (isTouchDeviceRef.current) {

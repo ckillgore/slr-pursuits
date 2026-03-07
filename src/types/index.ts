@@ -64,6 +64,7 @@ export interface Pursuit {
   updated_at: string;
   is_archived: boolean;
   primary_one_pager_id: string | null;
+  executive_memo: string | null;
   // Joined
   stage?: PursuitStage;
   one_pagers?: OnePager[];

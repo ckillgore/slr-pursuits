@@ -19,8 +19,8 @@ import {
 } from 'lucide-react';
 
 interface RichTextEditorProps {
-    content: Record<string, unknown> | null;
-    onChange: (json: Record<string, unknown>) => void;
+    content: string | Record<string, unknown> | null;
+    onChange: (json: Record<string, unknown>, html: string) => void;
     placeholder?: string;
     /** Debounce delay in ms before calling onChange. Default 500. */
     debounceMs?: number;
@@ -60,7 +60,8 @@ export function RichTextEditor({
             if (debounceRef.current) clearTimeout(debounceRef.current);
             debounceRef.current = setTimeout(() => {
                 const json = editor.getJSON();
-                onChangeRef.current(json as Record<string, unknown>);
+                const html = editor.getHTML();
+                onChangeRef.current(json as Record<string, unknown>, html);
             }, debounceMs);
         },
     });
@@ -68,10 +69,18 @@ export function RichTextEditor({
     // Sync external content changes (e.g., from Realtime refetch)
     useEffect(() => {
         if (!editor || !content) return;
-        const currentJson = JSON.stringify(editor.getJSON());
-        const incomingJson = JSON.stringify(content);
-        if (currentJson !== incomingJson) {
-            editor.commands.setContent(content);
+        
+        if (typeof content === 'string') {
+            const currentHtml = editor.getHTML();
+            if (currentHtml !== content) {
+                editor.commands.setContent(content);
+            }
+        } else {
+            const currentJson = JSON.stringify(editor.getJSON());
+            const incomingJson = JSON.stringify(content);
+            if (currentJson !== incomingJson) {
+                editor.commands.setContent(content);
+            }
         }
     }, [content, editor]);
 

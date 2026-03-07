@@ -3,8 +3,6 @@ import { GoogleGenAI } from '@google/genai';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/app/api/_lib/auth';
 import { createClient } from '@/lib/supabase/server';
-// @ts-ignore
-import HTMLtoDOCX from 'html-to-docx';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY; // The user said Gemini and Claude API keys are in .env.local
@@ -161,34 +159,10 @@ export async function POST(request: Request) {
             }
         }
 
-        // --- 4. Convert HTML to DOCX ---
-        console.log('[AI Memo] Pass 3: Converting HTML to DOCX...');
-        
-        const fullHtml = `
-            <!DOCTYPE html>
-            <html>
-                <head>
-                    <meta charset="utf-8">
-                    <title>Investment Memo</title>
-                </head>
-                <body style="font-family: Arial, sans-serif;">
-                    ${htmlContent}
-                </body>
-            </html>
-        `;
-
-        const fileBuffer = await HTMLtoDOCX(fullHtml, null, {
-            table: { row: { cantSplit: true } },
-            footer: true,
-            pageNumber: true,
-        });
-
-        // --- 5. Return the DOCX buffer ---
-        return new NextResponse(fileBuffer, {
-            headers: {
-                'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'Content-Disposition': 'attachment; filename="Investment_Memo.docx"',
-            },
+        // --- 4. Return HTML Response ---
+        return NextResponse.json({
+            success: true,
+            html: htmlContent
         });
 
     } catch (err: any) {

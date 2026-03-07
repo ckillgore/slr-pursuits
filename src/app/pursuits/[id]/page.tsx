@@ -187,7 +187,7 @@ export default function PursuitDetailPage() {
         if (!pursuit) return;
         setMemoLoading(true);
         try {
-            const res = await fetch('/api/ai-memo/docx', {
+            const res = await fetch('/api/ai-memo/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -219,23 +219,15 @@ export default function PursuitDetailPage() {
                 }),
             });
             
-            if (!res.ok) {
-                const error = await res.json();
-                throw new Error(error.error || 'Failed to generate memo');
+            const data = await res.json();
+            if (!res.ok || data.error) {
+                throw new Error(data.error || 'Failed to generate memo');
             }
 
-            const blob = await res.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${pursuit.name.replace(/\s+/g, '_')}_Investment_Memo.docx`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
+            // Hard navigation to ensure fresh pursuit data is loaded with the new HTML string
+            window.location.href = `/pursuits/${pursuit.id}/memo`;
         } catch (err: any) {
             alert(err.message || 'Failed to generate memo');
-        } finally {
             setMemoLoading(false);
         }
     };

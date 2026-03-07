@@ -356,7 +356,7 @@ export default function PursuitDetailPage() {
                 </Link>
 
                 {/* Header Card */}
-                <div className="card mb-6 overflow-hidden">
+                <div className="card mb-6">
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         <div className="flex-1 min-w-0">
                             {isEditingName ? (

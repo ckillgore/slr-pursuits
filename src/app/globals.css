@@ -144,7 +144,7 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 14px;
+  padding: 16px;
   box-shadow: var(--shadow-card);
   transition: box-shadow 0.2s ease;
   overflow-x: auto;

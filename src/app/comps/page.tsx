@@ -7,7 +7,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useLandComps, useCreateLandComp, useDeleteLandComp, useSaleComps, useCreateSaleComp, useDeleteSaleComp, useProductTypes } from '@/hooks/useSupabaseQueries';
 import {
     Search, Landmark, Loader2, Plus, Trash2, MapPin, Navigation, DollarSign,
-    Calendar, Ruler, LayoutGrid, List, Map, Building2, TrendingUp,
+    Calendar, Ruler, LayoutGrid, List, Map, Building2, TrendingUp, AlertTriangle,
 } from 'lucide-react';
 import type { LandComp, SaleComp } from '@/types';
 
@@ -402,6 +402,38 @@ export default function CompsPage() {
         const types = [...new Set(saleComps.map(c => c.property_type).filter(Boolean))] as string[];
         return types.sort();
     }, [saleComps]);
+
+    // Duplicate detection for land comps
+    const landDuplicates = useMemo(() => {
+        const matches: LandComp[] = [];
+        const trimmedName = newName.trim().toLowerCase();
+        const trimmedAddr = newAddress.trim().toLowerCase();
+        if (!trimmedName && !trimmedAddr) return matches;
+        for (const c of comps) {
+            if (trimmedName && trimmedName.length >= 3 && c.name.toLowerCase().includes(trimmedName)) {
+                matches.push(c);
+            } else if (trimmedAddr && trimmedAddr.length >= 3 && c.address?.toLowerCase().includes(trimmedAddr)) {
+                matches.push(c);
+            }
+        }
+        return matches;
+    }, [comps, newName, newAddress]);
+
+    // Duplicate detection for sale comps
+    const saleDuplicates = useMemo(() => {
+        const matches: SaleComp[] = [];
+        const trimmedName = saleName.trim().toLowerCase();
+        const trimmedAddr = saleAddress.trim().toLowerCase();
+        if (!trimmedName && !trimmedAddr) return matches;
+        for (const c of saleComps) {
+            if (trimmedName && trimmedName.length >= 3 && c.name.toLowerCase().includes(trimmedName)) {
+                matches.push(c);
+            } else if (trimmedAddr && trimmedAddr.length >= 3 && c.address?.toLowerCase().includes(trimmedAddr)) {
+                matches.push(c);
+            }
+        }
+        return matches;
+    }, [saleComps, saleName, saleAddress]);
 
     const filtered = useMemo(() => {
         const list = comps.filter((c) => {
@@ -1056,6 +1088,17 @@ export default function CompsPage() {
                                 />
                             </div>
 
+                            {landDuplicates.length > 0 && (
+                                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
+                                    <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                                    <div className="text-xs">
+                                        <span className="font-semibold">Possible duplicate{landDuplicates.length > 1 ? 's' : ''}:</span>{' '}
+                                        {landDuplicates.slice(0, 3).map(d => d.name).join(', ')}
+                                        {landDuplicates.length > 3 && ` +${landDuplicates.length - 3} more`}
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => setAddressMode('search')}
@@ -1161,6 +1204,18 @@ export default function CompsPage() {
                                     autoFocus
                                 />
                             </div>
+
+                            {saleDuplicates.length > 0 && (
+                                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
+                                    <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                                    <div className="text-xs">
+                                        <span className="font-semibold">Possible duplicate{saleDuplicates.length > 1 ? 's' : ''}:</span>{' '}
+                                        {saleDuplicates.slice(0, 3).map(d => d.name).join(', ')}
+                                        {saleDuplicates.length > 3 && ` +${saleDuplicates.length - 3} more`}
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="relative">
                                 <label className="text-xs font-semibold text-[var(--text-muted)] uppercase mb-1 block">Address</label>
                                 <div className="relative flex items-center">

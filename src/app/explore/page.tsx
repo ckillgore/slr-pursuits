@@ -542,6 +542,7 @@ export default function ExplorePage() {
                 parcel_assemblage: null,
                 is_archived: false,
                 primary_one_pager_id: null,
+                executive_memo: null,
             });
             setShowCreateDialog(null);
             setCreateName('');

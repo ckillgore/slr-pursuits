@@ -194,6 +194,7 @@ export default function DashboardPage() {
         parcel_assemblage: null,
         is_archived: false,
         primary_one_pager_id: null,
+        executive_memo: null,
       });
       resetNewPursuitForm();
       setShowNewPursuitDialog(false);

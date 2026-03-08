@@ -1687,6 +1687,48 @@ export async function fetchHellodataPropertyByHdId(hellodataId: string): Promise
     return data as unknown as HellodataProperty | null;
 }
 
+/** Fetch ALL Hellodata properties — lightweight for list/grid/map views */
+export async function fetchAllHellodataProperties(): Promise<HellodataProperty[]> {
+    const { data, error } = await supabase
+        .from('hellodata_properties')
+        .select(`
+            id, hellodata_id, building_name, street_address, city, state, zip_code,
+            lat, lon, year_built, number_units, number_stories,
+            management_company, building_website,
+            is_lease_up, is_senior, is_student, is_affordable, is_build_to_rent,
+            occupancy_over_time, fetched_at, created_at
+        `)
+        .order('building_name', { ascending: true });
+    if (error) throw error;
+    return (data ?? []) as unknown as HellodataProperty[];
+}
+
+/** Fetch a single Hellodata property by DB id — full detail with units + concessions */
+export async function fetchHellodataPropertyDetail(id: string): Promise<HellodataProperty | null> {
+    const { data, error } = await supabase
+        .from('hellodata_properties')
+        .select('*, units:hellodata_units(*), concessions:hellodata_concessions(*)')
+        .eq('id', id)
+        .maybeSingle();
+    if (error) throw error;
+    return data as unknown as HellodataProperty | null;
+}
+
+/** Reverse lookup: which pursuits is this property linked to? */
+export async function fetchPursuitsLinkedToProperty(propertyId: string): Promise<{ pursuit_id: string; pursuit_name: string; pursuit_short_id: string; comp_type: string }[]> {
+    const { data, error } = await supabase
+        .from('pursuit_rent_comps')
+        .select('pursuit_id, comp_type, pursuit:pursuits!pursuit_id(id, name, short_id)')
+        .eq('property_id', propertyId);
+    if (error) throw error;
+    return (data ?? []).map((row: any) => ({
+        pursuit_id: row.pursuit_id,
+        pursuit_name: row.pursuit?.name ?? 'Unknown',
+        pursuit_short_id: row.pursuit?.short_id ?? '',
+        comp_type: row.comp_type,
+    }));
+}
+
 /** Update the comp_type (primary/secondary) for a pursuit rent comp */
 export async function updateRentCompType(
     pursuitId: string,

@@ -14,10 +14,49 @@ import type {
 // Query Keys
 // ============================================================
 export const hellodataKeys = {
+    allProperties: () => ['hellodata-properties'] as const,
+    propertyDetail: (id: string) => ['hellodata-property-detail', id] as const,
+    linkedPursuits: (propertyId: string) => ['hellodata-linked-pursuits', propertyId] as const,
     rentComps: (pursuitId: string) => ['pursuit-rent-comps', pursuitId] as const,
     property: (hellodataId: string) => ['hellodata-property', hellodataId] as const,
     search: (query: string) => ['hellodata-search', query] as const,
 };
+
+// ============================================================
+// All Hellodata Properties (for /comps Rent Comps tab)
+// ============================================================
+
+export function useAllHellodataProperties() {
+    return useQuery<HellodataProperty[]>({
+        queryKey: hellodataKeys.allProperties(),
+        queryFn: () => queries.fetchAllHellodataProperties(),
+        staleTime: 1000 * 60 * 5, // 5 minutes
+    });
+}
+
+// ============================================================
+// Single Hellodata Property Detail (for /comps/rent/[id])
+// ============================================================
+
+export function useHellodataPropertyDetail(id: string | null) {
+    return useQuery<HellodataProperty | null>({
+        queryKey: hellodataKeys.propertyDetail(id ?? ''),
+        queryFn: () => queries.fetchHellodataPropertyDetail(id!),
+        enabled: !!id,
+    });
+}
+
+// ============================================================
+// Pursuits Linked to a Property (reverse lookup)
+// ============================================================
+
+export function usePursuitsForProperty(propertyId: string | null) {
+    return useQuery<{ pursuit_id: string; pursuit_name: string; pursuit_short_id: string; comp_type: string }[]>({
+        queryKey: hellodataKeys.linkedPursuits(propertyId ?? ''),
+        queryFn: () => queries.fetchPursuitsLinkedToProperty(propertyId!),
+        enabled: !!propertyId,
+    });
+}
 
 // ============================================================
 // Hellodata Search (debounced)

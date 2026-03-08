@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/components/AuthProvider';
 import { useLandComps, useCreateLandComp, useDeleteLandComp, useSaleComps, useCreateSaleComp, useDeleteSaleComp, useProductTypes } from '@/hooks/useSupabaseQueries';
+import { useAllHellodataProperties } from '@/hooks/useHellodataQueries';
 import {
     Search, Landmark, Loader2, Plus, Trash2, MapPin, Navigation, DollarSign,
-    Calendar, Ruler, LayoutGrid, List, Map, Building2, TrendingUp, AlertTriangle,
+    Calendar, Ruler, LayoutGrid, List, Map, Building2, TrendingUp, AlertTriangle, Home, ExternalLink,
 } from 'lucide-react';
-import type { LandComp, SaleComp } from '@/types';
+import type { LandComp, SaleComp, HellodataProperty } from '@/types';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -221,6 +222,103 @@ function SaleCompsMap({ comps }: { comps: SaleComp[] }) {
         </div>
     );
 }
+// ======================== Rent Comps Map ========================
+
+function RentCompsMap({ comps }: { comps: HellodataProperty[] }) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const mapRef = useRef<any>(null);
+    const markersRef = useRef<any[]>([]);
+
+    const locatedComps = useMemo(
+        () => comps.filter((c) => c.lat != null && c.lon != null),
+        [comps]
+    );
+
+    useEffect(() => {
+        if (!MAPBOX_TOKEN || !containerRef.current) return;
+
+        let map: any;
+        import('mapbox-gl').then((mapboxgl) => {
+            const mbgl = mapboxgl.default || mapboxgl;
+            mbgl.accessToken = MAPBOX_TOKEN;
+
+            let center: [number, number] = [-97.7431, 32.0];
+            let zoom = 4;
+            if (locatedComps.length === 1) {
+                center = [locatedComps[0].lon!, locatedComps[0].lat!];
+                zoom = 12;
+            } else if (locatedComps.length > 1) {
+                const bounds = new mbgl.LngLatBounds();
+                locatedComps.forEach((c) => bounds.extend([c.lon!, c.lat!]));
+                center = bounds.getCenter().toArray() as [number, number];
+            }
+
+            if (containerRef.current) containerRef.current.innerHTML = '';
+
+            map = new mbgl.Map({
+                container: containerRef.current!,
+                style: 'mapbox://styles/mapbox/light-v11',
+                center,
+                zoom,
+                interactive: true,
+            });
+
+            map.addControl(new mbgl.NavigationControl({ showCompass: true }), 'top-right');
+            mapRef.current = map;
+
+            map.on('load', () => {
+                if (locatedComps.length > 1) {
+                    const bounds = new mbgl.LngLatBounds();
+                    locatedComps.forEach((c) => bounds.extend([c.lon!, c.lat!]));
+                    map.fitBounds(bounds, { padding: 60, maxZoom: 14 });
+                }
+
+                locatedComps.forEach((c) => {
+                    const units = c.number_units ? `${c.number_units} units` : '';
+                    const el = document.createElement('div');
+                    el.style.cssText = 'cursor:pointer;display:flex;flex-direction:column;align-items:center;';
+                    el.innerHTML = `
+                        <div style="background:#2563EB;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.15);line-height:1.3;text-align:center;">
+                            ${c.building_name || c.street_address || 'Property'}
+                            ${units ? `<div style="font-weight:400;font-size:8px;opacity:0.85;">${units}</div>` : ''}
+                        </div>
+                        <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #2563EB;"></div>
+                    `;
+                    const marker = new mbgl.Marker({ element: el })
+                        .setLngLat([c.lon!, c.lat!])
+                        .addTo(map);
+                    el.addEventListener('click', () => { window.location.href = `/comps/rent/${c.id}`; });
+                    markersRef.current.push(marker);
+                });
+            });
+        });
+
+        return () => {
+            markersRef.current.forEach((m) => m.remove());
+            markersRef.current = [];
+            if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [locatedComps]);
+
+    if (locatedComps.length === 0) {
+        return (
+            <div className="flex items-center justify-center py-20 text-center">
+                <div>
+                    <MapPin className="w-8 h-8 text-[var(--border-strong)] mx-auto mb-2" />
+                    <p className="text-sm text-[var(--text-muted)]">No rent comps with location data</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="relative bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden" style={{ height: 'calc(100vh - 220px)', minHeight: 400 }}>
+            <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+        </div>
+    );
+}
+
 // ======================== Main Page ========================
 
 export default function CompsPage() {
@@ -235,10 +333,16 @@ export default function CompsPage() {
     const createSaleComp = useCreateSaleComp();
     const deleteSaleCompMutation = useDeleteSaleComp();
 
-    const [activeSection, setActiveSection] = useState<'land' | 'sales'>('land');
+    // Rent comps (Hellodata properties)
+    const { data: rentComps = [], isLoading: loadingRentComps } = useAllHellodataProperties();
+
+    const [activeSection, setActiveSection] = useState<'rent' | 'land' | 'sales'>('rent');
     const [searchQuery, setSearchQuery] = useState('');
     const [sortBy, setSortBy] = useState<'newest' | 'name' | 'price'>('newest');
     const [viewMode, setViewMode] = useState<'grid' | 'list' | 'map'>('grid');
+    const [rentSearchQuery, setRentSearchQuery] = useState('');
+    const [rentFilterState, setRentFilterState] = useState('');
+    const [rentFilterCity, setRentFilterCity] = useState('');
     const [showNewDialog, setShowNewDialog] = useState(false);
     const [deleteCompId, setDeleteCompId] = useState<string | null>(null);
 
@@ -563,7 +667,9 @@ export default function CompsPage() {
                     <div>
                         <h1 className="text-xl md:text-2xl font-bold text-[var(--text-primary)]">Comps</h1>
                         <p className="text-sm text-[var(--text-muted)] mt-0.5">
-                            {activeSection === 'land'
+                            {activeSection === 'rent'
+                                ? `${rentComps.length} rent comp${rentComps.length !== 1 ? 's' : ''}`
+                                : activeSection === 'land'
                                 ? `${comps.length} land comp${comps.length !== 1 ? 's' : ''}`
                                 : `${saleComps.length} sale comp${saleComps.length !== 1 ? 's' : ''}`}
                         </p>
@@ -590,31 +696,247 @@ export default function CompsPage() {
                                 <Map className="w-4 h-4" /> Map
                             </button>
                         </div>
-                        <button
-                            onClick={() => activeSection === 'land' ? setShowNewDialog(true) : setShowNewSaleDialog(true)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors shadow-sm ${activeSection === 'land' ? 'bg-[#0D9488] hover:bg-[#0F766E]' : 'bg-[var(--accent)] hover:bg-[#4F46E5]'}`}
-                        >
-                            <Plus className="w-4 h-4" />
-                            {activeSection === 'land' ? 'New Land Comp' : 'New Sale Comp'}
-                        </button>
+                        {activeSection !== 'rent' && (
+                            <button
+                                onClick={() => activeSection === 'land' ? setShowNewDialog(true) : setShowNewSaleDialog(true)}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors shadow-sm ${activeSection === 'land' ? 'bg-[#0D9488] hover:bg-[#0F766E]' : 'bg-[var(--accent)] hover:bg-[#4F46E5]'}`}
+                            >
+                                <Plus className="w-4 h-4" />
+                                {activeSection === 'land' ? 'New Land Comp' : 'New Sale Comp'}
+                            </button>
+                        )}
                     </div>
                 </div>
 
                 {/* Tab Bar */}
-                <div className="flex gap-1 mb-6 border-b border-[var(--border)]">
+                <div className="flex gap-1 mb-6 border-b border-[var(--border)] overflow-x-auto">
+                    <button
+                        onClick={() => { setActiveSection('rent'); setRentFilterState(''); setRentFilterCity(''); }}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${activeSection === 'rent' ? 'text-[#2563EB] border-[#2563EB]' : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'}`}
+                    >
+                        <Home className="w-4 h-4" /> Rent Comps
+                    </button>
                     <button
                         onClick={() => { setActiveSection('land'); setFilterState(''); setFilterCity(''); }}
-                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${activeSection === 'land' ? 'text-[#0D9488] border-[#0D9488]' : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'}`}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${activeSection === 'land' ? 'text-[#0D9488] border-[#0D9488]' : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'}`}
                     >
                         <Landmark className="w-4 h-4" /> Land Comps
                     </button>
                     <button
                         onClick={() => { setActiveSection('sales'); setFilterState(''); setFilterCity(''); setSaleFilterPropertyType(''); }}
-                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${activeSection === 'sales' ? 'text-[var(--accent)] border-[#6366F1]' : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'}`}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${activeSection === 'sales' ? 'text-[var(--accent)] border-[#6366F1]' : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'}`}
                     >
                         <Building2 className="w-4 h-4" /> Sale Comps
                     </button>
                 </div>
+
+                {/* ═══ RENT COMPS SECTION ═══ */}
+                {activeSection === 'rent' && (<>
+                    {/* Filter Bar */}
+                    <div className="flex flex-wrap items-center gap-3 mb-6">
+                        <div className="flex-1 min-w-[200px] relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
+                            <input
+                                type="text"
+                                value={rentSearchQuery}
+                                onChange={(e) => setRentSearchQuery(e.target.value)}
+                                placeholder="Search rent comps..."
+                                className="w-full pl-10 pr-4 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 focus:outline-none transition-all"
+                            />
+                        </div>
+                        {(viewMode === 'grid' || viewMode === 'list') && (
+                            <>
+                                <select
+                                    value={rentFilterState}
+                                    onChange={(e) => { setRentFilterState(e.target.value); setRentFilterCity(''); }}
+                                    className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[#2563EB] focus:outline-none"
+                                >
+                                    <option value="">All States</option>
+                                    {[...new Set(rentComps.map(c => c.state).filter(Boolean))].sort().map(s => <option key={s!} value={s!}>{s}</option>)}
+                                </select>
+                                {rentFilterState && (
+                                    <select
+                                        value={rentFilterCity}
+                                        onChange={(e) => setRentFilterCity(e.target.value)}
+                                        className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[#2563EB] focus:outline-none"
+                                    >
+                                        <option value="">All Cities</option>
+                                        {[...new Set(rentComps.filter(c => c.state === rentFilterState).map(c => c.city).filter(Boolean))].sort().map(c => <option key={c!} value={c!}>{c}</option>)}
+                                    </select>
+                                )}
+                            </>
+                        )}
+                    </div>
+
+                    {/* Loading */}
+                    {loadingRentComps && (
+                        <div className="flex justify-center py-24">
+                            <Loader2 className="w-8 h-8 animate-spin text-[var(--border-strong)]" />
+                        </div>
+                    )}
+
+                    {(() => {
+                        const filteredRent = rentComps.filter((c) => {
+                            if (rentFilterState && c.state !== rentFilterState) return false;
+                            if (rentFilterCity && c.city !== rentFilterCity) return false;
+                            if (!rentSearchQuery) return true;
+                            const q = rentSearchQuery.toLowerCase();
+                            return (
+                                c.building_name?.toLowerCase().includes(q) ||
+                                c.street_address?.toLowerCase().includes(q) ||
+                                c.city?.toLowerCase().includes(q) ||
+                                c.management_company?.toLowerCase().includes(q)
+                            );
+                        });
+
+                        const getOccupancy = (p: HellodataProperty) => {
+                            if (!p.occupancy_over_time || !Array.isArray(p.occupancy_over_time) || p.occupancy_over_time.length === 0) return null;
+                            const latest = p.occupancy_over_time[p.occupancy_over_time.length - 1];
+                            return latest?.leased != null ? Math.round(latest.leased * 100) : null;
+                        };
+
+                        return (<>
+                            {/* Grid View */}
+                            {!loadingRentComps && viewMode === 'grid' && filteredRent.length > 0 && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {filteredRent.map((c) => {
+                                        const occ = getOccupancy(c);
+                                        return (
+                                            <div
+                                                key={c.id}
+                                                className="group relative bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 hover:border-[#2563EB]/40 hover:shadow-md transition-all cursor-pointer"
+                                                onClick={() => router.push(`/comps/rent/${c.id}`)}
+                                            >
+                                                <div className="mb-3">
+                                                    <h3 className="text-sm font-semibold text-[var(--text-primary)] truncate pr-4">{c.building_name || c.street_address || 'Unknown Property'}</h3>
+                                                    <p className="text-xs text-[var(--text-muted)] truncate mt-0.5">
+                                                        {[c.street_address, c.city, c.state].filter(Boolean).join(', ') || 'No address'}
+                                                    </p>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {c.number_units != null && (
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Building2 className="w-3 h-3 text-[#2563EB]" />
+                                                            <div>
+                                                                <div className="text-[10px] text-[var(--text-faint)] uppercase">Units</div>
+                                                                <div className="text-xs font-semibold text-[var(--text-primary)]">{c.number_units}</div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {c.year_built != null && (
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Calendar className="w-3 h-3 text-[var(--text-muted)]" />
+                                                            <div>
+                                                                <div className="text-[10px] text-[var(--text-faint)] uppercase">Year Built</div>
+                                                                <div className="text-xs text-[var(--text-secondary)]">{c.year_built}</div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {occ != null && (
+                                                        <div className="flex items-center gap-1.5">
+                                                            <TrendingUp className="w-3 h-3 text-emerald-500" />
+                                                            <div>
+                                                                <div className="text-[10px] text-[var(--text-faint)] uppercase">Occupancy</div>
+                                                                <div className={`text-xs font-semibold ${occ >= 95 ? 'text-emerald-500' : occ >= 90 ? 'text-amber-500' : 'text-red-500'}`}>{occ}%</div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {c.management_company && (
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Landmark className="w-3 h-3 text-[var(--text-muted)]" />
+                                                            <div>
+                                                                <div className="text-[10px] text-[var(--text-faint)] uppercase">Manager</div>
+                                                                <div className="text-xs text-[var(--text-secondary)] truncate max-w-[100px]">{c.management_company}</div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="mt-3 pt-2 border-t border-[var(--table-row-border)] flex items-center justify-between">
+                                                    <span className="text-[10px] text-[var(--text-faint)]">
+                                                        {c.is_lease_up && <span className="inline-block px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 font-medium mr-1">Lease-Up</span>}
+                                                        {c.number_stories ? `${c.number_stories} stories` : ''}
+                                                    </span>
+                                                    {c.building_website && (
+                                                        <ExternalLink className="w-3 h-3 text-[var(--text-faint)]" />
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* List View */}
+                            {!loadingRentComps && viewMode === 'list' && filteredRent.length > 0 && (
+                                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="border-b border-[var(--border)] bg-[var(--bg-primary)]">
+                                                <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Property</th>
+                                                <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider hidden sm:table-cell">Location</th>
+                                                <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Units</th>
+                                                <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider hidden md:table-cell">Year Built</th>
+                                                <th className="text-right px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider hidden md:table-cell">Occupancy</th>
+                                                <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider hidden lg:table-cell">Manager</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredRent.map((c) => {
+                                                const occ = getOccupancy(c);
+                                                return (
+                                                    <tr
+                                                        key={c.id}
+                                                        className="group border-b border-[var(--table-row-border)] last:border-b-0 hover:bg-[var(--bg-primary)] cursor-pointer transition-colors"
+                                                        onClick={() => router.push(`/comps/rent/${c.id}`)}
+                                                    >
+                                                        <td className="px-4 py-3">
+                                                            <span className="font-semibold text-[var(--text-primary)] hover:text-[#2563EB] transition-colors">{c.building_name || c.street_address || 'Unknown'}</span>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-[var(--text-muted)] hidden sm:table-cell">
+                                                            {[c.city, c.state].filter(Boolean).join(', ') || '—'}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right font-semibold text-[var(--text-primary)]">
+                                                            {c.number_units ?? '—'}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right text-[var(--text-secondary)] hidden md:table-cell">
+                                                            {c.year_built ?? '—'}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right hidden md:table-cell">
+                                                            {occ != null ? (
+                                                                <span className={`font-semibold ${occ >= 95 ? 'text-emerald-500' : occ >= 90 ? 'text-amber-500' : 'text-red-500'}`}>{occ}%</span>
+                                                            ) : '—'}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-[var(--text-muted)] hidden lg:table-cell truncate max-w-[150px]">
+                                                            {c.management_company ?? '—'}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+
+                            {/* Map View */}
+                            {!loadingRentComps && viewMode === 'map' && (
+                                <RentCompsMap comps={filteredRent} />
+                            )}
+
+                            {/* Empty State */}
+                            {!loadingRentComps && filteredRent.length === 0 && (
+                                <div className="text-center py-16">
+                                    <Home className="w-12 h-12 text-[var(--border-strong)] mx-auto mb-3" />
+                                    <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1">No rent comps yet</h3>
+                                    <p className="text-sm text-[var(--text-muted)] max-w-sm mx-auto">
+                                        Rent comps are loaded from Hellodata when added to a pursuit. Go to a pursuit&apos;s Rent Comps tab to search and add properties.
+                                    </p>
+                                </div>
+                            )}
+                        </>);
+                    })()}
+                </>)}
 
                 {/* ═══ LAND COMPS SECTION ═══ */}
                 {activeSection === 'land' && (<>

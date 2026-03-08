@@ -364,9 +364,45 @@
 - [ ] **Fix year of construction display** — Year of construction currently shows with a comma (e.g. "2,024" instead of "2024"); remove number formatting on year fields
 
 ## Rent Comps — Fixes & Enhancements
-- [ ] **Fix weird characters on rent comps** — Investigate and fix encoding/character display issues on rent comp data
-- [ ] **Verify list/map component views on comps are working** — Confirm that both list view and map view render correctly for comps
-- [ ] **Bubble chart drilldown** — When user clicks a bubble on the rent/size bubble chart in the rent comps page, provide a drilldown showing the underlying property details. File: `RentCompSections.tsx`
+- [x] **Fix weird characters on rent comps** — Investigate and fix encoding/character display issues on rent comp data
+- [x] **Verify list/map component views on comps are working** — Confirm that both list view and map view render correctly for comps
+- [x] **Bubble chart drilldown** — When user clicks a bubble on the rent/size bubble chart in the rent comps page, provide a drilldown showing the underlying property details. File: `RentCompSections.tsx`
+
+---
+
+# Standalone Rent Comps Entity (3/7)
+
+## Data Layer
+- [x] Add `fetchAllHellodataProperties()` to `queries.ts` (lightweight list/grid/map query)
+- [x] Add `fetchHellodataPropertyDetail()` to `queries.ts` (full detail with units + concessions)
+- [x] Add `fetchPursuitsLinkedToProperty()` to `queries.ts` (reverse lookup)
+- [x] Add hooks: `useAllHellodataProperties`, `useHellodataPropertyDetail`, `usePursuitsForProperty`
+
+## Comps Page — Rent Toggle
+- [x] Add 'Rent Comps' as first toggle on `/comps` page (default active)
+- [x] Grid, list, and map view modes with search + state/city filters
+- [x] Hide "New Comp" button for rent comps (sourced from Hellodata)
+
+## Rent Comp Detail Page (`/comps/rent/[id]`)
+- [x] Header: Mapbox map, website link, KPI bar (units/year/stories), linked pursuit badges
+- [x] Add to Pursuit dropdown, Refresh Data button, last-refreshed timestamp
+- [x] **Overview tab**: property facts, building quality scores, reviews, fees, pricing strategy, amenities
+- [x] **Units tab**: bedroom summary table (count/avgSqft/avgRent/avgEffective/avg$/SF/avgDOM/available per bed type + totals), full rent roll below
+- [x] **Rent Trends tab**: reuses `RentTrendsSection`
+- [x] **Rent vs Size tab**: reuses `BubbleChartSection` (group by property/bed/floorplan, asking/effective toggle)
+- [x] **Leasing tab**: reuses `LeasingActivitySection` (trailing 12-week heatmap)
+- [x] **Concessions tab**: active + historical with item details
+- [x] **Occupancy tab**: reuses `OccupancySection` (derived from unit availability_periods)
+- [x] Compute full `PropertyMetrics` for all reused chart sections
+
+## Weekly Cron Refresh
+- [x] Create `/api/cron/refresh-rent-comps` route (de-dupes by hellodata_id, 500ms rate limit)
+- [x] Create `vercel.json` with cron schedule: Monday 5:00 AM CT
+- [x] `CRON_SECRET` env var for auth
+
+## Known Issues / Future
+- [ ] `occupancy_over_time` is NULL for all properties — Hellodata doesn't populate this field; occupancy is derived from unit availability_periods instead
+- [ ] Demographics data visualization (if Hellodata provides it)
 
 ## Market Study Tab (New Feature)
 - [ ] **Market study tab in rent comps section** — New tab that replicates the AT&T PRM internal market study exhibit used in investment memos and internal reviews. Should include:

@@ -206,3 +206,20 @@ _(Append new lessons below. Do not rewrite or delete existing entries.)_
 - **Mapbox Static Images API**: `https://api.mapbox.com/styles/v1/mapbox/light-v11/static/pin-l+COLOR(lng,lat)/lng,lat,zoom/WxH@2x?access_token=TOKEN` generates a clean map image for embedding. Use `light-v11` style for print-friendly output.
 - **Cover page KPIs**: A small key-value table on the cover page (Units, Budget, YOC) gives the reader instant context before the narrative starts.
 
+## Standalone Entity from Existing Data
+- **Reuse existing chart components**: When building a detail page for a standalone entity that shares data with an existing pursuit-level view, import the existing section components (`BubbleChartSection`, `LeasingActivitySection`, `OccupancySection`) and compute the required `PropertyMetrics` interface from the raw data. Avoid rewriting chart/visualization logic.
+- **Summary table before detail table**: For unit-level data, always provide a bedroom-grouped summary table (count, avg sqft, avg rent, avg $/SF, avg DOM, available) above the full rent roll. Clicking a summary row should filter the detail table below — users scan the summary first, then drill down.
+- **Null-guard JSONB values**: Hellodata's `building_quality` JSONB has entries where values are `null` even though keys are present. Always filter with `.filter(([, v]) => v != null && typeof v === 'number')` before calling `.toFixed()` or using in calculations. This applies to any JSONB column with mixed/sparse data.
+- **`occupancy_over_time` is unpopulated**: Hellodata's API does not populate the `occupancy_over_time` field for most properties. Derive occupancy from unit `availability_periods` (enter_market / exit_market dates) instead — this is what the existing `OccupancySection` already does.
+
+## Vercel Cron Jobs
+- **`vercel.json` cron config**: Add `{ "crons": [{ "path": "/api/cron/...", "schedule": "0 11 * * 1" }] }` at project root. The schedule is standard cron syntax in **UTC** (11:00 UTC = 5:00 AM CT).
+- **CRON_SECRET auth**: Vercel automatically sends `Authorization: Bearer <CRON_SECRET>` when invoking cron routes. Set `CRON_SECRET` in Vercel env vars. The route should check `req.headers.get('authorization')` against `Bearer ${process.env.CRON_SECRET}`.
+- **Self-calling API pattern**: The cron route can call the app's own API routes internally (e.g., `/api/hellodata/property?forceRefresh=true`). Use `NEXT_PUBLIC_APP_URL` or `VERCEL_URL` for the base URL. This reuses existing upsert/cache logic without duplication.
+- **Rate limiting external APIs**: When a cron job iterates over N entities calling an external API, add a delay between calls (e.g., `await new Promise(r => setTimeout(r, 500))`) to avoid rate limits. Log per-entity results for debugging.
+- **Hellodata refresh is non-destructive**: Each API call returns trailing historical data (unit `history`, `availability_periods`, `concessions_history`). The upsert + delete-and-reinsert pattern for units/concessions replaces current-state snapshots with fresh current-state snapshots — historical data lives inside the response, not across rows.
+- **`openssl` unavailable on Windows**: Use PowerShell to generate random hex strings: `-join ((1..32) | ForEach-Object { '{0:x2}' -f (Get-Random -Maximum 256) })`.
+
+## Hellodata Property API
+- **Cache-first, never auto-refresh**: The property endpoint should default to returning cached data if it exists, regardless of age. Use `forceRefresh=true` query param only for explicit user action or cron jobs. This prevents accidental API costs (~$0.50/call).
+- **Fetch log table**: Log every Hellodata API call to a `hellodata_fetch_log` table (fire-and-forget insert) for cost tracking and debugging. Include `hellodata_id`, `endpoint`, `response_status`, and `fetched_by`.

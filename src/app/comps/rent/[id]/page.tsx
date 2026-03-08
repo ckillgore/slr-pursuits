@@ -12,7 +12,9 @@ import {
     Star, Users, Wifi, Home, TrendingUp, RefreshCw, Link2, Check,
     ChevronDown, DollarSign, Clock, Filter,
 } from 'lucide-react';
-import { RentTrendsSection } from '@/components/pursuits/rent-comps/RentCompSections';
+import { RentTrendsSection, BubbleChartSection, LeasingActivitySection } from '@/components/pursuits/rent-comps/RentCompSections';
+import { getAverageAskingRent, getAverageEffectiveRent } from '@/lib/calculations/hellodataCalculations';
+import type { PropertyMetrics } from '@/components/pursuits/rent-comps/types';
 import type { HellodataUnit, HellodataProperty } from '@/types';
 
 
@@ -278,6 +280,81 @@ function UnitDetailsTab({ units }: { units: HellodataUnit[] }) {
 
     return (
         <div>
+            {/* ── Bedroom Summary Table ── */}
+            {(() => {
+                const groups = allBeds.map(b => {
+                    const bu = units.filter(u => u.bed === b);
+                    const priced = bu.filter(u => u.price);
+                    const effPriced = bu.filter(u => u.effective_price);
+                    const sqfted = bu.filter(u => u.sqft);
+                    const dommed = bu.filter(u => u.days_on_market != null);
+                    const avgPrice = priced.length > 0 ? priced.reduce((s, u) => s + u.price!, 0) / priced.length : null;
+                    const avgEff = effPriced.length > 0 ? effPriced.reduce((s, u) => s + u.effective_price!, 0) / effPriced.length : null;
+                    const avgSqft = sqfted.length > 0 ? sqfted.reduce((s, u) => s + u.sqft!, 0) / sqfted.length : null;
+                    const avgPsf = avgPrice && avgSqft ? avgPrice / avgSqft : null;
+                    const avgDom = dommed.length > 0 ? dommed.reduce((s, u) => s + u.days_on_market!, 0) / dommed.length : null;
+                    const availCount = bu.filter(u => u.availability === 'available').length;
+                    return { bed: b, count: bu.length, avgPrice, avgEff, avgSqft, avgPsf, avgDom, availCount };
+                });
+                const totalUnits = units.length;
+                const allPriced = units.filter(u => u.price);
+                const allEff = units.filter(u => u.effective_price);
+                const allSqft = units.filter(u => u.sqft);
+                const allDom = units.filter(u => u.days_on_market != null);
+                const totalAvgPrice = allPriced.length > 0 ? allPriced.reduce((s, u) => s + u.price!, 0) / allPriced.length : null;
+                const totalAvgEff = allEff.length > 0 ? allEff.reduce((s, u) => s + u.effective_price!, 0) / allEff.length : null;
+                const totalAvgSqft = allSqft.length > 0 ? allSqft.reduce((s, u) => s + u.sqft!, 0) / allSqft.length : null;
+                const totalAvgPsf = totalAvgPrice && totalAvgSqft ? totalAvgPrice / totalAvgSqft : null;
+                const totalAvgDom = allDom.length > 0 ? allDom.reduce((s, u) => s + u.days_on_market!, 0) / allDom.length : null;
+                const totalAvail = units.filter(u => u.availability === 'available').length;
+
+                return (
+                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-x-auto mb-6">
+                        <div className="px-4 py-3 border-b border-[var(--border)] bg-[var(--bg-primary)]">
+                            <h3 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Bedroom Summary</h3>
+                        </div>
+                        <table className="w-full text-xs min-w-[600px]">
+                            <thead>
+                                <tr className="border-b border-[var(--border)]">
+                                    <th className="text-left py-2 px-3 font-semibold text-[var(--text-muted)]">Type</th>
+                                    <th className="text-right py-2 px-3 font-semibold text-[var(--text-muted)]">Count</th>
+                                    <th className="text-right py-2 px-3 font-semibold text-[var(--text-muted)]">Avg Sqft</th>
+                                    <th className="text-right py-2 px-3 font-semibold text-[var(--text-muted)]">Avg Asking</th>
+                                    <th className="text-right py-2 px-3 font-semibold text-[var(--text-muted)]">Avg Effective</th>
+                                    <th className="text-right py-2 px-3 font-semibold text-[var(--text-muted)]">Avg $/SF</th>
+                                    <th className="text-right py-2 px-3 font-semibold text-[var(--text-muted)]">Avg DOM</th>
+                                    <th className="text-right py-2 px-3 font-semibold text-[var(--text-muted)]">Available</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {groups.map(g => (
+                                    <tr key={g.bed} className="border-b border-[var(--table-row-border)] hover:bg-[var(--bg-primary)] cursor-pointer" onClick={() => setBedFilter(g.bed)}>
+                                        <td className="py-2 px-3 font-semibold text-[var(--text-primary)]">{g.bed === 0 ? 'Studio' : `${g.bed} Bedroom`}</td>
+                                        <td className="py-2 px-3 text-right text-[var(--text-secondary)]">{g.count}</td>
+                                        <td className="py-2 px-3 text-right tabular-nums text-[var(--text-secondary)]">{g.avgSqft ? Math.round(g.avgSqft).toLocaleString() : '—'}</td>
+                                        <td className="py-2 px-3 text-right tabular-nums font-medium text-[var(--text-primary)]">{g.avgPrice ? fmtCurrency(Math.round(g.avgPrice)) : '—'}</td>
+                                        <td className="py-2 px-3 text-right tabular-nums text-emerald-600">{g.avgEff ? fmtCurrency(Math.round(g.avgEff)) : '—'}</td>
+                                        <td className="py-2 px-3 text-right tabular-nums text-[var(--text-secondary)]">{g.avgPsf ? `$${g.avgPsf.toFixed(2)}` : '—'}</td>
+                                        <td className="py-2 px-3 text-right tabular-nums text-[var(--text-muted)]">{g.avgDom != null ? Math.round(g.avgDom) : '—'}</td>
+                                        <td className="py-2 px-3 text-right">{g.availCount > 0 ? <span className="text-emerald-600 font-medium">{g.availCount}</span> : '—'}</td>
+                                    </tr>
+                                ))}
+                                <tr className="bg-[var(--bg-primary)] font-semibold">
+                                    <td className="py-2 px-3 text-[var(--text-primary)]">Total / Avg</td>
+                                    <td className="py-2 px-3 text-right text-[var(--text-primary)]">{totalUnits}</td>
+                                    <td className="py-2 px-3 text-right tabular-nums text-[var(--text-primary)]">{totalAvgSqft ? Math.round(totalAvgSqft).toLocaleString() : '—'}</td>
+                                    <td className="py-2 px-3 text-right tabular-nums text-[var(--text-primary)]">{totalAvgPrice ? fmtCurrency(Math.round(totalAvgPrice)) : '—'}</td>
+                                    <td className="py-2 px-3 text-right tabular-nums text-emerald-600">{totalAvgEff ? fmtCurrency(Math.round(totalAvgEff)) : '—'}</td>
+                                    <td className="py-2 px-3 text-right tabular-nums text-[var(--text-primary)]">{totalAvgPsf ? `$${totalAvgPsf.toFixed(2)}` : '—'}</td>
+                                    <td className="py-2 px-3 text-right tabular-nums text-[var(--text-primary)]">{totalAvgDom != null ? Math.round(totalAvgDom) : '—'}</td>
+                                    <td className="py-2 px-3 text-right text-[var(--text-primary)]">{totalAvail > 0 ? totalAvail : '—'}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                );
+            })()}
+
             {/* Filters */}
             <div className="flex flex-wrap items-center gap-3 mb-4">
                 <div className="flex items-center rounded-lg bg-[var(--bg-elevated)] p-0.5">
@@ -483,7 +560,7 @@ export default function RentCompDetailPage() {
     const { data: allPursuits = [] } = usePursuits();
     const linkMutation = useLinkRentComp();
 
-    const [activeTab, setActiveTab] = useState<'overview' | 'units' | 'trends' | 'concessions' | 'occupancy'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'units' | 'trends' | 'bubble' | 'leasing' | 'concessions' | 'occupancy'>('overview');
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [showLinkDropdown, setShowLinkDropdown] = useState(false);
 
@@ -517,14 +594,42 @@ export default function RentCompDetailPage() {
         }
     }, [property, id, linkMutation, queryClient]);
 
-    const compMetrics = useMemo(() => {
+    const compMetrics: PropertyMetrics[] = useMemo(() => {
         if (!property) return [];
+        const units = (property.units || []) as HellodataUnit[];
+        const concessions = (property.concessions || []) as any[];
+        const ask = getAverageAskingRent(units);
+        const eff = getAverageEffectiveRent(units);
+        const sqfts = units.filter(u => u.sqft).map(u => u.sqft!);
+        const avgSqft = sqfts.length > 0 ? sqfts.reduce((a, b) => a + b, 0) / sqfts.length : null;
+        const bedSet = new Set<number>();
+        units.forEach(u => { if (u.bed != null) bedSet.add(u.bed); });
+        const avail = units.filter(u => u.availability === 'available').length;
+        const domsArr = units.filter(u => u.days_on_market != null).map(u => u.days_on_market!);
+        const avgDom = domsArr.length > 0 ? domsArr.reduce((a, b) => a + b, 0) / domsArr.length : null;
+        const occ = property.occupancy_over_time;
+        const leasedPct = occ && Array.isArray(occ) && occ.length > 0 ? Math.round((occ[occ.length - 1]?.leased ?? 0) * 100) : null;
         return [{
             name: property.building_name || property.street_address || 'Property',
+            address: [property.street_address, property.city, property.state].filter(Boolean).join(', '),
             property,
-            units: (property.units || []) as any[],
-            concessions: (property.concessions || []) as any[],
-        }] as any[];
+            units,
+            concessions,
+            availableUnits: avail,
+            askingRent: ask,
+            effectiveRent: eff,
+            rentPSF: ask && avgSqft ? ask / avgSqft : null,
+            avgSqft: avgSqft ? Math.round(avgSqft) : null,
+            bedTypes: [...bedSet].sort((a, b) => a - b),
+            compType: 'primary' as const,
+            propertyId: property.id,
+            leasedPct,
+            concessionText: concessions.length > 0 ? concessions[0]?.concession_text || '' : '',
+            avgDaysOnMarket: avgDom ? Math.round(avgDom) : null,
+            avgDaysVacant: null,
+            vacancies: avail,
+            concessionPct: null,
+        }];
     }, [property]);
 
     if (isLoading) {
@@ -550,6 +655,8 @@ export default function RentCompDetailPage() {
         { id: 'overview' as const, label: 'Overview', icon: Home },
         { id: 'units' as const, label: `Units (${property.units?.length ?? 0})`, icon: Building2 },
         { id: 'trends' as const, label: 'Rent Trends', icon: TrendingUp },
+        { id: 'bubble' as const, label: 'Rent vs Size', icon: Filter },
+        { id: 'leasing' as const, label: 'Leasing', icon: Clock },
         { id: 'concessions' as const, label: 'Concessions', icon: DollarSign },
         { id: 'occupancy' as const, label: 'Occupancy', icon: Users },
     ];
@@ -698,6 +805,8 @@ export default function RentCompDetailPage() {
                 {activeTab === 'overview' && <OverviewTab property={property} />}
                 {activeTab === 'units' && <UnitDetailsTab units={property.units ?? []} />}
                 {activeTab === 'trends' && <RentTrendsSection comps={compMetrics} />}
+                {activeTab === 'bubble' && <BubbleChartSection comps={compMetrics} />}
+                {activeTab === 'leasing' && <LeasingActivitySection comps={compMetrics} />}
                 {activeTab === 'concessions' && <ConcessionsTab property={property} />}
                 {activeTab === 'occupancy' && <OccupancyTab property={property} />}
             </div>

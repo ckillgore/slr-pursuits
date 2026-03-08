@@ -83,7 +83,7 @@ function OverviewTab({ property }: { property: HellodataProperty }) {
         return flags;
     }, [property]);
 
-    const qualityScores = property.building_quality ? Object.entries(property.building_quality) : [];
+    const qualityScores = property.building_quality ? Object.entries(property.building_quality).filter(([, v]) => v != null && typeof v === 'number') : [];
     const fees = property.fees ? Object.entries(property.fees).filter(([, v]) => v != null && v !== '') : [];
 
     return (
@@ -126,9 +126,9 @@ function OverviewTab({ property }: { property: HellodataProperty }) {
                             <div key={key} className="flex items-center gap-3">
                                 <span className="text-xs text-[var(--text-muted)] w-24 capitalize">{key.replace(/_/g, ' ')}</span>
                                 <div className="flex-1 bg-[var(--bg-primary)] rounded-full h-2 overflow-hidden">
-                                    <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${Math.min(100, (val as number) * 20)}%` }} />
+                                    <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${Math.min(100, ((val as number) || 0) * 20)}%` }} />
                                 </div>
-                                <span className="text-xs font-semibold text-[var(--text-primary)] w-8 text-right">{(val as number).toFixed(1)}</span>
+                                <span className="text-xs font-semibold text-[var(--text-primary)] w-8 text-right">{((val as number) || 0).toFixed(1)}</span>
                             </div>
                         ))}
                     </div>

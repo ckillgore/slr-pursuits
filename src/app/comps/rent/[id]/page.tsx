@@ -12,7 +12,7 @@ import {
     Star, Users, Wifi, Home, TrendingUp, RefreshCw, Link2, Check,
     ChevronDown, DollarSign, Clock, Filter,
 } from 'lucide-react';
-import { RentTrendsSection, BubbleChartSection, LeasingActivitySection } from '@/components/pursuits/rent-comps/RentCompSections';
+import { RentTrendsSection, BubbleChartSection, LeasingActivitySection, OccupancySection } from '@/components/pursuits/rent-comps/RentCompSections';
 import { getAverageAskingRent, getAverageEffectiveRent } from '@/lib/calculations/hellodataCalculations';
 import type { PropertyMetrics } from '@/components/pursuits/rent-comps/types';
 import type { HellodataUnit, HellodataProperty } from '@/types';
@@ -487,64 +487,6 @@ function ConcessionsTab({ property }: { property: HellodataProperty }) {
     );
 }
 
-// ════════════════════════════════════════════════════════════
-// Occupancy Tab
-// ════════════════════════════════════════════════════════════
-
-function OccupancyTab({ property }: { property: HellodataProperty }) {
-    const data = property.occupancy_over_time ?? [];
-    if (data.length === 0) {
-        return (
-            <div className="text-center py-16">
-                <TrendingUp className="w-10 h-10 text-[var(--border-strong)] mx-auto mb-2" />
-                <p className="text-sm text-[var(--text-muted)]">No occupancy history available</p>
-            </div>
-        );
-    }
-
-    const maxLeased = Math.max(...data.map(d => d.leased));
-    const minLeased = Math.min(...data.map(d => d.leased));
-
-    return (
-        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-5">
-            <h3 className="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-4">Occupancy Over Time</h3>
-            <div className="h-48 flex items-end gap-1">
-                {data.map((d, i) => {
-                    const pct = d.leased * 100;
-                    return (
-                        <div key={i} className="flex-1 group relative flex flex-col items-center">
-                            <div
-                                className={`w-full rounded-t transition-colors ${pct >= 95 ? 'bg-emerald-500' : pct >= 90 ? 'bg-amber-500' : 'bg-red-500'}`}
-                                style={{ height: `${Math.max(4, (d.leased / Math.max(maxLeased, 1)) * 160)}px` }}
-                            />
-                            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-[var(--bg-card)] border border-[var(--border)] rounded px-1.5 py-0.5 text-[9px] font-medium text-[var(--text-primary)] opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-sm z-10">
-                                {pct.toFixed(1)}% — {d.as_of}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-            <div className="flex justify-between mt-2 text-[10px] text-[var(--text-faint)]">
-                <span>{data[0]?.as_of}</span>
-                <span>{data[data.length - 1]?.as_of}</span>
-            </div>
-            <div className="flex items-center gap-6 mt-4 pt-3 border-t border-[var(--table-row-border)] text-sm">
-                <div>
-                    <span className="text-[var(--text-muted)]">Current: </span>
-                    <span className="font-semibold text-[var(--text-primary)]">{(data[data.length - 1].leased * 100).toFixed(1)}%</span>
-                </div>
-                <div>
-                    <span className="text-[var(--text-muted)]">High: </span>
-                    <span className="font-medium text-emerald-600">{(maxLeased * 100).toFixed(1)}%</span>
-                </div>
-                <div>
-                    <span className="text-[var(--text-muted)]">Low: </span>
-                    <span className="font-medium text-red-500">{(minLeased * 100).toFixed(1)}%</span>
-                </div>
-            </div>
-        </div>
-    );
-}
 
 // ════════════════════════════════════════════════════════════
 // Main Detail Page
@@ -808,7 +750,7 @@ export default function RentCompDetailPage() {
                 {activeTab === 'bubble' && <BubbleChartSection comps={compMetrics} />}
                 {activeTab === 'leasing' && <LeasingActivitySection comps={compMetrics} />}
                 {activeTab === 'concessions' && <ConcessionsTab property={property} />}
-                {activeTab === 'occupancy' && <OccupancyTab property={property} />}
+                {activeTab === 'occupancy' && <OccupancySection comps={compMetrics} />}
             </div>
         </AppShell>
     );

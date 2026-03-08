@@ -187,3 +187,22 @@ _(Append new lessons below. Do not rewrite or delete existing entries.)_
 - **Stale closures in `onAuthStateChange`**: The listener is registered once (empty deps `[]`), so any state read inside it is frozen at mount time. Always use `useRef` to track values (like `profile`) that the listener needs to read at runtime. Reading state directly causes phantom "unauthenticated" states on every token refresh (~55 min).
 - **Harden `signOut`**: `supabase.auth.signOut()` throws if the session is already invalid. Always wrap in `try/catch` and proceed with state clearing + redirect regardless — users must never be trapped in an unrecoverable state.
 - **Tab-return session health check**: Add a `visibilitychange` listener that calls `getUser()` when the tab becomes visible. Sessions can expire while tabs are backgrounded; this catches it immediately instead of leaving a broken UI.
+
+## AI Investment Memo — Two-Pass Pipeline
+- **Gemini for data synthesis, Claude for prose**: Gemini excels at parsing large structured JSON into a fact-sheet. Claude excels at turning that fact-sheet into polished prose. The two-pass approach produces better results than either model alone.
+- **Factual tone > persuasive tone**: Users don't want fake IC recommendations from AI. Prompt the writer model to be factual/analytical with observations and assessments — not persuasive committee language. End with "Risk Considerations" instead of "Recommendation."
+- **Tell the AI about downstream exhibits**: When the app will append charts/tables below the narrative, tell the AI in the prompt so it references exhibits by label (e.g., "See Exhibit B") instead of reproducing data tables inline.
+- **Strip raw IDs from AI context**: Internal UUIDs (stage IDs, pursuit IDs) leak into AI-generated text if included in the data payload. Either strip them before sending or instruct the model to omit them.
+
+## Browser Print-to-PDF Limitations
+- **Dark mode bleeds through**: Browser `window.print()` captures current theme styling. Even with `@media print` CSS overrides, interactive components (buttons, toggles, colored table headers) render poorly. The more complex the UI, the worse the PDF.
+- **Interactive components can't be hidden selectively**: Mapbox zoom controls, chart toggle buttons, and tab selectors all appear in print output. Hiding them via CSS is fragile and incomplete.
+- **DOCX export > browser print for professional documents**: For institutional-quality output, programmatic DOCX generation (via the `docx` npm package) gives full control over fonts, margins, table formatting, and page breaks. Browser print should be a last resort, not the primary export.
+
+## DOCX Generation (docx npm package v9)
+- **`Buffer` → `Uint8Array` for NextResponse**: Node `Buffer` is not assignable to `NextResponse` body in strict TypeScript. Wrap in `new Uint8Array(buffer)`.
+- **`Paragraph[]` vs `(Paragraph | Table)[]`**: When building section content that mixes paragraphs and tables, type the array as `(Paragraph | Table)[]`. The `docx` package's `ISectionOptions.children` accepts this union.
+- **HTML → blocks parser**: A simple regex-based parser (`/<(h[1-3]|p|li)>.../) is sufficient for AI-generated HTML (no nested elements, no attributes). Handle `<table>` separately by extracting rows/cells first, then processing remaining text segments.
+- **Mapbox Static Images API**: `https://api.mapbox.com/styles/v1/mapbox/light-v11/static/pin-l+COLOR(lng,lat)/lng,lat,zoom/WxH@2x?access_token=TOKEN` generates a clean map image for embedding. Use `light-v11` style for print-friendly output.
+- **Cover page KPIs**: A small key-value table on the cover page (Units, Budget, YOC) gives the reader instant context before the narrative starts.
+

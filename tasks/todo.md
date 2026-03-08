@@ -269,6 +269,34 @@
 
 ---
 
+# AI Investment Memo & DOCX Export (3/7)
+
+## AI Memo Generation
+- [x] Two-pass AI pipeline: Gemini (analyst fact-sheet) → Claude (narrative writer)
+- [x] Update Claude prompt to factual/analytical tone (no IC recommendations)
+- [x] Save generated HTML to `executive_memo` column on pursuits
+- [x] DB migration: `20260307_executive_memo.sql` adds `executive_memo` text column
+
+## Editable Memo Page (`/pursuits/[id]/memo`)
+- [x] RichTextEditor for in-browser editing of AI-generated narrative
+- [x] Auto-save edits to Supabase via `useUpdatePursuit`
+- [x] Inline exhibit sections: Location Map, Financial Summary, Rent Comps, Leasing/Concessions, Land Comps, Sale Comps
+- [x] Dynamic exhibit labeling (A, B, C…) based on available data
+
+## DOCX Export
+- [x] `src/lib/docx/docxBuilder.ts` — programmatic DOCX builder with cover page, HTML→blocks parser, data tables
+- [x] `/api/ai-memo/export-docx` — server route fetching all Supabase data + Mapbox static image
+- [x] Download DOCX button on memo page with loading state
+- [x] Remove Print/PDF button (DOCX is sole export)
+
+## Future Enhancements
+- [ ] Increase Claude `max_tokens` to prevent narrative truncation on data-heavy pursuits
+- [ ] Remove raw stage UUIDs from AI-generated text
+- [ ] Add demographics ring data exhibit to DOCX
+- [ ] Weave exhibits inline within narrative sections (after corresponding headings)
+
+---
+
 # Future / Deferred Items
 
 - [ ] **Hellodata Market Rents/Pricing API** — AI-driven rent recommendations endpoint (costs ~$0.50/call). Deferred from initial Rent Comps integration. Endpoint: `POST /property/pricing`. Accepts subject property + settings (max_radius, listing_status, date range, include_outliers, building_ids). Returns recommended prices per unit type based on recently closed comps.

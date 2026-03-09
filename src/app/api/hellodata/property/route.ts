@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin-client';
 import { requireAuth } from '@/app/api/_lib/auth';
 
 /**
@@ -15,8 +16,16 @@ import { requireAuth } from '@/app/api/_lib/auth';
  * Costs 1 Hellodata request (~$0.50) only on first add or explicit refresh.
  */
 export async function GET(req: NextRequest) {
-    const { user, response: authError } = await requireAuth();
-    if (authError) return authError;
+    // Allow cron jobs to bypass user auth via shared secret
+    const cronSecret = process.env.CRON_SECRET;
+    const isCronCall = cronSecret && req.headers.get('x-cron-secret') === cronSecret;
+
+    let user: { id: string } | null = null;
+    if (!isCronCall) {
+        const { user: authedUser, response: authError } = await requireAuth();
+        if (authError) return authError;
+        user = authedUser;
+    }
 
     const apiKey = process.env.HELLODATA_API_KEY;
     if (!apiKey) {
@@ -31,7 +40,8 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'hellodataId is required' }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    // Use admin client for cron calls (bypasses RLS), regular client for user calls
+    const supabase = isCronCall ? createAdminClient() : await createClient();
 
     // Timing helper
     const timings: Record<string, number> = {};

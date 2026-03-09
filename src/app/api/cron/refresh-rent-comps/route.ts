@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin-client';
 
 /**
  * GET /api/cron/refresh-rent-comps
@@ -20,7 +20,7 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: 'HELLODATA_API_KEY not configured' }, { status: 500 });
     }
 
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const startTime = Date.now();
 
     try {
@@ -66,7 +66,7 @@ export async function GET(req: Request) {
             try {
                 const res = await fetch(
                     `${baseUrl}/api/hellodata/property?hellodataId=${encodeURIComponent(prop.hellodata_id)}&forceRefresh=true`,
-                    { headers: { 'Cookie': req.headers.get('cookie') || '' } }
+                    { headers: { 'x-cron-secret': cronSecret || '' } }
                 );
                 results.push({
                     hellodata_id: prop.hellodata_id,

@@ -34,6 +34,11 @@ export async function GET(req: Request) {
                 pursuit:pursuits!inner(id, name, stage_id)
             `);
         
+        console.log(`[cron] Query returned ${links?.length ?? 0} rows, error: ${linkErr?.message ?? 'none'}`);
+        if (links?.length) {
+            console.log('[cron] First row sample:', JSON.stringify(links[0]));
+        }
+
         if (linkErr) {
             console.error('[cron] Failed to fetch pursuit_rent_comps:', linkErr.message);
             return NextResponse.json({ error: linkErr.message }, { status: 500 });

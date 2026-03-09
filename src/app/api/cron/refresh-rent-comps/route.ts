@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin-client';
+import { refreshHellodataProperty } from '@/lib/hellodata/refresh-property';
 
 /**
  * GET /api/cron/refresh-rent-comps
  * 
  * Vercel Cron — runs every Monday at 5:00 AM CT (11:00 UTC).
- * Refreshes all Hellodata properties linked to active (non-archived) pursuits.
+ * Refreshes all Hellodata properties linked to pursuits.
+ * 
+ * Uses the admin Supabase client (service role key) to bypass RLS,
+ * and calls the HelloData API directly — no internal HTTP self-calls.
  */
 export async function GET(req: Request) {
     // Verify cron secret (Vercel sets this header for cron invocations)
@@ -24,8 +28,7 @@ export async function GET(req: Request) {
     const startTime = Date.now();
 
     try {
-        // 1. Get all unique hellodata_ids linked to active pursuits
-        //    "Active" = pursuits whose stage is NOT in the archived/dead stages
+        // 1. Get all unique hellodata_ids linked to pursuits
         const { data: links, error: linkErr } = await supabase
             .from('pursuit_rent_comps')
             .select(`
@@ -33,11 +36,8 @@ export async function GET(req: Request) {
                 property:hellodata_properties!inner(id, hellodata_id, fetched_at),
                 pursuit:pursuits!inner(id, name, stage_id)
             `);
-        
+
         console.log(`[cron] Query returned ${links?.length ?? 0} rows, error: ${linkErr?.message ?? 'none'}`);
-        if (links?.length) {
-            console.log('[cron] First row sample:', JSON.stringify(links[0]));
-        }
 
         if (linkErr) {
             console.error('[cron] Failed to fetch pursuit_rent_comps:', linkErr.message);
@@ -60,31 +60,17 @@ export async function GET(req: Request) {
         const properties = [...propertyMap.values()];
         console.log(`[cron] Found ${properties.length} unique properties to refresh`);
 
-        // 2. Refresh each property via internal API call
+        // 2. Refresh each property directly (no HTTP self-calls)
         const results: { hellodata_id: string; status: string; ms: number }[] = [];
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL 
-            ? `https://${process.env.VERCEL_URL}` 
-            : 'http://localhost:3000';
-        
+
         for (const prop of properties) {
             const propStart = Date.now();
-            try {
-                const res = await fetch(
-                    `${baseUrl}/api/hellodata/property?hellodataId=${encodeURIComponent(prop.hellodata_id)}&forceRefresh=true`,
-                    { headers: { 'x-cron-secret': cronSecret || '' } }
-                );
-                results.push({
-                    hellodata_id: prop.hellodata_id,
-                    status: res.ok ? 'success' : `error:${res.status}`,
-                    ms: Date.now() - propStart,
-                });
-            } catch (err: any) {
-                results.push({
-                    hellodata_id: prop.hellodata_id,
-                    status: `error:${err.message}`,
-                    ms: Date.now() - propStart,
-                });
-            }
+            const result = await refreshHellodataProperty(supabase, prop.hellodata_id, apiKey);
+            results.push({
+                hellodata_id: prop.hellodata_id,
+                status: result.success ? 'success' : `error:${result.error}`,
+                ms: Date.now() - propStart,
+            });
 
             // Rate limit: wait 500ms between requests to avoid overwhelming Hellodata API
             await new Promise(resolve => setTimeout(resolve, 500));

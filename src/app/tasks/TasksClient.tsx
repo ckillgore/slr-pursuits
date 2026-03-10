@@ -5,8 +5,16 @@ import { useAuth } from '@/components/AuthProvider';
 import { useMyTasks } from '@/hooks/useSupabaseQueries';
 import { TaskDetailPanel } from '@/components/shared/TaskDetailPanel';
 import { CheckSquare, Calendar, Building2, Clock, AlertCircle } from 'lucide-react';
-import type { PursuitChecklistTask, PursuitMilestone } from '@/types';
-import { STATUS_CONFIG } from '@/lib/constants';
+import type { PursuitChecklistTask, PursuitMilestone, ChecklistTaskStatus } from '@/types';
+
+const STATUS_CONFIG: Record<ChecklistTaskStatus, { label: string; color: string; bg: string }> = {
+    not_applicable: { label: 'N/A', color: 'var(--text-faint)', bg: 'var(--bg-primary)' },
+    not_started: { label: 'Not Started', color: 'var(--text-secondary)', bg: 'var(--bg-elevated)' },
+    in_progress: { label: 'In Progress', color: '#3B82F6', bg: '#EFF6FF' },
+    in_review: { label: 'In Review', color: '#8B5CF6', bg: '#F5F3FF' },
+    blocked: { label: 'Blocked', color: '#EF4444', bg: '#FEF2F2' },
+    complete: { label: 'Complete', color: 'var(--success)', bg: 'var(--success-bg)' },
+};
 
 export function TasksClient() {
     const { profile } = useAuth();
@@ -158,8 +166,6 @@ export function TasksClient() {
                     <div className="fixed inset-0 bg-black/10 z-30" onClick={() => setSelectedTask(null)} />
                     <TaskDetailPanel 
                         task={selectedTask} 
-                        pursuitId={(selectedTask as any).pursuit_id} 
-                        milestones={[]} 
                         onClose={() => setSelectedTask(null)} 
                     />
                 </>

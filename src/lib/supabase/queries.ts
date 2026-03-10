@@ -3,6 +3,7 @@
  * Used by TanStack Query hooks for caching, deduplication, and optimistic updates.
  */
 import { createClient } from './client';
+import type { PursuitTeamMember, ExternalTaskParty } from '@/types';
 import type {
     Pursuit,
     OnePager,
@@ -2092,4 +2093,19 @@ export async function addExternalTaskParty(party: Omit<ExternalTaskParty, 'id' |
         .single();
     if (error) throw error;
     return data as ExternalTaskParty;
+}
+
+export async function fetchMyTasks(userId: string): Promise<(import('@/types').PursuitChecklistTask & { pursuit: { id: string, name: string, stage: string } })[]> {
+    const { data, error } = await supabase
+        .from('pursuit_checklist_tasks')
+        .select(`
+            *,
+            pursuit:pursuits!pursuit_id(id, name, stage)
+        `)
+        .eq('assigned_to', userId)
+        .eq('assigned_to_type', 'internal')
+        .order('due_date', { ascending: true, nullsFirst: false });
+        
+    if (error) throw error;
+    return data as (import('@/types').PursuitChecklistTask & { pursuit: { id: string, name: string, stage: string } })[];
 }

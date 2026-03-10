@@ -44,7 +44,7 @@ export default async function ExternalTaskPortalPage({ params }: { params: { tok
 
     return (
         <main className="min-h-screen bg-gray-50 text-[var(--text-primary)]">
-            <PortalClient task={task} pursuitName={task.pursuit?.name} externalParty={task.external_party} initialNotes={notes || []} />
+            <PortalClient task={task} pursuitName={task.pursuit?.name} externalParty={task.external_party} initialNotes={(notes || []).map((n: any) => ({ ...n, user: Array.isArray(n.user) ? n.user[0] : n.user })) as any} />
         </main>
     );
 }

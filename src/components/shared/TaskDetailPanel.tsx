@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
 import {
     ClipboardList,
     MessageSquare,
@@ -26,11 +25,13 @@ import {
 import type { PursuitChecklistTask, ChecklistTaskStatus, TaskNote, TaskActivityLog } from '@/types';
 
 // Constants
-const ALL_STATUSES: ChecklistTaskStatus[] = ['not_applicable', 'not_started', 'in_progress', 'complete'];
+const ALL_STATUSES: ChecklistTaskStatus[] = ['not_applicable', 'not_started', 'in_progress', 'in_review', 'blocked', 'complete'];
 const STATUS_CONFIG: Record<ChecklistTaskStatus, { label: string; color: string; bg: string }> = {
     not_applicable: { label: 'N/A', color: 'var(--text-faint)', bg: 'var(--bg-primary)' },
     not_started: { label: 'Not Started', color: 'var(--text-secondary)', bg: 'var(--bg-elevated)' },
     in_progress: { label: 'In Progress', color: '#3B82F6', bg: '#EFF6FF' },
+    in_review: { label: 'In Review', color: '#8B5CF6', bg: '#F5F3FF' },
+    blocked: { label: 'Blocked', color: '#EF4444', bg: '#FEF2F2' },
     complete: { label: 'Complete', color: 'var(--success)', bg: 'var(--success-bg)' },
 };
 
@@ -58,8 +59,12 @@ function timeAgo(dateString: string) {
 }
 
 function formatDate(dateStr: string) {
-    try { return format(new Date(dateStr + 'T00:00:00'), 'MMM d, yyyy'); } 
-    catch { return dateStr; }
+    try {
+        const date = new Date(dateStr + 'T00:00:00');
+        return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(date);
+    } catch {
+        return dateStr;
+    }
 }
 
 export function TaskDetailPanel({

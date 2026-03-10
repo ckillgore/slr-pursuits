@@ -200,11 +200,18 @@ export function AuthProvider({
                 hadSessionRef.current = true;
                 setIsSessionLost(false);
                 setUser(currentUser);
-                const p = await fetchProfile(currentUser.id);
-                if (mounted) {
-                    setProfile(p);
-                    if (!p) scheduleProfileRetry(currentUser.id);
+                
+                // Skip fetch if we already received the correct SSR profile
+                if (initialProfile && currentUser.id === initialUser?.id) {
+                    setProfile(initialProfile);
+                } else {
+                    const p = await fetchProfile(currentUser.id);
+                    if (mounted) {
+                        setProfile(p);
+                        if (!p) scheduleProfileRetry(currentUser.id);
+                    }
                 }
+                
                 setIsLoading(false);
             }
         );

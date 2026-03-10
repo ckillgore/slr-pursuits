@@ -283,7 +283,7 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
 
 
 // ============================================================
-// Occupancy Trends â€” derived from availability_periods
+// Occupancy Trends — derived from availability_periods
 // ============================================================
 export function OccupancySection({ comps }: { comps: PropertyMetrics[] }) {
     // Derive occupancy over time from unit availability_periods
@@ -342,7 +342,7 @@ export function OccupancySection({ comps }: { comps: PropertyMetrics[] }) {
             };
         });
 
-        // Summary cards â€” current snapshot
+        // Summary cards — current snapshot
         const summary = comps.map(c => {
             const totalUnits = c.property.number_units ?? 0;
             let onMarketNow = 0;
@@ -364,8 +364,8 @@ export function OccupancySection({ comps }: { comps: PropertyMetrics[] }) {
 
             return {
                 name: c.name,
-                leased: leasedPct !== null ? leasedPct.toFixed(1) : 'â€”',
-                exposure: exposurePct !== null ? exposurePct.toFixed(1) : 'â€”',
+                leased: leasedPct !== null ? leasedPct.toFixed(1) : '—',
+                exposure: exposurePct !== null ? exposurePct.toFixed(1) : '—',
                 totalUnits,
                 onMarket: onMarketNow,
             };
@@ -405,7 +405,7 @@ export function OccupancySection({ comps }: { comps: PropertyMetrics[] }) {
 }
 
 // ============================================================
-// Leasing Activity â€” derived from availability_periods exit dates
+// Leasing Activity — derived from availability_periods exit dates
 // ============================================================
 export function LeasingActivitySection({ comps }: { comps: PropertyMetrics[] }) {
     const [groupBy, setGroupBy] = useState<'property' | 'bed'>('property');
@@ -480,7 +480,7 @@ export function LeasingActivitySection({ comps }: { comps: PropertyMetrics[] }) 
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                     <h3 className="text-sm font-semibold text-[var(--text-primary)]">Leasing Activity</h3>
-                    <p className="text-xs text-[var(--text-muted)]">Estimated leases per week (units exiting market) â€” trailing {trailingWeeks} weeks.</p>
+                    <p className="text-xs text-[var(--text-muted)]">Estimated leases per week (units exiting market) — trailing {trailingWeeks} weeks.</p>
                 </div>
                 <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
                     {(['property', 'bed'] as const).map(g => (
@@ -514,7 +514,7 @@ export function LeasingActivitySection({ comps }: { comps: PropertyMetrics[] }) 
                                 </td>
                                 {row.counts.map((count, wi) => (
                                     <td key={wi} className={`py-2 px-1.5 text-center ${count > 0 ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-faint)]'}`}>
-                                        {count > 0 ? count : 'â€”'}
+                                        {count > 0 ? count : '—'}
                                     </td>
                                 ))}
                                 <td className="py-2 px-2 text-center font-semibold text-[var(--accent)] border-l-2 border-[var(--border)]">{row.total}</td>
@@ -526,7 +526,7 @@ export function LeasingActivitySection({ comps }: { comps: PropertyMetrics[] }) 
                             <td className="py-2.5 px-3 text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10">Total</td>
                             {weekLabels.map((_, wi) => {
                                 const weekTotal = rows.reduce((s, r) => s + r.counts[wi], 0);
-                                return <td key={wi} className="py-2.5 px-1.5 text-center text-[var(--text-primary)]">{weekTotal > 0 ? weekTotal : 'â€”'}</td>;
+                                return <td key={wi} className="py-2.5 px-1.5 text-center text-[var(--text-primary)]">{weekTotal > 0 ? weekTotal : '—'}</td>;
                             })}
                             <td className="py-2.5 px-2 text-center text-[var(--accent)] border-l-2 border-[var(--border)]">{rows.reduce((s, r) => s + r.total, 0)}</td>
                             <td className="py-2.5 px-2 text-center text-[var(--text-secondary)]">{(rows.reduce((s, r) => s + r.total, 0) / trailingWeeks).toFixed(1)}</td>
@@ -588,7 +588,7 @@ export function ConcessionsSection({ comps }: { comps: PropertyMetrics[] }) {
 // ============================================================
 export function FeesSection({ comps }: { comps: PropertyMetrics[] }) {
     const fmtFee = (v: unknown) => {
-        if (v === null || v === undefined) return 'â€”';
+        if (v === null || v === undefined) return '—';
         if (typeof v === 'number') return `$${v.toLocaleString()}`;
         return String(v);
     };
@@ -612,7 +612,7 @@ export function FeesSection({ comps }: { comps: PropertyMetrics[] }) {
         <div className="space-y-3">
             <div>
                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">Fees & Other Income</h3>
-                <p className="text-xs text-[var(--text-muted)]">Fee comparison across comp set â€” informs other income projections.</p>
+                <p className="text-xs text-[var(--text-muted)]">Fee comparison across comp set — informs other income projections.</p>
             </div>
             <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
                 <table className="w-full text-xs min-w-[400px]">
@@ -691,7 +691,7 @@ export function QualitySection({ comps }: { comps: PropertyMetrics[] }) {
                                                         </div>
                                                         <span className="font-medium text-[var(--text-primary)] w-8">{pct}%</span>
                                                     </div>
-                                                ) : <span className="text-[var(--text-faint)] text-center block">â€”</span>}
+                                                ) : <span className="text-[var(--text-faint)] text-center block">—</span>}
                                             </td>
                                         );
                                     })}
@@ -716,7 +716,7 @@ export function QualitySection({ comps }: { comps: PropertyMetrics[] }) {
                                 {comps.map((c, i) => (
                                     <th key={i} className="text-center py-2.5 px-3 font-semibold text-[var(--accent)] min-w-[110px] truncate" colSpan={1}>
                                         {c.name}
-                                        {c.property.review_analysis?.count_reviews ? <div className="text-[10px] font-normal text-[var(--text-muted)]">{c.property.review_analysis.count_reviews} reviews Â· {((c.property.review_analysis.avg_score ?? 0) * 100).toFixed(0)}% positive</div> : null}
+                                        {c.property.review_analysis?.count_reviews ? <div className="text-[10px] font-normal text-[var(--text-muted)]">{c.property.review_analysis.count_reviews} reviews · {((c.property.review_analysis.avg_score ?? 0) * 100).toFixed(0)}% positive</div> : null}
                                     </th>
                                 ))}
                             </tr>
@@ -751,12 +751,12 @@ export function QualitySection({ comps }: { comps: PropertyMetrics[] }) {
 // ============================================================
 export function MarketContextSection({ comps }: { comps: PropertyMetrics[] }) {
     const fmtNum = (v: unknown, prefix = '') => {
-        if (v === null || v === undefined) return 'â€”';
+        if (v === null || v === undefined) return '—';
         if (typeof v === 'number') return `${prefix}${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
         return String(v);
     };
     const fmtPct = (v: unknown) => {
-        if (v === null || v === undefined) return 'â€”';
+        if (v === null || v === undefined) return '—';
         if (typeof v === 'number') return `${(v * 100).toFixed(1)}%`;
         return String(v);
     };
@@ -792,10 +792,10 @@ export function MarketContextSection({ comps }: { comps: PropertyMetrics[] }) {
                         <tbody>
                             {[
                                 { label: 'Revenue Management', fn: (c: PropertyMetrics) => c.property.pricing_strategy?.is_using_rev_management ? 'âœ“ Yes' : 'âœ— No' },
-                                { label: 'Avg Price Change', fn: (c: PropertyMetrics) => { const v = c.property.pricing_strategy?.avg_price_change; return v != null ? `${(v * 100).toFixed(1)}%` : 'â€”'; } },
-                                { label: 'Avg Update Frequency', fn: (c: PropertyMetrics) => { const v = c.property.pricing_strategy?.avg_duration; return v != null ? `Every ${v.toFixed(1)} days` : 'â€”'; } },
-                                { label: 'Avg Days on Market', fn: (c: PropertyMetrics) => { const v = c.property.pricing_strategy?.avg_time_on_market; return v != null ? `${v.toFixed(0)} days` : 'â€”'; } },
-                                { label: 'Price Updates Tracked', fn: (c: PropertyMetrics) => { const v = c.property.pricing_strategy?.count_prices; return v != null ? v.toLocaleString() : 'â€”'; } },
+                                { label: 'Avg Price Change', fn: (c: PropertyMetrics) => { const v = c.property.pricing_strategy?.avg_price_change; return v != null ? `${(v * 100).toFixed(1)}%` : '—'; } },
+                                { label: 'Avg Update Frequency', fn: (c: PropertyMetrics) => { const v = c.property.pricing_strategy?.avg_duration; return v != null ? `Every ${v.toFixed(1)} days` : '—'; } },
+                                { label: 'Avg Days on Market', fn: (c: PropertyMetrics) => { const v = c.property.pricing_strategy?.avg_time_on_market; return v != null ? `${v.toFixed(0)} days` : '—'; } },
+                                { label: 'Price Updates Tracked', fn: (c: PropertyMetrics) => { const v = c.property.pricing_strategy?.count_prices; return v != null ? v.toLocaleString() : '—'; } },
                             ].map((row, ri) => (
                                 <tr key={ri} className={`border-b border-[var(--bg-elevated)] ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]'}`}>
                                     <td className="py-2 px-4 font-medium text-[var(--text-secondary)] sticky left-0 bg-inherit z-10">{row.label}</td>
@@ -841,7 +841,7 @@ export function MarketContextSection({ comps }: { comps: PropertyMetrics[] }) {
 }
 
 // ============================================================
-// Rent Roll â€” estimated unit-level rent roll per property
+// Rent Roll — estimated unit-level rent roll per property
 // ============================================================
 export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
     const [selectedComp, setSelectedComp] = useState(0);
@@ -861,7 +861,7 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
             return entered && notExited;
         });
         if (isOnMarket) return 'vacant';
-        // Check if exiting soon (within 30 days) â€” "notice"
+        // Check if exiting soon (within 30 days) — "notice"
         const thirtyOut = new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const isNotice = periods.some(ap => {
             if (!ap.enter_market) return false;
@@ -917,7 +917,7 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
     const detailRows = useMemo(() => {
         return comp.units
             .map((u: HellodataUnit) => ({
-                unit: u.unit_name || u.floorplan_name || 'â€”',
+                unit: u.unit_name || u.floorplan_name || '—',
                 bed: u.bed,
                 bath: u.bath,
                 sqft: u.sqft,
@@ -932,7 +932,7 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
             .sort((a, b) => (a.bed ?? -1) - (b.bed ?? -1) || (a.unit || '').localeCompare(b.unit || ''));
     }, [comp]);
 
-    const fmt = (v: number | null, dec = 0, prefix = '$') => v !== null ? `${prefix}${v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })}` : 'â€”';
+    const fmt = (v: number | null, dec = 0, prefix = '$') => v !== null ? `${prefix}${v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })}` : '—';
 
     // Totals
     const totalCount = summaryRows.reduce((s, r) => s + r.count, 0);
@@ -1012,12 +1012,12 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                                             {row.occupancyPct.toFixed(1)}%
                                         </span>
                                     </td>
-                                    <td className="py-2 px-2 text-center">{row.avgSqft ? `${Math.round(row.avgSqft)} ftÂ²` : 'â€”'}</td>
+                                    <td className="py-2 px-2 text-center">{row.avgSqft ? `${Math.round(row.avgSqft)} ft²` : '—'}</td>
                                     <td className="py-2 px-2 text-center font-medium">{fmt(row.avgRent)}</td>
                                     <td className="py-2 px-2 text-center">{fmt(row.rentPsf, 2)}/sf</td>
                                     <td className="py-2 px-2 text-center font-medium">{fmt(row.avgEff)}</td>
                                     <td className="py-2 px-2 text-center">{fmt(row.effPsf, 2)}/sf</td>
-                                    <td className="py-2 px-2 text-center text-[var(--text-muted)]">{row.avgDom !== null ? `${Math.round(row.avgDom)}d` : 'â€”'}</td>
+                                    <td className="py-2 px-2 text-center text-[var(--text-muted)]">{row.avgDom !== null ? `${Math.round(row.avgDom)}d` : '—'}</td>
                                 </tr>
                             ))}
                             {/* Totals */}
@@ -1026,13 +1026,13 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                                 <td className="py-2.5 px-2 text-center">{totalCount}</td>
                                 <td className="py-2.5 px-2 text-center text-[var(--success)]">{totalOccupied}</td>
                                 <td className="py-2.5 px-2 text-center text-[#EF4444]">{totalVacant}</td>
-                                <td className="py-2.5 px-2 text-center">{totalCount > 0 ? `${((totalOccupied / totalCount) * 100).toFixed(1)}%` : 'â€”'}</td>
-                                <td className="py-2.5 px-2 text-center">{comp.avgSqft ? `${Math.round(comp.avgSqft)} ftÂ²` : 'â€”'}</td>
+                                <td className="py-2.5 px-2 text-center">{totalCount > 0 ? `${((totalOccupied / totalCount) * 100).toFixed(1)}%` : '—'}</td>
+                                <td className="py-2.5 px-2 text-center">{comp.avgSqft ? `${Math.round(comp.avgSqft)} ft²` : '—'}</td>
                                 <td className="py-2.5 px-2 text-center">{fmt(comp.askingRent)}</td>
-                                <td className="py-2.5 px-2 text-center">{comp.rentPSF ? `${fmt(comp.rentPSF, 2)}/sf` : 'â€”'}</td>
+                                <td className="py-2.5 px-2 text-center">{comp.rentPSF ? `${fmt(comp.rentPSF, 2)}/sf` : '—'}</td>
                                 <td className="py-2.5 px-2 text-center">{fmt(comp.effectiveRent)}</td>
-                                <td className="py-2.5 px-2 text-center">{comp.effectiveRent && comp.avgSqft ? `${fmt(comp.effectiveRent / comp.avgSqft, 2)}/sf` : 'â€”'}</td>
-                                <td className="py-2.5 px-2 text-center text-[var(--text-muted)]">{comp.avgDaysOnMarket !== null ? `${Math.round(comp.avgDaysOnMarket)}d` : 'â€”'}</td>
+                                <td className="py-2.5 px-2 text-center">{comp.effectiveRent && comp.avgSqft ? `${fmt(comp.effectiveRent / comp.avgSqft, 2)}/sf` : '—'}</td>
+                                <td className="py-2.5 px-2 text-center text-[var(--text-muted)]">{comp.avgDaysOnMarket !== null ? `${Math.round(comp.avgDaysOnMarket)}d` : '—'}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1058,8 +1058,8 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                             {detailRows.map((row, ri) => (
                                 <tr key={ri} className={`border-b border-[var(--bg-elevated)] ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]'}`}>
                                     <td className="py-1.5 px-3 font-medium text-[var(--text-secondary)] sticky left-0 bg-inherit z-10">{row.unit}</td>
-                                    <td className="py-1.5 px-2 text-center">{row.bed === null ? 'â€”' : row.bed === 0 ? 'Studio' : `${row.bed}/${row.bath ?? '?'}`}</td>
-                                    <td className="py-1.5 px-2 text-center">{row.sqft ? `${row.sqft}` : 'â€”'}</td>
+                                    <td className="py-1.5 px-2 text-center">{row.bed === null ? '—' : row.bed === 0 ? 'Studio' : `${row.bed}/${row.bath ?? '?'}`}</td>
+                                    <td className="py-1.5 px-2 text-center">{row.sqft ? `${row.sqft}` : '—'}</td>
                                     <td className="py-1.5 px-2 text-center">
                                         <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ${row.status === 'occupied' ? 'bg-[var(--success-bg)] text-[var(--success)]' :
                                             row.status === 'notice' ? 'bg-[var(--warning-bg)] text-[var(--warning)]' :
@@ -1072,8 +1072,8 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                                     <td className="py-1.5 px-2 text-center">{fmt(row.rentPsf, 2)}/sf</td>
                                     <td className="py-1.5 px-2 text-center font-medium">{fmt(row.effRent)}</td>
                                     <td className="py-1.5 px-2 text-center">{fmt(row.effPsf, 2)}/sf</td>
-                                    <td className="py-1.5 px-2 text-center text-[var(--text-muted)]">{row.dom !== null ? `${row.dom}d` : 'â€”'}</td>
-                                    <td className="py-1.5 px-2 text-left text-[var(--text-muted)] truncate max-w-[120px]">{row.floorplan || 'â€”'}</td>
+                                    <td className="py-1.5 px-2 text-center text-[var(--text-muted)]">{row.dom !== null ? `${row.dom}d` : '—'}</td>
+                                    <td className="py-1.5 px-2 text-left text-[var(--text-muted)] truncate max-w-[120px]">{row.floorplan || '—'}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -1086,7 +1086,7 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
 }
 
 // ============================================================
-// Comp Map â€” Mapbox GL map with markers for each comp
+// Comp Map — Mapbox GL map with markers for each comp
 // ============================================================
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -1139,7 +1139,7 @@ export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
                 // Add markers with popups
                 mappableComps.forEach((c, i) => {
                     const color = c.compType === 'primary' ? COMP_COLORS[i % COMP_COLORS.length] : '#94A3B8';
-                    const fmtC = (v: number | null) => v !== null ? `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : 'â€”';
+                    const fmtC = (v: number | null) => v !== null ? `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—';
 
                     const popup = new mbgl.Popup({
                         offset: 25,
@@ -1152,8 +1152,8 @@ export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; font-size: 11px;">
                                 <span style="color: var(--text-muted);">Asking:</span><span style="font-weight: 500;">${fmtC(c.askingRent)}</span>
                                 <span style="color: var(--text-muted);">Effective:</span><span style="font-weight: 500;">${fmtC(c.effectiveRent)}</span>
-                                <span style="color: var(--text-muted);">Units:</span><span style="font-weight: 500;">${c.property.number_units ?? 'â€”'}</span>
-                                <span style="color: var(--text-muted);">Leased:</span><span style="font-weight: 500;">${c.leasedPct !== null ? c.leasedPct.toFixed(1) + '%' : 'â€”'}</span>
+                                <span style="color: var(--text-muted);">Units:</span><span style="font-weight: 500;">${c.property.number_units ?? '—'}</span>
+                                <span style="color: var(--text-muted);">Leased:</span><span style="font-weight: 500;">${c.leasedPct !== null ? c.leasedPct.toFixed(1) + '%' : '—'}</span>
                             </div>
                         </div>
                     `);

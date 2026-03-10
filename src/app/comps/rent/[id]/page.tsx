@@ -201,14 +201,14 @@ function OverviewTab({ property }: { property: HellodataProperty }) {
                         )}
                         {property.pricing_strategy.avg_duration != null && (
                             <div className="flex justify-between">
-                                <span className="text-[var(--text-muted)]">Avg Lease Duration</span>
-                                <span className="font-medium text-[var(--text-primary)]">{property.pricing_strategy.avg_duration} months</span>
+                                <span className="text-[var(--text-muted)]">Avg Update Frequency</span>
+                                <span className="font-medium text-[var(--text-primary)]">{Math.round(property.pricing_strategy.avg_duration)} days</span>
                             </div>
                         )}
                         {property.pricing_strategy.avg_time_on_market != null && (
                             <div className="flex justify-between">
                                 <span className="text-[var(--text-muted)]">Avg Time on Market</span>
-                                <span className="font-medium text-[var(--text-primary)]">{property.pricing_strategy.avg_time_on_market} days</span>
+                                <span className="font-medium text-[var(--text-primary)]">{Math.round(property.pricing_strategy.avg_time_on_market)} days</span>
                             </div>
                         )}
                         {property.pricing_strategy.count_prices != null && (

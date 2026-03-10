@@ -1531,14 +1531,22 @@ export async function deleteChecklistInstance(pursuitId: string) {
 }
 
 export async function reorderChecklistTasks(phaseId: string, orderedIds: string[]) {
-    const updates = orderedIds.map((id, i) => ({ id, phase_id: phaseId, sort_order: i }));
-    const { error } = await supabase.from('pursuit_checklist_tasks').upsert(updates, { onConflict: 'id' });
+    const results = await Promise.all(
+        orderedIds.map((id, sort_order) =>
+            supabase.from('pursuit_checklist_tasks').update({ phase_id: phaseId, sort_order }).eq('id', id)
+        )
+    );
+    const error = results.find(r => r.error)?.error;
     if (error) throw error;
 }
 
 export async function reorderChecklistItems(taskId: string, orderedIds: string[]) {
-    const updates = orderedIds.map((id, i) => ({ id, task_id: taskId, sort_order: i }));
-    const { error } = await supabase.from('pursuit_checklist_items').upsert(updates, { onConflict: 'id' });
+    const results = await Promise.all(
+        orderedIds.map((id, sort_order) =>
+            supabase.from('pursuit_checklist_items').update({ task_id: taskId, sort_order }).eq('id', id)
+        )
+    );
+    const error = results.find(r => r.error)?.error;
     if (error) throw error;
 }
 

@@ -5,7 +5,8 @@ import type { PursuitChecklistTask } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ExternalTaskPortalPage({ params }: { params: { token: string } }) {
+export default async function ExternalTaskPortalPage(props: { params: Promise<{ token: string }> }) {
+    const params = await props.params;
     const supabase = createAdminClient();
 
     // 1. Fetch task by token

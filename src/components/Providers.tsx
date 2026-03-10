@@ -5,6 +5,8 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { AuthProvider } from '@/components/AuthProvider';
 import { SessionGuard } from '@/components/SessionGuard';
+import type { User } from '@supabase/supabase-js';
+import type { UserProfile } from '@/components/AuthProvider';
 import { useThemeStore } from '@/store/useThemeStore';
 
 /**
@@ -22,7 +24,15 @@ function ThemeInitializer() {
     return null;
 }
 
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({ 
+    children, 
+    initialUser, 
+    initialProfile 
+}: { 
+    children: ReactNode;
+    initialUser?: User | null;
+    initialProfile?: UserProfile | null;
+}) {
     const [queryClient] = useState(() => {
         const handleAuthError = (error: unknown) => {
             const msg = error instanceof Error ? error.message : String(error);
@@ -57,7 +67,7 @@ export function Providers({ children }: { children: ReactNode }) {
     });
 
     return (
-        <AuthProvider>
+        <AuthProvider initialUser={initialUser} initialProfile={initialProfile}>
             <SessionGuard>
                 <QueryClientProvider client={queryClient}>
                     <ThemeInitializer />

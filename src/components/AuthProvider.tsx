@@ -41,11 +41,19 @@ export function useAuth() {
     return useContext(AuthContext);
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ 
+    children, 
+    initialUser, 
+    initialProfile 
+}: { 
+    children: ReactNode;
+    initialUser?: User | null;
+    initialProfile?: UserProfile | null;
+}) {
     const supabase = useRef(createClient()).current;
-    const [user, setUser] = useState<User | null>(null);
-    const [profile, setProfile] = useState<UserProfile | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [user, setUser] = useState<User | null>(initialUser ?? null);
+    const [profile, setProfile] = useState<UserProfile | null>(initialProfile ?? null);
+    const [isLoading, setIsLoading] = useState(!initialUser);
     const [isSessionLost, setIsSessionLost] = useState(false);
     const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
     /** Tracks whether we ever had a valid session (to distinguish "not yet loaded" from "lost") */
@@ -119,11 +127,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 if (currentUser) {
                     hadSessionRef.current = true;
                     setIsSessionLost(false);
-                    const p = await fetchProfile(currentUser.id);
-                    if (!mounted) return;
-                    setProfile(p);
-                    // If profile fetch failed, schedule a background retry
-                    if (!p) scheduleProfileRetry(currentUser.id);
+                    // Skip fetch if we already received the correct SSR profile
+                    if (initialProfile && currentUser.id === initialUser?.id) {
+                        setProfile(initialProfile);
+                    } else {
+                        const p = await fetchProfile(currentUser.id);
+                        if (!mounted) return;
+                        setProfile(p);
+                        // If profile fetch failed, schedule a background retry
+                        if (!p) scheduleProfileRetry(currentUser.id);
+                    }
                 }
             } catch (err) {
                 console.error('[Auth] Session init failed:', err);

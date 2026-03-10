@@ -4,6 +4,7 @@ import './globals.css';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Providers } from '@/components/Providers';
 import { Analytics } from '@vercel/analytics/next';
+import { createClient } from '@/lib/supabase/server';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -28,11 +29,24 @@ export const metadata: Metadata = {
  */
 const themeScript = `(function(){try{var m=document.cookie.match(/(?:^|;)\\s*slr-theme=([^;]*)/);if(m&&m[1]==='dark'){document.documentElement.setAttribute('data-theme','dark')}}catch(e){}})()`;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  let profile = null;
+  if (user) {
+      const { data } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+      if (data) profile = data;
+  }
+
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
@@ -40,7 +54,9 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] antialiased">
-        <Providers>{children}</Providers>
+        <Providers initialUser={user} initialProfile={profile}>
+            {children}
+        </Providers>
         <Analytics />
       </body>
     </html>

@@ -2108,17 +2108,17 @@ export async function addExternalTaskParty(party: Omit<ExternalTaskParty, 'id' |
     return data as ExternalTaskParty;
 }
 
-export async function fetchMyTasks(userId: string): Promise<(import('@/types').PursuitChecklistTask & { pursuit: { id: string, name: string, stage: string } })[]> {
+export async function fetchMyTasks(userId: string): Promise<(import('@/types').PursuitChecklistTask & { pursuit: { id: string, name: string, stage_id: string } })[]> {
     const { data, error } = await supabase
         .from('pursuit_checklist_tasks')
         .select(`
             *,
-            pursuit:pursuits!pursuit_id(id, name, stage)
+            pursuit:pursuits!pursuit_id(id, name, stage_id)
         `)
         .eq('assigned_to', userId)
         .or('assigned_to_type.eq.internal,assigned_to_type.is.null')
         .order('due_date', { ascending: true, nullsFirst: false });
         
     if (error) throw error;
-    return data as (import('@/types').PursuitChecklistTask & { pursuit: { id: string, name: string, stage: string } })[];
+    return data as (import('@/types').PursuitChecklistTask & { pursuit: { id: string, name: string, stage_id: string } })[];
 }

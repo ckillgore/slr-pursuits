@@ -87,7 +87,7 @@ export function TasksClient() {
                             const isSelected = selectedTask?.id === task.id;
                             const pursuitId = (task as any).pursuit_id;
                             const pursuitName = (task as any).pursuit?.name || 'Unknown Pursuit';
-                            const pursuitStage = (task as any).pursuit?.stage || 'Unknown Stage';
+                            const pursuitStage = (task as any).pursuit?.stage_id || 'Unknown Stage';
 
                             return (
                                 <button

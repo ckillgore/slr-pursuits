@@ -998,6 +998,8 @@ export function useUpdateChecklistTask() {
         }) => queries.updateChecklistTask(taskId, updates),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
+            qc.invalidateQueries({ queryKey: ['my-tasks'] });
+            qc.invalidateQueries({ queryKey: ['my-mention-count'] });
         },
     });
 }
@@ -1032,6 +1034,8 @@ export function useAddChecklistTask() {
         }) => queries.addChecklistTask(phaseId, pursuitId, task),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
+            qc.invalidateQueries({ queryKey: ['my-tasks'] });
+            qc.invalidateQueries({ queryKey: ['my-mention-count'] });
         },
     });
 }
@@ -1043,6 +1047,8 @@ export function useDeleteChecklistTask() {
             queries.deleteChecklistTask(id),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
+            qc.invalidateQueries({ queryKey: ['my-tasks'] });
+            qc.invalidateQueries({ queryKey: ['my-mention-count'] });
         },
     });
 }

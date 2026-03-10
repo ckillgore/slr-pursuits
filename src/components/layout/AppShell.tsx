@@ -195,14 +195,19 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                         </button>
 
-                        {/* Mention notification badge */}
-                        {mentionCount > 0 && (
-                            <div className="relative" title={`${mentionCount} mention${mentionCount > 1 ? 's' : ''}`}>
+                        {/* Mention & Task notification badge */}
+                        {(mentionCount > 0) && (
+                            <Link href="/tasks" className="relative hover:opacity-80 transition-opacity" title={`${mentionCount} unread action${mentionCount > 1 ? 's' : ''}`}>
                                 <Bell className="w-5 h-5 text-[var(--text-muted)]" />
                                 <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold text-white bg-[var(--danger)] rounded-full">
                                     {mentionCount > 99 ? '99+' : mentionCount}
                                 </span>
-                            </div>
+                            </Link>
+                        )}
+                        {(mentionCount === 0) && (
+                            <Link href="/tasks" className="relative hover:opacity-80 transition-opacity" title="No unread actions">
+                                <Bell className="w-5 h-5 text-[var(--text-muted)]" />
+                            </Link>
                         )}
 
                         {/* Desktop User Avatar + Dropdown */}

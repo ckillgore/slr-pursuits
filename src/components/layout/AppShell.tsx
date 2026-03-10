@@ -6,7 +6,10 @@ import { Building2, Settings, Plus, LayoutDashboard, BarChart3, FileSpreadsheet,
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { createClient } from '@/lib/supabase/client';
-import { useMyMentionCount } from '@/hooks/useSupabaseQueries';
+import { 
+    useMyMentionCount, 
+    useMyIncompleteTaskCount 
+} from '@/hooks/useSupabaseQueries';
 import { useThemeStore } from '@/store/useThemeStore';
 
 interface AppShellProps {
@@ -21,6 +24,7 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
     const { data: mentionCount = 0 } = useMyMentionCount(profile?.id);
+    const { data: pendingTaskCount = 0 } = useMyIncompleteTaskCount(profile?.id);
     const { theme, toggleTheme } = useThemeStore();
 
     // Change password state

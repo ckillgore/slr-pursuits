@@ -1903,6 +1903,12 @@ export async function fetchMyMentionCount(userId: string): Promise<number> {
         .select('id', { count: 'exact', head: true })
         .contains('mentions', [userId]);
         
+    if (mentionError) throw mentionError;
+    return mentionCount ?? 0;
+}
+
+/** Count incomplete tasks explicitly assigned to the user */
+export async function fetchMyIncompleteTaskCount(userId: string): Promise<number> {
     const { count: taskCount, error: taskError } = await supabase
         .from('pursuit_checklist_tasks')
         .select('id', { count: 'exact', head: true })
@@ -1911,12 +1917,12 @@ export async function fetchMyMentionCount(userId: string): Promise<number> {
         .neq('status', 'complete')
         .neq('status', 'not_applicable');
 
-    if (mentionError) throw mentionError;
     if (taskError) {
-        console.warn('Error fetching task count for badge:', taskError);
+        console.warn('Error fetching task count:', taskError);
+        return 0;
     }
     
-    return (mentionCount ?? 0) + (taskCount ?? 0);
+    return taskCount ?? 0;
 }
 
 /** Fetch all active user profiles (for @mention autocomplete) */

@@ -996,10 +996,32 @@ export function useUpdateChecklistTask() {
             pursuitId: string;
             updates: Partial<Pick<import('@/types').PursuitChecklistTask, 'status' | 'assigned_to' | 'assigned_to_type' | 'assigned_external_party_id' | 'external_portal_token' | 'external_portal_enabled' | 'due_date' | 'due_date_is_manual' | 'name' | 'description' | 'relative_milestone' | 'relative_due_days' | 'box_links'>>;
         }) => queries.updateChecklistTask(taskId, updates),
-        onSuccess: (_, { pursuitId }) => {
+        onMutate: async ({ taskId, pursuitId, updates }) => {
+            const queryKey = queryKeys.pursuitChecklist(pursuitId);
+            await qc.cancelQueries({ queryKey });
+            const previous = qc.getQueryData(queryKey);
+
+            // Optimistically update the cache
+            qc.setQueryData(queryKey, (old: import('@/types').PursuitChecklistPhase[] | undefined) => {
+                if (!old) return old;
+                return old.map(phase => ({
+                    ...phase,
+                    tasks: (phase.tasks ?? []).map(t => t.id === taskId ? { ...t, ...updates } : t)
+                }));
+            });
+
+            return { previous, queryKey };
+        },
+        onError: (err, newTodo, context) => {
+            if (context?.previous) {
+                qc.setQueryData(context.queryKey, context.previous);
+            }
+        },
+        onSettled: (_, __, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
             qc.invalidateQueries({ queryKey: ['my-tasks'] });
             qc.invalidateQueries({ queryKey: ['my-mention-count'] });
+            qc.invalidateQueries({ queryKey: ['my-incomplete-tasks-count'] });
         },
     });
 }
@@ -1195,6 +1217,15 @@ export function useMyMentionCount(userId: string | undefined) {
     return useQuery({
         queryKey: queryKeys.myMentionCount(userId ?? ''),
         queryFn: () => queries.fetchMyMentionCount(userId!),
+        enabled: !!userId,
+        refetchInterval: 60 * 1000,
+    });
+}
+
+export function useMyIncompleteTaskCount(userId: string | undefined) {
+    return useQuery({
+        queryKey: ['my-incomplete-tasks-count', userId],
+        queryFn: () => queries.fetchMyIncompleteTaskCount(userId!),
         enabled: !!userId,
         refetchInterval: 60 * 1000,
     });

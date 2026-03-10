@@ -991,7 +991,7 @@ export function useUpdateChecklistTask() {
         mutationFn: ({ taskId, pursuitId, updates }: {
             taskId: string;
             pursuitId: string;
-            updates: Partial<Pick<import('@/types').PursuitChecklistTask, 'status' | 'assigned_to' | 'due_date' | 'due_date_is_manual' | 'name' | 'description'>>;
+            updates: Partial<Pick<import('@/types').PursuitChecklistTask, 'status' | 'assigned_to' | 'due_date' | 'due_date_is_manual' | 'name' | 'description' | 'relative_milestone' | 'relative_due_days' | 'box_links'>>;
         }) => queries.updateChecklistTask(taskId, updates),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
@@ -1027,6 +1027,76 @@ export function useDeleteChecklistTask() {
     return useMutation({
         mutationFn: ({ id, pursuitId }: { id: string; pursuitId: string }) =>
             queries.deleteChecklistTask(id),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
+        },
+    });
+}
+
+export function useAddChecklistItem() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ taskId, label, sortOrder, pursuitId }: {
+            taskId: string; label: string; sortOrder: number; pursuitId: string;
+        }) => queries.addChecklistItem(taskId, label, sortOrder),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
+        },
+    });
+}
+
+export function useDeleteChecklistItem() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, pursuitId }: { id: string; pursuitId: string }) =>
+            queries.deleteChecklistItem(id),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
+        },
+    });
+}
+
+export function useDeleteChecklistPhase() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, pursuitId }: { id: string; pursuitId: string }) =>
+            queries.deleteChecklistPhase(id),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
+        },
+    });
+}
+
+export function useDeleteChecklistInstance() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ pursuitId }: { pursuitId: string }) =>
+            queries.deleteChecklistInstance(pursuitId),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitMilestones(pursuitId) });
+        },
+    });
+}
+
+export function useReorderChecklistTasks() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ phaseId, orderedIds, pursuitId }: {
+            phaseId: string; orderedIds: string[]; pursuitId: string;
+        }) => queries.reorderChecklistTasks(phaseId, orderedIds),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
+        },
+    });
+}
+
+export function useReorderChecklistItems() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ taskId, orderedIds, pursuitId }: {
+            taskId: string; orderedIds: string[]; pursuitId: string;
+        }) => queries.reorderChecklistItems(taskId, orderedIds),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
         },

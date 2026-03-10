@@ -1429,7 +1429,8 @@ export async function fetchPursuitChecklist(pursuitId: string): Promise<PursuitC
             *,
             pursuit_checklist_tasks(
                 *,
-                pursuit_checklist_items(*)
+                pursuit_checklist_items(*),
+                assigned_user:user_profiles!pursuit_checklist_tasks_assigned_to_fkey(id, full_name, email)
             )
         `)
         .eq('pursuit_id', pursuitId)
@@ -1439,6 +1440,7 @@ export async function fetchPursuitChecklist(pursuitId: string): Promise<PursuitC
         ...p,
         tasks: (p.pursuit_checklist_tasks ?? []).map((t: any) => ({
             ...t,
+            assigned_user: t.assigned_user ?? undefined,
             checklist_items: (t.pursuit_checklist_items ?? []).sort(
                 (a: any, b: any) => a.sort_order - b.sort_order
             ),
@@ -1450,7 +1452,7 @@ export async function fetchPursuitChecklist(pursuitId: string): Promise<PursuitC
 
 export async function updateChecklistTask(
     taskId: string,
-    updates: Partial<Pick<PursuitChecklistTask, 'status' | 'assigned_to' | 'due_date' | 'due_date_is_manual' | 'name' | 'description'>>
+    updates: Partial<Pick<PursuitChecklistTask, 'status' | 'assigned_to' | 'due_date' | 'due_date_is_manual' | 'name' | 'description' | 'relative_milestone' | 'relative_due_days' | 'box_links'>>
 ) {
     const { data, error } = await supabase
         .from('pursuit_checklist_tasks')
@@ -1517,6 +1519,28 @@ export async function addChecklistItem(
 
 export async function deleteChecklistItem(id: string) {
     const { error } = await supabase.from('pursuit_checklist_items').delete().eq('id', id);
+    if (error) throw error;
+}
+
+export async function deleteChecklistPhase(id: string) {
+    const { error } = await supabase.from('pursuit_checklist_phases').delete().eq('id', id);
+    if (error) throw error;
+}
+
+export async function deleteChecklistInstance(pursuitId: string) {
+    const { error } = await supabase.from('pursuit_checklist_instances').delete().eq('pursuit_id', pursuitId);
+    if (error) throw error;
+}
+
+export async function reorderChecklistTasks(phaseId: string, orderedIds: string[]) {
+    const updates = orderedIds.map((id, i) => ({ id, phase_id: phaseId, sort_order: i }));
+    const { error } = await supabase.from('pursuit_checklist_tasks').upsert(updates, { onConflict: 'id' });
+    if (error) throw error;
+}
+
+export async function reorderChecklistItems(taskId: string, orderedIds: string[]) {
+    const updates = orderedIds.map((id, i) => ({ id, task_id: taskId, sort_order: i }));
+    const { error } = await supabase.from('pursuit_checklist_items').upsert(updates, { onConflict: 'id' });
     if (error) throw error;
 }
 

@@ -666,6 +666,7 @@ export interface PursuitChecklistTask {
   completed_by: string | null;
   created_at: string;
   updated_at: string;
+  box_links?: { url: string; label: string; added_at: string }[];
   // Joined
   checklist_items?: PursuitChecklistItem[];
   assigned_user?: UserProfile;

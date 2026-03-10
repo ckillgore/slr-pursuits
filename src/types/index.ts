@@ -732,6 +732,22 @@ export interface TaskActivityLog {
   user?: UserProfile;
 }
 
+export interface TaskAttachment {
+  id: string;
+  task_id: string;
+  file_name: string;
+  storage_path: string;
+  content_type: string | null;
+  size_bytes: number | null;
+  uploaded_by: string | null;
+  uploaded_by_external_party_id: string | null;
+  created_at: string;
+  
+  // Joined
+  uploader?: UserProfile;
+  uploader_external?: ExternalTaskParty;
+}
+
 // --- Hellodata Rent Comps ---
 
 export interface HellodataProperty {

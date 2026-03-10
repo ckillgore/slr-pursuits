@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, Clock, MessageSquare, Briefcase, Paperclip, Send } from 'lucide-react';
 import { submitExternalNote, updateExternalTaskStatus } from './actions';
-import type { PursuitChecklistTask } from '@/types';
+import type { PursuitChecklistTask, ExternalTaskParty, TaskNote } from '@/types';
+import TaskAttachmentPanel from '@/components/shared/TaskAttachmentPanel';
 
 // Add type from the server component
 type PortalTask = PursuitChecklistTask & {
@@ -149,6 +150,14 @@ export default function PortalClient({
                     </div>
                 </div>
             )}
+
+            {/* Uploads Section */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 sm:p-8 mb-6">
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <Paperclip className="w-4 h-4 text-gray-400" /> Upload Documents
+                </h3>
+                <TaskAttachmentPanel taskId={task.id} externalToken={task.external_portal_token || undefined} />
+            </div>
 
             {/* Notes Section */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col" style={{ minHeight: '400px' }}>

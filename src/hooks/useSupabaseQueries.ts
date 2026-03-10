@@ -1178,6 +1178,39 @@ export function useTaskActivity(taskId: string) {
 }
 
 // ============================================================
+// Task Attachments
+// ============================================================
+
+export function useTaskAttachments(taskId: string) {
+    return useQuery({
+        queryKey: ['task-attachments', taskId] as const,
+        queryFn: () => queries.fetchTaskAttachments(taskId),
+        enabled: !!taskId,
+    });
+}
+
+export function useCreateTaskAttachment() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (attachment: Partial<import('@/types').TaskAttachment>) => queries.createTaskAttachmentRecord(attachment),
+        onSuccess: (data) => {
+            qc.invalidateQueries({ queryKey: ['task-attachments', data.task_id] });
+        },
+    });
+}
+
+export function useDeleteTaskAttachment() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, taskId }: { id: string; taskId: string }) => 
+            queries.deleteTaskAttachmentRecord(id),
+        onSuccess: (_, { taskId }) => {
+            qc.invalidateQueries({ queryKey: ['task-attachments', taskId] });
+        },
+    });
+}
+
+// ============================================================
 // Entity Comments
 // ============================================================
 

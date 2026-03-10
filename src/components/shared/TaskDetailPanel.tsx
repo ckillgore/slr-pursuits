@@ -7,6 +7,7 @@ import {
     Plus,
     X,
     ExternalLink,
+    Paperclip,
     LinkIcon
 } from 'lucide-react';
 import {
@@ -21,8 +22,11 @@ import {
     usePursuitTeamMembers,
     useExternalTaskParties,
     usePursuitMilestones,
+    useAddExternalTaskParty,
+    useTaskAttachments
 } from '@/hooks/useSupabaseQueries';
 import type { PursuitChecklistTask, ChecklistTaskStatus, TaskNote, TaskActivityLog } from '@/types';
+import TaskAttachmentPanel from './TaskAttachmentPanel';
 
 // Constants
 const ALL_STATUSES: ChecklistTaskStatus[] = ['not_applicable', 'not_started', 'in_progress', 'in_review', 'blocked', 'complete'];
@@ -84,12 +88,14 @@ export function TaskDetailPanel({
     const { data: notes = [] } = useTaskNotes(task.id);
     const createNote = useCreateTaskNote();
     const { data: activity = [] } = useTaskActivity(task.id);
+    const { data: attachments = [] } = useTaskAttachments(task.id);
     const { data: users = [] } = useUsers();
     const { data: teamMembers = [] } = usePursuitTeamMembers(pursuitId);
     const { data: externalParties = [] } = useExternalTaskParties();
+    const addExternalParty = useAddExternalTaskParty();
     
     const [noteText, setNoteText] = useState('');
-    const [activeTab, setActiveTab] = useState<'details' | 'notes' | 'activity'>('details');
+    const [activeTab, setActiveTab] = useState<'details' | 'attachments' | 'notes' | 'activity'>('details');
     const [newItemLabel, setNewItemLabel] = useState('');
     const [addingItem, setAddingItem] = useState(false);
     const [descText, setDescText] = useState(task.description ?? '');
@@ -97,6 +103,12 @@ export function TaskDetailPanel({
     const [boxUrl, setBoxUrl] = useState('');
     const [boxLabel, setBoxLabel] = useState('');
     const [addingLink, setAddingLink] = useState(false);
+
+    // External Party Form State
+    const [isAddingExternal, setIsAddingExternal] = useState(false);
+    const [newExtName, setNewExtName] = useState('');
+    const [newExtEmail, setNewExtEmail] = useState('');
+    const [newExtCompany, setNewExtCompany] = useState('');
 
     // Sync description when task changes
     useEffect(() => { setDescText(task.description ?? ''); }, [task.id, task.description]);
@@ -204,6 +216,13 @@ export function TaskDetailPanel({
                         }
                         onChange={(e) => {
                             const val = e.target.value;
+                            if (val === 'NEW_EXTERNAL') {
+                                setIsAddingExternal(true);
+                                // The select will revert visually because we don't actually set 'NEW_EXTERNAL' to state
+                                e.target.value = task.assigned_to_type === 'external' ? `external:${task.assigned_external_party_id}` : task.assigned_to ? `internal:${task.assigned_to}` : '';
+                                return;
+                            }
+                            setIsAddingExternal(false);
                             if (!val) {
                                 updateTask.mutate({ taskId: task.id, pursuitId, updates: { 
                                     assigned_to: null, assigned_external_party_id: null, assigned_to_type: 'internal' 
@@ -239,8 +258,59 @@ export function TaskDetailPanel({
                                 ))}
                             </optgroup>
                         )}
+                        <optgroup label="Actions">
+                            <option value="NEW_EXTERNAL">+ Add External Party</option>
+                        </optgroup>
                     </select>
                 </div>
+
+                {/* Inline External Party Creation Form */}
+                {isAddingExternal && (
+                    <div className="ml-[76px] p-3 mt-1 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg space-y-3 animate-fade-in">
+                        <h4 className="text-xs font-semibold text-[var(--text-primary)]">Add External Party</h4>
+                        <input autoFocus type="text" placeholder="Full Name (e.g. Jane Doe)" className="w-full px-2 py-1.5 rounded-md text-sm border border-[var(--border)] bg-[var(--bg-card)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/20 focus:outline-none"
+                            value={newExtName} onChange={(e) => setNewExtName(e.target.value)} />
+                        <input type="email" placeholder="Email Address (optional)" className="w-full px-2 py-1.5 rounded-md text-sm border border-[var(--border)] bg-[var(--bg-card)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/20 focus:outline-none"
+                            value={newExtEmail} onChange={(e) => setNewExtEmail(e.target.value)} />
+                        <input type="text" placeholder="Company Name (optional)" className="w-full px-2 py-1.5 rounded-md text-sm border border-[var(--border)] bg-[var(--bg-card)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/20 focus:outline-none"
+                            value={newExtCompany} onChange={(e) => setNewExtCompany(e.target.value)} />
+                        
+                        <div className="flex gap-2 pt-1">
+                            <button 
+                                onClick={() => {
+                                    if (!newExtName.trim()) return;
+                                    addExternalParty.mutate(
+                                        { 
+                                            name: newExtName.trim(), 
+                                            email: newExtEmail.trim() || null, 
+                                            company: newExtCompany.trim() || null,
+                                            type: null
+                                        },
+                                        { 
+                                            onSuccess: (data: any) => {
+                                                // Assuming the mutation returns the created row. 
+                                                // If it doesn't, we will just close and let them select it from the dropdown.
+                                                if (data && data.id) {
+                                                    updateTask.mutate({ taskId: task.id, pursuitId, updates: { 
+                                                        assigned_to: null, assigned_external_party_id: data.id, assigned_to_type: 'external' 
+                                                    }});
+                                                }
+                                                setIsAddingExternal(false);
+                                                setNewExtName(''); setNewExtEmail(''); setNewExtCompany('');
+                                            }
+                                        }
+                                    );
+                                }}
+                                disabled={addExternalParty.isPending || !newExtName.trim()}
+                                className="px-3 py-1.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-medium rounded shadow-sm disabled:opacity-50 transition-colors">
+                                {addExternalParty.isPending ? 'Saving...' : 'Save & Assign'}
+                            </button>
+                            <button onClick={() => { setIsAddingExternal(false); setNewExtName(''); setNewExtEmail(''); setNewExtCompany(''); }} className="px-3 py-1.5 bg-[var(--bg-card)] hover:bg-[var(--bg-primary)] border border-[var(--border)] text-[var(--text-secondary)] text-xs font-medium rounded transition-colors">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Due Date */}
                 <div className="space-y-2">
@@ -328,6 +398,7 @@ export function TaskDetailPanel({
             <div className="flex border-b border-[var(--border)] px-5">
                 {[
                     { key: 'details' as const, label: 'Details', Icon: ClipboardList },
+                    { key: 'attachments' as const, label: `Files (${attachments.length})`, Icon: Paperclip },
                     { key: 'notes' as const, label: `Notes (${notes.length})`, Icon: MessageSquare },
                     { key: 'activity' as const, label: 'Activity', Icon: Activity },
                 ].map(tab => (
@@ -438,6 +509,12 @@ export function TaskDetailPanel({
                                 Due date: {task.relative_due_days !== null ? `${task.relative_due_days > 0 ? '+' : ''}${task.relative_due_days} days from` : 'relative to'} <span className="font-medium">{task.relative_milestone.replace(/_/g, ' ')}</span>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {activeTab === 'attachments' && (
+                    <div className="pt-2">
+                        <TaskAttachmentPanel taskId={task.id} />
                     </div>
                 )}
 

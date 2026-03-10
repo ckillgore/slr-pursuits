@@ -1591,6 +1591,37 @@ export async function createTaskNote(taskId: string, content: string): Promise<T
 }
 
 // ============================================================
+// Task Attachments
+// ============================================================
+
+import type { TaskAttachment } from '@/types';
+
+export async function fetchTaskAttachments(taskId: string): Promise<TaskAttachment[]> {
+    const { data, error } = await supabase
+        .from('task_attachments')
+        .select('*, uploader:auth.users!uploaded_by(id, full_name, email), uploader_external:external_task_parties!uploaded_by_external_party_id(id, name, company)')
+        .eq('task_id', taskId)
+        .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data ?? []) as any[];
+}
+
+export async function createTaskAttachmentRecord(attachment: Partial<TaskAttachment>): Promise<TaskAttachment> {
+    const { data, error } = await supabase
+        .from('task_attachments')
+        .insert(attachment)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as TaskAttachment;
+}
+
+export async function deleteTaskAttachmentRecord(id: string): Promise<void> {
+    const { error } = await supabase.from('task_attachments').delete().eq('id', id);
+    if (error) throw error;
+}
+
+// ============================================================
 // Task Activity Log (Read-only — populated by triggers)
 // ============================================================
 

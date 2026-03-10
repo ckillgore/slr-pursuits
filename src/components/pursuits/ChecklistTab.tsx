@@ -100,17 +100,47 @@ function timeAgo(dateStr: string): string {
 }
 
 // â”€â”€ Confirmation Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function ConfirmDialog({ title, message, onConfirm, onCancel }: {
-    title: string; message: string; onConfirm: () => void; onCancel: () => void;
+function ConfirmDialog({ title, message, requireString, onConfirm, onCancel }: {
+    title: string; message: string; requireString?: string; onConfirm: () => void; onCancel: () => void;
 }) {
+    const [inputVal, setInputVal] = useState('');
+    const isValid = requireString ? inputVal === requireString : true;
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
             <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in">
                 <h3 className="text-base font-semibold text-[var(--text-primary)] mb-2">{title}</h3>
                 <p className="text-sm text-[var(--text-muted)] mb-5">{message}</p>
+                
+                {requireString && (
+                    <div className="mb-5">
+                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5">
+                            Type <strong className="text-[var(--text-primary)]">{requireString}</strong> to confirm
+                        </label>
+                        <input 
+                            type="text" 
+                            className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-1 focus:ring-[#EF4444] focus:border-[#EF4444]"
+                            value={inputVal}
+                            onChange={(e) => setInputVal(e.target.value)}
+                            placeholder={requireString}
+                            autoFocus
+                        />
+                    </div>
+                )}
+
                 <div className="flex justify-end gap-3">
                     <button onClick={onCancel} className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors">Cancel</button>
-                    <button onClick={onConfirm} className="px-4 py-2 rounded-lg bg-[#EF4444] hover:bg-[#DC2626] text-white text-sm font-medium transition-colors">Delete</button>
+                    <button 
+                        onClick={onConfirm} 
+                        disabled={!isValid}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            isValid 
+                                ? 'bg-[#EF4444] hover:bg-[#DC2626] text-white' 
+                                : 'bg-[var(--bg-elevated)] text-[var(--text-faint)] cursor-not-allowed'
+                        }`}
+                    >
+                        Delete
+                    </button>
                 </div>
             </div>
         </div>
@@ -262,11 +292,14 @@ function MilestoneBar({ pursuitId, milestones }: { pursuitId: string; milestones
 
 // â”€â”€ Phase Accordion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function PhaseAccordion({
-    phase, pursuitId, selectedTaskId, onSelectTask, users
+    phase, pursuitId, selectedTaskId, onSelectTask, users,
+    onQueueDeletePhase, onQueueDeleteTask
 }: {
     phase: PursuitChecklistPhase; pursuitId: string;
     selectedTaskId: string | null; onSelectTask: (taskId: string) => void;
     users: UserProfile[];
+    onQueueDeletePhase: (label: string, execute: () => void) => void;
+    onQueueDeleteTask: (taskId: string, label: string, execute: () => void) => void;
 }) {
     const [expanded, setExpanded] = useState(true);
     const [addingTask, setAddingTask] = useState(false);
@@ -384,13 +417,20 @@ function PhaseAccordion({
             )}
             {/* Confirm dialogs */}
             {confirmDeletePhase && (
-                <ConfirmDialog title="Delete Section" message={`Delete "${phase.name}" and all its tasks? This cannot be undone.`}
-                    onConfirm={() => { deletePhase.mutate({ id: phase.id, pursuitId }); setConfirmDeletePhase(false); }}
+                <ConfirmDialog title="Delete Section" requireString="DELETE" message={`Delete "${phase.name}" and all its tasks? This action implies deletion.`}
+                    onConfirm={() => { 
+                        onQueueDeletePhase(phase.name, () => deletePhase.mutate({ id: phase.id, pursuitId })); 
+                        setConfirmDeletePhase(false); 
+                    }}
                     onCancel={() => setConfirmDeletePhase(false)} />
             )}
             {confirmDeleteTask && (
-                <ConfirmDialog title="Delete Task" message="Delete this task and all its sub-items? This cannot be undone."
-                    onConfirm={() => { deleteTask.mutate({ id: confirmDeleteTask, pursuitId }); setConfirmDeleteTask(null); }}
+                <ConfirmDialog title="Delete Task" requireString="DELETE" message="Delete this task and all its sub-items? This action implies deletion."
+                    onConfirm={() => { 
+                        const tName = tasks.find(t => t.id === confirmDeleteTask)?.name || 'Task';
+                        onQueueDeleteTask(confirmDeleteTask, tName, () => deleteTask.mutate({ id: confirmDeleteTask, pursuitId })); 
+                        setConfirmDeleteTask(null); 
+                    }}
                     onCancel={() => setConfirmDeleteTask(null)} />
             )}
         </div>
@@ -410,6 +450,39 @@ export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
     const [newSectionName, setNewSectionName] = useState('');
     const addPhase = useAddChecklistPhase();
 
+    // Undo Snackbar State
+    const [pendingDeletions, setPendingDeletions] = useState<Array<{ id: string; label: string; type: 'task' | 'phase' | 'reset'; targetId?: string; timeout: NodeJS.Timeout; execute: () => void; }>>([]);
+    const [pendingTaskDeletes, setPendingTaskDeletes] = useState<Set<string>>(new Set());
+    const [pendingPhaseDeletes, setPendingPhaseDeletes] = useState<Set<string>>(new Set());
+    const [pendingReset, setPendingReset] = useState(false);
+
+    const queueDeletion = (type: 'task' | 'phase' | 'reset', label: string, execute: () => void, targetId?: string) => {
+        if (type === 'task' && targetId) setPendingTaskDeletes(prev => new Set(prev).add(targetId));
+        if (type === 'phase' && targetId) setPendingPhaseDeletes(prev => new Set(prev).add(targetId));
+        if (type === 'reset') setPendingReset(true);
+
+        const id = Math.random().toString(36).substring(7);
+        const timeout = setTimeout(() => {
+            execute();
+            setPendingDeletions(prev => prev.filter(p => p.id !== id));
+        }, 7000); // 7 seconds to undo
+        
+        setPendingDeletions(prev => [...prev, { id, label, type, targetId, timeout, execute }]);
+    };
+
+    const undoDeletion = (id: string) => {
+        const item = pendingDeletions.find(p => p.id === id);
+        if (!item) return;
+        
+        clearTimeout(item.timeout);
+        
+        if (item.type === 'task' && item.targetId) setPendingTaskDeletes(prev => { const next = new Set(prev); next.delete(item.targetId!); return next; });
+        if (item.type === 'phase' && item.targetId) setPendingPhaseDeletes(prev => { const next = new Set(prev); next.delete(item.targetId!); return next; });
+        if (item.type === 'reset') setPendingReset(false);
+        
+        setPendingDeletions(prev => prev.filter(p => p.id !== id));
+    };
+
     const handleAddSection = () => {
         if (!newSectionName.trim()) return;
         addPhase.mutate({ pursuitId, name: newSectionName.trim(), sortOrder: phases.length });
@@ -420,23 +493,29 @@ export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
     const hasChecklist = phases.length > 0;
     const isLoading = checklistLoading || milestonesLoading;
 
+    // Apply pending local deletions for optimistic UI
+    const displayPhases = pendingReset ? [] : phases.filter(p => !pendingPhaseDeletes.has(p.id)).map(p => ({
+        ...p,
+        tasks: (p.tasks || []).filter(t => !pendingTaskDeletes.has(t.id))
+    }));
+
     const selectedTask = useMemo(() => {
         if (!selectedTaskId) return null;
-        for (const phase of phases) {
+        for (const phase of displayPhases) {
             const task = phase.tasks?.find(t => t.id === selectedTaskId);
             if (task) return task;
         }
         return null;
-    }, [selectedTaskId, phases]);
+    }, [selectedTaskId, displayPhases]);
 
     const stats = useMemo(() => {
-        const allTasks = phases.flatMap(p => p.tasks ?? []);
+        const allTasks = displayPhases.flatMap(p => p.tasks ?? []);
         const applicable = allTasks.filter(t => t.status !== 'not_applicable');
         const completed = allTasks.filter(t => t.status === 'complete');
         const overdue = allTasks.filter(t => t.due_date && t.status !== 'complete' && t.status !== 'not_applicable' && daysUntil(t.due_date) < 0);
         const inProgress = allTasks.filter(t => t.status === 'in_progress');
         return { total: applicable.length, completed: completed.length, overdue: overdue.length, inProgress: inProgress.length };
-    }, [phases]);
+    }, [displayPhases]);
 
     if (isLoading) {
         return <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-[var(--text-faint)]" /></div>;
@@ -500,9 +579,12 @@ export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
 
             {/* Phase Accordions */}
             <div className="space-y-3">
-                {phases.map(phase => (
+                {displayPhases.map(phase => (
                     <PhaseAccordion key={phase.id} phase={phase} pursuitId={pursuitId}
-                        selectedTaskId={selectedTaskId} onSelectTask={setSelectedTaskId} users={users} />
+                        selectedTaskId={selectedTaskId} onSelectTask={setSelectedTaskId} users={users} 
+                        onQueueDeletePhase={(label, execute) => queueDeletion('phase', label, execute, phase.id)}
+                        onQueueDeleteTask={(targetId, label, execute) => queueDeletion('task', label, execute, targetId)}
+                    />
                 ))}
                 {/* Add Section */}
                 {addingSection ? (
@@ -531,11 +613,23 @@ export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
 
             {/* Reset confirmation */}
             {confirmReset && (
-                <ConfirmDialog title="Reset Checklist"
-                    message="This will delete the entire checklist including all tasks, notes, and progress. You can apply a new template afterwards."
-                    onConfirm={() => { deleteInstance.mutate({ pursuitId }); setConfirmReset(false); setSelectedTaskId(null); }}
+                <ConfirmDialog title="Reset Checklist" requireString="DELETE"
+                    message="This will delete the entire checklist including all tasks, notes, and progress."
+                    onConfirm={() => { queueDeletion('reset', 'Entire Checklist', () => deleteInstance.mutate({ pursuitId })); setConfirmReset(false); setSelectedTaskId(null); }}
                     onCancel={() => setConfirmReset(false)} />
             )}
+
+            {/* Undo Snackbars */}
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex flex-col gap-2 z-50">
+                {pendingDeletions.map(del => (
+                    <div key={del.id} className="flex items-center justify-between gap-6 px-5 py-3.5 bg-[var(--bg-card)] border border-[var(--border-strong)] shadow-2xl rounded-xl animate-fade-in shadow-black/20">
+                        <span className="text-sm font-medium text-[var(--text-primary)]">
+                            <strong className="font-semibold text-[var(--accent)]">{del.label}</strong> deleted
+                        </span>
+                        <button onClick={() => undoDeletion(del.id)} className="text-sm font-bold tracking-wide text-[#EF4444] hover:text-[#DC2626] transition-colors uppercase">Undo</button>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }

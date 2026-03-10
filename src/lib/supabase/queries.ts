@@ -1430,7 +1430,7 @@ export async function fetchPursuitChecklist(pursuitId: string): Promise<PursuitC
             pursuit_checklist_tasks(
                 *,
                 pursuit_checklist_items(*),
-                assigned_user:user_profiles!pursuit_checklist_tasks_assigned_to_fkey(id, full_name, email)
+                assigned_user:user_profiles!assigned_to(id, full_name, email)
             )
         `)
         .eq('pursuit_id', pursuitId)

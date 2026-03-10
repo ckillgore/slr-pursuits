@@ -35,7 +35,8 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
     // on the login page — this is the "limbo" state where the proxy let
     // the request through but the client has no session.
     const isLimbo = !isLoading && !user && typeof window !== 'undefined' &&
-        !window.location.pathname.startsWith('/login');
+        !window.location.pathname.startsWith('/login') &&
+        !window.location.pathname.startsWith('/portal');
 
     useEffect(() => {
         if (isLimbo && !isSessionLost) {

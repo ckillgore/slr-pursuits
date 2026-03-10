@@ -233,7 +233,9 @@ export function AuthProvider({
                     setProfile(null);
                     hadSessionRef.current = false;
                     setIsSessionLost(false);
-                    window.location.href = '/login';
+                    if (!window.location.pathname.startsWith('/portal')) {
+                        window.location.href = '/login';
+                    }
                     return;
                 }
 
@@ -322,7 +324,9 @@ export function AuthProvider({
         setIsSessionLost(false);
         hadSessionRef.current = false;
         // Force a full page navigation to clear all client state
-        window.location.href = '/login';
+        if (!window.location.pathname.startsWith('/portal')) {
+            window.location.href = '/login';
+        }
     };
 
     const isOwner = profile?.role === 'owner';

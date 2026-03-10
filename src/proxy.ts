@@ -57,6 +57,7 @@ export async function proxy(request: NextRequest) {
         pathname.startsWith('/auth/') ||
         pathname.startsWith('/_next/') ||
         pathname.startsWith('/api/') ||
+        pathname.startsWith('/portal/') ||
         pathname === '/favicon.ico';
 
     // If getUser() failed due to a network/timeout error (not an auth error),

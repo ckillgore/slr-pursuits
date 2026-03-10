@@ -1429,8 +1429,7 @@ export async function fetchPursuitChecklist(pursuitId: string): Promise<PursuitC
             *,
             pursuit_checklist_tasks(
                 *,
-                pursuit_checklist_items(*),
-                assigned_user:user_profiles!assigned_to(id, full_name, email)
+                pursuit_checklist_items(*)
             )
         `)
         .eq('pursuit_id', pursuitId)
@@ -1440,7 +1439,6 @@ export async function fetchPursuitChecklist(pursuitId: string): Promise<PursuitC
         ...p,
         tasks: (p.pursuit_checklist_tasks ?? []).map((t: any) => ({
             ...t,
-            assigned_user: t.assigned_user ?? undefined,
             checklist_items: (t.pursuit_checklist_items ?? []).sort(
                 (a: any, b: any) => a.sort_order - b.sort_order
             ),
@@ -1850,7 +1848,7 @@ export async function fetchEntityComments(
 ): Promise<EntityComment[]> {
     const { data, error } = await supabase
         .from('entity_comments')
-        .select('*, author:user_profiles!author_id(id, full_name, email)')
+        .select('*')
         .eq('entity_type', entityType)
         .eq('entity_id', entityId)
         .order('created_at', { ascending: true });
@@ -1869,7 +1867,7 @@ export async function createEntityComment(
     const { data, error } = await supabase
         .from('entity_comments')
         .insert({ entity_type: entityType, entity_id: entityId, author_id: authorId, content, mentions })
-        .select('*, author:user_profiles!author_id(id, full_name, email)')
+        .select('*')
         .single();
     if (error) throw error;
     return data as unknown as EntityComment;

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
@@ -545,13 +545,17 @@ function TaskDetailPanel({
 }
 // â”€â”€ Task Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function TaskCard({
-    task, onClick, isSelected, onDelete, dragHandlers,
+    task, onClick, isSelected,
+    onDelete,
+    dragHandlers,
+    users
 }: {
     task: PursuitChecklistTask; onClick: () => void; isSelected: boolean;
     onDelete: () => void;
     dragHandlers: { onDragStart: (e: React.DragEvent) => void; onDragOver: (e: React.DragEvent) => void; onDrop: (e: React.DragEvent) => void; onDragEnd: () => void;
         onTouchStart: (e: React.TouchEvent) => void; onTouchMove: (e: React.TouchEvent) => void; onTouchEnd: () => void;
     };
+    users?: UserProfile[];
 }) {
     const cfg = STATUS_CONFIG[task.status];
     const checkedCount = task.checklist_items?.filter(i => i.is_checked).length ?? 0;
@@ -581,9 +585,9 @@ function TaskCard({
                             </span>
                         )}
                         {totalItems > 0 && <span className="text-[11px] text-[var(--text-muted)]">{checkedCount}/{totalItems}</span>}
-                        {task.assigned_user && (
+                        {task.assigned_to && (
                             <span className="text-[11px] text-[var(--text-muted)] flex items-center gap-0.5">
-                                <User className="w-3 h-3" /> {task.assigned_user.full_name?.split(' ')[0]}
+                                <User className="w-3 h-3" /> {users?.find(u => u.id === task.assigned_to)?.full_name?.split(' ')[0]}
                             </span>
                         )}
                     </div>
@@ -603,10 +607,11 @@ function TaskCard({
 
 // â”€â”€ Phase Accordion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function PhaseAccordion({
-    phase, pursuitId, selectedTaskId, onSelectTask,
+    phase, pursuitId, selectedTaskId, onSelectTask, users
 }: {
     phase: PursuitChecklistPhase; pursuitId: string;
     selectedTaskId: string | null; onSelectTask: (taskId: string) => void;
+    users: UserProfile[];
 }) {
     const [expanded, setExpanded] = useState(true);
     const [addingTask, setAddingTask] = useState(false);
@@ -683,6 +688,7 @@ function PhaseAccordion({
                 <div className="px-2 pb-2 space-y-0.5">
                     {tasks.map((task, idx) => (
                         <TaskCard key={task.id} task={task} onClick={() => onSelectTask(task.id)} isSelected={selectedTaskId === task.id}
+                            users={users}
                             onDelete={() => setConfirmDeleteTask(task.id)}
                             dragHandlers={{
                                 onDragStart: () => setDragIdx(idx),
@@ -740,6 +746,7 @@ function PhaseAccordion({
 export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
     const { data: phases = [], isLoading: checklistLoading } = usePursuitChecklist(pursuitId);
     const { data: milestones = [], isLoading: milestonesLoading } = usePursuitMilestones(pursuitId);
+    const { data: users = [] } = useUsers();
     const deleteInstance = useDeleteChecklistInstance();
     const [showApplyDialog, setShowApplyDialog] = useState(false);
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -830,7 +837,7 @@ export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
             <div className="space-y-3">
                 {phases.map(phase => (
                     <PhaseAccordion key={phase.id} phase={phase} pursuitId={pursuitId}
-                        selectedTaskId={selectedTaskId} onSelectTask={setSelectedTaskId} />
+                        selectedTaskId={selectedTaskId} onSelectTask={setSelectedTaskId} users={users} />
                 ))}
             </div>
 

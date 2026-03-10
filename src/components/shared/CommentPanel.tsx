@@ -243,11 +243,11 @@ export default function CommentPanel({ entityType, entityId, onClose }: CommentP
                     comments.map((c) => (
                         <div key={c.id} className="flex gap-2.5">
                             <div className="w-7 h-7 rounded-full bg-[var(--accent)] flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white">
-                                {getInitials(c.author?.full_name)}
+                                {getInitials(userMap[c.author_id]?.full_name)}
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-baseline gap-2">
-                                    <span className="text-xs font-semibold text-[var(--text-primary)]">{c.author?.full_name || 'Unknown'}</span>
+                                    <span className="text-xs font-semibold text-[var(--text-primary)]">{userMap[c.author_id]?.full_name || 'Unknown'}</span>
                                     <span className="text-[10px] text-[var(--text-faint)]">{formatTime(c.created_at)}</span>
                                 </div>
                                 <div className="text-xs text-[var(--text-secondary)] leading-relaxed mt-0.5 break-words">

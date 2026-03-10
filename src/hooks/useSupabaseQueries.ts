@@ -36,6 +36,9 @@ export const queryKeys = {
     saleComp: (id: string) => ['sale-comps', id] as const,
     pursuitLandComps: (pursuitId: string) => ['pursuit-land-comps', pursuitId] as const,
     pursuitSaleComps: (pursuitId: string) => ['pursuit-sale-comps', pursuitId] as const,
+    pursuitTeamMembers: (pursuitId: string) => ['pursuit-team-members', pursuitId] as const,
+    externalTaskParties: ['external-task-parties'] as const,
+    myTasks: (userId: string) => ['my-tasks', userId] as const,
 };
 
 // ============================================================
@@ -991,8 +994,19 @@ export function useUpdateChecklistTask() {
         mutationFn: ({ taskId, pursuitId, updates }: {
             taskId: string;
             pursuitId: string;
-            updates: Partial<Pick<import('@/types').PursuitChecklistTask, 'status' | 'assigned_to' | 'due_date' | 'due_date_is_manual' | 'name' | 'description' | 'relative_milestone' | 'relative_due_days' | 'box_links'>>;
+            updates: Partial<Pick<import('@/types').PursuitChecklistTask, 'status' | 'assigned_to' | 'assigned_to_type' | 'assigned_external_party_id' | 'external_portal_token' | 'external_portal_enabled' | 'due_date' | 'due_date_is_manual' | 'name' | 'description' | 'relative_milestone' | 'relative_due_days' | 'box_links'>>;
         }) => queries.updateChecklistTask(taskId, updates),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
+        },
+    });
+}
+
+export function useAddChecklistPhase() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ pursuitId, name, sortOrder }: { pursuitId: string; name: string; sortOrder: number }) =>
+            queries.addChecklistPhase(pursuitId, name, sortOrder),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
         },
@@ -1348,5 +1362,42 @@ export function useUnlinkSaleCompFromPursuit() {
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.pursuitSaleComps(pursuitId) });
         },
+    });
+}
+
+// ============================================================
+// Deal Teams & External Parties
+// ============================================================
+
+export function usePursuitTeamMembers(pursuitId: string) {
+    return useQuery({
+        queryKey: queryKeys.pursuitTeamMembers(pursuitId),
+        queryFn: () => queries.fetchPursuitTeamMembers(pursuitId),
+        enabled: !!pursuitId,
+    });
+}
+
+export function useExternalTaskParties() {
+    return useQuery({
+        queryKey: queryKeys.externalTaskParties,
+        queryFn: () => queries.fetchExternalTaskParties(),
+    });
+}
+
+export function useAddExternalTaskParty() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (party: Omit<import('@/types').ExternalTaskParty, 'id' | 'created_at'>) => queries.addExternalTaskParty(party),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: queryKeys.externalTaskParties });
+        },
+    });
+}
+
+export function useMyTasks(userId: string | undefined) {
+    return useQuery({
+        queryKey: queryKeys.myTasks(userId!),
+        queryFn: () => queries.fetchMyTasks(userId!),
+        enabled: !!userId,
     });
 }

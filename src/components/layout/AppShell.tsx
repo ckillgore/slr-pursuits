@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Building2, Settings, Plus, LayoutDashboard, BarChart3, FileSpreadsheet, TrendingUp, Menu, X, LogOut, ChevronDown, Users, Landmark, Compass, KeyRound, Bell, Moon, Sun } from 'lucide-react';
+import { Building2, Settings, Plus, LayoutDashboard, BarChart3, FileSpreadsheet, TrendingUp, Menu, X, LogOut, ChevronDown, Users, Landmark, Compass, KeyRound, Bell, Moon, Sun, CheckSquare } from 'lucide-react';
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { createClient } from '@/lib/supabase/client';
@@ -123,6 +123,10 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                             <Link href="/" className={navLinkClass(pathname === '/')}>
                                 <LayoutDashboard className="w-4 h-4" />
                                 Pursuits
+                            </Link>
+                            <Link href="/tasks" className={navLinkClass(pathname.startsWith('/tasks'))}>
+                                <CheckSquare className="w-4 h-4" />
+                                Tasks
                             </Link>
                             <Link href="/explore" className={navLinkClass(pathname === '/explore')}>
                                 <Compass className="w-4 h-4" />
@@ -266,6 +270,10 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                         <Link href="/" className={mobileNavLinkClass(pathname === '/')} onClick={() => setMobileMenuOpen(false)}>
                             <LayoutDashboard className="w-5 h-5" />
                             Pursuits
+                        </Link>
+                        <Link href="/tasks" className={mobileNavLinkClass(pathname.startsWith('/tasks'))} onClick={() => setMobileMenuOpen(false)}>
+                            <CheckSquare className="w-5 h-5" />
+                            Tasks
                         </Link>
                         <Link href="/explore" className={mobileNavLinkClass(pathname === '/explore')} onClick={() => setMobileMenuOpen(false)}>
                             <Compass className="w-5 h-5" />

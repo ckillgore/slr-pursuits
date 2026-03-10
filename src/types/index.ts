@@ -655,6 +655,9 @@ export interface PursuitChecklistTask {
   status: ChecklistTaskStatus;
   assigned_to: string | null;
   assigned_to_type: 'internal' | 'external';
+  assigned_external_party_id: string | null;
+  external_portal_token: string | null;
+  external_portal_enabled: boolean;
   due_date: string | null; // ISO date
   due_date_is_manual: boolean;
   relative_due_days: number | null;
@@ -670,6 +673,25 @@ export interface PursuitChecklistTask {
   // Joined
   checklist_items?: PursuitChecklistItem[];
   assigned_user?: UserProfile;
+}
+
+export interface PursuitTeamMember {
+  id: string;
+  pursuit_id: string;
+  user_id: string;
+  role: string;
+  created_at: string;
+  // Joined
+  user?: UserProfile;
+}
+
+export interface ExternalTaskParty {
+  id: string;
+  name: string;
+  email: string | null;
+  company: string | null;
+  type: string | null;
+  created_at: string;
 }
 
 export interface PursuitChecklistItem {

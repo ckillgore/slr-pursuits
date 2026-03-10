@@ -21,7 +21,11 @@ import {
     useReorderChecklistTasks,
     useReorderChecklistItems,
     useUsers,
+    usePursuitTeamMembers,
+    useExternalTaskParties,
+    useAddChecklistPhase,
 } from '@/hooks/useSupabaseQueries';
+import { TaskDetailPanel } from '@/components/shared/TaskDetailPanel';
 import type {
     PursuitChecklistPhase,
     PursuitChecklistTask,
@@ -210,6 +214,9 @@ function TaskDetailPanel({
     const createNote = useCreateTaskNote();
     const { data: activity = [] } = useTaskActivity(task.id);
     const { data: users = [] } = useUsers();
+    const { data: teamMembers = [] } = usePursuitTeamMembers(pursuitId);
+    const { data: externalParties = [] } = useExternalTaskParties();
+    
     const [noteText, setNoteText] = useState('');
     const [activeTab, setActiveTab] = useState<'details' | 'notes' | 'activity'>('details');
     const [newItemLabel, setNewItemLabel] = useState('');
@@ -318,13 +325,49 @@ function TaskDetailPanel({
                 {/* Assignee */}
                 <div className="flex items-center gap-3">
                     <label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider w-16">Assign</label>
-                    <select value={task.assigned_to ?? ''}
-                        onChange={(e) => updateTask.mutate({ taskId: task.id, pursuitId, updates: { assigned_to: e.target.value || null } })}
+                    <select 
+                        value={
+                            task.assigned_to_type === 'external' ? `external:${task.assigned_external_party_id}` 
+                            : task.assigned_to ? `internal:${task.assigned_to}` 
+                            : ''
+                        }
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            if (!val) {
+                                updateTask.mutate({ taskId: task.id, pursuitId, updates: { 
+                                    assigned_to: null, assigned_external_party_id: null, assigned_to_type: 'internal' 
+                                }});
+                            } else if (val.startsWith('internal:')) {
+                                updateTask.mutate({ taskId: task.id, pursuitId, updates: { 
+                                    assigned_to: val.replace('internal:', ''), assigned_external_party_id: null, assigned_to_type: 'internal' 
+                                }});
+                            } else if (val.startsWith('external:')) {
+                                updateTask.mutate({ taskId: task.id, pursuitId, updates: { 
+                                    assigned_to: null, assigned_external_party_id: val.replace('external:', ''), assigned_to_type: 'external' 
+                                }});
+                            }
+                        }}
                         className="flex-1 px-3 py-1.5 rounded-lg text-sm border border-[var(--border)] bg-[var(--bg-card)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/20 focus:outline-none text-[var(--text-primary)]">
                         <option value="">Unassigned</option>
-                        {users.filter((u: UserProfile) => u.is_active).map((u: UserProfile) => (
-                            <option key={u.id} value={u.id}>{u.full_name}</option>
-                        ))}
+                        {teamMembers.length > 0 && (
+                            <optgroup label="Deal Team">
+                                {teamMembers.map(tm => (
+                                    <option key={tm.id} value={`internal:${tm.user_id}`}>{tm.user?.full_name} ({tm.role})</option>
+                                ))}
+                            </optgroup>
+                        )}
+                        <optgroup label="All Internal Users">
+                            {users.filter(u => u.is_active && !teamMembers.some(tm => tm.user_id === u.id)).map(u => (
+                                <option key={u.id} value={`internal:${u.id}`}>{u.full_name}</option>
+                            ))}
+                        </optgroup>
+                        {externalParties.length > 0 && (
+                            <optgroup label="External Parties">
+                                {externalParties.map(ep => (
+                                    <option key={ep.id} value={`external:${ep.id}`}>{ep.name} {ep.company ? `(${ep.company})` : ''}</option>
+                                ))}
+                            </optgroup>
+                        )}
                     </select>
                 </div>
 
@@ -374,6 +417,40 @@ function TaskDetailPanel({
                         </div>
                     )}
                 </div>
+
+                {/* Magic Link Portal (External Only) */}
+                {task.assigned_to_type === 'external' && (
+                    <div className="pt-3 mt-3 border-t border-[var(--border)] space-y-3">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h4 className="text-sm font-medium text-[var(--text-primary)]">External Task Portal</h4>
+                                <p className="text-xs text-[var(--text-muted)] mt-0.5">Allow the assignee to update this task without logging in.</p>
+                            </div>
+                            <button 
+                                onClick={() => updateTask.mutate({ taskId: task.id, pursuitId, updates: { external_portal_enabled: !task.external_portal_enabled }})}
+                                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors ${task.external_portal_enabled ? 'bg-[#10B981]' : 'bg-[var(--border)]'}`}>
+                                <span className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${task.external_portal_enabled ? 'translate-x-2' : '-translate-x-2'}`} />
+                            </button>
+                        </div>
+                        
+                        {task.external_portal_enabled && task.external_portal_token && (
+                            <div className="flex items-center gap-2 p-2 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg">
+                                <code className="flex-1 text-xs text-[var(--text-secondary)] truncate">
+                                    {typeof window !== 'undefined' ? `${window.location.origin}/portal/task/${task.external_portal_token}` : ''}
+                                </code>
+                                <button 
+                                    onClick={() => {
+                                        if (typeof window !== 'undefined') {
+                                            navigator.clipboard.writeText(`${window.location.origin}/portal/task/${task.external_portal_token}`);
+                                        }
+                                    }}
+                                    className="px-2 py-1 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-subtle)] rounded transition-colors whitespace-nowrap">
+                                    Copy Link
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Tabs */}
@@ -751,6 +828,16 @@ export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
     const [showApplyDialog, setShowApplyDialog] = useState(false);
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     const [confirmReset, setConfirmReset] = useState(false);
+    const [addingSection, setAddingSection] = useState(false);
+    const [newSectionName, setNewSectionName] = useState('');
+    const addPhase = useAddChecklistPhase();
+
+    const handleAddSection = () => {
+        if (!newSectionName.trim()) return;
+        addPhase.mutate({ pursuitId, name: newSectionName.trim(), sortOrder: phases.length });
+        setNewSectionName('');
+        setAddingSection(false);
+    };
 
     const hasChecklist = phases.length > 0;
     const isLoading = checklistLoading || milestonesLoading;
@@ -839,14 +926,28 @@ export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
                     <PhaseAccordion key={phase.id} phase={phase} pursuitId={pursuitId}
                         selectedTaskId={selectedTaskId} onSelectTask={setSelectedTaskId} users={users} />
                 ))}
+                {/* Add Section */}
+                {addingSection ? (
+                    <div className="flex items-center gap-2 p-3 bg-[var(--bg-card)] border border-[var(--accent)] rounded-xl shadow-sm">
+                        <input autoFocus value={newSectionName} onChange={(e) => setNewSectionName(e.target.value)}
+                            placeholder="New section name..." className="flex-1 px-3 py-1.5 rounded-lg text-sm bg-[var(--bg-primary)] focus:outline-none"
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleAddSection(); if (e.key === 'Escape') { setAddingSection(false); setNewSectionName(''); } }} />
+                        <button onClick={handleAddSection} className="text-sm px-3 py-1.5 bg-[var(--accent)] text-white rounded-lg font-medium shadow-sm hover:bg-[var(--accent-hover)] transition-colors">Add</button>
+                        <button onClick={() => { setAddingSection(false); setNewSectionName(''); }} className="text-sm px-3 py-1.5 text-[var(--text-muted)] hover:bg-[var(--bg-primary)] rounded-lg transition-colors">Cancel</button>
+                    </div>
+                ) : (
+                    <button onClick={() => setAddingSection(true)}
+                        className="w-full flex items-center justify-center gap-2 p-3 text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)] border border-dashed border-[var(--border)] rounded-xl transition-all">
+                        <Plus className="w-4 h-4" /> Add Section
+                    </button>
+                )}
             </div>
 
             {/* Task Detail Panel (slide-out) */}
             {selectedTask && (
                 <>
                     <div className="fixed inset-0 bg-black/10 z-30" onClick={() => setSelectedTaskId(null)} />
-                    <TaskDetailPanel task={selectedTask} pursuitId={pursuitId} milestones={milestones}
-                        onClose={() => setSelectedTaskId(null)} />
+                    <TaskDetailPanel task={selectedTask} onClose={() => setSelectedTaskId(null)} />
                 </>
             )}
 

@@ -1450,7 +1450,7 @@ export async function fetchPursuitChecklist(pursuitId: string): Promise<PursuitC
 
 export async function updateChecklistTask(
     taskId: string,
-    updates: Partial<Pick<PursuitChecklistTask, 'status' | 'assigned_to' | 'due_date' | 'due_date_is_manual' | 'name' | 'description' | 'relative_milestone' | 'relative_due_days' | 'box_links'>>
+    updates: Partial<Pick<PursuitChecklistTask, 'status' | 'assigned_to' | 'assigned_to_type' | 'assigned_external_party_id' | 'external_portal_token' | 'external_portal_enabled' | 'due_date' | 'due_date_is_manual' | 'name' | 'description' | 'relative_milestone' | 'relative_due_days' | 'box_links'>>
 ) {
     const { data, error } = await supabase
         .from('pursuit_checklist_tasks')
@@ -1474,6 +1474,20 @@ export async function addChecklistTask(
         .single();
     if (error) throw error;
     return data as PursuitChecklistTask;
+}
+
+export async function addChecklistPhase(
+    pursuitId: string,
+    name: string,
+    sortOrder: number
+): Promise<PursuitChecklistPhase> {
+    const { data, error } = await supabase
+        .from('pursuit_checklist_phases')
+        .insert({ pursuit_id: pursuitId, name, sort_order: sortOrder })
+        .select()
+        .single();
+    if (error) throw error;
+    return data as PursuitChecklistPhase;
 }
 
 export async function deleteChecklistTask(id: string) {
@@ -2045,4 +2059,37 @@ export async function fetchSaleCompReportData(): Promise<ReportRow[]> {
             _source: 'sale_comp',
         };
     });
+}
+
+// ============================================================
+// Deal Teams & External Parties
+// ============================================================
+
+export async function fetchPursuitTeamMembers(pursuitId: string): Promise<PursuitTeamMember[]> {
+    const { data, error } = await supabase
+        .from('pursuit_team_members')
+        .select('*, user:user_profiles!user_id(id, full_name, email)')
+        .eq('pursuit_id', pursuitId)
+        .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data as PursuitTeamMember[];
+}
+
+export async function fetchExternalTaskParties(): Promise<ExternalTaskParty[]> {
+    const { data, error } = await supabase
+        .from('external_task_parties')
+        .select('*')
+        .order('name', { ascending: true });
+    if (error) throw error;
+    return data as ExternalTaskParty[];
+}
+
+export async function addExternalTaskParty(party: Omit<ExternalTaskParty, 'id' | 'created_at'>): Promise<ExternalTaskParty> {
+    const { data, error } = await supabase
+        .from('external_task_parties')
+        .insert(party)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as ExternalTaskParty;
 }

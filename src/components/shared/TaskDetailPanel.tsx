@@ -379,15 +379,26 @@ export function TaskDetailPanel({
                                 <code className="flex-1 text-xs text-[var(--text-secondary)] truncate">
                                     {typeof window !== 'undefined' ? `${window.location.origin}/portal/task/${task.external_portal_token}` : ''}
                                 </code>
-                                <button 
-                                    onClick={() => {
-                                        if (typeof window !== 'undefined') {
-                                            navigator.clipboard.writeText(`${window.location.origin}/portal/task/${task.external_portal_token}`);
-                                        }
-                                    }}
-                                    className="px-2 py-1 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-subtle)] rounded transition-colors whitespace-nowrap">
-                                    Copy Link
-                                </button>
+                                <div className="flex items-center gap-1">
+                                    <button 
+                                        onClick={() => {
+                                            if (typeof window !== 'undefined') {
+                                                navigator.clipboard.writeText(`${window.location.origin}/portal/task/${task.external_portal_token}`);
+                                            }
+                                        }}
+                                        className="px-2 py-1 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-subtle)] rounded transition-colors whitespace-nowrap">
+                                        Copy Link
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            const newToken = crypto.randomUUID();
+                                            updateTask.mutate({ taskId: task.id, pursuitId, updates: { external_portal_token: newToken }});
+                                        }}
+                                        title="Generate a new link (invalidates the old one)"
+                                        className="px-2 py-1 text-xs font-medium text-[var(--text-faint)] hover:text-[#EF4444] hover:bg-[var(--bg-elevated)] rounded transition-colors whitespace-nowrap">
+                                        Refresh Link
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>

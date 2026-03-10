@@ -27,6 +27,16 @@ export default async function ExternalTaskPortalPage({ params }: { params: { tok
                 <div className="max-w-md w-full bg-white p-8 border border-red-200 rounded-2xl shadow-sm text-center">
                     <h1 className="text-xl font-semibold text-gray-900 mb-2">Link Expired or Invalid</h1>
                     <p className="text-sm text-gray-500">This task portal link is no longer active. Please request a new link from the deal team.</p>
+                    {error && (
+                        <pre className="text-xs text-red-500 mt-4 text-left p-2 bg-red-50 rounded overflow-auto text-wrap">
+                            {JSON.stringify(error, null, 2)}
+                        </pre>
+                    )}
+                    {!error && !task && (
+                        <pre className="text-xs text-orange-500 mt-4 text-left p-2 bg-orange-50 rounded overflow-auto">
+                            No task found matching the criteria.
+                        </pre>
+                    )}
                 </div>
             </div>
         );

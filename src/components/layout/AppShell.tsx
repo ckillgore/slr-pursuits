@@ -124,10 +124,7 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                                 <LayoutDashboard className="w-4 h-4" />
                                 Pursuits
                             </Link>
-                            <Link href="/tasks" className={navLinkClass(pathname.startsWith('/tasks'))}>
-                                <CheckSquare className="w-4 h-4" />
-                                Tasks
-                            </Link>
+
                             <Link href="/explore" className={navLinkClass(pathname === '/explore')}>
                                 <Compass className="w-4 h-4" />
                                 Explore
@@ -147,6 +144,10 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                             <Link href="/compare" className={navLinkClass(pathname === '/compare')}>
                                 <BarChart3 className="w-4 h-4" />
                                 Compare
+                            </Link>
+                            <Link href="/tasks" className={navLinkClass(pathname.startsWith('/tasks'))}>
+                                <CheckSquare className="w-4 h-4" />
+                                Tasks
                             </Link>
                         </nav>
                     </div>
@@ -271,10 +272,7 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                             <LayoutDashboard className="w-5 h-5" />
                             Pursuits
                         </Link>
-                        <Link href="/tasks" className={mobileNavLinkClass(pathname.startsWith('/tasks'))} onClick={() => setMobileMenuOpen(false)}>
-                            <CheckSquare className="w-5 h-5" />
-                            Tasks
-                        </Link>
+
                         <Link href="/explore" className={mobileNavLinkClass(pathname === '/explore')} onClick={() => setMobileMenuOpen(false)}>
                             <Compass className="w-5 h-5" />
                             Explore
@@ -294,6 +292,10 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                         <Link href="/compare" className={mobileNavLinkClass(pathname === '/compare')} onClick={() => setMobileMenuOpen(false)}>
                             <BarChart3 className="w-5 h-5" />
                             Compare
+                        </Link>
+                        <Link href="/tasks" className={mobileNavLinkClass(pathname.startsWith('/tasks'))} onClick={() => setMobileMenuOpen(false)}>
+                            <CheckSquare className="w-5 h-5" />
+                            Tasks
                         </Link>
                         {isAdminOrOwner && (
                             <>

@@ -1898,12 +1898,25 @@ export async function createEntityComment(
 
 /** Count comments where the given user is mentioned */
 export async function fetchMyMentionCount(userId: string): Promise<number> {
-    const { count, error } = await supabase
+    const { count: mentionCount, error: mentionError } = await supabase
         .from('entity_comments')
         .select('id', { count: 'exact', head: true })
         .contains('mentions', [userId]);
-    if (error) throw error;
-    return count ?? 0;
+        
+    const { count: taskCount, error: taskError } = await supabase
+        .from('pursuit_checklist_tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('assigned_to', userId)
+        .or('assigned_to_type.eq.internal,assigned_to_type.is.null')
+        .neq('status', 'complete')
+        .neq('status', 'not_applicable');
+
+    if (mentionError) throw mentionError;
+    if (taskError) {
+        console.warn('Error fetching task count for badge:', taskError);
+    }
+    
+    return (mentionCount ?? 0) + (taskCount ?? 0);
 }
 
 /** Fetch all active user profiles (for @mention autocomplete) */
@@ -2103,7 +2116,7 @@ export async function fetchMyTasks(userId: string): Promise<(import('@/types').P
             pursuit:pursuits!pursuit_id(id, name, stage)
         `)
         .eq('assigned_to', userId)
-        .eq('assigned_to_type', 'internal')
+        .or('assigned_to_type.eq.internal,assigned_to_type.is.null')
         .order('due_date', { ascending: true, nullsFirst: false });
         
     if (error) throw error;

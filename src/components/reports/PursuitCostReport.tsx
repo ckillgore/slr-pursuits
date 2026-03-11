@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { fetchPursuitGLTotals, type YardiPursuitCostSummary } from '@/app/actions/accounting';
+import { fetchAllPursuitGLTotals, type YardiPursuitCostSummary } from '@/app/actions/accounting';
 import { usePursuitAccountingEntities, usePursuits } from '@/hooks/useSupabaseQueries';
 import { Loader2, DollarSign, Calendar, Landmark, AlertCircle, ExternalLink } from 'lucide-react';
 import { formatCurrency } from '@/lib/constants';
@@ -17,28 +17,21 @@ export function PursuitCostReport() {
 
     useEffect(() => {
         const loadCosts = async () => {
-            if (entities.length === 0) return;
-            
             setIsLoadingCosts(true);
             setError(null);
             try {
-                // Fetch the list of mapped property codes
-                const propertyCodes = entities.map(e => e.property_code).filter(Boolean);
-                
-                if (propertyCodes.length > 0) {
-                    const data = await fetchPursuitGLTotals(propertyCodes);
-                    setCostData(data);
-                }
+                const data = await fetchAllPursuitGLTotals();
+                setCostData(data);
             } catch (err: any) {
-                console.error('Error fetching pursuit costs:', err);
-                setError(err.message || 'Failed to fetch accounting data from Yardi');
+                console.error('Error fetching global pursuit costs:', err);
+                setError(err.message || 'Failed to fetch global accounting data from Yardi');
             } finally {
                 setIsLoadingCosts(false);
             }
         };
         
         loadCosts();
-    }, [entities]);
+    }, []);
 
     const isLoading = loadingPursuits || loadingEntities || isLoadingCosts;
 
@@ -82,15 +75,12 @@ export function PursuitCostReport() {
         );
     }
 
-    if (costData.length === 0 && entities.length === 0) {
+    if (costData.length === 0 && !isLoadingCosts) {
         return (
             <div className="flex flex-col items-center justify-center py-24 text-center">
                 <Landmark className="w-12 h-12 text-[var(--border-strong)] mb-3" />
-                <p className="text-sm text-[var(--text-muted)] mb-1">No accounting properties mapped.</p>
-                <p className="text-xs text-[var(--text-faint)]">Link properties in Admin Settings to begin tracking costs.</p>
-                <Link href="/admin/accounting" className="mt-4 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors">
-                    Go to Accounting Admin
-                </Link>
+                <p className="text-sm text-[var(--text-muted)] mb-1">No pursuit cost records found.</p>
+                <p className="text-xs text-[var(--text-faint)]">There are no property codes starting with '1' with Net WIP &gt; $100.</p>
             </div>
         );
     }
@@ -149,7 +139,9 @@ export function PursuitCostReport() {
                                                 {row.pursuit.name}
                                             </Link>
                                         ) : (
-                                            <span className="text-[var(--text-faint)] italic">Unmapped</span>
+                                            <span className="text-[var(--text-faint)] italic">
+                                                Unmapped ({row.property_name})
+                                            </span>
                                         )}
                                     </td>
                                     <td>

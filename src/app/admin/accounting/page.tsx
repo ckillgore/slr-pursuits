@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { usePursuits, usePursuitAccountingEntities, useUpsertPursuitAccountingEntity, useDeletePursuitAccountingEntity } from '@/hooks/useSupabaseQueries';
 import { Plus, Loader2, Trash2 } from 'lucide-react';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
+import { YardiPropertySelect, YardiJobSelect } from '@/components/accounting/YardiEntitySelect';
 
 export default function AccountingAdminPage() {
     const { isAdminOrOwner, isLoading: authLoading } = useAuth();
@@ -165,22 +166,16 @@ export default function AccountingAdminPage() {
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Property Code <span className="text-[var(--danger)]">*</span></label>
-                                <input 
-                                    type="text" 
-                                    value={newPropertyCode} 
-                                    onChange={(e) => setNewPropertyCode(e.target.value)} 
-                                    placeholder='e.g., "110000194"' 
-                                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-subtle)] focus:outline-none" 
+                                <YardiPropertySelect 
+                                    value={newPropertyCode}
+                                    onChange={setNewPropertyCode}
                                 />
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Job ID (optional)</label>
-                                <input 
-                                    type="number" 
-                                    value={newJobId} 
-                                    onChange={(e) => setNewJobId(e.target.value)} 
-                                    placeholder="e.g., 1500" 
-                                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:outline-none" 
+                                <YardiJobSelect 
+                                    value={newJobId}
+                                    onChange={setNewJobId}
                                 />
                             </div>
                         </div>

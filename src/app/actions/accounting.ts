@@ -72,6 +72,52 @@ export async function fetchPursuitGLTotals(propertyCodes: string[]): Promise<Yar
     return Array.from(summaryMap.values());
 }
 
+export async function fetchAllPursuitGLTotals(): Promise<YardiPursuitCostSummary[]> {
+    const client = createYardiClient();
+
+    const { data: rows, error } = await client
+        .from('gl_period_totals')
+        .select('property_code, property_name, account_code, account_name, actual_period_amount, actual_beginning_balance, synced_at')
+        .in('account_code', ['11720000', '11410000', '11415000'])
+        .like('property_code', '1%'); // pursuits start with 1
+
+    if (error) {
+        console.error('Failed to fetch Global GL Totals from Yardi:', error);
+        throw new Error('Failed to fetch global accounting data');
+    }
+
+    const summaryMap = new Map<string, YardiPursuitCostSummary>();
+
+    for (const row of (rows || [])) {
+        if (!summaryMap.has(row.property_code)) {
+            summaryMap.set(row.property_code, {
+                property_code: row.property_code,
+                property_name: row.property_name,
+                earnest_money: 0,
+                wip: 0,
+                wip_contra: 0,
+                net_cost: 0,
+                synced_at: row.synced_at
+            });
+        }
+
+        const summary = summaryMap.get(row.property_code)!;
+        const amount = Number(row.actual_period_amount || 0);
+
+        if (row.account_code === '11720000') summary.earnest_money += amount;
+        if (row.account_code === '11410000') summary.wip += amount;
+        if (row.account_code === '11415000') summary.wip_contra += amount;
+        
+        summary.net_cost = summary.earnest_money + summary.wip + summary.wip_contra;
+
+        if (new Date(row.synced_at) > new Date(summary.synced_at)) {
+            summary.synced_at = row.synced_at;
+        }
+    }
+
+    return Array.from(summaryMap.values());
+}
+
 export type YardiJobCostTransaction = {
     id: number;
     job_id: string;
@@ -98,4 +144,55 @@ export async function fetchPursuitJobCosts(jobIds: string[]): Promise<YardiJobCo
     }
 
     return rows as YardiJobCostTransaction[];
+}
+
+export type YardiPropertyOption = {
+    property_code: string;
+    property_name: string;
+};
+
+export async function fetchYardiProperties(search?: string): Promise<YardiPropertyOption[]> {
+    const client = createYardiClient();
+    
+    let query = client.from('properties').select('property_code, property_name').order('property_code', { ascending: true }).limit(50);
+    
+    if (search) {
+        query = query.or(`property_code.ilike.%${search}%,property_name.ilike.%${search}%`);
+    } else {
+        // Only show properties starting with 1 if no search
+        query = query.like('property_code', '1%');
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+        console.error('Failed to fetch Yardi properties:', error);
+        return [];
+    }
+
+    return data as YardiPropertyOption[];
+}
+
+export type YardiJobOption = {
+    job_id: string;
+    job_desc: string;
+};
+
+export async function fetchYardiJobs(search?: string): Promise<YardiJobOption[]> {
+    const client = createYardiClient();
+    
+    let query = client.from('jobs').select('job_id, job_desc').order('job_id', { ascending: true }).limit(50);
+    
+    if (search) {
+        query = query.or(`job_id.ilike.%${search}%,job_desc.ilike.%${search}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+        console.error('Failed to fetch Yardi jobs:', error);
+        return [];
+    }
+
+    return data as YardiJobOption[];
 }

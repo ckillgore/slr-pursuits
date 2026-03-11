@@ -110,7 +110,13 @@ export async function fetchAllPursuitGLTotals(): Promise<YardiPursuitCostSummary
         
         summary.net_cost = summary.earnest_money + summary.wip + summary.wip_contra;
 
-        if (new Date(row.synced_at) > new Date(summary.synced_at)) {
+        if (row.synced_at && summary.synced_at) {
+            const rowDate = new Date(row.synced_at);
+            const sumDate = new Date(summary.synced_at);
+            if (!isNaN(rowDate.getTime()) && !isNaN(sumDate.getTime()) && rowDate > sumDate) {
+                summary.synced_at = row.synced_at;
+            }
+        } else if (row.synced_at && !summary.synced_at) {
             summary.synced_at = row.synced_at;
         }
     }

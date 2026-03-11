@@ -24,49 +24,53 @@ export async function fetchPursuitGLTotals(propertyCodes: string[]): Promise<Yar
 
     const { data: rows, error } = await client
         .from('gl_period_totals')
-        .select('property_code, property_name, account_code, account_name, actual_period_amount, actual_beginning_balance, synced_at')
+        .select('property_code, property_name, account_code, actual_period_amount, actual_beginning_balance, synced_at, financial_period')
+        .in('property_code', propertyCodes)
         .in('account_code', ['11720000', '11410000', '11415000'])
-        .in('property_code', propertyCodes);
+        .order('financial_period', { ascending: false });
 
     if (error) {
         console.error('Failed to fetch GL Totals from Yardi:', error);
         throw new Error('Failed to fetch accounting data');
     }
 
-    // Aggregate by property
     const summaryMap = new Map<string, YardiPursuitCostSummary>();
+    const seenAccounts = new Set<string>();
 
     for (const row of (rows || [])) {
         if (!summaryMap.has(row.property_code)) {
             summaryMap.set(row.property_code, {
                 property_code: row.property_code,
-                property_name: row.property_name,
+                property_name: row.property_name || '',
                 earnest_money: 0,
                 wip: 0,
                 wip_contra: 0,
                 net_cost: 0,
-                synced_at: row.synced_at
+                synced_at: row.synced_at || new Date().toISOString()
             });
         }
 
+        const accountKey = `${row.property_code}-${row.account_code}`;
         const summary = summaryMap.get(row.property_code)!;
-        // The total balance is usually Beginning Balance + Period Amount for the latest period
-        // Depending on how period totals works, we might just sum all actual_period_amount if it's month-over-month.
-        // Assuming GL Period Totals is cumulative or we just need to sum them if we don't have a specific month filter.
-        // For now, let's sum: This needs to be refined based on exact Yardi period semantics. Let's assume actual_period_amount is the net change, and we sum it across all periods, or there's only one row per account if it's a current snapshot.
-        // Since we aren't filtering by date, let's sum everything (actual_period_amount)
-        const amount = Number(row.actual_period_amount || 0);
+        
+        if (row.synced_at && summary.synced_at) {
+            const rowDate = new Date(row.synced_at);
+            const sumDate = new Date(summary.synced_at);
+            if (!isNaN(rowDate.getTime()) && !isNaN(sumDate.getTime()) && rowDate > sumDate) {
+                summary.synced_at = row.synced_at;
+            }
+        }
+
+        if (seenAccounts.has(accountKey)) continue;
+        seenAccounts.add(accountKey);
+
+        const amount = Number(row.actual_beginning_balance || 0) + Number(row.actual_period_amount || 0);
 
         if (row.account_code === '11720000') summary.earnest_money += amount;
         if (row.account_code === '11410000') summary.wip += amount;
         if (row.account_code === '11415000') summary.wip_contra += amount;
         
         summary.net_cost = summary.earnest_money + summary.wip + summary.wip_contra;
-
-        // Take earliest sync date just to be pessimistic, or latest to be optimistic
-        if (new Date(row.synced_at) > new Date(summary.synced_at)) {
-            summary.synced_at = row.synced_at;
-        }
     }
 
     return Array.from(summaryMap.values());
@@ -77,9 +81,10 @@ export async function fetchAllPursuitGLTotals(): Promise<YardiPursuitCostSummary
 
     const { data: rows, error } = await client
         .from('gl_period_totals')
-        .select('property_code, property_name, account_code, account_name, actual_period_amount, actual_beginning_balance, synced_at')
+        .select('property_code, property_name, account_code, account_name, actual_period_amount, actual_beginning_balance, synced_at, financial_period')
         .in('account_code', ['11720000', '11410000', '11415000'])
-        .like('property_code', '1%'); // pursuits start with 1
+        .like('property_code', '1%') // pursuits start with 1
+        .order('financial_period', { ascending: false });
 
     if (error) {
         console.error('Failed to fetch Global GL Totals from Yardi:', error);
@@ -87,29 +92,24 @@ export async function fetchAllPursuitGLTotals(): Promise<YardiPursuitCostSummary
     }
 
     const summaryMap = new Map<string, YardiPursuitCostSummary>();
+    const seenAccounts = new Set<string>();
 
     for (const row of (rows || [])) {
         if (!summaryMap.has(row.property_code)) {
             summaryMap.set(row.property_code, {
                 property_code: row.property_code,
-                property_name: row.property_name,
+                property_name: row.property_name || '',
                 earnest_money: 0,
                 wip: 0,
                 wip_contra: 0,
                 net_cost: 0,
-                synced_at: row.synced_at
+                synced_at: row.synced_at || new Date().toISOString()
             });
         }
 
+        const accountKey = `${row.property_code}-${row.account_code}`;
         const summary = summaryMap.get(row.property_code)!;
-        const amount = Number(row.actual_period_amount || 0);
-
-        if (row.account_code === '11720000') summary.earnest_money += amount;
-        if (row.account_code === '11410000') summary.wip += amount;
-        if (row.account_code === '11415000') summary.wip_contra += amount;
         
-        summary.net_cost = summary.earnest_money + summary.wip + summary.wip_contra;
-
         if (row.synced_at && summary.synced_at) {
             const rowDate = new Date(row.synced_at);
             const sumDate = new Date(summary.synced_at);
@@ -119,6 +119,17 @@ export async function fetchAllPursuitGLTotals(): Promise<YardiPursuitCostSummary
         } else if (row.synced_at && !summary.synced_at) {
             summary.synced_at = row.synced_at;
         }
+
+        if (seenAccounts.has(accountKey)) continue;
+        seenAccounts.add(accountKey);
+
+        const amount = Number(row.actual_beginning_balance || 0) + Number(row.actual_period_amount || 0);
+
+        if (row.account_code === '11720000') summary.earnest_money += amount;
+        if (row.account_code === '11410000') summary.wip += amount;
+        if (row.account_code === '11415000') summary.wip_contra += amount;
+        
+        summary.net_cost = summary.earnest_money + summary.wip + summary.wip_contra;
     }
 
     return Array.from(summaryMap.values());
@@ -133,6 +144,34 @@ export type YardiJobCostTransaction = {
     category_id: string;
     vendor_name?: string;
 };
+
+export type YardiJobCostMatrixRow = {
+    job_id: number;
+    job_code: string;
+    cost_code: string;
+    category_name: string;
+    cost_group: string;
+    original_budget: number;
+    revised_budget: number;
+    total_billed_this_draw: number;
+};
+
+export async function fetchJobCostMatrix(jobIds: string[]): Promise<YardiJobCostMatrixRow[]> {
+    if (!jobIds.length) return [];
+    const client = createYardiClient();
+
+    const { data: rows, error } = await client
+        .from('jobcost_master_matrix')
+        .select('job_id, job_code, cost_code, category_name, cost_group, original_budget, revised_budget, total_billed_this_draw')
+        .in('job_id', jobIds);
+
+    if (error) {
+        console.error('Failed to fetch Job Cost Matrix from Yardi:', error);
+        throw new Error('Failed to fetch job cost matrix data');
+    }
+
+    return rows as YardiJobCostMatrixRow[];
+}
 
 export async function fetchPursuitJobCosts(jobIds: string[]): Promise<YardiJobCostTransaction[]> {
     if (!jobIds.length) return [];
@@ -181,16 +220,17 @@ export async function fetchYardiProperties(search?: string): Promise<YardiProper
 
 export type YardiJobOption = {
     job_id: string;
-    job_desc: string;
+    job_code: string;
+    job_description: string;
 };
 
 export async function fetchYardiJobs(search?: string): Promise<YardiJobOption[]> {
     const client = createYardiClient();
     
-    let query = client.from('jobs').select('job_id, job_desc').order('job_id', { ascending: true }).limit(50);
+    let query = client.from('jobs').select('job_id, job_code, job_description').order('job_code', { ascending: true }).limit(50);
     
     if (search) {
-        query = query.or(`job_id.ilike.%${search}%,job_desc.ilike.%${search}%`);
+        query = query.or(`job_code.ilike.%${search}%,job_description.ilike.%${search}%`);
     }
 
     const { data, error } = await query;

@@ -1,0 +1,35 @@
+--- GL PERIOD TOTALS WITHOUT FILTER ---
+[
+  {
+    "id": 2405186,
+    "property_id": 332,
+    "property_code": "11000039",
+    "property_name": "44th & Camelback Pursuit - PreDev",
+    "account_code": "11720000",
+    "account_name": "Earnest Money Deposits",
+    "financial_category": "Uncategorized",
+    "report_group": "Unmapped",
+    "financial_period": "2025-07-01",
+    "actual_period_amount": 0,
+    "actual_beginning_balance": 0,
+    "budget_period_amount": 0,
+    "budget_beginning_balance": 0,
+    "synced_at": "2026-03-11T11:07:38.499069+00:00"
+  },
+  {
+    "id": 2405187,
+    "property_id": 332,
+    "property_code": "11000039",
+    "property_name": "44th & Camelback Pursuit - PreDev",
+    "account_code": "11415000",
+    "account_name": "Work In Process Contra",
+    "financial_category": "Uncategorized",
+    "report_group": "Unmapped",
+    "financial_period": "2025-07-01",
+    "actual_period_amount": 0,
+    "actual_beginning_balance": -421770.57,
+    "budget_period_amount": 0,
+    "budget_beginning_balance": 0,
+    "synced_at": "2026-03-11T11:07:38.499069+00:00"
+  }
+]

@@ -134,8 +134,8 @@ export function YardiJobSelect({ value, onChange, placeholder = "Search jobs..."
                 const results = await fetchYardiJobs('');
                 setOptions(results);
                 if (value) {
-                    const found = results.find(r => r.job_id === value);
-                    if (found) setSelectedName(`${found.job_id} - ${found.job_desc}`);
+                    const found = results.find(r => r.job_id.toString() === value.toString());
+                    if (found) setSelectedName(`${found.job_code} - ${found.job_description}`);
                 }
             } catch (err) {
                 console.error(err);
@@ -204,19 +204,19 @@ export function YardiJobSelect({ value, onChange, placeholder = "Search jobs..."
                     {!isLoading && options.map((opt) => (
                         <div 
                             key={opt.job_id}
-                            className={`px-3 py-2 cursor-pointer text-sm flex items-center justify-between hover:bg-[var(--bg-card)] transition-colors ${value === opt.job_id ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-primary)]'}`}
+                            className={`px-3 py-2 cursor-pointer text-sm flex items-center justify-between hover:bg-[var(--bg-card)] transition-colors ${value === opt.job_id.toString() ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-primary)]'}`}
                             onClick={() => {
-                                onChange(opt.job_id);
-                                setSelectedName(`${opt.job_id} - ${opt.job_desc}`);
+                                onChange(opt.job_id.toString());
+                                setSelectedName(`${opt.job_code} - ${opt.job_description}`);
                                 setIsOpen(false);
                                 setSearchTerm('');
                             }}
                         >
                             <div className="flex flex-col">
-                                <span className="font-mono text-xs font-semibold">{opt.job_id}</span>
-                                <span className="text-xs text-[var(--text-secondary)] truncate">{opt.job_desc}</span>
+                                <span className="font-mono text-xs font-semibold">{opt.job_code}</span>
+                                <span className="text-xs text-[var(--text-secondary)] truncate">{opt.job_description}</span>
                             </div>
-                            {value === opt.job_id && <Check className="w-4 h-4" />}
+                            {value === opt.job_id.toString() && <Check className="w-4 h-4" />}
                         </div>
                     ))}
                 </div>

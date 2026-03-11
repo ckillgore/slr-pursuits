@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { fetchPursuitGLTotals, fetchPursuitJobCosts, type YardiPursuitCostSummary, type YardiJobCostTransaction } from '@/app/actions/accounting';
+import { fetchPursuitGLTotals, fetchPursuitJobCosts, fetchJobCostMatrix, type YardiPursuitCostSummary, type YardiJobCostTransaction, type YardiJobCostMatrixRow } from '@/app/actions/accounting';
 import { usePursuitAccountingEntities } from '@/hooks/useSupabaseQueries';
-import { Loader2, DollarSign, Calendar, AlertCircle, Building2, Search, SlidersHorizontal } from 'lucide-react';
-import { formatCurrency } from '@/lib/constants';
+import { Loader2, DollarSign, Calendar, AlertCircle, Building2, Search, SlidersHorizontal, BarChart3 } from 'lucide-react';
+import { formatCurrency, formatPercent } from '@/lib/constants';
 
 interface PursuitCostsTabProps {
     pursuitId: string;
@@ -15,6 +15,7 @@ export function PursuitCostsTab({ pursuitId }: PursuitCostsTabProps) {
     
     const [glData, setGlData] = useState<YardiPursuitCostSummary | null>(null);
     const [jobCosts, setJobCosts] = useState<YardiJobCostTransaction[]>([]);
+    const [matrixData, setMatrixData] = useState<YardiJobCostMatrixRow[]>([]);
     
     const [isLoadingCosts, setIsLoadingCosts] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -46,12 +47,16 @@ export function PursuitCostsTab({ pursuitId }: PursuitCostsTabProps) {
                     }
                 }
                 
-                // Fetch Job Costs
+                // Fetch Job Costs & Matrix
                 const rawJobIds = pursuitEntities.map(e => e.job_id).filter(Boolean);
                 const jobIds = rawJobIds.map(String);
                 if (jobIds.length > 0) {
-                    const txs = await fetchPursuitJobCosts(jobIds);
+                    const [txs, matrix] = await Promise.all([
+                        fetchPursuitJobCosts(jobIds),
+                        fetchJobCostMatrix(jobIds)
+                    ]);
                     setJobCosts(txs);
+                    setMatrixData(matrix);
                 }
             } catch (err: any) {
                 console.error('Error fetching pursuit details costs:', err);
@@ -72,6 +77,35 @@ export function PursuitCostsTab({ pursuitId }: PursuitCostsTabProps) {
         tx.vendor_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         tx.category_id?.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    // Group Matrix Data by Cost Category
+    const matrixSummary = matrixData.reduce((acc, row) => {
+        const key = `${row.cost_group}|${row.cost_code}|${row.category_name}`;
+        if (!acc[key]) {
+            acc[key] = {
+                cost_group: row.cost_group,
+                cost_code: row.cost_code,
+                category_name: row.category_name,
+                original_budget: 0,
+                revised_budget: 0,
+                total_spent: 0
+            };
+        }
+        
+        acc[key].original_budget = Math.max(acc[key].original_budget, row.original_budget || 0);
+        acc[key].revised_budget = Math.max(acc[key].revised_budget, row.revised_budget || 0);
+        acc[key].total_spent += (row.total_billed_this_draw || 0);
+        
+        return acc;
+    }, {} as Record<string, { cost_group: string, cost_code: string, category_name: string, original_budget: number, revised_budget: number, total_spent: number }>);
+
+    const sortedMatrixRows = Object.values(matrixSummary).sort((a, b) => {
+        if (a.cost_group !== b.cost_group) return a.cost_group.localeCompare(b.cost_group);
+        return a.cost_code.localeCompare(b.cost_code);
+    });
+
+    const totalMatrixBudget = sortedMatrixRows.reduce((sum, r) => sum + r.revised_budget, 0);
+    const totalMatrixSpent = sortedMatrixRows.reduce((sum, r) => sum + r.total_spent, 0);
 
     if (loadingEntities || isLoadingCosts) {
         return (
@@ -134,6 +168,66 @@ export function PursuitCostsTab({ pursuitId }: PursuitCostsTabProps) {
                     <p className="text-sm text-[var(--text-muted)]">No GL data found for the mapped property codes.</p>
                 )}
             </div>
+
+            {/* Matrix Budget vs Actuals */}
+            {sortedMatrixRows.length > 0 && (
+                <div className="card !p-0 overflow-hidden flex flex-col">
+                    <div className="bg-[var(--bg-elevated)] border-b border-[var(--border)] px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                            <BarChart3 className="w-4 h-4 text-[var(--text-muted)]" />
+                            Job Cost Budget vs. Actuals
+                        </h3>
+                        {totalMatrixBudget > 0 && (
+                            <div className="text-xs font-medium text-[var(--text-secondary)]">
+                                Total Completion: {formatPercent(totalMatrixSpent / totalMatrixBudget)}
+                            </div>
+                        )}
+                    </div>
+                    <div className="overflow-x-auto block border-b border-[var(--border)]">
+                        <table className="data-table w-full">
+                            <thead className="bg-[var(--bg-primary)]">
+                                <tr>
+                                    <th className="text-left w-24">Code</th>
+                                    <th className="text-left">Category</th>
+                                    <th className="text-left w-32">Group</th>
+                                    <th className="text-right w-32">Revised Budget</th>
+                                    <th className="text-right w-32">Total Spent</th>
+                                    <th className="text-right w-32">Variance</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sortedMatrixRows.map((row) => {
+                                    const variance = row.revised_budget - row.total_spent;
+                                    const isOverBudget = variance < 0;
+                                    
+                                    return (
+                                        <tr key={row.cost_code} className="hover:bg-[var(--bg-elevated)] transition-colors text-sm">
+                                            <td className="font-mono text-xs text-[var(--text-muted)]">{row.cost_code}</td>
+                                            <td className="text-[var(--text-primary)] font-medium">{row.category_name}</td>
+                                            <td className="text-[var(--text-secondary)] text-xs">{row.cost_group}</td>
+                                            <td className="text-right font-mono text-[var(--text-secondary)]">{formatCurrency(row.revised_budget)}</td>
+                                            <td className="text-right font-mono text-[var(--text-primary)]">{formatCurrency(row.total_spent)}</td>
+                                            <td className={`text-right font-mono font-medium ${isOverBudget ? 'text-[var(--danger)]' : 'text-[var(--success)]'}`}>
+                                                {formatCurrency(variance)}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                            <tfoot className="bg-[var(--bg-elevated)] border-t border-[var(--border)]">
+                                <tr>
+                                    <td colSpan={3} className="font-bold text-right text-xs uppercase tracking-wider text-[var(--text-secondary)] py-3">Total Displayed</td>
+                                    <td className="text-right font-mono font-bold text-[var(--text-primary)]">{formatCurrency(totalMatrixBudget)}</td>
+                                    <td className="text-right font-mono font-bold text-[var(--text-primary)]">{formatCurrency(totalMatrixSpent)}</td>
+                                    <td className={`text-right font-mono font-bold ${totalMatrixBudget - totalMatrixSpent < 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'}`}>
+                                        {formatCurrency(totalMatrixBudget - totalMatrixSpent)}
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            )}
 
             {/* Job Costs Detail */}
             <div className="card !p-0 overflow-hidden flex flex-col">

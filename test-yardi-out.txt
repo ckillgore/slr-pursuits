@@ -1,0 +1,68 @@
+--- JOBS ---
+[
+  {
+    "job_id": 1,
+    "job_code": "309030",
+    "job_description": "28th & Camelback Development",
+    "property_id": 179,
+    "job_status": 4,
+    "requested_date": "2017-06-21T00:00:00",
+    "scheduled_date": null,
+    "completion_date": null,
+    "original_budget": 0,
+    "synced_at": "2026-03-11T11:00:10.968662+00:00"
+  },
+  {
+    "job_id": 2,
+    "job_code": "409030",
+    "job_description": "28th & Camelback Construction",
+    "property_id": 31,
+    "job_status": 4,
+    "requested_date": "2017-06-27T00:00:00",
+    "scheduled_date": null,
+    "completion_date": null,
+    "original_budget": 0,
+    "synced_at": "2026-03-11T11:00:10.968662+00:00"
+  }
+]
+--- GL PERIOD TOTALS ---
+[]
+--- JOBCOST CAT MAPPING ---
+[]
+--- JOBCOST MASTER MATRIX ---
+[
+  {
+    "id": 6879889,
+    "job_id": 14,
+    "job_code": "404091",
+    "job_name": "Austin Flatiron, LP",
+    "job_type": "Construction Hard Costs",
+    "property_code": "41001091",
+    "cost_code": "0317200",
+    "category_name": "Repair and Corrective Work",
+    "cost_group": "Hard Costs",
+    "draw_number": "Pending",
+    "draw_date": "2019-12-01",
+    "original_budget": 37200,
+    "revised_budget": 152029.45,
+    "total_billed_this_draw": 10400,
+    "synced_at": "2026-03-11T11:00:32.2785+00:00"
+  },
+  {
+    "id": 6879890,
+    "job_id": 14,
+    "job_code": "404091",
+    "job_name": "Austin Flatiron, LP",
+    "job_type": "Construction Hard Costs",
+    "property_code": "41001091",
+    "cost_code": "0317200",
+    "category_name": "Repair and Corrective Work",
+    "cost_group": "Hard Costs",
+    "draw_number": "Pending",
+    "draw_date": "2019-12-01",
+    "original_budget": 0,
+    "revised_budget": 0,
+    "total_billed_this_draw": 10400,
+    "synced_at": "2026-03-11T11:00:32.2785+00:00"
+  }
+]

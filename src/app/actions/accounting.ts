@@ -83,7 +83,7 @@ export async function fetchAllPursuitGLTotals(): Promise<YardiPursuitCostSummary
         .from('gl_period_totals')
         .select('property_code, property_name, account_code, account_name, actual_period_amount, actual_beginning_balance, synced_at, financial_period')
         .in('account_code', ['11720000', '11410000', '11415000'])
-        .like('property_code', '1%') // pursuits start with 1
+        .like('property_code', '11%') // pursuits start with 11
         .order('financial_period', { ascending: false });
 
     if (error) {
@@ -204,8 +204,8 @@ export async function fetchYardiProperties(search?: string): Promise<YardiProper
     if (search) {
         query = query.or(`property_code.ilike.%${search}%,property_name.ilike.%${search}%`);
     } else {
-        // Only show properties starting with 1 if no search
-        query = query.like('property_code', '1%');
+        // Only show properties starting with 11 if no search
+        query = query.like('property_code', '11%');
     }
 
     const { data, error } = await query;

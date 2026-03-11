@@ -80,7 +80,7 @@ export function PursuitCostReport() {
             <div className="flex flex-col items-center justify-center py-24 text-center">
                 <Landmark className="w-12 h-12 text-[var(--border-strong)] mb-3" />
                 <p className="text-sm text-[var(--text-muted)] mb-1">No pursuit cost records found.</p>
-                <p className="text-xs text-[var(--text-faint)]">There are no property codes starting with '1' with Net WIP &gt; $100.</p>
+                <p className="text-xs text-[var(--text-faint)]">There are no property codes starting with '11' with Net WIP &gt; $100.</p>
             </div>
         );
     }

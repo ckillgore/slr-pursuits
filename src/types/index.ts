@@ -526,7 +526,7 @@ export interface ReportFilter {
   values?: string[];
 }
 
-export type ReportDataSource = 'pursuits' | 'land_comps' | 'predev_budgets' | 'key_dates' | 'rent_comps' | 'sale_comps';
+export type ReportDataSource = 'pursuits' | 'land_comps' | 'predev_budgets' | 'key_dates' | 'rent_comps' | 'sale_comps' | 'pursuit_costs';
 
 export interface ReportConfig {
   dataSource: ReportDataSource;
@@ -692,6 +692,16 @@ export interface ExternalTaskParty {
   company: string | null;
   type: string | null;
   created_at: string;
+}
+
+export interface PursuitAccountingEntity {
+  id: string;
+  pursuit_id: string;
+  property_code: string;
+  job_id: number | null;
+  is_primary: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface PursuitChecklistItem {

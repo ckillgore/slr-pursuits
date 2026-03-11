@@ -61,6 +61,7 @@ const KeyDatesTab = lazy(() => import('@/components/pursuits/KeyDatesTab').then(
 const ChecklistTab = lazy(() => import('@/components/pursuits/ChecklistTab'));
 const RentCompsTab = lazy(() => import('@/components/pursuits/RentCompsTab'));
 const PursuitCompsTab = lazy(() => import('@/components/pursuits/PursuitCompsTab'));
+const PursuitCostsTab = lazy(() => import('@/components/pursuits/PursuitCostsTab').then(m => ({ default: m.PursuitCostsTab })));
 
 function TabLoader() {
     return (
@@ -95,8 +96,8 @@ export default function PursuitDetailPage() {
     const [selectedTemplateId, setSelectedTemplateId] = useState('');
     const [isEditingName, setIsEditingName] = useState(false);
     const [editName, setEditName] = useState('');
-    const [activeTab, setActiveTab] = useState<'overview' | 'onepagers' | 'demographics' | 'publicinfo' | 'rent_comps' | 'comps' | 'predev' | 'keydates' | 'checklist'>(
-        initialTab === 'onepagers' ? 'onepagers' : initialTab === 'predev' ? 'predev' : initialTab === 'keydates' ? 'keydates' : initialTab === 'checklist' ? 'checklist' : initialTab === 'rent_comps' ? 'rent_comps' : 'overview'
+    const [activeTab, setActiveTab] = useState<'overview' | 'onepagers' | 'demographics' | 'publicinfo' | 'rent_comps' | 'comps' | 'predev' | 'keydates' | 'checklist' | 'costs'>(
+        initialTab === 'onepagers' ? 'onepagers' : initialTab === 'predev' ? 'predev' : initialTab === 'keydates' ? 'keydates' : initialTab === 'checklist' ? 'checklist' : initialTab === 'rent_comps' ? 'rent_comps' : initialTab === 'costs' ? 'costs' : 'overview'
     );
 
     // Only load product types and templates when one-pagers tab is active (creation dialog)
@@ -580,6 +581,18 @@ export default function PursuitDetailPage() {
                     >
                         Checklist
                         {activeTab === 'checklist' && (
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('costs')}
+                        className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'costs'
+                            ? 'text-[var(--accent)]'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                            }`}
+                    >
+                        Pursuit Costs
+                        {activeTab === 'costs' && (
                             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
                         )}
                     </button>
@@ -1115,6 +1128,13 @@ export default function PursuitDetailPage() {
                 {activeTab === 'checklist' && (
                     <Suspense fallback={<TabLoader />}>
                         <ChecklistTab pursuitId={pursuitUuid} />
+                    </Suspense>
+                )}
+
+                {/* ===== COSTS TAB ===== */}
+                {activeTab === 'costs' && (
+                    <Suspense fallback={<TabLoader />}>
+                        <PursuitCostsTab pursuitId={pursuitUuid} />
                     </Suspense>
                 )}
 

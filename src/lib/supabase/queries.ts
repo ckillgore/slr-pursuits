@@ -2159,3 +2159,40 @@ export async function fetchMyTasks(userId: string): Promise<(import('@/types').P
     if (error) throw error;
     return data as (import('@/types').PursuitChecklistTask & { pursuit: { id: string, name: string, stage_id: string } })[];
 }
+
+// ============================================================
+// Accounting Entity Mapping
+// ============================================================
+
+export async function fetchPursuitAccountingEntities(): Promise<import('@/types').PursuitAccountingEntity[]> {
+    const { data, error } = await supabase
+        .from('pursuit_accounting_entities')
+        .select('*');
+    if (error) throw error;
+    return data as import('@/types').PursuitAccountingEntity[];
+}
+
+export async function fetchPursuitAccountingEntity(pursuitId: string): Promise<import('@/types').PursuitAccountingEntity | null> {
+    const { data, error } = await supabase
+        .from('pursuit_accounting_entities')
+        .select('*')
+        .eq('pursuit_id', pursuitId)
+        .maybeSingle();
+    if (error) throw error;
+    return data as import('@/types').PursuitAccountingEntity | null;
+}
+
+export async function upsertPursuitAccountingEntity(entity: Partial<import('@/types').PursuitAccountingEntity> & { pursuit_id: string, property_code: string }) {
+    const { data, error } = await supabase
+        .from('pursuit_accounting_entities')
+        .upsert({ ...entity }, { onConflict: 'pursuit_id,property_code' })
+        .select()
+        .single();
+    if (error) throw error;
+    return data as import('@/types').PursuitAccountingEntity;
+}
+
+export async function deletePursuitAccountingEntity(id: string) {
+    const { error } = await supabase.from('pursuit_accounting_entities').delete().eq('id', id);
+    if (error) throw error;
+}

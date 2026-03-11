@@ -7,6 +7,7 @@ import { ReportTable } from '@/components/reports/ReportTable';
 import { ReportConfigPanel } from '@/components/reports/ReportConfigPanel';
 import { PredevBudgetReport } from '@/components/reports/PredevBudgetReport';
 import { KeyDateReport } from '@/components/reports/KeyDateReport';
+import { PursuitCostReport } from '@/components/reports/PursuitCostReport';
 import { TemplateSaveDialog } from '@/components/reports/TemplateSaveDialog';
 import {
     useReportTemplates,
@@ -187,7 +188,7 @@ export default function ReportsPage() {
         else if (source === 'rent_comps') setConfig(DEFAULT_RENT_COMP_CONFIG);
         else if (source === 'sale_comps') setConfig(DEFAULT_SALE_COMP_CONFIG);
         else if (source === 'pursuits') setConfig(DEFAULT_PURSUIT_CONFIG);
-        // For predev_budgets, config panel is not used — the budget report has its own controls
+        // For predev_budgets and pursuit_costs, config panel is not used — they have their own controls
     };
 
     const handleSort = useCallback((field: ReportFieldKey) => {
@@ -419,7 +420,7 @@ export default function ReportsPage() {
                         {/* Action buttons */}
                         <div className="flex items-center gap-1 ml-auto">
                         {/* Edit mode toggle */}
-                        {dataSource !== 'predev_budgets' && dataSource !== 'key_dates' && dataSource !== 'rent_comps' && (
+                        {dataSource !== 'predev_budgets' && dataSource !== 'pursuit_costs' && dataSource !== 'key_dates' && dataSource !== 'rent_comps' && (
                             <button
                                 onClick={() => setEditMode(!editMode)}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${editMode
@@ -584,6 +585,12 @@ export default function ReportsPage() {
                             >
                                 <Building2 className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Sale Comps</span><span className="sm:hidden">Sales</span>
                             </button>
+                            <button
+                                onClick={() => handleDataSourceChange('pursuit_costs')}
+                                className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${dataSource === 'pursuit_costs' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                            >
+                                <DollarSign className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Pursuit Costs</span><span className="sm:hidden">Costs</span>
+                            </button>
                         </div>
                     </div>{/* end bottom row */}
                 </div>{/* end toolbar */}
@@ -598,8 +605,8 @@ export default function ReportsPage() {
 
                 {/* ── Main content area ──────────────────── */}
                 <div className="flex flex-1 overflow-hidden">
-                    {/* Config panel (sidebar) — not shown for predev_budgets */}
-                    {showConfig && dataSource !== 'predev_budgets' && dataSource !== 'key_dates' && (
+                    {/* Config panel (sidebar) — not shown for predev_budgets, pursuit_costs, or key_dates */}
+                    {showConfig && dataSource !== 'predev_budgets' && dataSource !== 'pursuit_costs' && dataSource !== 'key_dates' && (
                         <ReportConfigPanel
                             config={config}
                             onChange={setConfig}
@@ -613,6 +620,8 @@ export default function ReportsPage() {
                     <div className="flex-1 overflow-auto p-4 md:p-6">
                         {dataSource === 'predev_budgets' ? (
                             <PredevBudgetReport />
+                        ) : dataSource === 'pursuit_costs' ? (
+                            <PursuitCostReport />
                         ) : dataSource === 'key_dates' ? (
                             <KeyDateReport />
                         ) : isLoading ? (

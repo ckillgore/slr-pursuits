@@ -1471,3 +1471,45 @@ export function useMyTasks(userId: string | undefined) {
         enabled: !!userId,
     });
 }
+
+// ============================================================
+// Accounting Entity Mapping
+// ============================================================
+
+export function usePursuitAccountingEntities() {
+    return useQuery({
+        queryKey: ['pursuit-accounting-entities'],
+        queryFn: () => queries.fetchPursuitAccountingEntities(),
+    });
+}
+
+export function usePursuitAccountingEntity(pursuitId: string) {
+    return useQuery({
+        queryKey: ['pursuit-accounting-entity', pursuitId],
+        queryFn: () => queries.fetchPursuitAccountingEntity(pursuitId),
+        enabled: !!pursuitId,
+    });
+}
+
+export function useUpsertPursuitAccountingEntity() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (entity: Partial<import('@/types').PursuitAccountingEntity> & { pursuit_id: string, property_code: string }) => 
+            queries.upsertPursuitAccountingEntity(entity),
+        onSuccess: (data) => {
+            qc.invalidateQueries({ queryKey: ['pursuit-accounting-entities'] });
+            qc.invalidateQueries({ queryKey: ['pursuit-accounting-entity', data.pursuit_id] });
+        },
+    });
+}
+
+export function useDeletePursuitAccountingEntity() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, pursuit_id }: { id: string, pursuit_id: string }) => queries.deletePursuitAccountingEntity(id),
+        onSuccess: (_, { pursuit_id }) => {
+            qc.invalidateQueries({ queryKey: ['pursuit-accounting-entities'] });
+            qc.invalidateQueries({ queryKey: ['pursuit-accounting-entity', pursuit_id] });
+        },
+    });
+}

@@ -189,9 +189,9 @@ export function PursuitCostReport() {
                                                 {row.property_name}
                                             </span>
                                         ) : (
-                                            <span className="text-[var(--text-faint)] italic font-normal">
+                                            <Link href={`/reports/accounting/${row.property_code}?name=${encodeURIComponent(row.property_name)}`} className="hover:underline text-[var(--text-faint)] italic font-normal">
                                                 Unmapped ({row.property_name})
-                                            </span>
+                                            </Link>
                                         )}
                                     </td>
                                     <td>

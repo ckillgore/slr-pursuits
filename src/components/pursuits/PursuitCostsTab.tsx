@@ -1,16 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { fetchPursuitGLTotals, fetchPursuitJobCosts, fetchJobCostMatrix, type YardiPursuitCostSummary, type YardiJobCostTransaction, type YardiJobCostMatrixRow } from '@/app/actions/accounting';
+import { fetchPursuitGLTotals, fetchPursuitJobCosts, fetchJobCostMatrix, fetchJobsForProperty, type YardiPursuitCostSummary, type YardiJobCostTransaction, type YardiJobCostMatrixRow } from '@/app/actions/accounting';
 import { usePursuitAccountingEntities } from '@/hooks/useSupabaseQueries';
-import { Loader2, DollarSign, Calendar, AlertCircle, Building2, Search, SlidersHorizontal, BarChart3 } from 'lucide-react';
+import { Loader2, DollarSign, Calendar, AlertCircle, Building2, Search, SlidersHorizontal, BarChart3, ArrowUpDown, ArrowUp, ArrowDown, Filter } from 'lucide-react';
 import { formatCurrency, formatPercent } from '@/lib/constants';
 
 interface PursuitCostsTabProps {
-    pursuitId: string;
+    pursuitId?: string;
+    unmappedPropertyCode?: string;
+    unmappedName?: string;
 }
 
-export function PursuitCostsTab({ pursuitId }: PursuitCostsTabProps) {
+export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName }: PursuitCostsTabProps) {
     const { data: entities = [], isLoading: loadingEntities } = usePursuitAccountingEntities();
     
     const [glData, setGlData] = useState<YardiPursuitCostSummary | null>(null);
@@ -21,17 +23,28 @@ export function PursuitCostsTab({ pursuitId }: PursuitCostsTabProps) {
     const [error, setError] = useState<string | null>(null);
     
     const [searchTerm, setSearchTerm] = useState('');
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'post_date', direction: 'desc' });
+    const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
+    const [selectedCategory, setSelectedCategory] = useState<string>('');
 
     useEffect(() => {
         const loadCosts = async () => {
-            const pursuitEntities = entities.filter(e => e.pursuit_id === pursuitId);
-            if (pursuitEntities.length === 0) return;
+            const pursuitEntities = pursuitId 
+                ? entities.filter(e => e.pursuit_id === pursuitId)
+                : [];
+            
+            // If we are viewing an unmapped property, create a mock entity array
+            const targetEntities = unmappedPropertyCode 
+                ? [{ property_code: unmappedPropertyCode, job_id: undefined }] 
+                : pursuitEntities;
+                
+            if (targetEntities.length === 0) return;
             
             setIsLoadingCosts(true);
             setError(null);
             try {
                 // Fetch GL Totals
-                const propertyCodes = pursuitEntities.map(e => e.property_code).filter(Boolean);
+                const propertyCodes = targetEntities.map(e => e.property_code).filter(Boolean);
                 if (propertyCodes.length > 0) {
                     const data = await fetchPursuitGLTotals(propertyCodes);
                     if (data.length > 0) {
@@ -48,8 +61,17 @@ export function PursuitCostsTab({ pursuitId }: PursuitCostsTabProps) {
                 }
                 
                 // Fetch Job Costs & Matrix
-                const rawJobIds = pursuitEntities.map(e => e.job_id).filter(Boolean);
-                const jobIds = rawJobIds.map(String);
+                const rawJobIds = targetEntities.map(e => e.job_id).filter(Boolean);
+                let jobIds = rawJobIds.map(String);
+                
+                // If we are unmapped and have no explicit job_ids, try to auto-fetch them
+                if (jobIds.length === 0 && unmappedPropertyCode) {
+                    const discoveredJobs = await fetchJobsForProperty(unmappedPropertyCode);
+                    if (discoveredJobs.length > 0) {
+                        jobIds = discoveredJobs;
+                    }
+                }
+                
                 if (jobIds.length > 0) {
                     const [txs, matrix] = await Promise.all([
                         fetchPursuitJobCosts(jobIds),
@@ -67,25 +89,92 @@ export function PursuitCostsTab({ pursuitId }: PursuitCostsTabProps) {
         };
         
         loadCosts();
-    }, [entities, pursuitId]);
+    }, [entities, pursuitId, unmappedPropertyCode]);
 
-    const pursuitEntities = entities.filter(e => e.pursuit_id === pursuitId);
-    const hasMapping = pursuitEntities.length > 0;
+    const pursuitEntities = pursuitId 
+        ? entities.filter(e => e.pursuit_id === pursuitId)
+        : [];
+        
+    const hasMapping = pursuitEntities.length > 0 || !!unmappedPropertyCode;
     
-    const filteredTx = jobCosts.filter(tx => 
-        tx.description?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        tx.vendor_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tx.category_id?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Create a lookup for category names from the matrix
+    const categoryLookup = matrixData.reduce((acc, row) => {
+        if (row.cost_code && row.category_name) {
+            acc[row.cost_code] = row.category_name;
+        }
+        return acc;
+    }, {} as Record<string, string>);
+
+    // Get unique categories for dropdown
+    const availableCategories = Array.from(new Set(jobCosts.map(tx => tx.cost_category_code))).sort();
+
+    // Apply mapping, filtering, and sorting
+    const processedTx = jobCosts
+        .map(tx => ({
+            ...tx,
+            category_name: categoryLookup[tx.cost_category_code] || tx.cost_category_code
+        }))
+        .filter(tx => {
+            // Search filter
+            const matchesSearch = 
+                tx.line_description?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                tx.vendor_invoice_num?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                tx.category_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                tx.cost_category_code?.toLowerCase().includes(searchTerm.toLowerCase());
+            
+            // Category filter
+            const matchesCategory = selectedCategory ? tx.cost_category_code === selectedCategory : true;
+            
+            // Date filter
+            let matchesDate = true;
+            if (dateRange.start && tx.post_date) {
+                matchesDate = matchesDate && new Date(tx.post_date) >= new Date(dateRange.start);
+            }
+            if (dateRange.end && tx.post_date) {
+                matchesDate = matchesDate && new Date(tx.post_date) <= new Date(dateRange.end);
+            }
+
+            return matchesSearch && matchesCategory && matchesDate;
+        })
+        .sort((a, b) => {
+            if (!sortConfig) return 0;
+            const { key, direction } = sortConfig;
+            
+            let valA: any = a[key as keyof typeof a];
+            let valB: any = b[key as keyof typeof b];
+
+            if (key === 'post_date') {
+                valA = valA ? new Date(valA).getTime() : 0;
+                valB = valB ? new Date(valB).getTime() : 0;
+            }
+
+            if (valA < valB) return direction === 'asc' ? -1 : 1;
+            if (valA > valB) return direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+    const handleSort = (key: string) => {
+        setSortConfig(current => {
+            if (current?.key === key) {
+                return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
+            }
+            return { key, direction: 'asc' };
+        });
+    };
+
+    const SortIcon = ({ columnKey }: { columnKey: string }) => {
+        if (sortConfig?.key !== columnKey) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-50" />;
+        return sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 ml-1 text-[var(--accent)]" /> : <ArrowDown className="w-3 h-3 ml-1 text-[var(--accent)]" />;
+    };
 
     // Group Matrix Data by Cost Category
-    const matrixSummary = matrixData.reduce((acc, row) => {
+    const matrixSummary = (matrixData || []).reduce((acc, row) => {
         const key = `${row.cost_group}|${row.cost_code}|${row.category_name}`;
         if (!acc[key]) {
             acc[key] = {
-                cost_group: row.cost_group,
-                cost_code: row.cost_code,
-                category_name: row.category_name,
+                cost_group: row.cost_group || 'Uncategorized',
+                cost_code: row.cost_code || 'Unknown',
+                category_name: row.category_name || 'General',
                 original_budget: 0,
                 revised_budget: 0,
                 total_spent: 0
@@ -104,7 +193,6 @@ export function PursuitCostsTab({ pursuitId }: PursuitCostsTabProps) {
         return a.cost_code.localeCompare(b.cost_code);
     });
 
-    const totalMatrixBudget = sortedMatrixRows.reduce((sum, r) => sum + r.revised_budget, 0);
     const totalMatrixSpent = sortedMatrixRows.reduce((sum, r) => sum + r.total_spent, 0);
 
     if (loadingEntities || isLoadingCosts) {
@@ -169,19 +257,14 @@ export function PursuitCostsTab({ pursuitId }: PursuitCostsTabProps) {
                 )}
             </div>
 
-            {/* Matrix Budget vs Actuals */}
+            {/* Matrix Actuals Summary */}
             {sortedMatrixRows.length > 0 && (
                 <div className="card !p-0 overflow-hidden flex flex-col">
                     <div className="bg-[var(--bg-elevated)] border-b border-[var(--border)] px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
                             <BarChart3 className="w-4 h-4 text-[var(--text-muted)]" />
-                            Job Cost Budget vs. Actuals
+                            Job Cost Rollup
                         </h3>
-                        {totalMatrixBudget > 0 && (
-                            <div className="text-xs font-medium text-[var(--text-secondary)]">
-                                Total Completion: {formatPercent(totalMatrixSpent / totalMatrixBudget)}
-                            </div>
-                        )}
                     </div>
                     <div className="overflow-x-auto block border-b border-[var(--border)]">
                         <table className="data-table w-full">
@@ -190,38 +273,23 @@ export function PursuitCostsTab({ pursuitId }: PursuitCostsTabProps) {
                                     <th className="text-left w-24">Code</th>
                                     <th className="text-left">Category</th>
                                     <th className="text-left w-32">Group</th>
-                                    <th className="text-right w-32">Revised Budget</th>
                                     <th className="text-right w-32">Total Spent</th>
-                                    <th className="text-right w-32">Variance</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {sortedMatrixRows.map((row) => {
-                                    const variance = row.revised_budget - row.total_spent;
-                                    const isOverBudget = variance < 0;
-                                    
-                                    return (
-                                        <tr key={row.cost_code} className="hover:bg-[var(--bg-elevated)] transition-colors text-sm">
-                                            <td className="font-mono text-xs text-[var(--text-muted)]">{row.cost_code}</td>
-                                            <td className="text-[var(--text-primary)] font-medium">{row.category_name}</td>
-                                            <td className="text-[var(--text-secondary)] text-xs">{row.cost_group}</td>
-                                            <td className="text-right font-mono text-[var(--text-secondary)]">{formatCurrency(row.revised_budget)}</td>
-                                            <td className="text-right font-mono text-[var(--text-primary)]">{formatCurrency(row.total_spent)}</td>
-                                            <td className={`text-right font-mono font-medium ${isOverBudget ? 'text-[var(--danger)]' : 'text-[var(--success)]'}`}>
-                                                {formatCurrency(variance)}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
+                                {sortedMatrixRows.map((row) => (
+                                    <tr key={row.cost_code} className="hover:bg-[var(--bg-elevated)] transition-colors text-sm">
+                                        <td className="font-mono text-xs text-[var(--text-muted)]">{row.cost_code}</td>
+                                        <td className="text-[var(--text-primary)] font-medium">{row.category_name}</td>
+                                        <td className="text-[var(--text-secondary)] text-xs">{row.cost_group}</td>
+                                        <td className="text-right font-mono text-[var(--text-primary)]">{formatCurrency(row.total_spent)}</td>
+                                    </tr>
+                                ))}
                             </tbody>
                             <tfoot className="bg-[var(--bg-elevated)] border-t border-[var(--border)]">
                                 <tr>
                                     <td colSpan={3} className="font-bold text-right text-xs uppercase tracking-wider text-[var(--text-secondary)] py-3">Total Displayed</td>
-                                    <td className="text-right font-mono font-bold text-[var(--text-primary)]">{formatCurrency(totalMatrixBudget)}</td>
                                     <td className="text-right font-mono font-bold text-[var(--text-primary)]">{formatCurrency(totalMatrixSpent)}</td>
-                                    <td className={`text-right font-mono font-bold ${totalMatrixBudget - totalMatrixSpent < 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'}`}>
-                                        {formatCurrency(totalMatrixBudget - totalMatrixSpent)}
-                                    </td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -236,19 +304,52 @@ export function PursuitCostsTab({ pursuitId }: PursuitCostsTabProps) {
                         <SlidersHorizontal className="w-4 h-4 text-[var(--text-muted)]" />
                         Job Cost Transactions
                         <span className="text-[10px] bg-[var(--bg-card)] text-[var(--text-muted)] border border-[var(--border)] px-1.5 py-0.5 rounded-full ml-1">
-                            {filteredTx.length}
+                            {processedTx.length}
                         </span>
                     </h3>
                     
-                    <div className="relative w-full sm:w-64">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
-                        <input 
-                            type="text" 
-                            placeholder="Search descriptions, vendors..."
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full pl-9 pr-3 py-1.5 text-sm bg-[var(--bg-card)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] transition-colors"
-                        />
+                    <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto mt-4 sm:mt-0">
+                        {/* Filters */}
+                        <div className="flex gap-2">
+                            <input
+                                type="date"
+                                value={dateRange.start}
+                                onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                                className="px-2 py-1.5 text-xs bg-[var(--bg-card)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
+                                title="Start Date"
+                            />
+                            <input
+                                type="date"
+                                value={dateRange.end}
+                                onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                                className="px-2 py-1.5 text-xs bg-[var(--bg-card)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
+                                title="End Date"
+                            />
+                            <select
+                                value={selectedCategory}
+                                onChange={(e) => setSelectedCategory(e.target.value)}
+                                className="px-2 py-1.5 text-xs bg-[var(--bg-card)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] max-w-[150px]"
+                            >
+                                <option value="">All Categories</option>
+                                {availableCategories.map(cat => (
+                                    <option key={cat} value={cat}>
+                                        {cat} {categoryLookup[cat] ? `- ${categoryLookup[cat]}` : ''}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        
+                        {/* Search */}
+                        <div className="relative w-full sm:w-64">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
+                            <input 
+                                type="text" 
+                                placeholder="Search descriptions, vendors..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="w-full pl-9 pr-3 py-1.5 text-sm bg-[var(--bg-card)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] transition-colors"
+                            />
+                        </div>
                     </div>
                 </div>
                 
@@ -256,35 +357,48 @@ export function PursuitCostsTab({ pursuitId }: PursuitCostsTabProps) {
                     <table className="data-table w-full">
                         <thead className="sticky top-0 bg-[var(--bg-primary)] z-10 shadow-sm border-b border-[var(--border)]">
                             <tr>
-                                <th className="text-left w-24">Date</th>
-                                <th className="text-left w-32">Job ID</th>
-                                <th className="text-left w-32">Category</th>
-                                <th className="text-left">Description</th>
-                                <th className="text-left">Vendor</th>
-                                <th className="text-right w-36">Amount</th>
+                                <th className="text-left w-24 cursor-pointer hover:bg-[var(--bg-elevated)] select-none" onClick={() => handleSort('post_date')}>
+                                    <div className="flex items-center">Date <SortIcon columnKey="post_date" /></div>
+                                </th>
+                                <th className="text-left w-32 cursor-pointer hover:bg-[var(--bg-elevated)] select-none" onClick={() => handleSort('job_code')}>
+                                    <div className="flex items-center">Job Code <SortIcon columnKey="job_code" /></div>
+                                </th>
+                                <th className="text-left w-48 cursor-pointer hover:bg-[var(--bg-elevated)] select-none" onClick={() => handleSort('cost_category_code')}>
+                                    <div className="flex items-center">Category <SortIcon columnKey="cost_category_code" /></div>
+                                </th>
+                                <th className="text-left cursor-pointer hover:bg-[var(--bg-elevated)] select-none" onClick={() => handleSort('line_description')}>
+                                    <div className="flex items-center">Description <SortIcon columnKey="line_description" /></div>
+                                </th>
+                                <th className="text-left cursor-pointer hover:bg-[var(--bg-elevated)] select-none" onClick={() => handleSort('vendor_invoice_num')}>
+                                    <div className="flex items-center">Invoice # <SortIcon columnKey="vendor_invoice_num" /></div>
+                                </th>
+                                <th className="text-right w-36 cursor-pointer hover:bg-[var(--bg-elevated)] select-none" onClick={() => handleSort('amount')}>
+                                    <div className="flex items-center justify-end">Amount <SortIcon columnKey="amount" /></div>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredTx.map((tx, idx) => (
+                            {processedTx.map((tx, idx) => (
                                 <tr key={`${tx.id}-${idx}`} className="hover:bg-[var(--bg-elevated)] transition-colors text-sm">
                                     <td className="text-[var(--text-secondary)] whitespace-nowrap">
-                                        {new Date(tx.transaction_date).toLocaleDateString()}
+                                        {tx.post_date ? new Date(tx.post_date).toLocaleDateString() : '—'}
                                     </td>
-                                    <td className="font-mono text-xs text-[var(--text-muted)]">{tx.job_id}</td>
+                                    <td className="font-mono text-xs text-[var(--text-muted)]">{tx.job_code}</td>
                                     <td className="text-[var(--text-secondary)]">
-                                        <span className="px-2 py-0.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded text-xs">
-                                            {tx.category_id}
-                                        </span>
+                                        <div className="flex flex-col">
+                                            <span className="text-xs font-mono">{tx.cost_category_code}</span>
+                                            <span className="text-xs truncate max-w-[180px]" title={tx.category_name}>{tx.category_name !== tx.cost_category_code ? tx.category_name : ''}</span>
+                                        </div>
                                     </td>
-                                    <td className="text-[var(--text-primary)]">{tx.description}</td>
-                                    <td className="text-[var(--text-secondary)]">{tx.vendor_name || '—'}</td>
+                                    <td className="text-[var(--text-primary)]">{tx.line_description}</td>
+                                    <td className="text-[var(--text-secondary)]">{tx.vendor_invoice_num || '—'}</td>
                                     <td className={`text-right font-mono font-medium ${tx.amount < 0 ? 'text-[var(--danger)]' : 'text-[var(--text-primary)]'}`}>
                                         {formatCurrency(tx.amount)}
                                     </td>
                                 </tr>
                             ))}
 
-                            {filteredTx.length === 0 && (
+                            {processedTx.length === 0 && (
                                 <tr>
                                     <td colSpan={6} className="text-center py-16 text-[var(--text-muted)]">
                                         {searchTerm ? 'No job costs match your search.' : 'No job cost transactions found for mapped job IDs.'}
@@ -292,12 +406,12 @@ export function PursuitCostsTab({ pursuitId }: PursuitCostsTabProps) {
                                 </tr>
                             )}
                         </tbody>
-                        {filteredTx.length > 0 && (
+                        {processedTx.length > 0 && (
                             <tfoot className="sticky bottom-0 bg-[var(--bg-elevated)] shadow-[0_-1px_3px_rgba(0,0,0,0.05)] border-t border-[var(--border)]">
                                 <tr>
                                     <td colSpan={5} className="font-bold text-right text-xs uppercase tracking-wider text-[var(--text-secondary)] py-3">Total Displayed</td>
                                     <td className="text-right font-mono font-bold text-[var(--text-primary)]">
-                                        {formatCurrency(filteredTx.reduce((sum, tx) => sum + tx.amount, 0))}
+                                        {formatCurrency(processedTx.reduce((sum, tx) => sum + tx.amount, 0))}
                                     </td>
                                 </tr>
                             </tfoot>

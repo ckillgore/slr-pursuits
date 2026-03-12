@@ -34,10 +34,23 @@ export async function fetchPursuitGLTotals(propertyCodes: string[]): Promise<Yar
         throw new Error('Failed to fetch accounting data');
     }
 
-    const summaryMap = new Map<string, YardiPursuitCostSummary>();
-    const seenAccounts = new Set<string>();
+    const propertyMaxPeriodMap = new Map<string, string>(); // property_code -> max_period
 
+    // First pass: find the maximum financial period for each property
     for (const row of (rows || [])) {
+        if (!propertyMaxPeriodMap.has(row.property_code)) {
+            propertyMaxPeriodMap.set(row.property_code, row.financial_period);
+        }
+    }
+
+    const summaryMap = new Map<string, YardiPursuitCostSummary>();
+
+    // Second pass: sum all rows that match their property's max financial period
+    for (const row of (rows || [])) {
+        if (row.financial_period !== propertyMaxPeriodMap.get(row.property_code)) {
+            continue;
+        }
+
         if (!summaryMap.has(row.property_code)) {
             summaryMap.set(row.property_code, {
                 property_code: row.property_code,
@@ -50,30 +63,97 @@ export async function fetchPursuitGLTotals(propertyCodes: string[]): Promise<Yar
             });
         }
 
-        const accountKey = `${row.property_code}-${row.account_code}`;
         const summary = summaryMap.get(row.property_code)!;
         
-        if (row.synced_at && summary.synced_at) {
+        // Handle synced_at dates (keep the most recent)
+        if (row.synced_at) {
             const rowDate = new Date(row.synced_at);
-            const sumDate = new Date(summary.synced_at);
-            if (!isNaN(rowDate.getTime()) && !isNaN(sumDate.getTime()) && rowDate > sumDate) {
-                summary.synced_at = row.synced_at;
+            if (!isNaN(rowDate.getTime())) {
+                if (!summary.synced_at) {
+                    summary.synced_at = row.synced_at;
+                } else {
+                    const sumDate = new Date(summary.synced_at);
+                    if (!isNaN(sumDate.getTime()) && rowDate > sumDate) {
+                        summary.synced_at = row.synced_at;
+                    }
+                }
             }
         }
-
-        if (seenAccounts.has(accountKey)) continue;
-        seenAccounts.add(accountKey);
 
         const amount = Number(row.actual_beginning_balance || 0) + Number(row.actual_period_amount || 0);
 
         if (row.account_code === '11720000') summary.earnest_money += amount;
-        if (row.account_code === '11410000') summary.wip += amount;
-        if (row.account_code === '11415000') summary.wip_contra += amount;
-        
+        else if (row.account_code === '11410000') summary.wip += amount;
+        else if (row.account_code === '11415000') summary.wip_contra += amount;
+    }
+
+    // Calculate net cost
+    for (const summary of summaryMap.values()) {
         summary.net_cost = summary.earnest_money + summary.wip + summary.wip_contra;
     }
 
     return Array.from(summaryMap.values());
+}
+
+export type YardiDetailedGLSummary = {
+    account_code: string;
+    account_name: string;
+    total_amount: number;
+};
+
+export async function fetchEntityGLTotals(propertyCode: string): Promise<YardiDetailedGLSummary[]> {
+    if (!propertyCode) return [];
+    const client = createYardiClient();
+
+    // Fetch all accounts for this property
+    const { data: rows, error } = await client
+        .from('gl_period_totals')
+        .select('account_code, account_name, actual_period_amount, actual_beginning_balance, financial_period')
+        .eq('property_code', propertyCode)
+        .order('financial_period', { ascending: false });
+
+    if (error) {
+        console.error(`Failed to fetch GL Totals for entity ${propertyCode}:`, error);
+        throw new Error('Failed to fetch detailed accounting data');
+    }
+
+    const maxPeriodMap = new Map<string, string>(); // account_code -> max_period
+
+    // First pass: find the maximum financial period for each account
+    for (const row of (rows || [])) {
+        if (!maxPeriodMap.has(row.account_code)) {
+            maxPeriodMap.set(row.account_code, row.financial_period);
+        }
+    }
+
+    const summaryMap = new Map<string, YardiDetailedGLSummary>();
+
+    // Second pass: sum all rows that match their account's max financial period
+    for (const row of (rows || [])) {
+        if (row.financial_period !== maxPeriodMap.get(row.account_code)) {
+            continue;
+        }
+
+        const accountKey = row.account_code;
+        
+        if (!summaryMap.has(accountKey)) {
+            summaryMap.set(accountKey, {
+                account_code: accountKey,
+                account_name: row.account_name || '',
+                total_amount: 0
+            });
+        }
+
+        const summary = summaryMap.get(accountKey)!;
+        summary.total_amount += Number(row.actual_beginning_balance || 0) + Number(row.actual_period_amount || 0);
+    }
+
+    // Filter out rows with 0 balance
+    const results = Array.from(summaryMap.values())
+        .filter(row => Math.abs(row.total_amount) > 0)
+        .sort((a, b) => a.account_code.localeCompare(b.account_code));
+
+    return results;
 }
 
 export async function fetchAllPursuitGLTotals(): Promise<YardiPursuitCostSummary[]> {
@@ -91,10 +171,23 @@ export async function fetchAllPursuitGLTotals(): Promise<YardiPursuitCostSummary
         throw new Error('Failed to fetch global accounting data');
     }
 
-    const summaryMap = new Map<string, YardiPursuitCostSummary>();
-    const seenAccounts = new Set<string>();
+    const propertyMaxPeriodMap = new Map<string, string>(); // property_code -> max_period
 
+    // First pass: find the maximum financial period for each property
     for (const row of (rows || [])) {
+        if (!propertyMaxPeriodMap.has(row.property_code)) {
+            propertyMaxPeriodMap.set(row.property_code, row.financial_period);
+        }
+    }
+
+    const summaryMap = new Map<string, YardiPursuitCostSummary>();
+
+    // Second pass: sum all rows that match their property's max financial period
+    for (const row of (rows || [])) {
+        if (row.financial_period !== propertyMaxPeriodMap.get(row.property_code)) {
+            continue;
+        }
+
         if (!summaryMap.has(row.property_code)) {
             summaryMap.set(row.property_code, {
                 property_code: row.property_code,
@@ -107,28 +200,31 @@ export async function fetchAllPursuitGLTotals(): Promise<YardiPursuitCostSummary
             });
         }
 
-        const accountKey = `${row.property_code}-${row.account_code}`;
         const summary = summaryMap.get(row.property_code)!;
         
-        if (row.synced_at && summary.synced_at) {
+        // Handle synced_at dates (keep the most recent)
+        if (row.synced_at) {
             const rowDate = new Date(row.synced_at);
-            const sumDate = new Date(summary.synced_at);
-            if (!isNaN(rowDate.getTime()) && !isNaN(sumDate.getTime()) && rowDate > sumDate) {
-                summary.synced_at = row.synced_at;
+            if (!isNaN(rowDate.getTime())) {
+                if (!summary.synced_at) {
+                    summary.synced_at = row.synced_at;
+                } else {
+                    const sumDate = new Date(summary.synced_at);
+                    if (!isNaN(sumDate.getTime()) && rowDate > sumDate) {
+                        summary.synced_at = row.synced_at;
+                    }
+                }
             }
-        } else if (row.synced_at && !summary.synced_at) {
-            summary.synced_at = row.synced_at;
         }
-
-        if (seenAccounts.has(accountKey)) continue;
-        seenAccounts.add(accountKey);
 
         const amount = Number(row.actual_beginning_balance || 0) + Number(row.actual_period_amount || 0);
 
         if (row.account_code === '11720000') summary.earnest_money += amount;
-        if (row.account_code === '11410000') summary.wip += amount;
-        if (row.account_code === '11415000') summary.wip_contra += amount;
-        
+        else if (row.account_code === '11410000') summary.wip += amount;
+        else if (row.account_code === '11415000') summary.wip_contra += amount;
+    }    
+    // Calculate net cost
+    for (const summary of summaryMap.values()) {
         summary.net_cost = summary.earnest_money + summary.wip + summary.wip_contra;
     }
 
@@ -138,11 +234,12 @@ export async function fetchAllPursuitGLTotals(): Promise<YardiPursuitCostSummary
 export type YardiJobCostTransaction = {
     id: number;
     job_id: string;
-    description: string;
+    job_code?: string;
+    line_description?: string;
     amount: number;
-    transaction_date: string;
-    category_id: string;
-    vendor_name?: string;
+    post_date: string;
+    cost_category_code: string;
+    vendor_invoice_num?: string;
 };
 
 export type YardiJobCostMatrixRow = {
@@ -170,25 +267,78 @@ export async function fetchJobCostMatrix(jobIds: string[]): Promise<YardiJobCost
         throw new Error('Failed to fetch job cost matrix data');
     }
 
-    return rows as YardiJobCostMatrixRow[];
+    const safeRows = (rows || []).map(r => ({
+        ...r,
+        original_budget: Number(r.original_budget || 0),
+        revised_budget: Number(r.revised_budget || 0),
+        total_billed_this_draw: Number(r.total_billed_this_draw || 0),
+    }));
+
+    return safeRows as YardiJobCostMatrixRow[];
 }
 
 export async function fetchPursuitJobCosts(jobIds: string[]): Promise<YardiJobCostTransaction[]> {
     if (!jobIds.length) return [];
     const client = createYardiClient();
 
+    // Fetch the jobs array separately to map codes
+    const { data: jobMapData } = await client
+        .from('jobs')
+        .select('job_id, job_code')
+        .in('job_id', jobIds);
+        
+    const jobCodeMap = (jobMapData || []).reduce((acc, j) => {
+        acc[String(j.job_id)] = j.job_code;
+        return acc;
+    }, {} as Record<string, string>);
+
     const { data: rows, error } = await client
         .from('jobcost_transactions')
         .select('*')
         .in('job_id', jobIds)
-        .order('transaction_date', { ascending: false });
+        .order('post_date', { ascending: false });
 
     if (error) {
         console.error('Failed to fetch Job Costs from Yardi:', error);
-        throw new Error('Failed to fetch job cost data');
+        throw new Error(`Failed to fetch job cost data: ${error.message || JSON.stringify(error)}`);
     }
 
-    return rows as YardiJobCostTransaction[];
+    const safeRows = (rows || []).map(r => ({
+        ...r,
+        amount: Number(r.amount || 0),
+        job_code: jobCodeMap[String(r.job_id)] || String(r.job_id)
+    }));
+
+    return safeRows as YardiJobCostTransaction[];
+}
+
+export async function fetchJobsForProperty(propertyCode: string): Promise<string[]> {
+    const client = createYardiClient();
+    
+    // First find the internal property_id
+    const { data: propData, error: propError } = await client
+        .from('properties')
+        .select('property_id')
+        .eq('property_code', propertyCode)
+        .single();
+        
+    if (propError || !propData) {
+        console.error('Failed to find property_id for code:', propertyCode, propError);
+        return [];
+    }
+
+    // Then find all jobs for that property_id
+    const { data: jobsData, error: jobsError } = await client
+        .from('jobs')
+        .select('job_id')
+        .eq('property_id', propData.property_id);
+        
+    if (jobsError) {
+        console.error('Failed to fetch jobs for property:', propData.property_id, jobsError);
+        return [];
+    }
+
+    return (jobsData || []).map(j => String(j.job_id));
 }
 
 export type YardiPropertyOption = {

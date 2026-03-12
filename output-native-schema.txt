@@ -1,0 +1,44 @@
+Fetching table schema information...
+Columns in gl_period_totals: id, property_id, property_code, property_name, account_code, account_name, financial_category, report_group, financial_period, actual_period_amount, actual_beginning_balance, budget_period_amount, budget_beginning_balance, synced_at
+Lamar GP 2026-03-01 records: [
+  {
+    "id": 2542266,
+    "property_id": 567,
+    "property_code": "53600000",
+    "property_name": "SLR-SML Lamar GP, LLC",
+    "account_code": "10025000",
+    "account_name": "Unrestricted Cash - Operating",
+    "financial_category": "Uncategorized",
+    "report_group": "Unmapped",
+    "financial_period": "2026-03-01",
+    "actual_period_amount": 0,
+    "actual_beginning_balance": 3386460.4,
+    "budget_period_amount": 0,
+    "budget_beginning_balance": 0,
+    "synced_at": "2026-03-11T11:08:26.964234+00:00"
+  },
+  {
+    "id": 2542350,
+    "property_id": 567,
+    "property_code": "53600000",
+    "property_name": "SLR-SML Lamar GP, LLC",
+    "account_code": "10025000",
+    "account_name": "Unrestricted Cash - Operating",
+    "financial_category": "Uncategorized",
+    "report_group": "Unmapped",
+    "financial_period": "2026-03-01",
+    "actual_period_amount": 0,
+    "actual_beginning_balance": -3385490.19,
+    "budget_period_amount": 0,
+    "budget_beginning_balance": 0,
+    "synced_at": "2026-03-11T11:08:26.964234+00:00"
+  }
+]
+
+Checking for possible transaction tables:
+- gl_transactions: Error or not found (Could not find the table 'public.gl_transactions' in the schema cache)
+- gl_transaction_details: Error or not found (Could not find the table 'public.gl_transaction_details' in the schema cache)
+- journal_entries: Error or not found (Could not find the table 'public.journal_entries' in the schema cache)
+- yardi_transactions: Error or not found (Could not find the table 'public.yardi_transactions' in the schema cache)
+- jobcost_transactions: EXISTS
+  Columns in jobcost_transactions: id, transaction_id, job_id, cost_category_code, post_date, invoice_date, amount, vendor_invoice_num, line_description, synced_at

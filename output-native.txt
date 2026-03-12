@@ -1,0 +1,73 @@
+Found 7 properties matching Lamar:
+[
+  {
+    "property_id": 17,
+    "property_code": "11000100",
+    "property_name": "Groves South Lamar Pursuit",
+    "city": "Dallas",
+    "state": "TX",
+    "zip_code": "75201",
+    "property_type": null,
+    "synced_at": "2026-03-04T03:46:25.532358+00:00"
+  },
+  {
+    "property_id": 67,
+    "property_code": "41014000",
+    "property_name": "SLR Lamar Flats Construction, LLC",
+    "city": "Dallas",
+    "state": "TX",
+    "zip_code": "75201",
+    "property_type": null,
+    "synced_at": "2026-03-04T03:46:25.532358+00:00"
+  },
+  {
+    "property_id": 68,
+    "property_code": "41014031",
+    "property_name": "Lamar Flats",
+    "city": "Dallas",
+    "state": "TX",
+    "zip_code": "75201",
+    "property_type": null,
+    "synced_at": "2026-03-04T03:46:25.532358+00:00"
+  },
+  {
+    "property_id": 246,
+    "property_code": "11000156",
+    "property_name": "2700 S Lamar(Seamless Capital/S. Lamar)",
+    "city": "Dallas",
+    "state": "TX",
+    "zip_code": "75201",
+    "property_type": null,
+    "synced_at": "2026-03-04T03:46:25.532358+00:00"
+  },
+  {
+    "property_id": 567,
+    "property_code": "53600000",
+    "property_name": "SLR-SML Lamar GP, LLC",
+    "city": "Dallas",
+    "state": "TX",
+    "zip_code": "75201",
+    "property_type": null,
+    "synced_at": "2026-03-04T03:46:25.532358+00:00"
+  },
+  {
+    "property_id": 638,
+    "property_code": "41030000",
+    "property_name": "Texas Construction-S. Lamar",
+    "city": "Dallas",
+    "state": "TX",
+    "zip_code": "75201",
+    "property_type": null,
+    "synced_at": "2026-03-04T03:46:25.65417+00:00"
+  },
+  {
+    "property_id": 639,
+    "property_code": "41030156",
+    "property_name": "2700 S. Lamar",
+    "city": "Dallas",
+    "state": "TX",
+    "zip_code": "75201",
+    "property_type": null,
+    "synced_at": "2026-03-04T03:46:25.65417+00:00"
+  }
+]

@@ -1,0 +1,72 @@
+{
+  "jobs": [
+    {
+      "job_id": 1,
+      "job_code": "309030",
+      "job_description": "28th & Camelback Development",
+      "property_id": 179,
+      "job_status": 4,
+      "requested_date": "2017-06-21T00:00:00",
+      "scheduled_date": null,
+      "completion_date": null,
+      "original_budget": 0,
+      "synced_at": "2026-03-11T11:00:10.968662+00:00"
+    },
+    {
+      "job_id": 2,
+      "job_code": "409030",
+      "job_description": "28th & Camelback Construction",
+      "property_id": 31,
+      "job_status": 4,
+      "requested_date": "2017-06-27T00:00:00",
+      "scheduled_date": null,
+      "completion_date": null,
+      "original_budget": 0,
+      "synced_at": "2026-03-11T11:00:10.968662+00:00"
+    },
+    {
+      "job_id": 3,
+      "job_code": "310104",
+      "job_description": "Abernathy Retail",
+      "property_id": 178,
+      "job_status": 4,
+      "requested_date": "2019-11-10T00:00:00",
+      "scheduled_date": null,
+      "completion_date": null,
+      "original_budget": 0,
+      "synced_at": "2026-03-11T11:00:10.968662+00:00"
+    }
+  ],
+  "properties": [
+    {
+      "property_id": 1,
+      "property_code": "10100000",
+      "property_name": "SLR Holdings, LLC",
+      "city": "Dallas",
+      "state": "TX",
+      "zip_code": "75201",
+      "property_type": null,
+      "synced_at": "2026-03-04T03:46:25.532358+00:00"
+    },
+    {
+      "property_id": 2,
+      "property_code": "10200000",
+      "property_name": "SLR Ventures, LLC",
+      "city": "Dallas",
+      "state": "TX",
+      "zip_code": "75201",
+      "property_type": null,
+      "synced_at": "2026-03-04T03:46:25.532358+00:00"
+    },
+    {
+      "property_id": 3,
+      "property_code": "10400000",
+      "property_name": "SLR/EC Fund I, LLC",
+      "city": "Dallas",
+      "state": "TX",
+      "zip_code": "75201",
+      "property_type": null,
+      "synced_at": "2026-03-04T03:46:25.532358+00:00"
+    }
+  ]
+}

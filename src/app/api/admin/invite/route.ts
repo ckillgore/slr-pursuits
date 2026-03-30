@@ -38,7 +38,7 @@ export async function POST(request: Request) {
         const adminClient = createAdminClient();
         const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
             data: { full_name, role: userRole },
-            redirectTo: `${new URL(request.url).origin}/auth/callback`,
+            redirectTo: `${new URL(request.url).origin}/auth/callback?next=/auth/reset-password`,
         });
 
         if (error) {

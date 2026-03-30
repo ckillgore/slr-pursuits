@@ -845,7 +845,7 @@ export function MarketContextSection({ comps }: { comps: PropertyMetrics[] }) {
 // ============================================================
 export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
     const [selectedComp, setSelectedComp] = useState(0);
-    const [viewMode, setViewMode] = useState<'summary' | 'detail'>('summary');
+    const [viewMode, setViewMode] = useState<'summary' | 'floorplan' | 'detail'>('summary');
 
     const comp = comps[selectedComp];
     if (!comp) return <p className="text-sm text-[var(--text-muted)] text-center py-8">No comp selected</p>;
@@ -870,22 +870,34 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
         return isNotice ? 'notice' : 'occupied';
     };
 
-    // Summary view: group by bed/bath
+    // Summary view: group by bed/bath or floorplan
     const summaryRows = useMemo(() => {
         const groups: Record<string, {
+            label: string;
             bed: number | null; bath: number | null;
             units: HellodataUnit[]; statuses: ('occupied' | 'vacant' | 'notice')[];
         }> = {};
 
         comp.units.forEach((u: HellodataUnit) => {
-            const key = `${u.bed ?? 'N/A'}-${u.bath ?? 'N/A'}`;
-            if (!groups[key]) groups[key] = { bed: u.bed, bath: u.bath, units: [], statuses: [] };
+            let key, label;
+            if (viewMode === 'floorplan') {
+                label = u.floorplan_name || 'Unknown Floorplan';
+                key = `fp-${label}`;
+            } else {
+                label = u.bed === null ? 'N/A' : u.bed === 0 ? 'Studio' : `${u.bed} BR / ${u.bath ?? '?'} BA`;
+                key = `type-${u.bed ?? 'N/A'}-${u.bath ?? 'N/A'}`;
+            }
+
+            if (!groups[key]) groups[key] = { label, bed: u.bed, bath: u.bath, units: [], statuses: [] };
             groups[key].units.push(u);
             groups[key].statuses.push(getStatus(u));
         });
 
         return Object.values(groups)
-            .sort((a, b) => (a.bed ?? -1) - (b.bed ?? -1) || (a.bath ?? -1) - (b.bath ?? -1))
+            .sort((a, b) => {
+                if (viewMode === 'floorplan') return a.label.localeCompare(b.label);
+                return (a.bed ?? -1) - (b.bed ?? -1) || (a.bath ?? -1) - (b.bath ?? -1);
+            })
             .map(g => {
                 const count = g.units.length;
                 const occupied = g.statuses.filter(s => s === 'occupied').length;
@@ -905,13 +917,13 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                     : null;
 
                 return {
-                    label: g.bed === null ? 'N/A' : g.bed === 0 ? 'Studio' : `${g.bed} BR / ${g.bath ?? '?'} BA`,
+                    label: g.label,
                     count, occupied, vacant, notice,
                     avgRent, avgEff, avgSqft, rentPsf, effPsf, avgDom,
                     occupancyPct: count > 0 ? (occupied / count) * 100 : 0,
                 };
             });
-    }, [comp]);
+    }, [comp, viewMode]);
 
     // Detail view: individual units
     const detailRows = useMemo(() => {
@@ -952,10 +964,10 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                         {comps.map((c, i) => <option key={i} value={i}>{c.name}</option>)}
                     </select>
                     <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
-                        {(['summary', 'detail'] as const).map(m => (
+                        {(['summary', 'floorplan', 'detail'] as const).map(m => (
                             <button key={m} onClick={() => setViewMode(m)}
                                 className={`px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-medium ${viewMode === m ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]'}`}>
-                                {m === 'summary' ? 'By Type' : 'By Unit'}
+                                {m === 'summary' ? 'By Type' : m === 'floorplan' ? 'By Floorplan' : 'By Unit'}
                             </button>
                         ))}
                     </div>
@@ -982,12 +994,12 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                 </div>
             </div>
 
-            {viewMode === 'summary' ? (
+            {viewMode !== 'detail' ? (
                 <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
                     <table className="w-full text-xs min-w-[700px]">
                         <thead>
                             <tr className="border-b-2 border-[var(--border)] bg-[var(--bg-primary)]">
-                                <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10">Unit Type</th>
+                                <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10">{viewMode === 'summary' ? 'Unit Type' : 'Floorplan'}</th>
                                 <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]"># Units</th>
                                 <th className="text-center py-2.5 px-2 font-semibold text-[var(--success)]">Occupied</th>
                                 <th className="text-center py-2.5 px-2 font-semibold text-[#EF4444]">Vacant</th>

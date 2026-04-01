@@ -377,7 +377,7 @@ const SALE_COMP_FIELDS: ReportFieldDef[] = [
             const txs = r.saleComp?.sale_transactions ?? [];
             const sorted = [...txs].sort((a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime());
             const capRate = sorted[0]?.cap_rate;
-            return capRate != null ? capRate / 100 : null;
+            return capRate != null ? capRate : null;
         }, format: fmtPercent, aggregation: 'avg', editable: true, dbColumn: 'cap_rate', editTarget: 'sale_transaction'
     },
     {

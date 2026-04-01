@@ -232,10 +232,8 @@ export default function ReportsPage() {
                 );
                 const txId = sorted[0]?.id;
                 if (txId) {
-                    // Cap rate is stored as whole number (5 = 5%) but edited as decimal
-                    const txUpdates = field.dbColumn === 'cap_rate' && typeof rawValue === 'number'
-                        ? { [field.dbColumn]: rawValue * 100 }
-                        : updates;
+                    // Cap rate is stored normally as a decimal
+                    const txUpdates = updates;
                     updateSaleTransaction.mutate({ id: txId, updates: txUpdates });
                 }
                 break;

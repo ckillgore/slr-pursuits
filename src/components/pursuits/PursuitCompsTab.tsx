@@ -589,7 +589,7 @@ function SaleCompsSection({ pursuitId }: { pursuitId: string }) {
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
                                             <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Cap Rate</span>
-                                            <span>{tx?.cap_rate ? `${tx.cap_rate.toFixed(2)}%` : '—'}</span>
+                                            <span>{tx?.cap_rate ? `${(tx.cap_rate * 100).toFixed(2)}%` : '—'}</span>
                                         </td>
                                         <td className="py-1.5 px-2 text-right md:text-center block md:table-cell">
                                             <button onClick={() => handleUnlink(c.id)} title="Unlink" className="text-[var(--text-muted)] hover:text-red-500 transition-colors inline-block md:block md:mx-auto">

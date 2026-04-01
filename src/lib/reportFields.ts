@@ -327,7 +327,7 @@ const RENT_COMP_FIELDS: ReportFieldDef[] = [
         getValue: (r) => {
             const concessions = r.rentComp?.concessions ?? [];
             if (concessions.length === 0) return null;
-            return concessions.map((c: any) => c.text || c.description).filter(Boolean).join('; ') || null;
+            return concessions.map((c: any) => c.concession_text).filter(Boolean).join('; ') || null;
         }, format: fmtText
     },
 ];

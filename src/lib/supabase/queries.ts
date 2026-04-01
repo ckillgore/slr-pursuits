@@ -1655,7 +1655,7 @@ export async function fetchAllRentComps(): Promise<ReportRow[]> {
                 management_company, building_quality, pricing_strategy,
                 building_amenities, unit_amenities, occupancy_over_time,
                 units:hellodata_units(id, price, effective_price, sqft, availability_periods),
-                concessions:hellodata_concessions(id, description, text)
+                concessions:hellodata_concessions(id, concession_text)
             )
         `)
         .order('pursuit_id');

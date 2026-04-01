@@ -1251,7 +1251,7 @@ export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
 export function OccupancyForecastSectionFull({ comps }: { comps: PropertyMetrics[] }) {
     const [lookback, setLookback] = useState<7 | 30 | 90>(30);
 
-    const { series, summaryData, todayStr } = useMemo(() => {
+    const { series, summaryData, avgSummary, todayStr } = useMemo(() => {
         const now = new Date();
         const todayStr = now.toISOString().slice(0, 10);
         const cutoffDate = new Date(now.getTime() - lookback * 86400000).toISOString().slice(0, 10);
@@ -1370,7 +1370,30 @@ export function OccupancyForecastSectionFull({ comps }: { comps: PropertyMetrics
             });
         }
 
-        return { series: seriesData, summaryData: summary, todayStr };
+        let avgSummary = null;
+        if (summary.length > 0) {
+            const valid = summary.filter(s => s.totalUnits > 0);
+            if (valid.length > 0) {
+                const totalUnits = valid.reduce((s, c) => s + c.totalUnits, 0);
+                const avgNetAbs = valid.reduce((s, c) => s + Number(c.netAbs), 0) / valid.length;
+                let avgTrend: 'Tightening' | 'Stabilized' | 'Softening' = 'Stabilized';
+                if (avgNetAbs > 0.5) avgTrend = 'Tightening';
+                else if (avgNetAbs < -0.5) avgTrend = 'Softening';
+
+               avgSummary = {
+                    name: 'Market Average',
+                    totalUnits,
+                    currentOcc: (valid.reduce((s, c) => s + Number(c.currentOcc), 0) / valid.length).toFixed(1),
+                    wkSupply: (valid.reduce((s, c) => s + Number(c.wkSupply), 0) / valid.length).toFixed(1),
+                    wkLeases: (valid.reduce((s, c) => s + Number(c.wkLeases), 0) / valid.length).toFixed(1),
+                    netAbs: avgNetAbs.toFixed(1),
+                    forecast12Wk: avgData.length > 0 ? avgData[avgData.length - 1].value.toFixed(1) : '—',
+                    trend: avgTrend
+                };
+            }
+        }
+
+        return { series: seriesData, summaryData: summary, avgSummary, todayStr };
     }, [comps, lookback]);
 
     const btnClasses = (isActive: boolean) => 
@@ -1412,6 +1435,23 @@ export function OccupancyForecastSectionFull({ comps }: { comps: PropertyMetrics
                         </tr>
                     </thead>
                     <tbody>
+                        {avgSummary && (
+                            <tr className="border-b-[3px] border-[var(--border)] bg-[var(--bg-elevated)]">
+                                <td className="py-3 px-4 font-bold text-[13px] text-[var(--text-primary)] truncate max-w-[200px] sticky left-0 bg-inherit z-10">{avgSummary.name}</td>
+                                <td className="py-3 px-3 text-center text-[13px] font-bold text-[var(--text-primary)] tabular-nums">{avgSummary.currentOcc}%</td>
+                                <td className="py-3 px-3 text-center text-[13px] text-[#EF4444] font-bold tabular-nums">{avgSummary.wkSupply}</td>
+                                <td className="py-3 px-3 text-center text-[13px] text-[#22C55E] font-bold tabular-nums">{avgSummary.wkLeases}</td>
+                                <td className="py-3 px-3 text-center font-bold text-[13px] border-l border-[var(--border)] tabular-nums text-[var(--text-primary)]">{Number(avgSummary.netAbs) > 0 ? '+' : ''}{avgSummary.netAbs}</td>
+                                <td className="py-3 px-3 text-center font-bold text-[13px] text-blue-600 dark:text-blue-400 tabular-nums">{avgSummary.forecast12Wk}%</td>
+                                <td className="py-3 px-4 text-center">
+                                    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] uppercase tracking-widest font-bold ${
+                                        avgSummary.trend === 'Tightening' ? 'bg-[#22C55E]/10 text-[#22C55E]' :
+                                        avgSummary.trend === 'Softening' ? 'bg-[#EF4444]/10 text-[#EF4444]' :
+                                        'bg-[var(--bg-card)] text-[var(--text-secondary)] border border-[var(--border)]'
+                                    }`}>{avgSummary.trend}</span>
+                                </td>
+                            </tr>
+                        )}
                         {summaryData.sort((a,b) => Number(b.netAbs) - Number(a.netAbs)).map((row, ri) => (
                             <tr key={ri} className={`border-b border-[var(--bg-elevated)] last:border-0 ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]'}`}>
                                 <td className="py-2.5 px-4 font-semibold text-[13px] text-[var(--text-primary)] truncate max-w-[200px] sticky left-0 bg-inherit z-10">{row.name}</td>

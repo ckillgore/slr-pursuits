@@ -1244,3 +1244,194 @@ export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
         </div>
     );
 }
+
+// ============================================================
+// OCCUPANCY FORECAST
+// ============================================================
+export function OccupancyForecastSectionFull({ comps }: { comps: PropertyMetrics[] }) {
+    const [lookback, setLookback] = useState<7 | 30 | 90>(30);
+
+    const { series, summaryData, todayStr } = useMemo(() => {
+        const now = new Date();
+        const todayStr = now.toISOString().slice(0, 10);
+        const cutoffDate = new Date(now.getTime() - lookback * 86400000).toISOString().slice(0, 10);
+
+        const seriesData: ChartSeries[] = [];
+        const summary = [];
+
+        // Forecast 12 weeks out, and include 12 weeks of history
+        const forecastWeeks = [-12, -10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10, 12];
+        const dateStrings = forecastWeeks.map(w => {
+            const d = new Date(now.getTime() + w * 864e5 * 7);
+            return d.toISOString().slice(0, 10);
+        });
+
+        for (let ci = 0; ci < comps.length; ci++) {
+            const c = comps[ci];
+            const totalUnits = c.property.number_units ?? 0;
+            if (totalUnits === 0) continue;
+
+            const allPeriods: { enter: string; exit: string | null }[] = [];
+            let onMarket = 0;
+            let supplyInWindow = 0;
+            let leasesInWindow = 0;
+
+            c.units.forEach((u: HellodataUnit) => {
+                let isCurrentlyOnMarket = false;
+                (u.availability_periods || []).forEach(ap => {
+                    const enter = ap.enter_market;
+                    const exit = ap.exit_market;
+                    if (enter) allPeriods.push({ enter, exit: exit ?? null });
+
+                    const entered = !enter || enter <= todayStr;
+                    const notExited = !exit || exit >= todayStr;
+                    if (entered && notExited) isCurrentlyOnMarket = true;
+
+                    // Compute lookback tallies
+                    if (enter && enter >= cutoffDate && enter <= todayStr) {
+                        supplyInWindow++;
+                    }
+                    if (exit && exit >= cutoffDate && exit <= todayStr) {
+                        leasesInWindow++;
+                    }
+                });
+                if (isCurrentlyOnMarket) onMarket++;
+            });
+
+            const currentOccPct = ((totalUnits - onMarket) / totalUnits) * 100;
+            const wkSupply = supplyInWindow / (lookback / 7);
+            const wkLeases = leasesInWindow / (lookback / 7);
+            const netAbsorption = wkLeases - wkSupply;
+
+            let trend: 'Tightening' | 'Stabilized' | 'Softening' = 'Stabilized';
+            if (netAbsorption > 0.5) trend = 'Tightening';
+            else if (netAbsorption < -0.5) trend = 'Softening';
+
+            const dataPts = forecastWeeks.map((w, wi) => {
+                if (w < 0) {
+                    // Compute historical OCC 
+                    const weekStr = dateStrings[wi];
+                    let histOnMarket = 0;
+                    for (const p of allPeriods) {
+                        if (p.enter <= weekStr && (!p.exit || p.exit >= weekStr)) histOnMarket++;
+                    }
+                    let occ: number | null = ((totalUnits - histOnMarket) / totalUnits) * 100;
+
+                    // LEASE-UP && OUTAGE CORRECTION
+                    if (occ > 96 && currentOccPct < 85) occ = null; 
+                    if (occ !== null && occ < 40) occ = null;
+
+                    return { date: dateStrings[wi], value: occ !== null ? Number(occ.toFixed(1)) : null };
+                } else {
+                    // Forecast OCC
+                    let forecastedUnitOcc = (totalUnits - onMarket) + (netAbsorption * w);
+                    let forecastedOccPct = (forecastedUnitOcc / totalUnits) * 100;
+                    if (forecastedOccPct > 95) forecastedOccPct = 95;
+                    if (forecastedOccPct < 0) forecastedOccPct = 0;
+                    return { date: dateStrings[wi], value: Number(forecastedOccPct.toFixed(1)) };
+                }
+            });
+
+            // Strip null values since SVGChart needs valid path points
+            const validDataPts = dataPts.filter((d): d is { date: string, value: number } => d.value !== null);
+
+            seriesData.push({
+                label: c.name,
+                color: COMP_COLORS[ci % COMP_COLORS.length],
+                data: validDataPts
+            });
+
+            summary.push({
+                name: c.name,
+                totalUnits,
+                currentOcc: currentOccPct.toFixed(1),
+                wkSupply: wkSupply.toFixed(1),
+                wkLeases: wkLeases.toFixed(1),
+                netAbs: netAbsorption.toFixed(1),
+                forecast12Wk: dataPts[dataPts.length - 1].value?.toFixed(1) ?? '—',
+                trend
+            });
+        }
+
+        const avgData = forecastWeeks.map((w, wi) => {
+            let sum = 0; let count = 0;
+            seriesData.forEach(s => { 
+                const match = s.data.find(d => d.date === dateStrings[wi]);
+                if (match?.value != null) { sum += match.value; count++; }
+            });
+            return { date: dateStrings[wi], value: count > 0 ? Number((sum / count).toFixed(1)) : null };
+        }).filter((d): d is { date: string, value: number } => d.value !== null);
+
+        if (seriesData.length > 0) {
+            seriesData.unshift({
+                label: 'Market Average',
+                color: '#475569',
+                data: avgData
+            });
+        }
+
+        return { series: seriesData, summaryData: summary, todayStr };
+    }, [comps, lookback]);
+
+    const btnClasses = (isActive: boolean) => 
+        `px-4 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-all duration-200 ${isActive ? 'bg-[var(--accent)] text-white shadow-sm ring-1 ring-slate-900/5' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'}`;
+
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Occupancy Forecast</h3>
+                    <p className="text-xs text-[var(--text-muted)]">12-week historical context and 12-week forward projection derived from historical trend absorption.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-widest hidden sm:block">Lookback Window</span>
+                    <div className="inline-flex p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border)]">
+                        <button onClick={() => setLookback(7)} className={btnClasses(lookback === 7)}>Trailing 7D</button>
+                        <button onClick={() => setLookback(30)} className={btnClasses(lookback === 30)}>Trailing 30D</button>
+                        <button onClick={() => setLookback(90)} className={btnClasses(lookback === 90)}>Trailing 90D</button>
+                    </div>
+                </div>
+            </div>
+
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4 sm:p-5 shadow-sm">
+                {series.length === 0 ? <p className="text-sm text-[var(--text-muted)] text-center py-8">No availability data mapped.</p>
+                    : <SVGChart series={series as any} yLabel="Projected Occupancy %" formatY={v => `${v.toFixed(1)}%`} highlightDate={todayStr} />}
+            </div>
+
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] overflow-x-auto shadow-sm">
+                <table className="w-full text-xs min-w-[750px]">
+                    <thead>
+                        <tr className="bg-[var(--bg-primary)] border-b border-[var(--border)]">
+                            <th className="text-left py-3 px-4 font-semibold text-[11px] uppercase tracking-widest text-[var(--text-muted)] sticky left-0 bg-[var(--bg-primary)] z-10">Property</th>
+                            <th className="text-center py-3 px-3 font-semibold text-[11px] uppercase tracking-widest text-[var(--text-muted)]">Current Occ</th>
+                            <th className="text-center py-3 px-3 font-semibold text-[11px] uppercase tracking-widest text-[var(--text-muted)]">Wkly Supply</th>
+                            <th className="text-center py-3 px-3 font-semibold text-[11px] uppercase tracking-widest text-[var(--text-muted)]">Wkly Leases</th>
+                            <th className="text-center py-3 px-3 font-semibold text-[11px] uppercase tracking-widest text-blue-600 dark:text-blue-400 border-l border-[var(--border)]">Net Abs (Wkly)</th>
+                            <th className="text-center py-3 px-3 font-semibold text-[11px] uppercase tracking-widest text-blue-600 dark:text-blue-400">12-Wk Forecast</th>
+                            <th className="text-center py-3 px-4 font-semibold text-[11px] uppercase tracking-widest text-[var(--text-muted)]">Trend Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {summaryData.sort((a,b) => Number(b.netAbs) - Number(a.netAbs)).map((row, ri) => (
+                            <tr key={ri} className={`border-b border-[var(--bg-elevated)] last:border-0 ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]'}`}>
+                                <td className="py-2.5 px-4 font-semibold text-[13px] text-[var(--text-primary)] truncate max-w-[200px] sticky left-0 bg-inherit z-10">{row.name}</td>
+                                <td className="py-2.5 px-3 text-center text-[13px] text-[var(--text-secondary)] tabular-nums">{row.currentOcc}%</td>
+                                <td className="py-2.5 px-3 text-center text-[13px] text-[#EF4444] font-medium tabular-nums">{row.wkSupply}</td>
+                                <td className="py-2.5 px-3 text-center text-[13px] text-[#22C55E] font-medium tabular-nums">{row.wkLeases}</td>
+                                <td className="py-2.5 px-3 text-center font-bold text-[13px] border-l border-[var(--border)] tabular-nums text-[var(--text-primary)]">{Number(row.netAbs) > 0 ? '+' : ''}{row.netAbs}</td>
+                                <td className="py-2.5 px-3 text-center font-bold text-[13px] text-blue-600 dark:text-blue-400 tabular-nums">{row.forecast12Wk}%</td>
+                                <td className="py-2.5 px-4 text-center">
+                                    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] uppercase tracking-widest font-bold ${
+                                        row.trend === 'Tightening' ? 'bg-[#22C55E]/10 text-[#22C55E]' :
+                                        row.trend === 'Softening' ? 'bg-[#EF4444]/10 text-[#EF4444]' :
+                                        'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
+                                    }`}>{row.trend}</span>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+}

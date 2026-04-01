@@ -18,9 +18,10 @@ interface Props {
     height?: number;
     yLabel?: string;
     formatY?: (v: number) => string;
+    highlightDate?: string;
 }
 
-export default function SVGChart({ series, width = 700, height = 260, yLabel, formatY = v => `$${v.toLocaleString()}` }: Props) {
+export default function SVGChart({ series, width = 700, height = 260, yLabel, formatY = v => `$${v.toLocaleString()}`, highlightDate }: Props) {
     const padding = { top: 20, right: 20, bottom: 40, left: 65 };
     const w = width - padding.left - padding.right;
     const h = height - padding.top - padding.bottom;
@@ -62,9 +63,12 @@ export default function SVGChart({ series, width = 700, height = 260, yLabel, fo
 
         // Pre-sort each series by date for hover lookup
         const sortedSeries = series.map(s => [...s.data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+        
+        const highlightTime = highlightDate ? new Date(highlightDate).getTime() : null;
+        const highlightX = highlightTime !== null && highlightTime >= minDate && highlightTime <= maxDate ? scaleX(highlightDate as string) : null;
 
-        return { paths, yTicks, xLabels, scaleX, scaleY, unscaleX, minVal, yPad, valRange, dateRange, minDate, sortedSeries };
-    }, [series, w, h]);
+        return { paths, yTicks, xLabels, scaleX, scaleY, unscaleX, minVal, yPad, valRange, dateRange, minDate, sortedSeries, highlightX };
+    }, [series, w, h, highlightDate]);
 
     // Find nearest data point for each series at a given x position
     const hoverData = useMemo(() => {
@@ -143,6 +147,19 @@ export default function SVGChart({ series, width = 700, height = 260, yLabel, fo
                     <path key={i} d={path} fill="none" stroke={series[i].color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
                         transform={`translate(${padding.left}, ${padding.top})`} />
                 ))}
+
+                {/* Highlight vertical line (e.g. Today) */}
+                {computed.highlightX !== null && (
+                    <g opacity={0.6} pointerEvents="none">
+                        <line 
+                            x1={padding.left + computed.highlightX} x2={padding.left + computed.highlightX}
+                            y1={padding.top} y2={padding.top + h}
+                            stroke="var(--text-primary)" strokeWidth={1.5} strokeDasharray="3,3"
+                        />
+                        <rect x={padding.left + computed.highlightX - 18} y={padding.top - 8} width={36} height={16} rx={8} fill="var(--bg-card)" stroke="var(--border)" />
+                        <text x={padding.left + computed.highlightX} y={padding.top + 3} fill="var(--text-secondary)" fontSize={9} fontWeight={600} textAnchor="middle">TODAY</text>
+                    </g>
+                )}
 
                 {/* Hover crosshair + dots + tooltip */}
                 {hoverX !== null && hoverData && (

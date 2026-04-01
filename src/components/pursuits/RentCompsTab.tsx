@@ -36,7 +36,7 @@ import {
 } from '@/lib/calculations/hellodataCalculations';
 import type { HellodataProperty, HellodataUnit, HellodataConcession, PursuitRentComp, HellodataSearchResult } from '@/types';
 import type { PropertyMetrics as SharedPropertyMetrics } from './rent-comps/types';
-import { RentTrendsSection, BubbleChartSection, OccupancySection, LeasingActivitySection, ConcessionsSection, FeesSection, QualitySection, MarketContextSection, RentRollSection, CompMapSection } from './rent-comps/RentCompSections';
+import { RentTrendsSection, BubbleChartSection, OccupancySection, LeasingActivitySection, ConcessionsSection, FeesSection, QualitySection, MarketContextSection, RentRollSection, CompMapSection, OccupancyForecastSectionFull } from './rent-comps/RentCompSections';
 import MarketStudyTab from './MarketStudyTab';
 
 interface RentCompsTabProps {
@@ -209,7 +209,7 @@ function computeMetrics(rc: PursuitRentComp): PropertyMetrics | null {
 // Main Component
 // ============================================================
 
-type SectionKey = 'marketStudy' | 'overview' | 'map' | 'unitBreakdown' | 'rankings' | 'amenities' | 'rentTrends' | 'bubbleChart' | 'occupancy' | 'leasing' | 'rentRoll' | 'concessions' | 'fees' | 'quality' | 'market';
+type SectionKey = 'marketStudy' | 'overview' | 'map' | 'unitBreakdown' | 'rankings' | 'amenities' | 'rentTrends' | 'bubbleChart' | 'occupancy' | 'forecast' | 'leasing' | 'rentRoll' | 'concessions' | 'fees' | 'quality' | 'market';
 
 export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
     const { data: rentComps = [], isLoading } = usePursuitRentComps(pursuitId);
@@ -397,6 +397,7 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
                             { key: 'rentTrends' as SectionKey, label: 'Trends' },
                             { key: 'bubbleChart' as SectionKey, label: 'Rent/Size' },
                             { key: 'occupancy' as SectionKey, label: 'Occ.' },
+                            { key: 'forecast' as SectionKey, label: 'Forecast' },
                             { key: 'leasing' as SectionKey, label: 'Leasing' },
                             { key: 'concessions' as SectionKey, label: 'Conc.' },
                             { key: 'fees' as SectionKey, label: 'Fees' },
@@ -447,6 +448,7 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
                     {activeSection === 'rentTrends' && <RentTrendsSection comps={compMetrics} />}
                     {activeSection === 'bubbleChart' && <BubbleChartSection comps={compMetrics} />}
                     {activeSection === 'occupancy' && <OccupancySection comps={compMetrics} />}
+                    {activeSection === 'forecast' && <OccupancyForecastSectionFull comps={compMetrics} />}
                     {activeSection === 'leasing' && <LeasingActivitySection comps={compMetrics} />}
                     {activeSection === 'rentRoll' && <RentRollSection comps={compMetrics} />}
                     {activeSection === 'concessions' && <ConcessionsSection comps={compMetrics} />}

@@ -111,73 +111,78 @@ export async function refreshHellodataProperty(
 
         const propertyId = upserted.id;
 
-        // 3. Delete old child rows in parallel
-        await Promise.all([
-            supabase.from('hellodata_units').delete().eq('property_id', propertyId),
-            supabase.from('hellodata_concessions').delete().eq('property_id', propertyId),
-        ]);
-        time('delete_children');
-
-        // 4. Insert units and concessions in parallel
+        // 3. Insert/Upsert units and concessions in parallel
         const insertPromises: Promise<void>[] = [];
+        let validUnitIds: string[] = [];
+        let validConcessionIds: string[] = [];
 
         if (raw.building_availability && raw.building_availability.length > 0) {
-            const unitRows = raw.building_availability.map((unit: Record<string, unknown>) => ({
-                property_id: propertyId,
-                hellodata_unit_id: unit.id || null,
-                is_floorplan: unit.is_floorplan || false,
-                bed: unit.bed ?? null,
-                bath: unit.bath ?? null,
-                partial_bath: unit.partial_bath || 0,
-                sqft: unit.sqft ?? null,
-                min_sqft: unit.min_sqft ?? null,
-                max_sqft: unit.max_sqft ?? null,
-                floorplan_name: unit.floorplan_name || null,
-                unit_name: unit.unit_name || null,
-                floor: unit.floor ?? null,
-                price: unit.price ?? null,
-                min_price: unit.min_price ?? null,
-                max_price: unit.max_price ?? null,
-                effective_price: unit.effective_price ?? null,
-                min_effective_price: unit.min_effective_price ?? null,
-                max_effective_price: unit.max_effective_price ?? null,
-                days_on_market: unit.days_on_market ?? null,
-                lease_term: unit.lease_term ?? null,
-                enter_market: unit.enter_market || null,
-                exit_market: unit.exit_market || null,
-                availability: unit.availability || null,
-                amenities: unit.amenities || [],
-                tags: unit.tags || [],
-                history: unit.history || null,
-                availability_periods: unit.availability_periods || null,
-                price_plans: unit.price_plans || null,
-            }));
+            const unitRows = raw.building_availability.map((unit: Record<string, unknown>) => {
+                const uid = unit.id ? String(unit.id) : `NO_ID_${Math.random().toString(36).slice(2)}`;
+                validUnitIds.push(uid);
+                return {
+                    property_id: propertyId,
+                    hellodata_unit_id: uid,
+                    is_floorplan: unit.is_floorplan || false,
+                    bed: unit.bed ?? null,
+                    bath: unit.bath ?? null,
+                    partial_bath: unit.partial_bath || 0,
+                    sqft: unit.sqft ?? null,
+                    min_sqft: unit.min_sqft ?? null,
+                    max_sqft: unit.max_sqft ?? null,
+                    floorplan_name: unit.floorplan_name || null,
+                    unit_name: unit.unit_name || null,
+                    floor: unit.floor ?? null,
+                    price: unit.price ?? null,
+                    min_price: unit.min_price ?? null,
+                    max_price: unit.max_price ?? null,
+                    effective_price: unit.effective_price ?? null,
+                    min_effective_price: unit.min_effective_price ?? null,
+                    max_effective_price: unit.max_effective_price ?? null,
+                    days_on_market: unit.days_on_market ?? null,
+                    lease_term: unit.lease_term ?? null,
+                    enter_market: unit.enter_market || null,
+                    exit_market: unit.exit_market || null,
+                    availability: unit.availability || null,
+                    amenities: unit.amenities || [],
+                    tags: unit.tags || [],
+                    history: unit.history || null,
+                    availability_periods: unit.availability_periods || null,
+                    price_plans: unit.price_plans || null,
+                };
+            });
 
             for (let i = 0; i < unitRows.length; i += 50) {
                 const batch = unitRows.slice(i, i + 50);
                 insertPromises.push(
                     (async () => {
-                        const { error } = await supabase.from('hellodata_units').insert(batch);
-                        if (error) console.error(`[hellodata] Unit insert error (batch ${i}):`, error.message);
+                        const { error } = await supabase.from('hellodata_units')
+                            .upsert(batch, { onConflict: 'property_id,hellodata_unit_id' });
+                        if (error) console.error(`[hellodata] Unit upsert error (batch ${i}):`, error.message);
                     })()
                 );
             }
         }
 
         if (raw.concessions_history && raw.concessions_history.length > 0) {
-            const concessionRows = raw.concessions_history.map((c: Record<string, unknown>) => ({
-                property_id: propertyId,
-                hellodata_concession_id: c.id || null,
-                concession_text: c.concessions || null,
-                from_date: c.from_date || null,
-                to_date: c.to_date || null,
-                items: c.items || null,
-            }));
+            const concessionRows = raw.concessions_history.map((c: Record<string, unknown>) => {
+                const cid = c.id ? String(c.id) : `NO_ID_${Math.random().toString(36).slice(2)}`;
+                validConcessionIds.push(cid);
+                return {
+                    property_id: propertyId,
+                    hellodata_concession_id: cid,
+                    concession_text: c.concessions || null,
+                    from_date: c.from_date || null,
+                    to_date: c.to_date || null,
+                    items: c.items || null,
+                };
+            });
 
             insertPromises.push(
                 (async () => {
-                    const { error } = await supabase.from('hellodata_concessions').insert(concessionRows);
-                    if (error) console.error('[hellodata] Concession insert error:', error.message);
+                    const { error } = await supabase.from('hellodata_concessions')
+                        .upsert(concessionRows, { onConflict: 'property_id,hellodata_concession_id' });
+                    if (error) console.error('[hellodata] Concession upsert error:', error.message);
                 })()
             );
         }
@@ -185,14 +190,44 @@ export async function refreshHellodataProperty(
         await Promise.all(insertPromises);
         time('insert_children');
 
+        // 4. Delete orphaned units and concessions
+        const cleanupPromises: any[] = [];
+        
+        if (validUnitIds.length > 0) {
+            cleanupPromises.push(
+                supabase.from('hellodata_units')
+                    .delete()
+                    .eq('property_id', propertyId)
+                    .not('hellodata_unit_id', 'in', `(${validUnitIds.join(',')})`)
+                    .then()
+            );
+        } else {
+            cleanupPromises.push(supabase.from('hellodata_units').delete().eq('property_id', propertyId).then());
+        }
+
+        if (validConcessionIds.length > 0) {
+            cleanupPromises.push(
+                supabase.from('hellodata_concessions')
+                    .delete()
+                    .eq('property_id', propertyId)
+                    .not('hellodata_concession_id', 'in', `(${validConcessionIds.join(',')})`)
+                    .then()
+            );
+        } else {
+            cleanupPromises.push(supabase.from('hellodata_concessions').delete().eq('property_id', propertyId).then());
+        }
+
+        await Promise.all(cleanupPromises);
+        time('delete_orphans');
+
         const totalMs = Date.now() - startTotal;
         console.log(
             `[hellodata] Complete for ${hellodataId} in ${totalMs}ms ` +
             `| api: ${timings.api_fetch ?? '-'}ms ` +
             `| parse: ${timings.api_parse ?? '-'}ms ` +
             `| upsert: ${timings.property_upsert ?? '-'}ms ` +
-            `| delete: ${timings.delete_children ?? '-'}ms ` +
-            `| insert(${unitCount}u/${concessionCount}c): ${totalMs - (timings.delete_children ?? 0)}ms`
+            `| upsert_children(${unitCount}u/${concessionCount}c): ${timings.insert_children ? timings.insert_children - (timings.property_upsert ?? 0) : '-'}ms ` +
+            `| orphans: ${totalMs - (timings.insert_children ?? 0)}ms`
         );
 
         return { success: true, property: upserted, timings };

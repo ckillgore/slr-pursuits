@@ -40,6 +40,11 @@ function isMonthClosed(monthKey: string, today: Date): boolean {
     return daysSinceMonthEnd >= 15;
 }
 
+function isMonthPendingClose(monthKey: string, today: Date, currentMonth: string): boolean {
+    if (monthKey >= currentMonth) return false;
+    return !isMonthClosed(monthKey, today);
+}
+
 function getYardiActual(
     li: PredevBudgetLineItem,
     monthKey: string,
@@ -216,7 +221,7 @@ export function PredevBudgetReport() {
     const { data: rowsRaw, isLoading: loadingBudgets } = useAllPredevBudgets();
     const { data: fundingPartnersRaw, isLoading: loadingPartners } = useAllFundingPartners();
     const { data: fundingSplitsRaw, isLoading: loadingSplits } = useAllFundingSplits();
-    const { data: yardiAggregates, isLoading: loadingAggregates } = useAllPortfolioJobCostAggregates(rowsRaw ?? []);
+    const { data: yardiAggregates, isLoading: loadingAggregates } = useAllPortfolioJobCostAggregates();
 
     const isLoading = loadingBudgets || loadingPartners || loadingSplits || loadingAggregates;
 
@@ -251,6 +256,8 @@ export function PredevBudgetReport() {
         return Array.from(unique.values()).sort();
     }, [fundingPartnersRaw]);
 
+    console.log('YARDI AGGS', yardiAggregates);
+
     // Apply Stage Filter
     const stageFilter = selectedStages.size > 0 ? selectedStages : undefined;
     const rows = useMemo(() => {
@@ -260,7 +267,12 @@ export function PredevBudgetReport() {
     }, [rowsRaw, stageFilter]);
 
     const monthKeys = useMemo(() => getForwardMonthKeys(rows), [rows]);
-    const yearGroups = useMemo(() => groupMonthsByYear(monthKeys), [monthKeys]);
+    
+    // Split into closed (LTD) and forward
+    const closedMonths = useMemo(() => monthKeys.filter(mk => isMonthClosed(mk, today)), [monthKeys, today]);
+    const forwardMonths = useMemo(() => monthKeys.filter(mk => !isMonthClosed(mk, today)), [monthKeys, today]);
+
+    const yearGroups = useMemo(() => groupMonthsByYear(forwardMonths), [forwardMonths]);
 
     const allLineItemLabels = useMemo(() => {
         const labels = new Set<string>();
@@ -577,11 +589,19 @@ export function PredevBudgetReport() {
                                     <th className="text-right px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-r border-[var(--border)]">
                                         Total
                                     </th>
-                                    {monthKeys.map((mk) => (
-                                        <th key={mk} className="text-right px-3 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-r border-[var(--border)] last:border-0 min-w-[80px]">
-                                            {formatMonthLabel(mk)}
-                                        </th>
-                                    ))}
+                                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-r border-[var(--border)] bg-[var(--bg-elevated)]">
+                                        LTD Actuals
+                                    </th>
+                                    {forwardMonths.map((mk) => {
+                                        const isPending = isMonthPendingClose(mk, today, getCurrentMonthKey());
+                                        return (
+                                            <th key={mk} className={`text-right px-3 py-2.5 text-xs font-semibold border-r border-[var(--border)] last:border-0 min-w-[80px] ${
+                                                isPending ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-b-2 border-b-amber-500/50' : 'text-[var(--text-secondary)]'
+                                            }`}>
+                                                {formatMonthLabel(mk)}
+                                            </th>
+                                        );
+                                    })}
                                 </tr>
                             ) : (
                                 <>
@@ -591,6 +611,9 @@ export function PredevBudgetReport() {
                                         </th>
                                         <th rowSpan={2} className="text-right px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-r border-[var(--border)]">
                                             Total
+                                        </th>
+                                        <th rowSpan={2} className="text-right px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-r border-[var(--border)] bg-[var(--bg-elevated)]">
+                                            LTD Actuals
                                         </th>
                                         {yearGroups.map((yg) => (
                                             <th key={yg.year} colSpan={yg.months.length} className="text-center px-3 py-1.5 text-xs font-bold text-[var(--text-primary)] border-r border-[var(--border)] last:border-0 bg-[var(--bg-card)] border-b">
@@ -610,7 +633,7 @@ export function PredevBudgetReport() {
                                 </>
                             )}
                         </thead>
-                        <tbody>
+                        {/* Table bodies mapped per group */}
                             {Object.entries(groupedRows).map(([groupKey, groupRows], gIdx) => {
                                 const isExpanded = groupBy === 'none' || expandedGroups.has(groupKey);
                                 const isRegionBlocked = groupBy === 'region';
@@ -621,8 +644,12 @@ export function PredevBudgetReport() {
                                     return sum + pursuitGrandTotal(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
                                 }, 0);
 
+                                const groupLtd = groupRows.reduce((sum, r) => {
+                                    return sum + pursuitGrandTotal(r.budget, closedMonths, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
+                                }, 0);
+
                                 return (
-                                    <optgroup key={groupKey || 'all'} className="contents">
+                                    <tbody key={groupKey || 'all'} className="group-body">
                                         {isRegionBlocked && (
                                             <tr className="bg-[var(--bg-elevated)] border-b border-[var(--border)] transition-colors hover:bg-[var(--accent-subtle)] cursor-pointer" onClick={() => toggleGroup(groupKey)}>
                                                 <td className="sticky left-0 z-10 bg-[var(--bg-elevated)] px-4 py-2 border-r border-[var(--border)] shadow-[1px_0_0_var(--border)]">
@@ -637,7 +664,10 @@ export function PredevBudgetReport() {
                                                 <td className="text-right px-4 py-2 text-xs font-bold font-mono text-[var(--text-primary)] border-r border-[var(--border)]">
                                                     {formatCurrency(groupTotal, 0)}
                                                 </td>
-                                                {monthKeys.map((mk) => {
+                                                <td className="text-right px-4 py-2 text-xs font-bold font-mono text-[var(--text-primary)] border-r border-[var(--border)] bg-[var(--bg-elevated)]">
+                                                    {formatCurrency(groupLtd, 0)}
+                                                </td>
+                                                {forwardMonths.map((mk) => {
                                                     const mTot = groupRows.reduce((sum, r) => sum + pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
                                                     return (
                                                         <td key={mk} className="text-right px-3 py-2 text-xs font-medium font-mono text-[var(--text-secondary)] border-r border-[var(--border)] last:border-0 bg-[var(--bg-primary)]">
@@ -651,6 +681,8 @@ export function PredevBudgetReport() {
                                         {isExpanded && groupRows.map((row) => {
                                             const rmk = getForwardMonthKeys([row]);
                                             const lineTotal = pursuitGrandTotal(row.budget, rmk, yardiAggregates?.[row.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
+                                            const lineLtd = pursuitGrandTotal(row.budget, closedMonths.filter(m => rmk.includes(m)), yardiAggregates?.[row.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
+
                                             return (
                                                 <tr key={row.pursuit.id} className="group/row bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)] transition-colors border-b border-[var(--border)] last:border-0">
                                                     <td className="sticky left-0 z-10 bg-inherit px-4 py-2 border-r border-[var(--border)] shadow-[1px_0_0_var(--border)] group-hover/row:shadow-[1px_0_0_var(--border)]">
@@ -679,19 +711,25 @@ export function PredevBudgetReport() {
                                                     <td className="text-right px-4 py-2 font-mono text-xs font-semibold text-[var(--text-primary)] border-r border-[var(--border)]">
                                                         {formatCurrency(lineTotal, 0)}
                                                     </td>
-                                                    {monthKeys.map((mk) => {
+                                                    <td className="text-right px-4 py-2 font-mono text-xs font-semibold text-[var(--text-primary)] border-r border-[var(--border)] bg-[var(--bg-elevated)]">
+                                                        {lineLtd === 0 ? <span className="text-[var(--text-faint)]">—</span> : formatCurrency(lineLtd, 0)}
+                                                    </td>
+                                                    {forwardMonths.map((mk) => {
+                                                        const isPending = isMonthPendingClose(mk, today, getCurrentMonthKey());
                                                         const inRange = rmk.includes(mk);
                                                         if (!inRange) {
                                                             return (
-                                                                <td key={mk} className="text-right px-3 py-2 text-xs font-mono font-medium text-[var(--text-faint)] border-r border-[var(--border)] last:border-0 bg-[var(--bg-primary)]/30">
+                                                                <td key={mk} className={`text-right px-3 py-2 text-xs font-mono font-medium text-[var(--text-faint)] border-r border-[var(--border)] last:border-0 ${isPending ? 'bg-amber-500/5' : 'bg-[var(--bg-primary)]/30'}`}>
                                                                     —
                                                                 </td>
                                                             );
                                                         }
                                                         const val = pursuitMonthTotalAdjusted(row.budget, mk, yardiAggregates?.[row.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
                                                         return (
-                                                            <td key={mk} className={`text-right px-3 py-2 text-xs font-mono font-medium border-r border-[var(--border)] last:border-0 ${val > 0 ? 'text-[var(--text-primary)]' : 'text-[var(--text-faint)]'
-                                                                }`}>
+                                                            <td key={mk} className={`text-right px-3 py-2 text-xs font-mono font-medium border-r border-[var(--border)] last:border-0 ${
+                                                                isPending ? (val > 0 ? 'text-amber-700 dark:text-amber-400 bg-amber-500/10 font-bold' : 'text-amber-700/50 dark:text-amber-400/50 bg-amber-500/5') :
+                                                                (val > 0 ? 'text-[var(--text-primary)]' : 'text-[var(--text-faint)]')
+                                                            }`}>
                                                                 {val === 0 ? '—' : formatCurrency(val, 0)}
                                                             </td>
                                                         );
@@ -699,10 +737,10 @@ export function PredevBudgetReport() {
                                                 </tr>
                                             );
                                         })}
-                                    </optgroup>
+                                    </tbody>
                                 );
                             })}
-                        </tbody>
+                        {/* Remove duplicate global tbody */}
                         <tfoot>
                             <tr className="bg-[var(--text-primary)] text-[var(--bg-card)]">
                                 <td className="sticky left-0 z-10 bg-[var(--text-primary)] px-4 py-3 border-r border-[var(--text-secondary)] shadow-[1px_0_0_var(--text-secondary)]">
@@ -711,10 +749,14 @@ export function PredevBudgetReport() {
                                 <td className="text-right px-4 py-3 font-mono text-xs font-bold border-r border-[var(--text-secondary)] text-[var(--accent-fg)]">
                                     {formatCurrency(overallGrandTotal, 0)}
                                 </td>
-                                {monthKeys.map((mk) => {
+                                <td className="text-right px-4 py-3 font-mono text-xs font-bold border-r border-[var(--text-secondary)] text-[var(--accent-fg)] bg-white/10">
+                                    {formatCurrency(closedMonths.reduce((sum, mk) => sum + grandTotalByMonth(mk), 0), 0)}
+                                </td>
+                                {forwardMonths.map((mk) => {
                                     const mTot = grandTotalByMonth(mk);
+                                    const isPending = isMonthPendingClose(mk, today, getCurrentMonthKey());
                                     return (
-                                        <td key={mk} className="text-right px-3 py-3 font-mono text-xs font-bold border-r border-[var(--text-secondary)] last:border-0 text-[var(--accent-fg)]">
+                                        <td key={mk} className={`text-right px-3 py-3 font-mono text-xs font-bold border-r border-[var(--text-secondary)] last:border-0 ${isPending ? 'text-amber-200' : 'text-[var(--accent-fg)]'}`}>
                                             {mTot === 0 ? '—' : formatCurrency(mTot, 0)}
                                         </td>
                                     );

@@ -499,9 +499,21 @@ export async function fetchMonthlyJobCostAggregates(
  * cross-references them against Yardi jobs, and pulls all cost aggregates for the 
  * entire portfolio in a single optimized pass.
  */
-export async function fetchAllPortfolioJobCostAggregates(
-    pursuitPropertyMapping: Record<string, string[]>
-): Promise<Record<string, YardiMonthlyCostAggregate[]>> {
+export async function fetchAllPortfolioJobCostAggregates(): Promise<Record<string, YardiMonthlyCostAggregate[]>> {
+    // 1. Fetch all accounting entities from SLR Supabase
+    const slrClient = await createClient();
+    const { data: accEntities } = await slrClient
+        .from('pursuit_accounting_entities')
+        .select('pursuit_id, property_code');
+    
+    if (!accEntities?.length) return {};
+
+    const pursuitPropertyMapping: Record<string, string[]> = {};
+    for (const e of accEntities) {
+        if (!pursuitPropertyMapping[e.pursuit_id]) pursuitPropertyMapping[e.pursuit_id] = [];
+        if (e.property_code) pursuitPropertyMapping[e.pursuit_id].push(e.property_code);
+    }
+
     // Flatten requested target codes
     const allTargetCodes = new Set<string>();
     for (const codes of Object.values(pursuitPropertyMapping)) {

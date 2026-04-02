@@ -801,21 +801,13 @@ export function useAllPredevBudgets() {
     });
 }
 
-export function useAllPortfolioJobCostAggregates(rows: import('@/lib/supabase/queries').PredevBudgetReportRow[]) {
+export function useAllPortfolioJobCostAggregates() {
     return useQuery({
-        queryKey: ['all-portfolio-jobcost-aggregates', rows.length] as const,
+        queryKey: ['all-portfolio-jobcost-aggregates'] as const,
         queryFn: async () => {
-            const mapping: Record<string, string[]> = {};
-            for (const r of rows) {
-                if (r.accounting && r.accounting.length > 0) {
-                    mapping[r.pursuit.id] = r.accounting.map(a => a.property_code).filter(Boolean);
-                }
-            }
-            if (Object.keys(mapping).length === 0) return {};
             const { fetchAllPortfolioJobCostAggregates } = await import('@/app/actions/accounting');
-            return fetchAllPortfolioJobCostAggregates(mapping);
+            return fetchAllPortfolioJobCostAggregates();
         },
-        enabled: rows.length > 0,
     });
 }
 

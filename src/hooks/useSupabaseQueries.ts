@@ -801,9 +801,165 @@ export function useAllPredevBudgets() {
     });
 }
 
+export function useAllPortfolioJobCostAggregates(rows: import('@/lib/supabase/queries').PredevBudgetReportRow[]) {
+    return useQuery({
+        queryKey: ['all-portfolio-jobcost-aggregates', rows.length] as const,
+        queryFn: async () => {
+            const mapping: Record<string, string[]> = {};
+            for (const r of rows) {
+                if (r.accounting && r.accounting.length > 0) {
+                    mapping[r.pursuit.id] = r.accounting.map(a => a.property_code).filter(Boolean);
+                }
+            }
+            if (Object.keys(mapping).length === 0) return {};
+            const { fetchAllPortfolioJobCostAggregates } = await import('@/app/actions/accounting');
+            return fetchAllPortfolioJobCostAggregates(mapping);
+        },
+        enabled: rows.length > 0,
+    });
+}
+
+// ============================================================
+// Budget Snapshots & Amendments
+// ============================================================
+
+export function useSnapshotBudget() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ budgetId, pursuitId }: { budgetId: string; pursuitId: string }) =>
+            queries.snapshotBudget(budgetId, pursuitId),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId] });
+        },
+    });
+}
+
+export function useAmendBudget() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ budgetId, pursuitId, reason }: {
+            budgetId: string; pursuitId: string; reason: string | null;
+        }) => queries.amendBudget(budgetId, pursuitId, reason),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId] });
+        },
+    });
+}
+
+export function useBudgetAmendments(budgetId: string) {
+    return useQuery({
+        queryKey: ['budget-amendments', budgetId] as const,
+        queryFn: () => queries.fetchBudgetAmendments(budgetId),
+        enabled: !!budgetId,
+    });
+}
+
+// ============================================================
+// Funding Partners
+// ============================================================
+
+export function useFundingPartners(pursuitId: string) {
+    return useQuery({
+        queryKey: ['funding-partners', pursuitId] as const,
+        queryFn: () => queries.fetchFundingPartners(pursuitId),
+        enabled: !!pursuitId,
+    });
+}
+
+export function useAllFundingPartners() {
+    return useQuery({
+        queryKey: ['all-funding-partners'] as const,
+        queryFn: () => queries.fetchAllFundingPartners(),
+    });
+}
+
+export function useCreateFundingPartner() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (partner: { pursuit_id: string; name: string; is_slrh?: boolean; default_split_pct: number }) =>
+            queries.createFundingPartner(partner),
+        onSuccess: (data) => {
+            qc.invalidateQueries({ queryKey: ['funding-partners', data.pursuit_id] });
+        },
+    });
+}
+
+export function useUpdateFundingPartner() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, pursuitId, updates }: {
+            id: string; pursuitId: string;
+            updates: Partial<Pick<import('@/types').PursuitFundingPartner, 'name' | 'default_split_pct'>>;
+        }) => queries.updateFundingPartner(id, updates),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: ['funding-partners', pursuitId] });
+        },
+    });
+}
+
+export function useDeleteFundingPartner() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, pursuitId }: { id: string; pursuitId: string }) =>
+            queries.deleteFundingPartner(id),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: ['funding-partners', pursuitId] });
+        },
+    });
+}
+
+// ============================================================
+// Funding Splits
+// ============================================================
+
+export function useFundingSplits(budgetId: string) {
+    return useQuery({
+        queryKey: ['funding-splits', budgetId] as const,
+        queryFn: () => queries.fetchFundingSplits(budgetId),
+        enabled: !!budgetId,
+    });
+}
+
+export function useAllFundingSplits() {
+    return useQuery({
+        queryKey: ['all-funding-splits'] as const,
+        queryFn: () => queries.fetchAllFundingSplits(),
+    });
+}
+
+export function useUpsertFundingSplit() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ split, budgetId }: {
+            split: { budget_id: string; partner_id: string; month_key: string; split_pct: number };
+            budgetId: string;
+        }) => queries.upsertFundingSplit(split),
+        onSuccess: (_, { budgetId }) => {
+            qc.invalidateQueries({ queryKey: ['funding-splits', budgetId] });
+        },
+    });
+}
+
+// ============================================================
+// Line Item Cost Groups
+// ============================================================
+
+export function useUpdateLineItemCostGroups() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ lineItemId, yardiCostGroups, pursuitId }: {
+            lineItemId: string; yardiCostGroups: string[]; pursuitId: string;
+        }) => queries.updateLineItemCostGroups(lineItemId, yardiCostGroups),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId] });
+        },
+    });
+}
+
 // ============================================================
 // Key Date Types (Admin)
 // ============================================================
+
 
 export function useKeyDateTypes() {
     return useQuery({

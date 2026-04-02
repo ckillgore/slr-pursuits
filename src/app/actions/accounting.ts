@@ -1,6 +1,7 @@
 'use server';
 
 import { createYardiClient } from '@/lib/supabase/yardi-client';
+import { createClient } from '@/lib/supabase/server';
 
 export type YardiGLAccountSummary = {
     account_code: string;
@@ -391,4 +392,259 @@ export async function fetchYardiJobs(search?: string): Promise<YardiJobOption[]>
     }
 
     return data as YardiJobOption[];
+}
+
+// ============================================================
+// Monthly Job Cost Aggregates (for Pre-Dev Budget integration)
+// ============================================================
+
+export type YardiMonthlyCostAggregate = {
+    cost_group: string;          // 2-digit prefix: "50", "60", etc.
+    category_code: string;       // full code: "50-00100"
+    category_name: string;       // resolved name from mapping
+    month: string;               // "YYYY-MM"
+    total_amount: number;
+};
+
+/**
+ * Aggregates job cost transactions by cost group (2-digit prefix) and month.
+ * Used by PredevBudgetTab to auto-populate actuals from Yardi.
+ * 
+ * Groups at the 2-digit level (e.g., "50" = Land Acquisition) because
+ * budget line items map to cost GROUPS, not individual cost categories.
+ */
+export async function fetchMonthlyJobCostAggregates(
+    jobIds: string[]
+): Promise<YardiMonthlyCostAggregate[]> {
+    if (!jobIds.length) return [];
+    const client = createYardiClient();
+
+    // Fetch all transactions for these jobs
+    const { data: txRows, error: txError } = await client
+        .from('jobcost_transactions')
+        .select('cost_category_code, post_date, amount')
+        .in('job_id', jobIds);
+
+    if (txError) {
+        console.error('Failed to fetch job cost transactions for aggregation:', txError);
+        throw new Error('Failed to fetch job cost data for budget integration');
+    }
+
+    // Fetch category mappings for name resolution
+    const { data: mappings } = await client
+        .from('jobcost_category_mapping')
+        .select('category_code, category_name, cost_group');
+
+    const mappingLookup = new Map<string, { name: string; group: string }>();
+    for (const m of (mappings || [])) {
+        mappingLookup.set(m.category_code, { name: m.category_name, group: m.cost_group });
+    }
+
+    // Aggregate by cost_group (2-digit prefix) + month
+    const aggregateMap = new Map<string, YardiMonthlyCostAggregate>();
+
+    for (const tx of (txRows || [])) {
+        if (!tx.post_date || !tx.cost_category_code) continue;
+
+        const amount = Number(tx.amount || 0);
+        if (amount === 0) continue;
+
+        // Raw code from Yardi might be missing the hyphen (e.g., '6200400' instead of '62-00400')
+        // Standardize to XX-XXXXX format so it matches our mapping table
+        let code = tx.cost_category_code.trim();
+        if (code.length === 7 && !code.includes('-')) {
+            code = `${code.substring(0, 2)}-${code.substring(2)}`;
+        }
+
+        // Extract 2-digit prefix as the cost group
+        const costGroup = code.substring(0, 2);
+        const month = tx.post_date.substring(0, 7); // "YYYY-MM"
+
+        // Also track at the detail level for drill-down
+        const detailKey = `${code}|${month}`;
+        const groupKey = `${costGroup}|${month}`;
+
+        // Group-level aggregation
+        if (!aggregateMap.has(groupKey)) {
+            const mapping = mappingLookup.get(costGroup);
+            aggregateMap.set(groupKey, {
+                cost_group: costGroup,
+                category_code: costGroup,
+                category_name: mapping?.name || `Group ${costGroup}`,
+                month,
+                total_amount: 0,
+            });
+        }
+        aggregateMap.get(groupKey)!.total_amount += amount;
+
+        // Detail-level aggregation (for drill-down)
+        if (!aggregateMap.has(detailKey)) {
+            const mapping = mappingLookup.get(code);
+            aggregateMap.set(detailKey, {
+                cost_group: costGroup,
+                category_code: code,
+                category_name: mapping?.name || code,
+                month,
+                total_amount: 0,
+            });
+        }
+        aggregateMap.get(detailKey)!.total_amount += amount;
+    }
+
+    return Array.from(aggregateMap.values());
+}
+
+/**
+ * Enterprise-level fetch: Retrieves all property mappings from the core database,
+ * cross-references them against Yardi jobs, and pulls all cost aggregates for the 
+ * entire portfolio in a single optimized pass.
+ */
+export async function fetchAllPortfolioJobCostAggregates(
+    pursuitPropertyMapping: Record<string, string[]>
+): Promise<Record<string, YardiMonthlyCostAggregate[]>> {
+    // Flatten requested target codes
+    const allTargetCodes = new Set<string>();
+    for (const codes of Object.values(pursuitPropertyMapping)) {
+        for (const code of codes) allTargetCodes.add(code);
+    }
+    const uniqueCodes = Array.from(allTargetCodes);
+    if (!uniqueCodes.length) return {};
+
+    // 2. Query Yardi Supabase for Jobs matching those properties
+    const client = createYardiClient();
+    const { data: jobRows } = await client
+        .from('jobs')
+        .select('job_id, property_code')
+        .in('property_code', uniqueCodes);
+
+    const propertyToJobs = new Map<string, string[]>();
+    for (const jr of (jobRows || [])) {
+        if (!propertyToJobs.has(jr.property_code)) propertyToJobs.set(jr.property_code, []);
+        propertyToJobs.get(jr.property_code)!.push(jr.job_id);
+    }
+
+    // 3. Map Job IDs back to Pursuit IDs
+    const pursuitToJobs = new Map<string, string[]>();
+    const allJobIds = new Set<string>();
+    for (const [pursuitId, codes] of Object.entries(pursuitPropertyMapping)) {
+        const jobsForPursuit: string[] = [];
+        for (const code of codes) {
+            const jobs = propertyToJobs.get(code) || [];
+            jobsForPursuit.push(...jobs);
+            for (const j of jobs) allJobIds.add(j);
+        }
+        pursuitToJobs.set(pursuitId, jobsForPursuit);
+    }
+
+    if (!allJobIds.size) return {};
+
+    // 4. Fetch all transactions for those combined job IDs
+    const { data: txRows } = await client
+        .from('jobcost_transactions')
+        .select('job_id, cost_category_code, post_date, amount')
+        .in('job_id', Array.from(allJobIds));
+
+    // 5. Fetch code mappings
+    const { data: mappings } = await client
+        .from('jobcost_category_mapping')
+        .select('category_code, category_name, cost_group');
+    const mappingLookup = new Map<string, { name: string; group: string }>();
+    for (const m of (mappings || [])) {
+        mappingLookup.set(m.category_code, { name: m.category_name, group: m.cost_group });
+    }
+
+    // 6. Distribute transactions to pursuit maps
+    const result: Record<string, YardiMonthlyCostAggregate[]> = {};
+    for (const [pursuitId, jobs] of pursuitToJobs.entries()) {
+        const pursuitTx = (txRows || []).filter(tx => jobs.includes(tx.job_id));
+        const aggregateMap = new Map<string, YardiMonthlyCostAggregate>();
+
+        for (const tx of pursuitTx) {
+            if (!tx.post_date || !tx.cost_category_code) continue;
+
+            const amount = Number(tx.amount || 0);
+            if (amount === 0) continue;
+
+            let code = tx.cost_category_code.trim();
+            if (code.length === 7 && !code.includes('-')) {
+                code = `${code.substring(0, 2)}-${code.substring(2)}`;
+            }
+
+            const costGroup = code.substring(0, 2);
+            const month = tx.post_date.substring(0, 7);
+            const detailKey = `${code}|${month}`;
+            const groupKey = `${costGroup}|${month}`;
+
+            if (!aggregateMap.has(groupKey)) {
+                const mapping = mappingLookup.get(costGroup);
+                aggregateMap.set(groupKey, {
+                    cost_group: costGroup,
+                    category_code: costGroup,
+                    category_name: mapping?.name || `Group ${costGroup}`,
+                    month,
+                    total_amount: 0,
+                });
+            }
+            aggregateMap.get(groupKey)!.total_amount += amount;
+
+            if (!aggregateMap.has(detailKey)) {
+                const mapping = mappingLookup.get(code);
+                aggregateMap.set(detailKey, {
+                    cost_group: costGroup,
+                    category_code: code,
+                    category_name: mapping?.name || code,
+                    month,
+                    total_amount: 0,
+                });
+            }
+            aggregateMap.get(detailKey)!.total_amount += amount;
+        }
+        result[pursuitId] = Array.from(aggregateMap.values());
+    }
+
+    return result;
+}
+
+// ============================================================
+// Category Mapping Management (Admin)
+// ============================================================
+
+export type CategoryMappingEntry = {
+    category_code: string;
+    category_name: string;
+    cost_group: string;
+    is_group_header: boolean;
+};
+
+export async function fetchCategoryMappings(): Promise<CategoryMappingEntry[]> {
+    const client = createYardiClient();
+
+    const { data, error } = await client
+        .from('jobcost_category_mapping')
+        .select('category_code, category_name, cost_group, is_group_header')
+        .order('category_code');
+
+    if (error) {
+        console.error('Failed to fetch category mappings:', error);
+        throw new Error('Failed to fetch cost code mappings');
+    }
+
+    return (data || []) as CategoryMappingEntry[];
+}
+
+export async function updateCategoryMapping(
+    categoryCode: string,
+    updates: { category_name?: string; cost_group?: string }
+): Promise<void> {
+    const client = createYardiClient();
+
+    const { error } = await client
+        .from('jobcost_category_mapping')
+        .update(updates)
+        .eq('category_code', categoryCode);
+
+    if (error) {
+        console.error('Failed to update category mapping:', error);
+        throw new Error('Failed to update cost code mapping');
+    }
 }

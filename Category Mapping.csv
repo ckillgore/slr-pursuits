@@ -1,0 +1,1109 @@
+﻿Category Code, Category 
+01-00010,HARD COSTS
+01-00100,General Conditions
+01-01070,GC Street Sweeping
+01-01115,Vice President
+01-01120,DB Manager
+01-01125,Project Executive
+01-01130,Director
+01-01150,General Superintendent
+01-01200,Project Superintendent
+01-01210,Assistant Superintendent
+01-01215,Project Manager
+01-01217,Assistant Project Manager
+01-01220,Project Engineer
+01-01225,Project Coordinator
+01-01230,Laborer
+01-01235,Safety Manager
+01-01245,Training Manager
+01-01250,GC Temporary Labor
+01-01270,Bonus Incentives
+01-01300,Travel and Relocation Expense
+01-01350,Security
+01-01390,Entertainment
+01-01395,Sub Incentive Program
+01-01400,Temp Phone
+01-01410,Temp Toilets
+01-01420,Temp Fence
+01-01425,Temp Parking
+01-01502,Traffic Control Misc. Closures
+01-01510,Trash Removal
+01-01525,Pressure Washing
+01-01600,Storage Facilities
+01-01610,Construction Office
+01-01620,Office Furnishings
+01-01635,Office Furnishings
+01-01640,Construction Gear
+01-01650,Progress Photos
+01-01660,Blueprints
+01-01670,Courier
+01-01680,Construction Signs
+01-01705,Safety Assessments
+01-01720,Small Tools
+01-01850,Vandalism Expense
+01-01890,Repair & Corrective
+01-01892,Subcontractor Charges
+01-01900,Warranty Reserve
+01-01917,Accounting Fees (3rd Party)
+01-01970,Precon Services
+01-01980,Preconstruction Services
+01-01985,SLR Support Staff
+01-01990,Reports and Misc. Fees
+01-01995,Construction Legal Services
+01-01999,Constr Software and Training
+01-0199A,Bank True Up
+01-0199B,General Conditions True
+01-0199C,General Conditions Fee
+01-02700,GC Safety Equipment
+01-03235,GC Equipment Rental
+01-17000,GC Punch Labor
+01-17100,GC Punch Out Supplies
+01-18850,GC Site Signage
+01-20010,Mobilization
+01-80000,COVID-19 Expense
+01-99999,Total General Conditions
+,
+02-00000,Site Work
+02-01005,Site Layout
+02-01050,Construction Engineering Svcs
+02-01070,Street Sweeping
+02-01100,QC Inspections
+02-01230,Laborer
+02-01235,Safety Manager
+02-01425,Temp Parking
+02-01470,Testing
+02-01502,Traffic Control Misc. Closures
+02-01720,Small Tools
+02-02100,Demolition
+02-02105,Asbestos Abatement
+02-02125,Site Preparation
+02-02200,Grading
+02-02210,Excavation
+02-02215,Fine Grading Stucco Grade
+02-02220,Haul Off Excess Fill
+02-02225,Import Fill
+02-02240,Backfill and Compaction
+02-02245,Soil Stabilization
+02-02265,Lake Bulkheads
+02-02270,Erosion Control
+02-02280,Termite PreTreatment
+02-02290,Tree Preservation Removal
+02-02300,Storm Drainage System
+02-02305,Detention Vaults
+02-02310,Sanitary Sewer System
+02-02330,Water Distribution System
+02-02335,Water Meters
+02-02340,Electrical Conduits
+02-02350,Telephone Conduits
+02-02370,Cable TV Conduits
+02-02380,Crossing Sleeves
+02-02390,Relocate Existing Utilities
+02-02391,Electric Improvements
+02-02395,OffSite Utilities
+02-02400,Asphalt Paving
+02-02410,Concrete Pavement
+02-02420,Pavers
+02-02425,Temp Roads
+02-02430,Specialty Pavement
+02-02435,Temp Electric
+02-02440,Curb and Gutter
+02-02442,Temp Water
+02-02445,Temp Gas
+02-02450,"Markings, Wheel Stops"
+02-02470,OffSite Paving
+02-02540,Bollards
+02-02600,Retaining Walls
+02-02680,Area Drainage
+02-02700,Safety Equipment
+02-02800,Construction Management
+02-03005,Threshold Inspections
+02-03006,Concrete Testing
+02-03099,Structural Contingency
+02-03150,Foundations
+02-03235,Equipment Rental
+02-05500,Metal Stairs Assemblies
+02-06400,Framing Labor
+02-06425,Siding Labor
+02-06710,Architectural Woodwork
+02-06770,Granite Support Legs
+02-06800,Finish Carpentry Labor
+02-07100,Waterproofing
+02-07350,Firestopping
+02-07375,Caulking
+02-07495,Roof Tie Off Anchors
+02-08000,Windows and Screens
+02-08010,Reglazing
+02-08200,Entry Doors
+02-08220,Interior Doors
+02-08300,Overhead Doors
+02-08700,Finish Hardware
+02-09900,Painting
+02-10300,Fireplaces
+02-10500,Fire Extinguishers
+02-10900,Building Signage
+02-11100,Kitchen Appliances
+02-12500,Window Treatments
+02-14200,Elevators
+02-14250,Elevator Cab Finishes
+02-15400,Plumbing
+02-15460,Venting and Piping
+02-16000,Electrical
+02-16150,Car Charging Stations
+02-16500,Lighting Fixtures
+02-16905,Unit Sound System
+02-17000,Punch Labor
+02-17100,Punch Out Supplies
+02-17200,Repair and Corrective Work
+02-17300,Final Cleaning
+02-17400,Amenity Signage
+02-17825,Bike Racks
+02-18000,Upgrades
+02-18525,Masonry Fencing
+02-18775,Landscaping
+02-18850,Site Signage
+02-18851,Drywells
+02-19500,Unallocated Future Costs
+02-99999,Total Site Work
+,
+03-00000,Apartments
+03-01005,Site Layout
+03-01050,Construction Engineering Svcs
+03-01070,Street Sweeping
+03-01100,QC Inspections
+03-01250,Temporary Labor
+03-01350,Security
+03-01470,Testing
+03-01510,Trash Removal
+03-01525,Pressure Washing
+03-01600,Storage Facilities
+03-01720,Small Tools
+03-01900,Warranty Reserve
+03-02105,Asbestos Abatement
+03-02200,Grading
+03-02220,Haul Off Excess Fill
+03-02270,Erosion Control
+03-02280,Termite PreTreatment
+03-02300,Storm Drainage System
+03-02330,Water Distribution System
+03-02390,Relocate Existing Utilities
+03-02391,Electric Improvements
+03-02395,OffSite Utilities
+03-02410,Concrete Pavement
+03-02420,Pavers
+03-02425,Temp Roads
+03-02435,Temp Electric
+03-02442,Temp Water
+03-02445,Temp Gas
+03-02700,Safety Equipment
+03-02800,Construction Management
+03-03005,Threshold Inspections
+03-03006,Concrete Testing
+03-03099,Structural Contingency
+03-03100,Pilings
+03-03125,Grade Beams
+03-03130,Piers
+03-03150,Foundations
+03-03175,Slab on Grade
+03-03220,Int. Lightweight Gypcrete
+03-03225,Ext. Lightweight
+03-03230,Concrete Shell
+03-03231,Eqpt Rntl Generator
+03-03232,Eqpt Rntl Fuel
+03-03233,Eqpt Rntl BoomLift/Forklift
+03-03234,Eqpt Rntl Buckhoist
+03-03235,Eqpt Rntl Misc
+03-03236,Eqpt Rntl Swing Stages
+03-03237,Eqpt Rntl Skidsteer/Sweeper
+03-03238,Eqpt Rntl Scissor Lift
+03-03239,Eqpt Rntl Scaffolding
+03-03240,Eqpt Rntl Crane
+03-03320,Concrete Walls
+03-04000,CMU
+03-04002,Cable Railing
+03-04300,Face Rock Masonry
+03-04450,Cast Stone
+03-04455,Balustrades
+03-05100,Structural Steel
+03-05150,Masonry Lintels
+03-05300,Metal Fabrication
+03-05500,Metal Stairs Assemblies
+03-05550,Metal Stairs Town Homes
+03-05750,Balcony Railings
+03-05800,Screen Enclosures
+03-05850,Metal Cladding Systems
+03-05900,Ornamental Metals
+03-06100,Framing Materials
+03-06105,Miscellaneous Framing Materials
+03-06200,Floor Trusses
+03-06250,Roof Trusses
+03-06300,Siding Materials
+03-06400,Framing Labor
+03-06425,Siding Labor
+03-06700,Wood Trim Budget
+03-06710,Architectural Woodwork
+03-06725,Wood Stairs and Railings
+03-06745,Kitchen Vanity Sinks
+03-06750,"Cabinets, Vanities and Tops"
+03-06755,Cabinet Hardware
+03-06760,Marble Tops
+03-06763,Quartz Tops
+03-06765,Granite Tops
+03-06770,Granite Support Legs
+03-06775,Closet Shelving
+03-07100,Waterproofing
+03-07150,Concrete Coatings
+03-07175,Balcony Breezeway Waterproofing
+03-07200,Insulation
+03-07230,House Wrap
+03-07235,Mold Prevention
+03-07250,Stucco
+03-07350,Firestopping
+03-07375,Caulking
+03-07400,Roof Shingle System
+03-07425,Flat Roof System
+03-07475,Metal Roofs
+03-07495,Roof Tie Off Anchors
+03-07497,Roof Davit System
+03-07500,Gutters and Downspouts
+03-07900,Access Panels
+03-07925,Roof Accessories
+03-08000,Windows and Screens
+03-08005,Window Installation
+03-08010,Reglazing
+03-08025,Sliding Glass Doors Patio Doors
+03-08075,Shutters
+03-08080,Awnings
+03-08200,Entry Doors
+03-08210,Hollow Metal Doors
+03-08220,Interior Doors
+03-08240,Meter Storage Room Doors
+03-08250,Specialty Doors
+03-08260,Shower Doors
+03-08300,Overhead Doors
+03-08400,Storefront
+03-08450,Window Walls
+03-08500,Glass Block
+03-08700,Finish Hardware
+03-09100,Metal Studs
+03-09250,Drywall Metal Framing
+03-09300,Ceramic Tile
+03-09600,Wood Floors
+03-09650,Vinyl Flooring
+03-09680,Carpet
+03-09690,Carpet Cleaning
+03-09700,Concrete Stain Flooring
+03-09710,Concrete Topping
+03-09800,Tape Bed and Texture
+03-09900,Painting
+03-09920,Specialty Finishes
+03-09950,Wallcovering
+03-10300,Fireplaces
+03-10500,Fire Extinguishers
+03-10700,Mirrors
+03-10800,Bath Accessories
+03-10850,Toilet Partitions
+03-10900,Building Signage
+03-10950,Misc (Rent Drop Floor Safe)
+03-11100,Kitchen Appliances
+03-11200,Laundry Appliances
+03-11800,Trash Chutes Compactors
+03-11810,Trash Compactor
+03-12500,Window Treatments
+03-14200,Elevators
+03-14250,Elevator Cab Finishes
+03-15300,Fire Sprinkler System
+03-15400,Plumbing
+03-15410,Tub Repairs
+03-15425,Shower Pans
+03-15450,Water Sub Meters
+03-15460,Venting and Piping
+03-15475,Gas Sub Meters
+03-15500,HVAC
+03-16000,Electrical
+03-16005,Generator
+03-16100,Electrical Sub Meters
+03-16200,Cable TV
+03-16300,Telephone Wiring
+03-16400,Smart Home
+03-16500,Lighting Fixtures
+03-16505,Exterior Lighting Allowance
+03-16700,Audio Visual Equipment
+03-16800,Fire Alarm System
+03-16850,Life Safety Systems
+03-16860,Camera Monitoring Systems
+03-16870,Access Control Systems
+03-16900,Intrusion Security System
+03-16905,Unit Sound System
+03-16950,Programmable Lock System
+03-17000,Punch Labor
+03-17100,Punch Out Supplies
+03-17200,Repair and Corrective Work
+03-17300,Final Cleaning
+03-17825,Bike Racks
+03-17830,Carports
+03-18000,Upgrades
+03-18525,Masonry Fencing
+03-18600,Trash Compactors
+03-18650,Parcel Lockers
+03-18675,Package System
+03-18740,Entry Features
+03-18775,Landscaping
+03-19500,Unallocated Future Costs
+03-99999,Total Apartments
+,
+04-00000,Leasing Office
+04-02445,Temp Gas
+04-03225,Ext. Lightweight
+04-04000,CMU
+04-04300,Face Rock Masonry
+04-05100,Structural Steel
+04-05500,Metal Stairs Assemblies
+04-05750,Balcony Railings
+04-05900,Ornamental Metals
+04-06105,Miscellaneous Framing Materials
+04-06400,Framing Labor
+04-06700,Wood Trim Budget
+04-06710,Architectural Woodwork
+04-06725,Wood Stairs and Railings
+04-06750,"Cabinets, Vanities and Tops"
+04-06760,Marble Tops
+04-06763,Quartz Tops
+04-06765,Granite Tops
+04-06775,Closet Shelving
+04-06800,Finish Carpentry Labor
+04-07100,Waterproofing
+04-07200,Insulation
+04-07250,Stucco
+04-07350,Firestopping
+04-07375,Caulking
+04-07900,Access Panels
+04-08000,Windows and Screens
+04-08080,Awnings
+04-08210,Hollow Metal Doors
+04-08220,Interior Doors
+04-08250,Specialty Doors
+04-08300,Overhead Doors
+04-08400,Storefront
+04-08700,Finish Hardware
+04-09100,Metal Studs
+04-09250,Drywall Metal Framing
+04-09300,Ceramic Tile
+04-09600,Wood Floors
+04-09650,Vinyl Flooring
+04-09680,Carpet
+04-09700,Concrete Stain Flooring
+04-09800,Tape Bed and Texture
+04-09900,Painting
+04-09920,Specialty Finishes
+04-09950,Wallcovering
+04-10300,Fireplaces
+04-10500,Fire Extinguishers
+04-10700,Mirrors
+04-10800,Bath Accessories
+04-10850,Toilet Partitions
+04-10900,Building Signage
+04-10950,Misc (Rent Drop Floor Safe)
+04-11100,Kitchen Appliances
+04-12500,Window Treatments
+04-14200,Elevators
+04-15300,Fire Sprinkler System
+04-15400,Plumbing
+04-15450,Water Sub Meters
+04-15475,Gas Sub Meters
+04-15500,HVAC
+04-16000,Electrical
+04-16100,Electrical Sub Meters
+04-16200,Cable TV
+04-16300,Telephone Wiring
+04-16500,Lighting Fixtures
+04-16505,Exterior Lighting Allowance
+04-16700,Audio Visual Equipment
+04-16800,Fire Alarm System
+04-16850,Life Safety Systems
+04-16860,Camera Monitoring Systems
+04-16870,Access Control Systems
+04-16900,Intrusion Security System
+04-16950,Programmable Lock System
+04-17000,Punch Labor
+04-17300,Final Cleaning
+04-18000,Upgrades
+04-18625,Postal Equipment
+04-18650,Parcel Lockers
+04-18675,Package System
+04-19500,Unallocated Future Costs
+04-99999,Total Leasing Office
+,
+05-00000,Fitness Center
+05-03130,Piers
+05-05100,Structural Steel
+05-05900,Ornamental Metals
+05-06710,Architectural Woodwork
+05-06750,"Cabinets, Vanities and Tops"
+05-06765,Granite Tops
+05-07200,Insulation
+05-07250,Stucco
+05-08220,Interior Doors
+05-08300,Overhead Doors
+05-08400,Storefront
+05-08700,Finish Hardware
+05-09250,Drywall Metal Framing
+05-09300,Ceramic Tile
+05-09600,Wood Floors
+05-09900,Painting
+05-09920,Specialty Finishes
+05-09950,Wallcovering
+05-10300,Fireplaces
+05-10700,Mirrors
+05-10800,Bath Accessories
+05-12500,Window Treatments
+05-15300,Fire Sprinkler System
+05-15400,Plumbing
+05-15500,HVAC
+05-16000,Electrical
+05-16500,Lighting Fixtures
+05-19500,Unallocated Future Costs
+05-99999,Total Fitness Center
+,
+06-00000,Garage
+06-01100,QC Inspections
+06-01470,Testing
+06-02100,Demolition
+06-02200,Grading
+06-02210,Excavation
+06-02220,Haul Off Excess Fill
+06-02221,Fill Contingency
+06-02225,Import Fill
+06-02245,Soil Stabilization
+06-02270,Erosion Control
+06-02290,Tree Preservation Removal
+06-02395,OffSite Utilities
+06-02410,Concrete Pavement
+06-02435,Temp Electric
+06-02442,Temp Water
+06-02450,Markings or Wheel Stops
+06-02540,Bollards
+06-02680,Area Drainage
+06-02685,French Drain System
+06-02700,Safety Equipment
+06-03006,Concrete Testing
+06-03125,Grade Beams
+06-03130,Piers
+06-03150,Foundations
+06-03175,Slab on Grade
+06-03230,Concrete Shell
+06-03300,Concrete Bumper Walls
+06-03320,Concrete Walls
+06-04000,CMU
+06-04002,Cable Railing
+06-04300,Face Rock Masonry
+06-04500,Exterior Skin
+06-05100,Structural Steel
+06-05300,Metal Fabrication
+06-05500,Metal Stairs Assemblies
+06-06100,Framing Materials
+06-06710,Architectural Woodwork
+06-06725,Wood Stairs and Railings
+06-06750,"Cabinets, Vanities and Tops"
+06-06765,Granite Tops
+06-07100,Waterproofing
+06-07150,Concrete Coatings
+06-07200,Insulation
+06-07250,Stucco
+06-07350,Firestopping
+06-07375,Caulking
+06-07425,Flat Roof System
+06-07475,Metal Roofs
+06-08080,Awnings
+06-08210,Hollow Metal Doors
+06-08220,Interior Doors
+06-08240,Meter Storage Room Doors
+06-08250,Specialty Doors
+06-08300,Overhead Doors
+06-08400,Storefront
+06-08700,Finish Hardware
+06-09100,Metal Studs
+06-09250,Drywall Metal Framing
+06-09300,Ceramic Tile
+06-09680,Carpet
+06-09700,Concrete Stain Flooring
+06-09710,Concrete Topping
+06-09900,Painting
+06-10500,Fire Extinguishers
+06-10700,Mirrors
+06-10900,Building Signage
+06-11800,Trash Chutes Compactors
+06-14200,Elevators
+06-15300,Fire Sprinkler System
+06-15400,Plumbing
+06-15450,Water Sub Meters
+06-15475,Gas Sub Meters
+06-15500,HVAC
+06-15520,Mechanical Louvers
+06-16000,Electrical
+06-16100,Electrical Sub Meters
+06-16150,Car Charging Stations
+06-16300,Telephone Wiring
+06-16500,Lighting Fixtures
+06-16800,Fire Alarm System
+06-16850,Life Safety Systems
+06-16860,Camera Monitoring Systems
+06-16870,Access Control Systems
+06-16900,Intrusion Security System
+06-16950,Programmable Lock System
+06-17200,Repair and Corrective Work
+06-17300,Final Cleaning
+06-17825,Bike Racks
+06-17830,Carports
+06-17850,Garage Screening Material
+06-18625,Postal Equipment
+06-18775,Landscaping
+06-18800,Garage CO2
+06-18850,Site Signage
+06-19500,Unallocated Future Costs
+06-99999,Total Garage
+,
+07-00000,Pool Amenity
+07-02420,Pavers
+07-02600,Retaining Walls
+07-02680,Area Drainage
+07-02800,Construction Management
+07-03175,Slab on Grade
+07-03230,Concrete Shell
+07-04000,CMU
+07-04200,Facebrick
+07-05900,Ornamental Metals
+07-06763,Quartz Tops
+07-07100,Waterproofing
+07-09300,Ceramic Tile
+07-09710,Concrete Topping
+07-09900,Painting
+07-10300,Fireplaces
+07-15400,Plumbing
+07-15500,HVAC
+07-16000,Electrical
+07-16300,Telephone Wiring
+07-16500,Lighting Fixtures
+07-16950,Programmable Lock System
+07-17000,Punch Labor
+07-17025,Pool and Equipment
+07-17100,Punch Out Supplies
+07-17125,Pool Deck
+07-17130,Pool Deck Drains
+07-17150,Pool Fence
+07-17175,Equipment Enclosure
+07-17250,Wood Deck
+07-17275,Pool Shower
+07-17300,Final Cleaning
+07-17305,Cabana
+07-17400,Amenity Signage
+07-17640,Planters
+07-17710,Arbors Trellis
+07-17720,Fountains and Equipment
+07-18000,Upgrades
+07-18525,Masonry Fencing
+07-18530,Wood PVC Fencing
+07-18775,Landscaping
+07-18930,Masonry Columns
+07-19500,Unallocated Future Costs
+07-99999,Total Pool Amenity
+,
+08-00000,Auxiliary Amenity
+08-03175,Slab on Grade
+08-04000,CMU
+08-04300,Face Rock Masonry
+08-05100,Structural Steel
+08-05900,Ornamental Metals
+08-06710,Architectural Woodwork
+08-06750,"Cabinets, Vanities and Tops"
+08-06765,Granite Tops
+08-06775,Closet Shelving
+08-06800,Finish Carpentry Labor
+08-07100,Waterproofing
+08-07200,Insulation
+08-07375,Caulking
+08-07475,Metal Roofs
+08-08000,Windows and Screens
+08-08080,Awnings
+08-08210,Hollow Metal Doors
+08-08220,Interior Doors
+08-08400,Storefront
+08-08700,Finish Hardware
+08-09250,Drywall Metal Framing
+08-09300,Ceramic Tile
+08-09600,Wood Floors
+08-09680,Carpet
+08-09900,Painting
+08-09920,Specialty Finishes
+08-09950,Wallcovering
+08-10300,Fireplaces
+08-10500,Fire Extinguishers
+08-10700,Mirrors
+08-10800,Bath Accessories
+08-10900,Building Signage
+08-11100,Kitchen Appliances
+08-12500,Window Treatments
+08-15300,Fire Sprinkler System
+08-15400,Plumbing
+08-15500,HVAC
+08-16000,Electrical
+08-16200,Cable TV
+08-16300,Telephone Wiring
+08-16500,Lighting Fixtures
+08-16700,Audio Visual Equipment
+08-16800,Fire Alarm System
+08-16900,Intrusion Security System
+08-18730,Dog Park
+08-19500,Unallocated Future Costs
+08-99999,Total Auxiliary Amenity
+,
+10-00000,Misc. Site Work
+10-02420,Pavers
+10-02430,Specialty Pavement
+10-02540,Bollards
+10-02600,Retaining Walls
+10-02680,Area Drainage
+10-02900,Concrete Stain
+10-03150,Foundations
+10-04000,CMU
+10-04300,Face Rock Masonry
+10-04450,Cast Stone
+10-05100,Structural Steel
+10-05800,Screen Enclosures
+10-05850,Metal Cladding Systems
+10-05900,Ornamental Metals
+10-06725,Wood Stairs and Railings
+10-07100,Waterproofing
+10-07375,Caulking
+10-09700,Concrete Stain Flooring
+10-09900,Painting
+10-09920,Specialty Finishes
+10-10300,Fireplaces
+10-10800,Bath Accessories
+10-15400,Plumbing
+10-16000,Electrical
+10-16500,Lighting Fixtures
+10-16510,Site Lighting
+10-17250,Wood Deck
+10-17300,Final Cleaning
+10-17640,Planters
+10-17720,Fountains and Equipment
+10-17825,Bike Racks
+10-17830,Carports
+10-18000,Upgrades
+10-18500,Sidewalks
+10-18525,Masonry Fencing
+10-18530,Wood PVC Fencing
+10-18540,Aluminum Metal Fencing
+10-18550,Chain Link Fencing
+10-18575,Dumpster Enclosure
+10-18600,Trash Compactors
+10-18625,Postal Equipment
+10-18700,Maintenance Building
+10-18725,Car Wash
+10-18730,Dog Park
+10-18740,Entry Features
+10-18750,Irrigation System
+10-18775,Landscaping
+10-18800,Site Furnishings
+10-18850,Site Signage
+10-18930,Masonry Columns
+10-19500,Unallocated Future Costs
+10-99999,Total Misc. Site Work
+,
+11-00000,Permits and Bonds
+11-01917,Accounting Fees
+11-01980,Preconstruction Services
+11-19000,Building Permits
+11-19030,Other Permits
+11-20085,Subcontractor Default Ins (SDI)
+11-20800,CCIP Credits
+11-21000,Subcontractor P&P Bonds
+11-21500,On Site G/L & Excess Liability
+11-22000,Builder's Risk
+11-23000,General Project Insurance
+11-24000,Misc. Insurance Costs & Fees
+11-99999,Total Permits and Bonds
+,
+12-00000,Contingency
+12-19999,Construction Contingency
+12-29999,Owner Contingency
+12-99999,Total Contingency
+,
+13-00000,Project Specific
+13-01917,Project Coordination Fee
+13-01980,Preconstruction Services
+13-19500,Unallocated Future Costs
+13-20100,GC Reconciliation
+13-20150,Buyout Savings
+13-20200,SDI Loss Fund Reimbursements
+13-20300,Utility Reimbursements
+13-20400,Insurance Claim Reimbursables
+13-20500,Insurance Claim Reimbursements
+13-20600,Consultant Claims
+13-20700,State Taxes
+13-20800,CCIP Credits
+13-20900,Owner Reimbursements
+13-25000,$0 PCO/OCO Markup
+13-99999,Total Project Specific
+,
+14-00000,Retail
+14-01510,Trash Removal
+14-02210,Excavation
+14-02391,Electric Improvements
+14-02410,Concrete Pavement
+14-02420,Pavers
+14-02540,Bollards
+14-03006,Concrete Testing
+14-03125,Grade Beams
+14-03130,Piers
+14-03150,Foundations
+14-03175,Slab on Grade
+14-03230,Concrete Shell
+14-03320,Concrete Walls
+14-04000,CMU
+14-04300,Face Rock Masonry
+14-04450,Cast Stone
+14-04500,Exterior Skin
+14-05100,Structural Steel
+14-05500,Metal Stairs Assemblies
+14-05800,Screen Enclosures
+14-05850,Metal Cladding Systems
+14-05900,Ornamental Metals
+14-07100,Waterproofing
+14-07150,Concrete Coatings
+14-07200,Insulation
+14-07230,House Wrap
+14-07250,Stucco
+14-07350,Firestopping
+14-07375,Caulking
+14-07400,Roof Shingle System
+14-07425,Flat Roof System
+14-07475,Metal Roofs
+14-07900,Access Panels
+14-08080,Awnings
+14-08210,Hollow Metal Doors
+14-08220,Interior Doors
+14-08250,Specialty Doors
+14-08300,Overhead Doors
+14-08400,Storefront
+14-08700,Finish Hardware
+14-09250,Drywall Metal Framing
+14-09510,Acoustical Ceiling
+14-09900,Painting
+14-10500,Fire Extinguishers
+14-14200,Elevators
+14-15300,Fire Sprinkler System
+14-15400,Plumbing
+14-15450,Water Sub Meters
+14-15500,HVAC
+14-15520,Mechanical Louvers
+14-16000,Electrical
+14-16005,Generator
+14-16500,Lighting Fixtures
+14-16700,Audio Visual Equipment
+14-16800,Fire Alarm System
+14-17000,Punch Labor
+14-17100,Punch Out Supplies
+14-17200,Repair and Corrective Work
+14-17300,Final Cleaning
+14-17720,Fountains and Equipment
+14-18675,Package System
+14-18775,Landscaping
+14-19500,Unallocated Future Costs
+14-19600,2nd Sub Payment (Joint Check)
+14-99999,Total Retail
+,
+15-00000,Third Party General Contractor
+15-02850,GC Contract MF
+15-02860,GC Contract Joint Improvements
+15-02861,Joint Improvement Site
+15-02862,Joint Improvements Parking
+15-02870,Other Joint Improvements
+15-99999,Total Third Party General Contractor
+,
+48-00000,DEPOSITS
+48-50100,Refundable deposit
+48-99990,TOTAL DEPOSITS
+,
+49-00000,General Contractor's Fee
+49-02800,Construction Management Fee
+49-49999,General Contractor's Fee
+49-50100,Mobilization
+49-99990,Total General Contractor's Fee
+,
+49-99999,Total Hard Costs
+,
+50-00000,SOFT COSTS
+50-00001,LAND ACQUISITION
+50-00100,Land Acquisition Price
+50-00101,City Contribution
+50-00102,Land Sale
+50-00105,Earnest Money Deposit
+50-00110,Extension Fees
+50-00111,Assignment Fee
+50-00112,Land Broker
+50-99999,TOTAL LAND ACQUISITION
+,
+51-00000,ACQUISITION COSTS
+51-00115,Legal Fees-Acquisition
+51-00120,Closing Costs
+51-00124,Lender Fees
+51-00130,DNU-Title Policy
+51-00135,Recording Fees
+51-00140,DNU-Search Fees
+51-00145,Settlement Fees
+51-00150,DNU-Title Exam Fees
+51-00155,Survey
+51-00156,Market Studies
+51-00160,DNU-Appraisal
+51-00165,Broker Fee
+51-00170,Sales Commission
+51-00175,Other Costs Land Acq
+51-00190,Founders Park Buy In
+51-00200,Townhome Soft Costs
+51-99999,TOTAL ACQUISITION COSTS
+,
+52-00000,LOAN COSTS
+52-00110,DNU-Extension Fees
+52-00115,Legal Fees-Loan
+52-00120,Closing Costs
+52-00125,Loan Commitment Fee
+52-00130,Title Policy
+52-00135,Recording Fees
+52-00140,Search Fees
+52-00150,Title Exam Fees
+52-00155,Survey
+52-00160,Appraisal
+52-00181,Other Costs Loan
+52-00185,Other Costs Interest Rate Consultant
+52-00186,Other Costs Interest Rate Hedges
+52-99999,TOTAL LOAN COSTS
+,
+53-00000,JOINT VENTURE COSTS
+53-00115,Legal Fees-JV
+53-00120,DNU-Closing Costs
+53-00130,Title Policy
+53-00165,Broker Fee
+53-00185,DNU-Due Diligence Costs
+53-00190,Other Costs JV
+53-99999,TOTAL JOINT VENTURE COSTS
+,
+54-00000,LEGAL COSTS
+54-00115,Legal Fees-Legal
+54-00121,Master Association
+54-00126,Environmental
+54-00131,Title Update
+54-00196,Other Legal Fees
+54-99999,TOTAL LEGAL COSTS
+,
+60-00000,LAND PLANNING
+60-00240,Zoning
+60-00245,DNU-Site Planning
+60-00250,Traffic Consultant
+60-00255,DNU-Drainage Study
+60-00265,Environmental Studies
+60-00275,Feasibility Studies
+60-00280,Geotechnical Testing
+60-00285,DNU-Boundary Survey
+60-00290,DNU-Topographic Survey
+60-00292,Aerial Photography
+60-00295,Other Land Planning
+60-00296,Onsite Infrastructure
+60-00297,Offsite Infrastructure
+60-00322,Archaeology Investigation
+60-99999,TOTAL LAND PLANNING
+,
+61-00000,IMPACT FEES
+61-00297,Offsite Infrastructure Costs
+61-00300,Water Sewer Connection
+61-00305,DNU-Water System Design
+61-00310,Water Meters
+61-00311,Offsite Gas
+61-00312,Offsite Electricity
+61-00313,Natural Gas Design
+61-00314,DNU-Elec Utility Design
+61-00315,Sewer Surcharge Fees
+61-00320,Plan Review
+61-00324,DOT Improvements
+61-00325,Transportation Impact
+61-00327,Development Occupational Fee (DOF)
+61-00330,DNU-School Impact Fees
+61-00335,Parks and Recreation Fee
+61-00337,DNU-Environmental Fees
+61-00340,DNU-Land Disturbance Permits
+61-00342,Building Permits
+61-00345,Police Fire Dept. Fees
+61-00350,County Fees
+61-00355,City Fees
+61-00362,Fees Inspections
+61-00365,Other Fees
+61-00370,Construction Bonds
+61-00375,Landscape Bonds
+61-00380,DNU-Subcontractor Bonds
+61-00395,Green Bldg Fees
+61-99999,TOTAL IMPACT FEES
+,
+62-00000,ARCHITECTURAL and ENGINEER
+62-00240,DNU-Zoning
+62-00400,Design Architect
+62-00405,Structural Engineer
+62-00410,MEP Engineer
+62-00411,Environmental Engineer
+62-00415,Interior Design Design Associate
+62-00420,Civil Engineer
+62-00425,Landscape Architect
+62-00430,Arborist
+62-00433,Lighting Consultant
+62-00434,Waste Mgt Consultant
+62-00435,Miscellaneous Consultant
+62-00436,ADA Consultant (Accessibility)
+62-00437,Green Bldg Consultant
+62-00438,Permits Consultant
+62-00439,Waterproofing Consultant
+62-00440,Inspections Consultant
+62-00441,Bank Inspections
+62-00442,Internal Quality Control
+62-00445,Blueprints Reproduction
+62-00448,Reimbursables Architecture
+62-00449,Reimbursables Int Design
+62-00450,DNU-Reimbursables
+62-00452,Bar Consultant and Licensing
+62-00475,Other A and E
+62-00480,Acoustical Consultant
+62-00485,Elevator Consultant
+62-00486,Bulk Wifi
+62-00487,Dry Utilities Consultant CA AZ
+62-00488,Fire and Safety Consultant CA AZ
+62-00489,SLR Creative Fee
+62-99999,TOTAL ARCHITECTURAL and ENGINEER
+,
+63-00000,OTHER DEVELOPMENT COSTS
+63-00250,DNU-Traffic Consultant
+63-00400,Builders Risk and Liability SL Only
+63-00480,DNU-Easements
+63-00485,AsBuilt Survey
+63-00490,Travel Costs
+63-00492,Corp Office
+63-00495,Other Development Cost
+63-00496,Accounting Fees
+63-00499,Insurance Claim Reimbursables
+63-00500,Equity Oversight Fee
+63-00940,Builder's Risk and Liability
+63-0199B,Other Development True
+63-99999,TOTAL OTHER DEVELOPMENT COSTS
+,
+64-00000,Other Dev Costs - Office
+64-00100,DNU-Architectural & Engineer
+64-00105,DNU-Other Development Co
+64-00110,DNU-Developer Fee
+64-00115,DNU-Marketing/Lease up/FF&E
+64-00120,Contingency
+64-00125,DNU-Tenant Improvements
+64-00130,DNU-Leasing Commission
+64-00205,PGIM RE DD
+64-01135,DNU-Lease Legal
+64-99999,TOTAL Other Dev Costs - Office
+,
+70-00000,DEVELOPMENT INTEREST
+70-00550,Cap'd Interest Resi
+70-00555,Construction Loan Inte
+70-00560,Note Payable Interest
+70-00570,Const. Int. Funded by
+70-00575,Interest Income
+70-99999,TOTAL DEVELOPMENT INTEREST
+,
+71-00000,TAXES and ASSESSMENTS
+71-00575,Property Taxes
+71-00576,DNU-City Taxes
+71-00580,DNU-Maintenance Assessment
+71-00585,Association Fees
+71-99999,TOTAL TAXES and ASSESSMENTS
+,
+73-00000,OVERHEAD ALLOCATION
+73-00600,DNU-Overhead Allocation
+73-99999,TOTAL OVERHEAD ALLOCATION
+,
+74-00000,DEVELOPER FEE
+74-00610,Developer Fee
+74-00611,Asset Mgmt Fee
+74-00622,Partner CM Fee
+74-99999,TOTAL DEVELOPER FEE
+,
+78-00000,LEASEUP EXPENSES
+78-00655,Cap'd Op Exp Residential
+78-00665,DNU-Amort of Deferred Cost
+78-00680,DNU-Leaseup Operating Def
+78-99999,TOTAL LEASEUP EXPENSES
+,
+80-00000,MARKETING LEASE UP FFandE
+80-00700,FF&E
+80-00705,DNU-Leasing Office Furnishings
+80-00710,DNU-Amenity Area Furnishing
+80-00712,DNU-Pool Furnishings
+80-00715,Fitness Equipment
+80-00720,DNU-Clubhouse Furnishings
+80-00725,Business Center Furnishings
+80-00730,DNU-Lobby Furnishings
+80-00735,Corridor Furnishings
+80-00736,DNU-Corridor Art Accessories
+80-00739,Trash Containers
+80-00740,Other Furnishings
+80-00741,Reimbursables FF&E
+80-00746,EV Charging Stations
+80-00747,Audio Visual Equipment
+80-00748,Audio Visual Equipment Units
+80-00749,Unit Sound System (Sonos)
+80-00750,Start Up Equipment
+80-00755,Collaterals
+80-00760,Signage and Graphic Design
+80-00765,Displays
+80-00770,Renderings Design
+80-00775,Marketing Signage
+80-00780,Leaseup Advertising
+80-00781,Leaseup Marketing
+80-00783,Retail Leasing Commiss
+80-00786,Preview Center
+80-00787,Other FF and E Start Up
+80-00790,Website Design Devel
+80-00791,Branding
+80-99999,TOTAL MARKETING LEASE UP FFandE
+,
+86-00000,RETAIL
+86-00115,Legal Fees-Retail
+86-00116,Lease Negotiations
+86-00165,DNU-Broker Fee
+86-00342,Building Permits
+86-00365,Other Fees
+86-00435,DNU-Consultant
+86-00441,Tenant Coord Consultant
+86-00490,Travel Costs
+86-00495,DNU-Other Development Cost
+86-00755,DNU-Collaterals
+86-00757,Website Development
+86-00758,DNU-Design Production
+86-00760,Graphics Wayfinding
+86-00761,Advertising
+86-00767,Mrktg and Leasing Center
+86-00783,3rd Party Leasing Commission
+86-00786,DNU-Tenant Coord Fee
+86-00805,Mgt Office FF and E
+86-00900,Contingency
+86-19599,TI Allowance
+86-99999,TOTAL RETAIL
+,
+89-00000,DEPOSITS
+89-49999,Escrow deposit
+89-99990,TOTAL DEPOSITS
+,
+90-00000,CONTINGENCY
+90-00900,Contingency
+90-00910,Bank Owned Contingency
+90-29999,Owner Contingency
+90-99990,TOTAL CONTINGENCY
+,
+90-99999,TOTAL SOFT COSTS
+,
+99-99990,TOTAL PROJECT COSTS
+,
+99-99999,TOTAL OF ALL ACCOUNTS
+,

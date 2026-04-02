@@ -913,23 +913,44 @@ export async function deleteLandComp(id: string) {
 // Pre-Dev Budgets
 // ============================================================
 
-const DEFAULT_LINE_ITEMS: { category: string; label: string; sort_order: number }[] = [
-    { category: 'land_cost', label: 'Land Cost', sort_order: 1 },
-    { category: 'earnest_money', label: 'Earnest Money', sort_order: 2 },
-    { category: 'legal_fees', label: 'Legal Fees', sort_order: 3 },
-    { category: 'arch_design', label: 'Architectural / Design Fees', sort_order: 4 },
-    { category: 'environmental', label: 'Environmental Report', sort_order: 5 },
-    { category: 'geotech', label: 'Geotech Report', sort_order: 6 },
-    { category: 'civil_survey', label: 'Civil Engineering / Survey', sort_order: 7 },
-    { category: 'structural_eng', label: 'Structural Engineering', sort_order: 8 },
-    { category: 'mep_eng', label: 'MEP Engineering', sort_order: 9 },
-    { category: 'interior_design', label: 'Interior Design', sort_order: 10 },
-    { category: 'landscape_design', label: 'Landscape Design', sort_order: 11 },
-    { category: 'city_permits', label: 'City Permit Fees', sort_order: 12 },
-    { category: 'feasibility', label: 'Feasibility Reports', sort_order: 13 },
-    { category: 'market_studies', label: 'Market Studies', sort_order: 14 },
-    { category: 'misc_consultants', label: 'Misc. Other Consultants', sort_order: 15 },
-    { category: 'other_dev_costs', label: 'Other Development Costs', sort_order: 16 },
+const DEFAULT_LINE_ITEMS: { category: string; label: string; sort_order: number; yardi_cost_groups: string[] }[] = [
+    // ── Land & Acquisition ──────────────────────────────────
+    { category: 'land_acquisition',   label: 'Land Acquisition',              sort_order: 1,  yardi_cost_groups: ['50'] },
+    { category: 'acquisition_costs',  label: 'Acquisition / Closing Costs',   sort_order: 2,  yardi_cost_groups: ['51'] },
+    { category: 'earnest_money',      label: 'Earnest Money / Deposits',      sort_order: 3,  yardi_cost_groups: ['48', '89'] },
+    // ── Financing ───────────────────────────────────────────
+    { category: 'loan_costs',         label: 'Loan Costs',                    sort_order: 4,  yardi_cost_groups: ['52'] },
+    { category: 'jv_costs',           label: 'Joint Venture Costs',           sort_order: 5,  yardi_cost_groups: ['53'] },
+    // ── Legal ───────────────────────────────────────────────
+    { category: 'legal_fees',         label: 'Legal Fees',                    sort_order: 6,  yardi_cost_groups: ['54'] },
+    // ── Land Planning (Group 60 broken out) ─────────────────
+    { category: 'zoning',             label: 'Zoning / Entitlements',         sort_order: 7,  yardi_cost_groups: ['60-00240'] },
+    { category: 'traffic',            label: 'Traffic Consultant',            sort_order: 8,  yardi_cost_groups: ['60-00250'] },
+    { category: 'environmental',      label: 'Environmental Report',          sort_order: 9,  yardi_cost_groups: ['60-00265', '62-00411'] },
+    { category: 'feasibility',        label: 'Feasibility Studies',           sort_order: 10, yardi_cost_groups: ['60-00275'] },
+    { category: 'geotech',            label: 'Geotech Report',               sort_order: 11, yardi_cost_groups: ['60-00280'] },
+    { category: 'other_land_plan',    label: 'Other Land Planning',           sort_order: 12, yardi_cost_groups: ['60-00292', '60-00295', '60-00296', '60-00297', '60-00322'] },
+    // ── A&E (Group 62 broken out by discipline) ─────────────
+    { category: 'arch_design',        label: 'Design Architect',              sort_order: 13, yardi_cost_groups: ['62-00400'] },
+    { category: 'structural_eng',     label: 'Structural Engineer',           sort_order: 14, yardi_cost_groups: ['62-00405'] },
+    { category: 'mep_eng',            label: 'MEP Engineer',                  sort_order: 15, yardi_cost_groups: ['62-00410'] },
+    { category: 'interior_design',    label: 'Interior Design',               sort_order: 16, yardi_cost_groups: ['62-00415', '62-00449'] },
+    { category: 'civil_eng',          label: 'Civil Engineer',                sort_order: 17, yardi_cost_groups: ['62-00420'] },
+    { category: 'landscape_design',   label: 'Landscape Architect',           sort_order: 18, yardi_cost_groups: ['62-00425'] },
+    { category: 'misc_consultants',   label: 'Misc. A&E Consultants',         sort_order: 19, yardi_cost_groups: ['62-00430', '62-00433', '62-00434', '62-00435', '62-00436', '62-00437', '62-00438', '62-00439', '62-00440', '62-00441', '62-00442', '62-00445', '62-00448', '62-00452', '62-00475', '62-00480', '62-00485', '62-00486', '62-00487', '62-00488', '62-00489'] },
+    // ── Permits & Impact Fees ───────────────────────────────
+    { category: 'impact_fees',        label: 'Impact Fees / Permits',         sort_order: 20, yardi_cost_groups: ['61'] },
+    // ── Other Soft Costs ────────────────────────────────────
+    { category: 'other_dev_costs',    label: 'Other Development Costs',       sort_order: 21, yardi_cost_groups: ['63', '64'] },
+    { category: 'dev_interest',       label: 'Development Interest',          sort_order: 22, yardi_cost_groups: ['70'] },
+    { category: 'taxes_assessments',  label: 'Taxes & Assessments',           sort_order: 23, yardi_cost_groups: ['71'] },
+    { category: 'overhead',           label: 'Overhead Allocation',           sort_order: 24, yardi_cost_groups: ['73'] },
+    { category: 'developer_fee',      label: 'Developer Fee',                 sort_order: 25, yardi_cost_groups: ['74'] },
+    // ── Marketing & Lease-Up ────────────────────────────────
+    { category: 'leaseup_expenses',   label: 'Lease-Up Expenses',             sort_order: 26, yardi_cost_groups: ['78'] },
+    { category: 'marketing_ffe',      label: 'Marketing / FF&E',              sort_order: 27, yardi_cost_groups: ['80'] },
+    // ── Contingency ─────────────────────────────────────────
+    { category: 'contingency',        label: 'Contingency',                   sort_order: 28, yardi_cost_groups: ['12', '90'] },
 ];
 
 export async function fetchPredevBudget(pursuitId: string): Promise<PredevBudget | null> {
@@ -969,7 +990,10 @@ export async function createPredevBudget(
     // Seed default line items
     const lineItems = DEFAULT_LINE_ITEMS.map((li) => ({
         budget_id: data.id,
-        ...li,
+        category: li.category,
+        label: li.label,
+        sort_order: li.sort_order,
+        yardi_cost_groups: li.yardi_cost_groups,
         is_custom: false,
         monthly_values: {},
     }));
@@ -978,13 +1002,21 @@ export async function createPredevBudget(
         .insert(lineItems);
     if (liError) throw liError;
 
+    // Auto-create SLRH as default funding partner at 100%
+    await supabase.from('pursuit_funding_partners').insert({
+        pursuit_id: pursuitId,
+        name: 'SLRH',
+        is_slrh: true,
+        default_split_pct: 100,
+    });
+
     // Refetch with line items
     return (await fetchPredevBudget(pursuitId))!;
 }
 
 export async function updatePredevBudget(
     id: string,
-    updates: Partial<Pick<PredevBudget, 'start_date' | 'duration_months' | 'notes'>>,
+    updates: Partial<Pick<PredevBudget, 'start_date' | 'duration_months' | 'notes' | 'budget_snapshot' | 'snapshot_taken_at'>>,
 ) {
     const { data, error } = await supabase
         .from('predev_budgets')
@@ -1066,6 +1098,7 @@ export interface PredevBudgetReportRow {
     budget: PredevBudget;
     pursuit: Pick<Pursuit, 'id' | 'short_id' | 'name' | 'region' | 'stage_id' | 'city' | 'state'>;
     stage?: PursuitStage;
+    accounting?: import('@/types').PursuitAccountingEntity[];
 }
 
 export async function fetchAllPredevBudgets(): Promise<PredevBudgetReportRow[]> {
@@ -1075,7 +1108,9 @@ export async function fetchAllPredevBudgets(): Promise<PredevBudgetReportRow[]> 
             *,
             predev_budget_line_items(*),
             pursuits!inner(id, short_id, name, region, stage_id, city, state, is_archived,
-                pursuit_stages(*))
+                pursuit_stages(*),
+                pursuit_accounting_entities(*)
+            )
         `)
         .order('created_at', { ascending: false });
     if (error) throw error;
@@ -1101,12 +1136,228 @@ export async function fetchAllPredevBudgets(): Promise<PredevBudgetReportRow[]> 
                 state: d.pursuits.state,
             },
             stage: d.pursuits.pursuit_stages ?? undefined,
+            accounting: d.pursuits.pursuit_accounting_entities ?? [],
         }));
+}
+
+// ============================================================
+// Budget Snapshots & Amendments
+// ============================================================
+
+export async function snapshotBudget(budgetId: string, pursuitId: string): Promise<PredevBudget> {
+    // First fetch current budget with line items
+    const budget = await fetchPredevBudget(pursuitId);
+    if (!budget || !budget.line_items) throw new Error('Budget not found');
+
+    // Build the snapshot: { lineItemId: { "YYYY-MM": projectedValue } }
+    const snapshot: Record<string, Record<string, number>> = {};
+    for (const li of budget.line_items) {
+        snapshot[li.id] = {};
+        for (const [monthKey, cell] of Object.entries(li.monthly_values)) {
+            snapshot[li.id][monthKey] = cell.projected;
+        }
+    }
+
+    const { error } = await supabase
+        .from('predev_budgets')
+        .update({
+            budget_snapshot: snapshot,
+            snapshot_taken_at: new Date().toISOString(),
+        })
+        .eq('id', budgetId);
+    if (error) throw error;
+
+    return (await fetchPredevBudget(pursuitId))!;
+}
+
+export async function amendBudget(
+    budgetId: string,
+    pursuitId: string,
+    reason: string | null,
+): Promise<PredevBudget> {
+    const { data: { user } } = await supabase.auth.getUser();
+    const budget = await fetchPredevBudget(pursuitId);
+    if (!budget || !budget.line_items) throw new Error('Budget not found');
+    if (!budget.budget_snapshot) throw new Error('No existing snapshot to amend');
+
+    const previousSnapshot = budget.budget_snapshot;
+
+    // Build new snapshot from current projected values
+    const newSnapshot: Record<string, Record<string, number>> = {};
+    for (const li of budget.line_items) {
+        newSnapshot[li.id] = {};
+        for (const [monthKey, cell] of Object.entries(li.monthly_values)) {
+            newSnapshot[li.id][monthKey] = cell.projected;
+        }
+    }
+
+    // Determine revision number
+    const { data: amendments } = await supabase
+        .from('predev_budget_amendments')
+        .select('revision_number')
+        .eq('budget_id', budgetId)
+        .order('revision_number', { ascending: false })
+        .limit(1);
+    const nextRevision = (amendments?.[0]?.revision_number ?? 0) + 1;
+
+    // Record the amendment
+    const { error: amendError } = await supabase
+        .from('predev_budget_amendments')
+        .insert({
+            budget_id: budgetId,
+            revision_number: nextRevision,
+            previous_snapshot: previousSnapshot,
+            new_snapshot: newSnapshot,
+            reason,
+            amended_by: user?.id ?? null,
+        });
+    if (amendError) throw amendError;
+
+    // Update the budget with new snapshot
+    const { error: updateError } = await supabase
+        .from('predev_budgets')
+        .update({
+            budget_snapshot: newSnapshot,
+            snapshot_taken_at: new Date().toISOString(),
+        })
+        .eq('id', budgetId);
+    if (updateError) throw updateError;
+
+    return (await fetchPredevBudget(pursuitId))!;
+}
+
+export async function fetchBudgetAmendments(budgetId: string): Promise<import('@/types').PredevBudgetAmendment[]> {
+    const { data, error } = await supabase
+        .from('predev_budget_amendments')
+        .select('*')
+        .eq('budget_id', budgetId)
+        .order('revision_number', { ascending: false });
+    if (error) throw error;
+    return data as import('@/types').PredevBudgetAmendment[];
+}
+
+// ============================================================
+// Funding Partners
+// ============================================================
+
+export async function fetchFundingPartners(pursuitId: string): Promise<import('@/types').PursuitFundingPartner[]> {
+    const { data, error } = await supabase
+        .from('pursuit_funding_partners')
+        .select('*')
+        .eq('pursuit_id', pursuitId)
+        .order('is_slrh', { ascending: false }) // SLRH first
+        .order('created_at');
+    if (error) throw error;
+    return data as import('@/types').PursuitFundingPartner[];
+}
+
+export async function fetchAllFundingPartners(): Promise<import('@/types').PursuitFundingPartner[]> {
+    const { data, error } = await supabase
+        .from('pursuit_funding_partners')
+        .select('*')
+        .order('is_slrh', { ascending: false })
+        .order('created_at');
+    if (error) throw error;
+    return data as import('@/types').PursuitFundingPartner[];
+}
+
+export async function createFundingPartner(
+    partner: { pursuit_id: string; name: string; is_slrh?: boolean; default_split_pct: number }
+): Promise<import('@/types').PursuitFundingPartner> {
+    const { data, error } = await supabase
+        .from('pursuit_funding_partners')
+        .insert(partner)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as import('@/types').PursuitFundingPartner;
+}
+
+export async function updateFundingPartner(
+    id: string,
+    updates: Partial<Pick<import('@/types').PursuitFundingPartner, 'name' | 'default_split_pct'>>
+): Promise<import('@/types').PursuitFundingPartner> {
+    const { data, error } = await supabase
+        .from('pursuit_funding_partners')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as import('@/types').PursuitFundingPartner;
+}
+
+export async function deleteFundingPartner(id: string) {
+    const { error } = await supabase
+        .from('pursuit_funding_partners')
+        .delete()
+        .eq('id', id);
+    if (error) throw error;
+}
+
+// ============================================================
+// Funding Splits (per-month overrides)
+// ============================================================
+
+export async function fetchFundingSplits(budgetId: string): Promise<import('@/types').PursuitFundingSplit[]> {
+    const { data, error } = await supabase
+        .from('pursuit_funding_splits')
+        .select('*')
+        .eq('budget_id', budgetId);
+    if (error) throw error;
+    return data as import('@/types').PursuitFundingSplit[];
+}
+
+export async function fetchAllFundingSplits(): Promise<import('@/types').PursuitFundingSplit[]> {
+    const { data, error } = await supabase
+        .from('pursuit_funding_splits')
+        .select('*');
+    if (error) throw error;
+    return data as import('@/types').PursuitFundingSplit[];
+}
+
+export async function upsertFundingSplit(
+    split: { budget_id: string; partner_id: string; month_key: string; split_pct: number }
+): Promise<import('@/types').PursuitFundingSplit> {
+    const { data, error } = await supabase
+        .from('pursuit_funding_splits')
+        .upsert(split, { onConflict: 'budget_id,partner_id,month_key' })
+        .select()
+        .single();
+    if (error) throw error;
+    return data as import('@/types').PursuitFundingSplit;
+}
+
+export async function deleteFundingSplit(id: string) {
+    const { error } = await supabase
+        .from('pursuit_funding_splits')
+        .delete()
+        .eq('id', id);
+    if (error) throw error;
+}
+
+// ============================================================
+// Line Item Cost Group Mapping
+// ============================================================
+
+export async function updateLineItemCostGroups(
+    lineItemId: string,
+    yardiCostGroups: string[],
+): Promise<PredevBudgetLineItem> {
+    const { data, error } = await supabase
+        .from('predev_budget_line_items')
+        .update({ yardi_cost_groups: yardiCostGroups })
+        .eq('id', lineItemId)
+        .select()
+        .single();
+    if (error) throw error;
+    return data as PredevBudgetLineItem;
 }
 
 // ============================================================
 // Key Date Types (Admin Lookup)
 // ============================================================
+
 
 export async function fetchKeyDateTypes(): Promise<KeyDateType[]> {
     const { data, error } = await supabase

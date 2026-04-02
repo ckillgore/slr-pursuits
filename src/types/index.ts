@@ -355,6 +355,7 @@ export interface KeyDate {
 export interface MonthlyCell {
   projected: number;
   actual: number | null;
+  manual_override?: boolean; // true = user pinned this value, skip Yardi auto-replace
 }
 
 export interface PredevBudgetLineItem {
@@ -365,6 +366,7 @@ export interface PredevBudgetLineItem {
   sort_order: number;
   is_custom: boolean;
   monthly_values: Record<string, MonthlyCell>; // keyed by "YYYY-MM"
+  yardi_cost_groups: string[]; // 2-digit group prefixes mapped from jobcost_category_mapping
 }
 
 export interface PredevBudget {
@@ -373,6 +375,8 @@ export interface PredevBudget {
   start_date: string; // ISO date
   duration_months: number;
   notes: Record<string, unknown> | null;
+  budget_snapshot: Record<string, Record<string, number>> | null; // { lineItemId: { "YYYY-MM": amount } }
+  snapshot_taken_at: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -702,6 +706,39 @@ export interface PursuitAccountingEntity {
   is_primary: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// --- Funding Partners ---
+
+export interface PursuitFundingPartner {
+  id: string;
+  pursuit_id: string;
+  name: string;
+  is_slrh: boolean;
+  default_split_pct: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PursuitFundingSplit {
+  id: string;
+  budget_id: string;
+  partner_id: string;
+  month_key: string;
+  split_pct: number;
+}
+
+// --- Budget Amendments ---
+
+export interface PredevBudgetAmendment {
+  id: string;
+  budget_id: string;
+  revision_number: number;
+  previous_snapshot: Record<string, Record<string, number>>;
+  new_snapshot: Record<string, Record<string, number>>;
+  reason: string | null;
+  amended_by: string | null;
+  amended_at: string;
 }
 
 export interface PursuitChecklistItem {

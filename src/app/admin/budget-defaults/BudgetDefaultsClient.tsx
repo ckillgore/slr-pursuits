@@ -7,6 +7,10 @@ import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { YardiCategorySelect } from './YardiCategorySelect';
+import categoryMappingRaw from '../../../../category-mapping.json';
+
+const categoryMapping = categoryMappingRaw as Record<string, string>;
 
 const supabase = createClient();
 
@@ -76,6 +80,21 @@ export function BudgetDefaultsClient() {
         await supabase.from('default_predev_budget_line_items').update(updates).eq('id', id);
     };
 
+    // --- MAPPING HEALTH REPORT LOGIC ---
+    // Extract all unique prefixes (first 2 digits) from all currently mapped groups
+    const allocatedPrefixes = new Set<string>();
+    lineItems.forEach(li => {
+        li.yardi_cost_groups?.forEach(code => {
+            const prefix = code.split('-')[0]; // gracefully handles "60-00275" -> "60"
+            if (prefix) allocatedPrefixes.add(prefix);
+        });
+    });
+
+    // Find all standard categories from the JSON that are completely unallocated
+    const unallocatedCategories = Object.entries(categoryMapping).filter(([code]) => {
+        return !allocatedPrefixes.has(code);
+    });
+
     if (isLoading) {
         return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-[var(--border-strong)]" /></div>;
     }
@@ -94,17 +113,37 @@ export function BudgetDefaultsClient() {
                 </div>
 
                 <div className="flex justify-between items-center bg-[var(--bg-card)] p-6 rounded-2xl border border-[var(--border)] shadow-sm">
-                <div>
-                    <h1 className="text-xl font-bold text-[var(--text-primary)]">Pre-Dev Budget Defaults</h1>
-                    <p className="text-sm text-[var(--text-muted)] mt-1">Manage the standard set of line items injected into all new Pre-Dev Budgets globally.</p>
+                    <div>
+                        <h1 className="text-xl font-bold text-[var(--text-primary)]">Pre-Dev Budget Defaults</h1>
+                        <p className="text-sm text-[var(--text-muted)] mt-1">Manage the standard set of line items injected into all new Pre-Dev Budgets globally.</p>
+                    </div>
+                    <button
+                        onClick={handleAdd}
+                        disabled={isSaving}
+                        className="btn btn-primary flex items-center gap-2"
+                    >
+                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Add Line Item
+                    </button>
                 </div>
-                <button
-                    onClick={handleAdd}
-                    disabled={isSaving}
-                    className="btn btn-primary flex items-center gap-2"
-                >
-                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Add Line Item
-                </button>
+
+                {/* MAPPING HEALTH REPORT */}
+                {unallocatedCategories.length > 0 && (
+                    <div className="bg-[var(--danger-bg)] border border-[var(--danger)] rounded-xl p-4 shadow-sm animate-in fade-in">
+                        <h3 className="text-[var(--danger)] font-bold text-sm mb-2 flex items-center gap-2">
+                            ⚠️ Unallocated Cost Categories Detected ({unallocatedCategories.length})
+                        </h3>
+                        <p className="text-xs text-[var(--danger)] mb-3 opacity-90">
+                            The following standard Yardi categories are missing from your default Pre-Dev Budget mapping. Any costs booked to these categories will not be aggregated into default budgets.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                            {unallocatedCategories.map(([code, name]) => (
+                                <span key={code} className="inline-flex items-center gap-1.5 px-2 py-1 bg-white/50 text-[var(--danger)] text-xs font-semibold rounded border border-[var(--danger)]/30">
+                                    <span className="opacity-70">{code}</span> {name}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div className="bg-[var(--bg-card)] rounded-2xl shadow-sm border border-[var(--border)] overflow-hidden">
@@ -114,7 +153,7 @@ export function BudgetDefaultsClient() {
                             <th className="px-6 py-4 font-semibold w-16">Sort</th>
                             <th className="px-6 py-4 font-semibold">Label</th>
                             <th className="px-6 py-4 font-semibold">Category (ID)</th>
-                            <th className="px-6 py-4 font-semibold w-64">Yardi Cost Groups (comma list)</th>
+                            <th className="px-6 py-4 font-semibold w-[400px]">Yardi Cost Groups</th>
                             <th className="px-6 py-4 font-semibold text-right w-24">Actions</th>
                         </tr>
                     </thead>
@@ -146,15 +185,11 @@ export function BudgetDefaultsClient() {
                                     />
                                 </td>
                                 <td className="px-6 py-4">
-                                    <input 
-                                        type="text" 
-                                        defaultValue={li.yardi_cost_groups.join(', ')}
-                                        onBlur={(e) => {
-                                            const codes = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                                            handleUpdate(li.id, { yardi_cost_groups: codes })
-                                        }}
-                                        placeholder="e.g. 60-00275, 54"
-                                        className="w-full bg-transparent font-mono text-xs text-[var(--text-primary)] outline-none border-b border-transparent focus:border-[var(--accent)]"
+                                    <YardiCategorySelect 
+                                        mapping={categoryMapping}
+                                        selectedCodes={li.yardi_cost_groups || []}
+                                        onChange={(codes) => handleUpdate(li.id, { yardi_cost_groups: codes })}
+                                        className="w-full"
                                     />
                                 </td>
                                 <td className="px-6 py-4 text-right">
@@ -184,7 +219,6 @@ export function BudgetDefaultsClient() {
                 <p>
                     <strong>Note on Updates:</strong> Modifications made to these defaults will only affect <strong>newly created</strong> Pre-Development budgets. Any active pursuits that have already instantiated their budget will retain their original structures ensuring historical integrity.
                 </p>
-            </div>
             </div>
         </AppShell>
     );

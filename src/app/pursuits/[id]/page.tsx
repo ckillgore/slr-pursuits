@@ -470,7 +470,7 @@ export default function PursuitDetailPage() {
                     </div>
 
                 {/* Tab Bar */}
-                <div className="flex items-center gap-1 mb-6 border-b border-[var(--border)] overflow-x-auto">
+                <div className="flex flex-wrap items-center gap-x-1 gap-y-2 mb-6 border-b border-[var(--border)]">
                     <button
                         onClick={() => setActiveTab('overview')}
                         className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'overview'

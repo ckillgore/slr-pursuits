@@ -1,21 +1,28 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { ChevronDown, Check, X } from 'lucide-react';
-import type categoryMapping from '../../../../category-mapping.json';
+import { ChevronDown, Check, X, Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { fetchCategoryMappings } from '@/app/actions/accounting';
+import type categoryMappingRaw from '../../../../category-mapping.json';
 
-type CategoryMapping = Record<string, string>;
+const staticCategoryMapping = categoryMappingRaw as Record<string, string>;
 
 interface YardiCategorySelectProps {
-  mapping: CategoryMapping;
   selectedCodes: string[];
   onChange: (codes: string[]) => void;
   className?: string;
 }
 
-export function YardiCategorySelect({ mapping, selectedCodes, onChange, className = '' }: YardiCategorySelectProps) {
+export function YardiCategorySelect({ selectedCodes, onChange, className = '' }: YardiCategorySelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const { data: liveMappings, isLoading } = useQuery({
+      queryKey: ['category-mappings'] as const,
+      queryFn: fetchCategoryMappings,
+      staleTime: 5 * 60 * 1000,
+  });
 
   // Close on outside click
   useEffect(() => {
@@ -29,16 +36,30 @@ export function YardiCategorySelect({ mapping, selectedCodes, onChange, classNam
   }, []);
 
   const standardOptions = useMemo(() => {
-    return Object.entries(mapping).map(([code, name]) => ({
-      id: code,
-      name: `${code} - ${name}`,
-    }));
-  }, [mapping]);
+    // Start with static fallback just in case
+    const optionsMap = new Map<string, { id: string, name: string, isGroup: boolean }>();
+    
+    Object.entries(staticCategoryMapping).forEach(([code, name]) => {
+        optionsMap.set(code, { id: code, name: `${code} - ${name}`, isGroup: true });
+    });
+
+    if (liveMappings) {
+        liveMappings.forEach(m => {
+            optionsMap.set(m.category_code, {
+                id: m.category_code,
+                name: `${m.category_code} - ${m.category_name}`,
+                isGroup: m.is_group_header
+            });
+        });
+    }
+
+    return Array.from(optionsMap.values()).sort((a, b) => a.id.localeCompare(b.id));
+  }, [liveMappings]);
 
   const filteredOptions = useMemo(() => {
     if (!inputValue.trim()) return standardOptions;
     const lower = inputValue.toLowerCase();
-    return standardOptions.filter(o => o.name.toLowerCase().includes(lower));
+    return standardOptions.filter(o => o.name.toLowerCase().includes(lower) || o.id.includes(lower));
   }, [inputValue, standardOptions]);
 
   const handleToggle = (id: string, e?: React.MouseEvent) => {
@@ -54,7 +75,7 @@ export function YardiCategorySelect({ mapping, selectedCodes, onChange, classNam
     if (e.key === 'Enter' && inputValue.trim()) {
       e.preventDefault();
       const code = inputValue.trim();
-      // If it exactly matches an option, select it; otherwise add as custom
+      // If it exactly matches an option ID or name
       const match = filteredOptions.find(o => o.id === code || o.name === code);
       if (match) {
         if (!selectedCodes.includes(match.id)) handleToggle(match.id);
@@ -78,13 +99,14 @@ export function YardiCategorySelect({ mapping, selectedCodes, onChange, classNam
         }}
       >
         {selectedCodes.map(code => {
-          const isStandard = mapping[code] !== undefined;
+          // It's a group if it exists in the static map or has <= 2 chars
+          const isStandardGroup = staticCategoryMapping[code] !== undefined || code.length <= 2;
           return (
             <span 
               key={code} 
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${isStandard ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border)]'}`}
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${isStandardGroup ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border)]'}`}
             >
-              {code}
+              <span className="font-mono">{code}</span>
               <button
                 onClick={(e) => { e.stopPropagation(); handleToggle(code); }}
                 className="hover:text-[var(--danger)] transition-colors focus:outline-none"
@@ -101,14 +123,15 @@ export function YardiCategorySelect({ mapping, selectedCodes, onChange, classNam
           onChange={e => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={() => setIsOpen(true)}
-          placeholder={selectedCodes.length === 0 ? "Select or enter code..." : ""}
-          className="flex-1 min-w-[100px] bg-transparent outline-none text-sm text-[var(--text-primary)] placeholder-[var(--text-faint)]"
+          placeholder={selectedCodes.length === 0 ? "Search codes..." : ""}
+          className="flex-1 min-w-[100px] bg-transparent outline-none text-xs text-[var(--text-primary)] placeholder-[var(--text-faint)]"
         />
-        <ChevronDown className={`w-4 h-4 text-[var(--text-faint)] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        {isLoading && <Loader2 className="w-3 h-3 text-[var(--accent)] animate-spin shrink-0 mr-1" />}
+        <ChevronDown className={`w-4 h-4 text-[var(--text-faint)] shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </div>
 
       {isOpen && (
-        <div className="absolute top-full left-0 z-50 w-full mt-1 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl shadow-lg max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="absolute top-full left-0 z-50 w-full mt-1 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl shadow-lg max-h-[300px] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-150">
           <div className="py-1">
             {filteredOptions.length > 0 ? (
                 filteredOptions.map(option => {
@@ -117,17 +140,17 @@ export function YardiCategorySelect({ mapping, selectedCodes, onChange, classNam
                     <button
                       key={option.id}
                       onClick={(e) => handleToggle(option.id, e)}
-                      className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-[var(--bg-elevated)] transition-colors text-left"
+                      className="w-full flex items-center justify-between px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)] transition-colors text-left"
                     >
-                      <span className={`truncate ${isSelected ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]'}`}>
+                      <span className={`truncate ${isSelected ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]'} ${option.isGroup ? '' : 'pl-3 border-l-2 border-[var(--border)] ml-1.5'}`}>
                         {option.name}
                       </span>
-                      {isSelected && <Check className="w-4 h-4 text-[var(--accent)] shrink-0 ml-2" />}
+                      {isSelected && <Check className="w-3.5 h-3.5 text-[var(--accent)] shrink-0 ml-2" />}
                     </button>
                   );
                 })
             ) : (
-                <div className="px-3 py-2 text-sm text-[var(--text-muted)] italic">
+                <div className="px-3 py-2 text-xs text-[var(--text-muted)] italic">
                    Press Enter to add custom code "{inputValue}"
                 </div>
             )}

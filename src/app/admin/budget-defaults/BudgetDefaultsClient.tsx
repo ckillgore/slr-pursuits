@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Plus, Trash2, Loader2, Save } from 'lucide-react';
+import { Plus, Trash2, Loader2, GripVertical } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
@@ -10,8 +10,24 @@ import Link from 'next/link';
 import { YardiCategorySelect } from './YardiCategorySelect';
 import categoryMappingRaw from '../../../../category-mapping.json';
 
-const categoryMapping = categoryMappingRaw as Record<string, string>;
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
+const categoryMapping = categoryMappingRaw as Record<string, string>;
 const supabase = createClient();
 
 interface DefaultLineItem {
@@ -20,6 +36,90 @@ interface DefaultLineItem {
     label: string;
     sort_order: number;
     yardi_cost_groups: string[];
+}
+
+function SortableItem({ 
+    li, 
+    handleUpdate, 
+    handleDelete, 
+    isSaving,
+    onDragStart
+}: { 
+    li: DefaultLineItem;
+    handleUpdate: (id: string, updates: Partial<DefaultLineItem>) => void;
+    handleDelete: (id: string) => void;
+    isSaving: boolean;
+    onDragStart: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: li.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 1,
+    opacity: isDragging ? 0.8 : 1,
+  };
+
+  return (
+    <div 
+        ref={setNodeRef} 
+        style={style} 
+        className={`grid grid-cols-[3rem_minmax(150px,flex-1)_1fr_minmax(250px,2fr)_4rem] items-center gap-4 p-3 bg-[var(--bg-card)] rounded-xl border transition-all ${isDragging ? 'shadow-2xl border-[var(--accent)] ring-1 ring-[var(--accent)] scale-[1.01]' : 'shadow-sm border-[var(--border)] hover:border-[var(--accent-subtle)]'}`}
+    >
+      <div 
+        className="flex items-center justify-center p-1 cursor-grab active:cursor-grabbing text-[var(--text-faint)] hover:text-[var(--text-secondary)] transition-colors"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="w-5 h-5 focus:outline-none" />
+      </div>
+
+      <div>
+          <input 
+              type="text" 
+              defaultValue={li.label}
+              onBlur={(e) => handleUpdate(li.id, { label: e.target.value })}
+              className="w-full bg-transparent font-medium text-sm text-[var(--text-primary)] outline-none border-b border-transparent focus:border-[var(--accent)] placeholder:text-[var(--text-faint)]"
+              placeholder="e.g. Due Diligence"
+          />
+      </div>
+
+      <div>
+          <input 
+              type="text" 
+              defaultValue={li.category}
+              onBlur={(e) => handleUpdate(li.id, { category: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })}
+              className="w-full bg-transparent font-mono text-[10px] text-[var(--text-muted)] outline-none border-b border-transparent focus:border-[var(--accent)] placeholder:text-[var(--text-faint)]"
+              placeholder="e.g. due_diligence"
+          />
+      </div>
+
+      <div className="on-drag-prevent" onPointerDown={(e) => e.stopPropagation()}>
+          <YardiCategorySelect 
+              selectedCodes={li.yardi_cost_groups || []}
+              onChange={(codes) => handleUpdate(li.id, { yardi_cost_groups: codes })}
+              className="w-full"
+          />
+      </div>
+
+      <div className="flex justify-end p-1 on-drag-prevent" onPointerDown={(e) => e.stopPropagation()}>
+          <button 
+              onClick={() => handleDelete(li.id)}
+              disabled={isSaving}
+              className="p-1.5 text-[var(--text-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] rounded-md transition-colors disabled:opacity-50 focus:outline-none"
+          >
+              <Trash2 className="w-4 h-4" />
+          </button>
+      </div>
+    </div>
+  );
 }
 
 export function BudgetDefaultsClient() {
@@ -33,7 +133,17 @@ export function BudgetDefaultsClient() {
     const [lineItems, setLineItems] = useState<DefaultLineItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [editingId, setEditingId] = useState<string | null>(null);
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 5, // minimum drag 5px to kick off (allows clicking inner inputs)
+            }
+        }),
+        useSensor(KeyboardSensor, {
+          coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
 
     const loadData = async () => {
         setIsLoading(true);
@@ -62,7 +172,6 @@ export function BudgetDefaultsClient() {
             
         if (!error && data) {
             setLineItems([...lineItems, data]);
-            setEditingId(data.id);
         }
         setIsSaving(false);
     };
@@ -75,22 +184,53 @@ export function BudgetDefaultsClient() {
     };
 
     const handleUpdate = async (id: string, updates: Partial<DefaultLineItem>) => {
-        // Optimistic
         setLineItems(lineItems.map(l => l.id === id ? { ...l, ...updates } : l));
         await supabase.from('default_predev_budget_line_items').update(updates).eq('id', id);
     };
 
+    const handleDragEnd = async (event: any) => {
+        const { active, over } = event;
+
+        if (active.id !== over.id) {
+            setIsSaving(true);
+            const oldIndex = lineItems.findIndex((item) => item.id === active.id);
+            const newIndex = lineItems.findIndex((item) => item.id === over.id);
+
+            const reordered = arrayMove(lineItems, oldIndex, newIndex);
+            
+            // Recalculate robust Sort Order base 1 index
+            const updatedItems = reordered.map((item, index) => ({
+                ...item,
+                sort_order: index + 1
+            }));
+            
+            // Optimistic rendering
+            setLineItems(updatedItems);
+            
+            // Generate DB Patch Array
+            const upsertPayload = updatedItems.map((item) => ({
+                id: item.id,
+                category: item.category,
+                label: item.label,
+                sort_order: item.sort_order,
+                yardi_cost_groups: item.yardi_cost_groups
+            }));
+            
+            // Bulk upsert into Supabase to persist the order
+            await supabase.from('default_predev_budget_line_items').upsert(upsertPayload, { onConflict: 'id' });
+            setIsSaving(false);
+        }
+    };
+
     // --- MAPPING HEALTH REPORT LOGIC ---
-    // Extract all unique prefixes (first 2 digits) from all currently mapped groups
     const allocatedPrefixes = new Set<string>();
     lineItems.forEach(li => {
         li.yardi_cost_groups?.forEach(code => {
-            const prefix = code.split('-')[0]; // gracefully handles "60-00275" -> "60"
+            const prefix = code.split('-')[0];
             if (prefix) allocatedPrefixes.add(prefix);
         });
     });
 
-    // Find all standard categories from the JSON that are completely unallocated
     const unallocatedCategories = Object.entries(categoryMapping).filter(([code]) => {
         return !allocatedPrefixes.has(code);
     });
@@ -133,7 +273,7 @@ export function BudgetDefaultsClient() {
                             ⚠️ Unallocated Cost Categories Detected ({unallocatedCategories.length})
                         </h3>
                         <p className="text-xs text-[var(--danger)] mb-3 opacity-90">
-                            The following standard Yardi categories are missing from your default Pre-Dev Budget mapping. Any costs booked to these categories will not be aggregated into default budgets.
+                            The following standard Yardi categories are missing from your default mapping.
                         </p>
                         <div className="flex flex-wrap gap-2">
                             {unallocatedCategories.map(([code, name]) => (
@@ -144,81 +284,53 @@ export function BudgetDefaultsClient() {
                         </div>
                     </div>
                 )}
-            </div>
 
-            <div className="bg-[var(--bg-card)] rounded-2xl shadow-sm border border-[var(--border)] overflow-hidden">
-                <table className="w-full text-left text-sm text-[var(--text-secondary)]">
-                    <thead className="bg-[var(--bg-elevated)] text-xs uppercase text-[var(--text-muted)] border-b border-[var(--border)]">
-                        <tr>
-                            <th className="px-6 py-4 font-semibold w-16">Sort</th>
-                            <th className="px-6 py-4 font-semibold">Label</th>
-                            <th className="px-6 py-4 font-semibold">Category (ID)</th>
-                            <th className="px-6 py-4 font-semibold w-[400px]">Yardi Cost Groups</th>
-                            <th className="px-6 py-4 font-semibold text-right w-24">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[var(--border)]">
-                        {lineItems.map((li) => (
-                            <tr key={li.id} className="hover:bg-[var(--bg-elevated)] transition-colors">
-                                <td className="px-6 py-4">
-                                    <input 
-                                        type="number" 
-                                        defaultValue={li.sort_order}
-                                        onBlur={(e) => handleUpdate(li.id, { sort_order: parseInt(e.target.value) || 0 })}
-                                        className="w-12 bg-transparent outline-none border-b border-transparent focus:border-[var(--accent)]"
+                {/* DND LIST */}
+                <div className="bg-[var(--bg-card)] rounded-2xl shadow-sm border border-[var(--border)] overflow-hidden p-2">
+                    <div className="grid grid-cols-[3rem_minmax(150px,flex-1)_1fr_minmax(250px,2fr)_4rem] items-center gap-4 px-3 py-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border)] mb-2">
+                        <div className="text-center">Sort</div>
+                        <div>Label</div>
+                        <div>Category (ID)</div>
+                        <div>Live Yardi Mappings</div>
+                        <div className="text-right">Actions</div>
+                    </div>
+
+                    <DndContext 
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <SortableContext 
+                            items={lineItems.map(i => i.id)}
+                            strategy={verticalListSortingStrategy}
+                        >
+                            <div className="space-y-1.5">
+                                {lineItems.map((li) => (
+                                    <SortableItem 
+                                        key={li.id} 
+                                        li={li} 
+                                        handleUpdate={handleUpdate}
+                                        handleDelete={handleDelete}
+                                        isSaving={isSaving}
+                                        onDragStart={() => {}}
                                     />
-                                </td>
-                                <td className="px-6 py-4">
-                                    <input 
-                                        type="text" 
-                                        defaultValue={li.label}
-                                        onBlur={(e) => handleUpdate(li.id, { label: e.target.value })}
-                                        className="w-full bg-transparent font-medium text-[var(--text-primary)] outline-none border-b border-transparent focus:border-[var(--accent)]"
-                                    />
-                                </td>
-                                <td className="px-6 py-4">
-                                    <input 
-                                        type="text" 
-                                        defaultValue={li.category}
-                                        onBlur={(e) => handleUpdate(li.id, { category: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })}
-                                        className="w-full bg-transparent font-mono text-[10px] text-[var(--text-muted)] outline-none border-b border-transparent focus:border-[var(--accent)]"
-                                    />
-                                </td>
-                                <td className="px-6 py-4">
-                                    <YardiCategorySelect 
-                                        mapping={categoryMapping}
-                                        selectedCodes={li.yardi_cost_groups || []}
-                                        onChange={(codes) => handleUpdate(li.id, { yardi_cost_groups: codes })}
-                                        className="w-full"
-                                    />
-                                </td>
-                                <td className="px-6 py-4 text-right">
-                                    <button 
-                                        onClick={() => handleDelete(li.id)}
-                                        disabled={isSaving}
-                                        className="p-1.5 text-[var(--text-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] rounded-md transition-colors disabled:opacity-50"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                        {lineItems.length === 0 && (
-                            <tr>
-                                <td colSpan={5} className="px-6 py-12 text-center text-[var(--text-muted)]">
-                                    No default line items configured.
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-            
-            <div className="p-4 bg-[var(--accent-bg)] text-[var(--accent)] rounded-lg text-sm flex items-start gap-3">
-                <span className="shrink-0 text-xl block leading-none">💡</span>
-                <p>
-                    <strong>Note on Updates:</strong> Modifications made to these defaults will only affect <strong>newly created</strong> Pre-Development budgets. Any active pursuits that have already instantiated their budget will retain their original structures ensuring historical integrity.
-                </p>
+                                ))}
+                                {lineItems.length === 0 && (
+                                    <div className="py-12 text-center text-[var(--text-muted)] text-sm border-2 border-dashed border-[var(--border)] rounded-xl mt-4">
+                                        No default line items configured.
+                                    </div>
+                                )}
+                            </div>
+                        </SortableContext>
+                    </DndContext>
+                </div>
+                
+                <div className="p-4 bg-[var(--accent-bg)] text-[var(--accent)] rounded-lg text-sm flex items-start gap-3">
+                    <span className="shrink-0 text-xl block leading-none">💡</span>
+                    <p>
+                        <strong>Note on Updates:</strong> Modifications made to these defaults will only affect <strong>newly created</strong> budgets.
+                    </p>
+                </div>
             </div>
         </AppShell>
     );

@@ -100,6 +100,14 @@ export default function PursuitDetailPage() {
         initialTab === 'onepagers' ? 'onepagers' : initialTab === 'predev' ? 'predev' : initialTab === 'keydates' ? 'keydates' : initialTab === 'checklist' ? 'checklist' : initialTab === 'rent_comps' ? 'rent_comps' : initialTab === 'costs' ? 'costs' : 'overview'
     );
 
+    // Synchronize tab state when URL changes (e.g., from drill-down router.push)
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab && ['overview', 'onepagers', 'demographics', 'publicinfo', 'rent_comps', 'comps', 'predev', 'keydates', 'checklist', 'costs'].includes(tab)) {
+            setActiveTab(tab as any);
+        }
+    }, [searchParams]);
+
     // Only load product types and templates when one-pagers tab is active (creation dialog)
     const needsOnePagerDeps = activeTab === 'onepagers';
     const { data: productTypes = [] } = useProductTypes({ enabled: needsOnePagerDeps });

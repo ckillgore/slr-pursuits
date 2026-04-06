@@ -22,6 +22,7 @@ import {
 import { fetchMonthlyJobCostAggregates } from '@/app/actions/accounting';
 import { fetchPursuitAccountingEntity } from '@/lib/supabase/queries';
 import { fetchJobsForProperty } from '@/app/actions/accounting';
+import { useRouter } from 'next/navigation';
 import { RichTextEditor } from '@/components/shared/RichTextEditor';
 import type { PredevBudget, PredevBudgetLineItem, MonthlyCell, PursuitFundingPartner } from '@/types';
 import type { YardiMonthlyCostAggregate } from '@/app/actions/accounting';
@@ -232,6 +233,7 @@ function FundingSplitCell({
 // ── Main Component ──────────────────────────────────────────
 
 export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
+    const router = useRouter();
     const { data: budget, isLoading } = usePredevBudget(pursuitId);
     const createBudget = useCreatePredevBudget();
     const updateBudget = useUpdatePredevBudget();
@@ -1077,8 +1079,16 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                         </td>
                                         {/* LTD cell (collapsed) */}
                                         {closedMonths.length > 0 && !expandLTD && (
-                                            <td className="border-[var(--table-row-border)] bg-[var(--success-bg)]/20 text-right px-2 py-1.5">
-                                                <span className={`text-xs font-semibold font-mono tabular-nums ${ltdSum === 0 ? 'text-[var(--border-strong)]' : 'text-[var(--success)]'}`}>
+                                            <td className="border-[var(--table-row-border)] bg-[var(--success-bg)]/20 text-right px-2 py-1.5 hover:bg-[var(--success-bg)]/40 transition-colors cursor-pointer group/ltd"
+                                                onClick={() => {
+                                                    if (li.yardi_cost_groups && li.yardi_cost_groups.length > 0) {
+                                                        const groupString = li.yardi_cost_groups.join(',');
+                                                        router.push(`/pursuits/${pursuitId}?tab=costs&cost_codes=${encodeURIComponent(groupString)}`);
+                                                    }
+                                                }}
+                                                title={`Click to drill down into actual Job Cost transactions for ${li.label}\nFiltered by: ${li.yardi_cost_groups?.join(', ') || 'None'}`}
+                                            >
+                                                <span className={`text-xs font-semibold font-mono tabular-nums group-hover/ltd:text-[var(--accent)] transition-colors ${ltdSum === 0 ? 'text-[var(--border-strong)]' : 'text-[var(--success)]'}`}>
                                                     {ltdSum === 0 ? '—' : formatCurrency(ltdSum, 0)}
                                                 </span>
                                             </td>
@@ -1145,8 +1155,14 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                     </td>
                                     {/* LTD cell (collapsed) */}
                                     {closedMonths.length > 0 && !expandLTD && (
-                                        <td className="border-[var(--table-row-border)] text-right px-2 py-1.5 bg-[var(--success-bg)]/5">
-                                            <span className="text-xs font-mono font-semibold text-orange-600 dark:text-orange-400 tabular-nums">
+                                        <td className="border-[var(--table-row-border)] text-right px-2 py-1.5 bg-[var(--success-bg)]/5 hover:bg-[var(--success-bg)]/20 transition-colors cursor-pointer group/ltd-unalloc"
+                                            onClick={() => {
+                                                const codes = unallocatedItems.map(i => i.code).join(',');
+                                                if (codes) router.push(`/pursuits/${pursuitId}?tab=costs&cost_codes=${encodeURIComponent(codes)}`);
+                                            }}
+                                            title={`Click to drill down into unallocated actual Job Cost transactions`}
+                                        >
+                                            <span className="text-xs font-mono font-semibold text-orange-600 dark:text-orange-400 tabular-nums group-hover/ltd-unalloc:text-orange-700 dark:group-hover/ltd-unalloc:text-orange-300 transition-colors">
                                                 {formatCurrency(closedMonths.reduce((sum, mk) => sum + (unallocatedByMonth.get(mk) ?? 0), 0), 0)}
                                             </span>
                                         </td>

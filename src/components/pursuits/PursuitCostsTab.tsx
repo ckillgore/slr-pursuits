@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { fetchPursuitGLTotals, fetchPursuitJobCosts, fetchJobCostMatrix, fetchJobsForProperty, type YardiPursuitCostSummary, type YardiJobCostTransaction, type YardiJobCostMatrixRow } from '@/app/actions/accounting';
 import { usePursuitAccountingEntities } from '@/hooks/useSupabaseQueries';
-import { Loader2, DollarSign, Calendar, AlertCircle, Building2, Search, SlidersHorizontal, BarChart3, ArrowUpDown, ArrowUp, ArrowDown, Filter } from 'lucide-react';
+import { Loader2, DollarSign, Calendar, AlertCircle, Building2, Search, SlidersHorizontal, BarChart3, ArrowUpDown, ArrowUp, ArrowDown, Filter, X } from 'lucide-react';
 import { formatCurrency, formatPercent } from '@/lib/constants';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface PursuitCostsTabProps {
     pursuitId?: string;
@@ -25,7 +26,23 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'post_date', direction: 'desc' });
     const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
+    
+    // Explicit single-dropdown focus
     const [selectedCategory, setSelectedCategory] = useState<string>('');
+
+    // Hidden parameterized list-based cost code drilldown from external URLs
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const costCodesQuery = searchParams.get('cost_codes');
+    const [filterCodes, setFilterCodes] = useState<string[]>([]);
+    
+    useEffect(() => {
+        if (costCodesQuery) {
+            setFilterCodes(costCodesQuery.split(',').map(c => c.trim()).filter(Boolean));
+        } else {
+            setFilterCodes([]);
+        }
+    }, [costCodesQuery]);
 
     useEffect(() => {
         const loadCosts = async () => {
@@ -125,6 +142,17 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
             // Category filter
             const matchesCategory = selectedCategory ? tx.cost_category_code === selectedCategory : true;
             
+            // Drill-down parameter filter
+            let matchesDrillDown = true;
+            if (filterCodes.length > 0) {
+                matchesDrillDown = filterCodes.some(code => {
+                    if (code.length <= 2) {
+                        return tx.cost_category_code?.startsWith(code);
+                    }
+                    return tx.cost_category_code === code;
+                });
+            }
+            
             // Date filter
             let matchesDate = true;
             if (dateRange.start && tx.post_date) {
@@ -134,7 +162,7 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                 matchesDate = matchesDate && new Date(tx.post_date) <= new Date(dateRange.end);
             }
 
-            return matchesSearch && matchesCategory && matchesDate;
+            return matchesSearch && matchesCategory && matchesDrillDown && matchesDate;
         })
         .sort((a, b) => {
             if (!sortConfig) return 0;
@@ -340,15 +368,30 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                         </div>
                         
                         {/* Search */}
-                        <div className="relative w-full sm:w-64">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
-                            <input 
-                                type="text" 
-                                placeholder="Search descriptions, vendors..."
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full pl-9 pr-3 py-1.5 text-sm bg-[var(--bg-card)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] transition-colors"
-                            />
+                        <div className="flex gap-2 w-full sm:w-auto">
+                            {filterCodes.length > 0 && (
+                                <div className="flex items-center gap-1.5 px-3 py-1 bg-[var(--accent-subtle)] text-[var(--accent)] text-xs rounded-md font-medium whitespace-nowrap border border-[var(--accent)]/20 animate-fade-in shadow-sm">
+                                    <Filter className="w-3 h-3" />
+                                    Filtered by Line Item
+                                    <button 
+                                        onClick={() => router.push(`/pursuits/${pursuitId}?tab=costs`)} 
+                                        className="ml-1 p-0.5 hover:bg-[var(--accent)]/10 rounded-full transition-colors"
+                                        title="Clear drill-down filter"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            )}
+                            <div className="relative w-full sm:w-64">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search descriptions, vendors..."
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                    className="w-full pl-9 pr-3 py-1.5 text-sm bg-[var(--bg-card)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] transition-colors"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>

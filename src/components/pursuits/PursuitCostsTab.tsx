@@ -13,6 +13,19 @@ interface PursuitCostsTabProps {
     unmappedName?: string;
 }
 
+// Standardized Logical Cost Category Mapping
+const CATEGORY_MAPPING: Record<string, string> = {
+    "01": "General Conditions", "02": "Site Work", "03": "Apartments", "04": "Leasing Office",
+    "05": "Fitness Center", "06": "Garage", "07": "Pool Amenity", "08": "Auxiliary Amenity",
+    "10": "Misc. Site Work", "11": "Permits & Bonds", "12": "Contingency", "13": "Project Specific",
+    "14": "Retail", "15": "General Contractor Fee", "48": "Deposits", "49": "General Contractor Fee",
+    "50": "Land Acquisition Costs", "51": "Acquisition Costs", "52": "Loan Costs", "53": "Joint Venture Costs",
+    "54": "Legal Costs", "60": "Architectural & Engineering", "61": "Impact Fees", "62": "Architectural & Engineering",
+    "63": "Other Development Costs", "64": "Other Dev Costs - Office", "70": "Development Interest",
+    "71": "Taxes & Assessments", "73": "Overhead Allocation", "74": "Developer Fee", "78": "Lease-Up Expenses",
+    "80": "Marketing / Lease-Up / FF&E", "86": "Retail", "89": "Deposits", "90": "Contingency", "99": "Total of All Accounts"
+};
+
 export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName }: PursuitCostsTabProps) {
     const { data: entities = [], isLoading: loadingEntities } = usePursuitAccountingEntities();
     
@@ -195,30 +208,31 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
         return sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 ml-1 text-[var(--accent)]" /> : <ArrowDown className="w-3 h-3 ml-1 text-[var(--accent)]" />;
     };
 
-    // Group Matrix Data by Cost Category
+    // Group Matrix Data by Top-Level Logical Category
     const matrixSummary = (matrixData || []).reduce((acc, row) => {
-        const key = `${row.cost_group}|${row.cost_code}|${row.category_name}`;
-        if (!acc[key]) {
-            acc[key] = {
-                cost_group: row.cost_group || 'Uncategorized',
-                cost_code: row.cost_code || 'Unknown',
-                category_name: row.category_name || 'General',
-                original_budget: 0,
-                revised_budget: 0,
+        if (!row.cost_code) return acc;
+        // Extract 2-digit prefix (e.g. "62" from "62-00400")
+        const prefix = row.cost_code.substring(0, 2);
+        const categoryName = CATEGORY_MAPPING[prefix] || 'Other Uncategorized Costs';
+        
+        if (!acc[categoryName]) {
+            acc[categoryName] = {
+                category_name: categoryName,
+                prefixes: new Set<string>(),
                 total_spent: 0
             };
         }
         
-        acc[key].original_budget = Math.max(acc[key].original_budget, row.original_budget || 0);
-        acc[key].revised_budget = Math.max(acc[key].revised_budget, row.revised_budget || 0);
-        acc[key].total_spent += (row.total_billed_this_draw || 0);
+        acc[categoryName].prefixes.add(prefix);
+        acc[categoryName].total_spent += (row.total_billed_this_draw || 0);
         
         return acc;
-    }, {} as Record<string, { cost_group: string, cost_code: string, category_name: string, original_budget: number, revised_budget: number, total_spent: number }>);
+    }, {} as Record<string, { category_name: string, prefixes: Set<string>, total_spent: number }>);
 
     const sortedMatrixRows = Object.values(matrixSummary).sort((a, b) => {
-        if (a.cost_group !== b.cost_group) return a.cost_group.localeCompare(b.cost_group);
-        return a.cost_code.localeCompare(b.cost_code);
+        if (a.category_name === 'Other Uncategorized Costs') return 1;
+        if (b.category_name === 'Other Uncategorized Costs') return -1;
+        return a.category_name.localeCompare(b.category_name);
     });
 
     const totalMatrixSpent = sortedMatrixRows.reduce((sum, r) => sum + r.total_spent, 0);
@@ -298,25 +312,41 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                         <table className="data-table w-full">
                             <thead className="bg-[var(--bg-primary)]">
                                 <tr>
-                                    <th className="text-left w-24">Code</th>
-                                    <th className="text-left">Category</th>
-                                    <th className="text-left w-32">Group</th>
+                                    <th className="text-left w-64">Cost Category</th>
+                                    <th className="text-left text-[var(--text-faint)]">Mapped Codes</th>
                                     <th className="text-right w-32">Total Spent</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {sortedMatrixRows.map((row) => (
-                                    <tr key={row.cost_code} className="hover:bg-[var(--bg-elevated)] transition-colors text-sm">
-                                        <td className="font-mono text-xs text-[var(--text-muted)]">{row.cost_code}</td>
-                                        <td className="text-[var(--text-primary)] font-medium">{row.category_name}</td>
-                                        <td className="text-[var(--text-secondary)] text-xs">{row.cost_group}</td>
-                                        <td className="text-right font-mono text-[var(--text-primary)]">{formatCurrency(row.total_spent)}</td>
-                                    </tr>
-                                ))}
+                                {sortedMatrixRows.map((row) => {
+                                    const prefixesArray = Array.from(row.prefixes).sort();
+                                    return (
+                                        <tr key={row.category_name} className="hover:bg-[var(--bg-elevated)] transition-colors text-sm cursor-pointer group"
+                                            onClick={() => {
+                                                router.push(`/pursuits/${pursuitId}?tab=costs&cost_codes=${encodeURIComponent(prefixesArray.join(','))}`);
+                                            }}
+                                            title={`Filter transactions down to groups: ${prefixesArray.join(', ')}`}
+                                        >
+                                            <td className="text-[var(--text-primary)] font-medium group-hover:text-[var(--accent)] transition-colors">
+                                                {row.category_name}
+                                            </td>
+                                            <td className="font-mono text-xs text-[var(--text-muted)] gap-1 flex flex-wrap pt-3.5">
+                                                {prefixesArray.map(p => (
+                                                    <span key={p} className="bg-[var(--bg-primary)] border border-[var(--border)] px-1.5 py-0.5 rounded leading-none">
+                                                        {p}
+                                                    </span>
+                                                ))}
+                                            </td>
+                                            <td className="text-right font-mono font-medium text-[var(--text-primary)] group-hover:text-[var(--accent)] transition-colors">
+                                                {formatCurrency(row.total_spent)}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                             <tfoot className="bg-[var(--bg-elevated)] border-t border-[var(--border)]">
                                 <tr>
-                                    <td colSpan={3} className="font-bold text-right text-xs uppercase tracking-wider text-[var(--text-secondary)] py-3">Total Displayed</td>
+                                    <td colSpan={2} className="font-bold text-right text-xs uppercase tracking-wider text-[var(--text-secondary)] py-3">Total Displayed</td>
                                     <td className="text-right font-mono font-bold text-[var(--text-primary)]">{formatCurrency(totalMatrixSpent)}</td>
                                 </tr>
                             </tfoot>

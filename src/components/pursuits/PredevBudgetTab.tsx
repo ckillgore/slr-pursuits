@@ -322,12 +322,12 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
     // Split months into closed (LTD) and forward
     const [expandLTD, setExpandLTD] = useState(false);
     const closedMonths = useMemo(
-        () => monthKeys.filter((mk) => isMonthClosed(mk, today)),
-        [monthKeys, today]
+        () => viewMode === 'budget' ? [] : monthKeys.filter((mk) => isMonthClosed(mk, today)),
+        [monthKeys, today, viewMode]
     );
     const forwardMonths = useMemo(
-        () => monthKeys.filter((mk) => !isMonthClosed(mk, today)),
-        [monthKeys, today]
+        () => viewMode === 'budget' ? monthKeys : monthKeys.filter((mk) => !isMonthClosed(mk, today)),
+        [monthKeys, today, viewMode]
     );
     // The columns to actually render
     const visibleMonths = useMemo(() => {
@@ -1020,8 +1020,8 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                 )}
                                 {/* Forward months */}
                                 {forwardMonths.map((mk) => {
-                                    const pending = isMonthPendingClose(mk, today, currentMonth);
-                                    const isCurrent = mk === currentMonth;
+                                    const pending = viewMode !== 'budget' && isMonthPendingClose(mk, today, currentMonth);
+                                    const isCurrent = viewMode !== 'budget' && mk === currentMonth;
                                     return (
                                         <th key={mk}
                                             className={`text-center px-1 py-2.5 text-[10px] font-bold uppercase tracking-wider border-b border-[var(--border)] ${pending ? 'bg-yellow-50 dark:bg-yellow-900/10 text-yellow-600' : isCurrent ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}

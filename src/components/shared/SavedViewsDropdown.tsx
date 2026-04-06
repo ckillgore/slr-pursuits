@@ -5,8 +5,8 @@ import { useSavedViews, useUpsertSavedView, useDeleteSavedView } from '@/hooks/u
 
 interface SavedViewsDropdownProps {
   currentFilters: {
-    stageFilter: string;
-    regionFilter: string;
+    stageFilter: string[];
+    regionFilter: string[];
     sortBy: string;
     viewMode: string;
   };

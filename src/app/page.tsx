@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { PursuitCard } from '@/components/pursuits/PursuitCard';
 import { SavedViewsDropdown } from '@/components/shared/SavedViewsDropdown';
+import { MultiSelectDropdown } from '@/components/shared/MultiSelectDropdown';
 import { usePursuits, useStages, useCreatePursuit, useDeletePursuit, useProductTypes, useSavedViews } from '@/hooks/useSupabaseQueries';
 import { Search, Building2, Loader2, Map, LayoutGrid, List, MapPin, Navigation, Trash2, Bookmark, BookmarkPlus, MoreVertical, X, Pencil, Star } from 'lucide-react';
 import type { Pursuit, UserSavedView } from '@/types';
@@ -20,8 +21,8 @@ export default function DashboardPage() {
   const deletePursuitMutation = useDeletePursuit();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [stageFilter, setStageFilter] = useState<string>('');
-  const [regionFilter, setRegionFilter] = useState<string>('');
+  const [stageFilter, setStageFilter] = useState<string[]>([]);
+  const [regionFilter, setRegionFilter] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<'updated' | 'newest' | 'name' | 'city'>('updated');
   const [viewMode, setViewMode] = useState<'grid' | 'map' | 'list'>('grid');
   
@@ -78,8 +79,8 @@ export default function DashboardPage() {
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.address?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStage = !stageFilter || p.stage_id === stageFilter;
-      const matchesRegion = !regionFilter || p.region === regionFilter;
+      const matchesStage = stageFilter.length === 0 || (p.stage_id && stageFilter.includes(p.stage_id));
+      const matchesRegion = regionFilter.length === 0 || (p.region && regionFilter.includes(p.region));
       return matchesSearch && matchesStage && matchesRegion;
     });
 
@@ -272,35 +273,35 @@ export default function DashboardPage() {
           <SavedViewsDropdown 
             currentFilters={{ stageFilter, regionFilter, sortBy, viewMode }}
             onApplyView={(filters) => {
-                if (filters.stageFilter !== undefined) setStageFilter(filters.stageFilter);
-                if (filters.regionFilter !== undefined) setRegionFilter(filters.regionFilter);
+                if (filters.stageFilter !== undefined) {
+                    setStageFilter(Array.isArray(filters.stageFilter) ? filters.stageFilter : [filters.stageFilter].filter(Boolean));
+                }
+                if (filters.regionFilter !== undefined) {
+                    setRegionFilter(Array.isArray(filters.regionFilter) ? filters.regionFilter : [filters.regionFilter].filter(Boolean));
+                }
                 if (filters.sortBy !== undefined) setSortBy(filters.sortBy);
                 if (filters.viewMode !== undefined) setViewMode(filters.viewMode);
             }}
           />
-          <select
-            value={stageFilter}
-            onChange={(e) => setStageFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
-          >
-            <option value="">All Stages</option>
-            {stages.filter((s) => s.is_active).map((stage) => (
-              <option key={stage.id} value={stage.id}>
-                {stage.name}
-              </option>
-            ))}
-          </select>
+          <div className="w-[180px]">
+            <MultiSelectDropdown
+              options={stages.filter(s => s.is_active).map(s => ({ id: s.id, name: s.name, color: s.color }))}
+              selectedIds={stageFilter}
+              onChange={setStageFilter}
+              placeholder="All Stages"
+              className="w-full"
+            />
+          </div>
           {regions.length > 0 && (
-            <select
-              value={regionFilter}
-              onChange={(e) => setRegionFilter(e.target.value)}
-              className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
-            >
-              <option value="">All Regions</option>
-              {regions.map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
+            <div className="w-[180px]">
+              <MultiSelectDropdown
+                options={regions.map(r => ({ id: r, name: r }))}
+                selectedIds={regionFilter}
+                onChange={setRegionFilter}
+                placeholder="All Regions"
+                className="w-full"
+              />
+            </div>
           )}
           {(viewMode === 'grid' || viewMode === 'list') && (
             <select

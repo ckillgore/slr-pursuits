@@ -71,7 +71,7 @@ function SortableItem({
     <div 
         ref={setNodeRef} 
         style={style} 
-        className={`grid grid-cols-[3rem_minmax(150px,flex-1)_1fr_minmax(250px,2fr)_4rem] items-center gap-4 p-3 bg-[var(--bg-card)] rounded-xl border transition-all ${isDragging ? 'shadow-2xl border-[var(--accent)] ring-1 ring-[var(--accent)] scale-[1.01]' : 'shadow-sm border-[var(--border)] hover:border-[var(--accent-subtle)]'}`}
+        className={`grid grid-cols-[3rem_minmax(150px,1fr)_1fr_minmax(250px,2fr)_4rem] items-center gap-4 p-3 bg-[var(--bg-card)] rounded-xl border transition-all ${isDragging ? 'shadow-2xl border-[var(--accent)] ring-1 ring-[var(--accent)] scale-[1.01]' : 'shadow-sm border-[var(--border)] hover:border-[var(--accent-subtle)]'}`}
     >
       <div 
         className="flex items-center justify-center p-1 cursor-grab active:cursor-grabbing text-[var(--text-faint)] hover:text-[var(--text-secondary)] transition-colors"
@@ -287,7 +287,7 @@ export function BudgetDefaultsClient() {
 
                 {/* DND LIST */}
                 <div className="bg-[var(--bg-card)] rounded-2xl shadow-sm border border-[var(--border)] overflow-hidden p-2">
-                    <div className="grid grid-cols-[3rem_minmax(150px,flex-1)_1fr_minmax(250px,2fr)_4rem] items-center gap-4 px-3 py-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border)] mb-2">
+                    <div className="grid grid-cols-[3rem_minmax(150px,1fr)_1fr_minmax(250px,2fr)_4rem] items-center gap-4 px-3 py-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border)] mb-2">
                         <div className="text-center">Sort</div>
                         <div>Label</div>
                         <div>Category (ID)</div>

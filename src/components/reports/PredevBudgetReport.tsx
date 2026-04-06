@@ -266,8 +266,16 @@ export function PredevBudgetReport() {
         return arr;
     }, [rowsRaw, stageFilter]);
 
-    const monthKeys = useMemo(() => getForwardMonthKeys(rows), [rows]);
-    
+    const monthKeys = useMemo(() => {
+        const keys = new Set(getForwardMonthKeys(rows));
+        // Add organically occurring Yardi dates outside budget bounds
+        for (const predevId in yardiAggregates || {}) {
+            for (const agg of yardiAggregates![predevId] || []) {
+                keys.add(agg.month);
+            }
+        }
+        return Array.from(keys).sort();
+    }, [rows, yardiAggregates]);
     // Split into closed (LTD) and forward
     const closedMonths = useMemo(() => monthKeys.filter(mk => isMonthClosed(mk, today)), [monthKeys, today]);
     const forwardMonths = useMemo(() => monthKeys.filter(mk => !isMonthClosed(mk, today)), [monthKeys, today]);

@@ -522,20 +522,38 @@ export async function fetchAllPortfolioJobCostAggregates(): Promise<Record<strin
     const uniqueCodes = Array.from(allTargetCodes);
     if (!uniqueCodes.length) return {};
 
-    // 2. Query Yardi Supabase for Jobs matching those properties
+    // 2. Query Yardi Supabase for Properties matching those codes to get internal property_ids
     const client = createYardiClient();
+    const { data: propRows } = await client
+        .from('properties')
+        .select('property_id, property_code')
+        .in('property_code', uniqueCodes);
+
+    const propIdToCode = new Map<string, string>();
+    const uniquePropIds = new Set<string>();
+    for (const pr of (propRows || [])) {
+        propIdToCode.set(String(pr.property_id), pr.property_code);
+        uniquePropIds.add(String(pr.property_id));
+    }
+
+    if (uniquePropIds.size === 0) return {};
+
+    // 3. Query Jobs for those property_ids
     const { data: jobRows } = await client
         .from('jobs')
-        .select('job_id, property_code')
-        .in('property_code', uniqueCodes);
+        .select('job_id, property_id')
+        .in('property_id', Array.from(uniquePropIds));
 
     const propertyToJobs = new Map<string, string[]>();
     for (const jr of (jobRows || [])) {
-        if (!propertyToJobs.has(jr.property_code)) propertyToJobs.set(jr.property_code, []);
-        propertyToJobs.get(jr.property_code)!.push(jr.job_id);
+        const code = propIdToCode.get(String(jr.property_id));
+        if (code) {
+            if (!propertyToJobs.has(code)) propertyToJobs.set(code, []);
+            propertyToJobs.get(code)!.push(String(jr.job_id));
+        }
     }
 
-    // 3. Map Job IDs back to Pursuit IDs
+    // 4. Map Job IDs back to Pursuit IDs
     const pursuitToJobs = new Map<string, string[]>();
     const allJobIds = new Set<string>();
     for (const [pursuitId, codes] of Object.entries(pursuitPropertyMapping)) {
@@ -568,7 +586,7 @@ export async function fetchAllPortfolioJobCostAggregates(): Promise<Record<strin
     // 6. Distribute transactions to pursuit maps
     const result: Record<string, YardiMonthlyCostAggregate[]> = {};
     for (const [pursuitId, jobs] of pursuitToJobs.entries()) {
-        const pursuitTx = (txRows || []).filter(tx => jobs.includes(tx.job_id));
+        const pursuitTx = (txRows || []).filter(tx => jobs.includes(String(tx.job_id)));
         const aggregateMap = new Map<string, YardiMonthlyCostAggregate>();
 
         for (const tx of pursuitTx) {

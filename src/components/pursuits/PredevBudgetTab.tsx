@@ -473,7 +473,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
         if (viewMode === 'budget') {
             // Show snapshot if exists, otherwise projected
             const val = hasSnapshot ? snapshotVal : cell.projected;
-            return { value: val, style: 'budget-snapshot', editable: !hasSnapshot, source: 'snapshot' };
+            return { value: val, style: 'budget-snapshot', editable: true, source: 'snapshot' };
         }
 
         if (viewMode === 'variance') {
@@ -561,6 +561,15 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
 
     const handleCellChange = useCallback(
         (lineItem: PredevBudgetLineItem, monthKey: string, newValue: number) => {
+            if (viewMode === 'budget' && hasSnapshot) {
+                if (!budget) return;
+                const newSnapshot = JSON.parse(JSON.stringify(budget.budget_snapshot || {}));
+                if (!newSnapshot[lineItem.id]) newSnapshot[lineItem.id] = {};
+                newSnapshot[lineItem.id][monthKey] = newValue;
+                updateBudget.mutate({ id: budget.id, pursuitId, updates: { budget_snapshot: newSnapshot } });
+                return;
+            }
+
             const current = lineItem.monthly_values[monthKey] ?? { projected: 0, actual: null };
             const closed = isMonthClosed(monthKey, today);
 
@@ -578,7 +587,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             const newMonthly = { ...lineItem.monthly_values, [monthKey]: updated };
             upsertValues.mutate({ lineItemId: lineItem.id, monthlyValues: newMonthly, pursuitId });
         },
-        [upsertValues, pursuitId, today, getYardiActual]
+        [upsertValues, pursuitId, today, getYardiActual, viewMode, hasSnapshot, budget, updateBudget]
     );
 
     const handleTogglePin = useCallback(
@@ -1112,7 +1121,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                             );
                                         })}
                                         <td className="sticky right-0 z-10 bg-inherit px-3 py-1 border-l border-[var(--table-row-border)] text-right">
-                                            <span className={`text-xs font-semibold tabular-nums ${rt === 0 ? 'text-[var(--border-strong)]' : 'text-[var(--text-primary)]'}`}>
+                                            <span className={`text-xs font-mono font-semibold tabular-nums ${rt === 0 ? 'text-[var(--border-strong)]' : 'text-[var(--text-primary)]'}`}>
                                                 {rt === 0 ? '—' : formatCurrency(rt, 0)}
                                             </span>
                                         </td>
@@ -1171,7 +1180,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                         );
                                     })}
                                     <td className="sticky right-0 z-10 bg-inherit px-3 py-1.5 border-l border-[var(--table-row-border)] text-right">
-                                        <span className="text-xs font-bold text-orange-600 dark:text-orange-400 tabular-nums">
+                                        <span className="text-xs font-mono font-bold text-orange-600 dark:text-orange-400 tabular-nums">
                                             {formatCurrency(unallocatedTotal, 0)}
                                         </span>
                                     </td>
@@ -1183,7 +1192,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                 {/* LTD total (collapsed) */}
                                 {closedMonths.length > 0 && !expandLTD && (
                                     <td className="px-2 py-2 text-right bg-[var(--success)]/10">
-                                        <span className="text-xs font-bold text-green-300 tabular-nums">
+                                        <span className="text-xs font-mono font-bold text-green-300 tabular-nums">
                                             {formatCurrency(closedMonths.reduce((sum, mk) => sum + colTotal(mk), 0), 0)}
                                         </span>
                                     </td>
@@ -1193,7 +1202,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                     const ct = colTotal(mk);
                                     return (
                                         <td key={mk} className="px-2 py-2 text-right bg-[var(--success)]/10">
-                                            <span className={`text-xs font-bold tabular-nums ${ct === 0 ? 'text-[var(--text-secondary)]' : 'text-green-300'}`}>
+                                            <span className={`text-xs font-mono font-bold tabular-nums ${ct === 0 ? 'text-[var(--text-secondary)]' : 'text-green-300'}`}>
                                                 {ct === 0 ? '—' : formatCurrency(ct, 0)}
                                             </span>
                                         </td>
@@ -1208,14 +1217,14 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                     const ct = colTotal(mk);
                                     return (
                                         <td key={mk} className="px-2 py-2 text-right">
-                                            <span className={`text-xs font-bold tabular-nums ${ct === 0 ? 'text-[var(--text-secondary)]' : 'text-white'}`}>
+                                            <span className={`text-xs font-mono font-bold tabular-nums ${ct === 0 ? 'text-[var(--text-secondary)]' : 'text-white'}`}>
                                                 {ct === 0 ? '—' : formatCurrency(ct, 0)}
                                             </span>
                                         </td>
                                     );
                                 })}
                                 <td className="sticky right-0 z-10 bg-[var(--text-primary)] px-3 py-2 border-l border-[#2A3040] text-right">
-                                    <span className="text-xs font-bold text-white tabular-nums">{grandTotal === 0 ? '—' : formatCurrency(grandTotal, 0)}</span>
+                                    <span className="text-xs font-mono font-bold text-white tabular-nums">{grandTotal === 0 ? '—' : formatCurrency(grandTotal, 0)}</span>
                                 </td>
                             </tr>
                             {/* ── Funding Partner Rows ─────────────── */}
@@ -1302,7 +1311,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                                     );
                                                 })}
                                                 <td className="sticky right-0 z-10 bg-inherit px-3 py-1.5 border-l border-[var(--table-row-border)] text-right">
-                                                    <span className={`text-xs font-semibold tabular-nums ${partnerGrandTotal === 0 ? 'text-[var(--border-strong)]' : partner.is_slrh ? 'text-blue-500' : 'text-[var(--text-primary)]'}`}>
+                                                    <span className={`text-xs font-mono font-semibold tabular-nums ${partnerGrandTotal === 0 ? 'text-[var(--border-strong)]' : partner.is_slrh ? 'text-blue-500' : 'text-[var(--text-primary)]'}`}>
                                                         {partnerGrandTotal === 0 ? '—' : formatCurrency(partnerGrandTotal, 0)}
                                                     </span>
                                                 </td>

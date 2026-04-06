@@ -720,7 +720,7 @@ export function useUpdatePredevBudget() {
         mutationFn: ({ id, pursuitId, updates }: {
             id: string;
             pursuitId: string;
-            updates: Partial<Pick<import('@/types').PredevBudget, 'start_date' | 'duration_months' | 'notes'>>;
+            updates: Partial<Pick<import('@/types').PredevBudget, 'start_date' | 'duration_months' | 'notes' | 'budget_snapshot'>>;
         }) => queries.updatePredevBudget(id, updates),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId] });

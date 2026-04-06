@@ -185,6 +185,7 @@ export function BudgetDefaultsClient() {
                     <strong>Note on Updates:</strong> Modifications made to these defaults will only affect <strong>newly created</strong> Pre-Development budgets. Any active pursuits that have already instantiated their budget will retain their original structures ensuring historical integrity.
                 </p>
             </div>
+            </div>
         </AppShell>
     );
 }

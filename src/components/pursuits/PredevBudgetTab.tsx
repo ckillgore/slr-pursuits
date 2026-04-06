@@ -18,6 +18,7 @@ import {
     useFundingSplits,
     useUpsertFundingSplit,
     useUpdateLineItemCostGroups,
+    usePursuit,
 } from '@/hooks/useSupabaseQueries';
 import { fetchMonthlyJobCostAggregates } from '@/app/actions/accounting';
 import { fetchPursuitAccountingEntity } from '@/lib/supabase/queries';
@@ -31,7 +32,7 @@ import { UnallocatedMappingDialog } from '@/components/pursuits/UnallocatedMappi
 import {
     Plus, Loader2, DollarSign, Trash2, Settings, ChevronDown, ChevronUp,
     CalendarDays, StickyNote, TrendingUp, Camera, Pencil, Pin, PinOff,
-    Database, AlertCircle, History, Users, Shield, BarChart3,
+    Database, AlertCircle, History, Users, Shield, BarChart3, FileDown,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/constants';
 
@@ -249,6 +250,11 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
     const updatePartner = useUpdateFundingPartner();
     const deletePartner = useDeleteFundingPartner();
     const upsertSplit = useUpsertFundingSplit();
+
+    const { data: pursuit } = usePursuit(pursuitId);
+
+    const [isExportingExcel, setIsExportingExcel] = useState(false);
+    const [isExportingPdf, setIsExportingPdf] = useState(false);
 
     // View mode
     const [viewMode, setViewMode] = useState<ViewMode>('forecast');
@@ -805,6 +811,61 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                             </button>
                         ))}
                     </div>
+
+                    <div className="w-px h-5 bg-[var(--border)] mx-1" />
+
+                    {/* PDF Export */}
+                    <button
+                        onClick={async () => {
+                            setIsExportingPdf(true);
+                            try {
+                                const { pdf } = await import('@react-pdf/renderer');
+                                const { PredevBudgetPDF } = await import('@/components/export/PredevBudgetPDF');
+                                const doc = <PredevBudgetPDF pursuit={pursuit!} budget={budget} lineItems={lineItems} monthKeys={monthKeys} closedMonths={closedMonths} forwardMonths={forwardMonths} expandLTD={expandLTD} getCellInfo={getCellInfo} rowTotal={rowTotal} hasUnallocated={hasUnallocated} unallocatedByMonth={unallocatedByMonth} viewMode={viewMode} />;
+                                const blob = await pdf(doc).toBlob();
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `${pursuit?.name?.replace(/[^a-zA-Z0-9-_]/g, '')}_PreDev_${viewMode}.pdf`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                            } catch (err) {
+                                console.error('PDF export failed:', err);
+                            }
+                            setIsExportingPdf(false);
+                        }}
+                        disabled={isExportingPdf || !pursuit}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-50 transition-colors"
+                        title="Export PDF"
+                    >
+                        {isExportingPdf ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileDown className="w-3 h-3" />}
+                        PDF
+                    </button>
+
+                    {/* Excel Export */}
+                    <button
+                        onClick={async () => {
+                            setIsExportingExcel(true);
+                            try {
+                                const { exportPredevBudgetToExcel } = await import('@/components/export/exportPredevBudgetExcel');
+                                await exportPredevBudgetToExcel({
+                                    pursuit: pursuit!, budget, lineItems, monthKeys, closedMonths, forwardMonths,
+                                    expandLTD, getCellInfo, rowTotal, hasUnallocated, unallocatedByMonth, viewMode
+                                });
+                            } catch (err) {
+                                console.error('Excel export failed:', err);
+                            }
+                            setIsExportingExcel(false);
+                        }}
+                        disabled={isExportingExcel || !pursuit}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-50 transition-colors"
+                        title="Export Excel"
+                    >
+                        {isExportingExcel ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileDown className="w-3 h-3" />}
+                        Excel
+                    </button>
+
+                    <div className="w-px h-5 bg-[var(--border)] mx-1" />
 
                     <button onClick={() => setShowFunding(!showFunding)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${showFunding ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'}`}>
                         <Users className="w-3.5 h-3.5" /> Funding

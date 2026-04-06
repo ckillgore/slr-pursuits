@@ -988,7 +988,14 @@ export async function createPredevBudget(
     if (error) throw error;
 
     // Seed default line items
-    const lineItems = DEFAULT_LINE_ITEMS.map((li) => ({
+    const { data: defaults, error: defaultsError } = await supabase
+        .from('default_predev_budget_line_items')
+        .select('*')
+        .order('sort_order');
+        
+    if (defaultsError) throw defaultsError;
+
+    const lineItems = (defaults ?? []).map((li: any) => ({
         budget_id: data.id,
         category: li.category,
         label: li.label,
@@ -997,10 +1004,13 @@ export async function createPredevBudget(
         is_custom: false,
         monthly_values: {},
     }));
-    const { error: liError } = await supabase
-        .from('predev_budget_line_items')
-        .insert(lineItems);
-    if (liError) throw liError;
+
+    if (lineItems.length > 0) {
+        const { error: liError } = await supabase
+            .from('predev_budget_line_items')
+            .insert(lineItems);
+        if (liError) throw liError;
+    }
 
     // Auto-create SLRH as default funding partner at 100%
     await supabase.from('pursuit_funding_partners').insert({

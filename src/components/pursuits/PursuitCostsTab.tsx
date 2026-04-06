@@ -91,16 +91,27 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                 }
                 
                 // Fetch Job Costs & Matrix
-                const rawJobIds = targetEntities.map(e => e.job_id).filter(Boolean);
-                let jobIds = rawJobIds.map(String);
+                const jobIdsSet = new Set<string>();
                 
-                // If we are unmapped and have no explicit job_ids, try to auto-fetch them
-                if (jobIds.length === 0 && unmappedPropertyCode) {
-                    const discoveredJobs = await fetchJobsForProperty(unmappedPropertyCode);
-                    if (discoveredJobs.length > 0) {
-                        jobIds = discoveredJobs;
+                // 1. Add explicitly mapped job IDs
+                targetEntities.filter(e => e.job_id).forEach(e => jobIdsSet.add(String(e.job_id)));
+                
+                // 2. Discover jobs for property codes that don't have explicit jobs mapped
+                const entitiesNeedingJobs = targetEntities.filter(e => e.property_code && !e.job_id);
+                for (const entity of entitiesNeedingJobs) {
+                    if (entity.property_code) {
+                        const discoveredJobs = await fetchJobsForProperty(entity.property_code);
+                        discoveredJobs.forEach(id => jobIdsSet.add(id));
                     }
                 }
+                
+                // If we are fully unmapped and only have the URL parameter, act as an entity needing jobs
+                if (jobIdsSet.size === 0 && unmappedPropertyCode) {
+                    const discoveredJobs = await fetchJobsForProperty(unmappedPropertyCode);
+                    discoveredJobs.forEach(id => jobIdsSet.add(id));
+                }
+
+                const jobIds = Array.from(jobIdsSet);
                 
                 if (jobIds.length > 0) {
                     const [txs, matrix] = await Promise.all([
@@ -210,9 +221,7 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
 
     // Group Matrix Data by Top-Level Logical Category
     const matrixSummary = (matrixData || []).reduce((acc, row) => {
-        if (!row.cost_code) return acc;
-        // Extract 2-digit prefix (e.g. "62" from "62-00400")
-        const prefix = row.cost_code.substring(0, 2);
+        const prefix = row.cost_code ? row.cost_code.substring(0, 2) : '99';
         const categoryName = CATEGORY_MAPPING[prefix] || 'Other Uncategorized Costs';
         
         if (!acc[categoryName]) {

@@ -4,9 +4,10 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { PursuitCard } from '@/components/pursuits/PursuitCard';
-import { usePursuits, useStages, useCreatePursuit, useDeletePursuit, useProductTypes } from '@/hooks/useSupabaseQueries';
-import { Search, Building2, Loader2, Map, LayoutGrid, List, MapPin, Navigation, Trash2 } from 'lucide-react';
-import type { Pursuit } from '@/types';
+import { SavedViewsDropdown } from '@/components/shared/SavedViewsDropdown';
+import { usePursuits, useStages, useCreatePursuit, useDeletePursuit, useProductTypes, useSavedViews } from '@/hooks/useSupabaseQueries';
+import { Search, Building2, Loader2, Map, LayoutGrid, List, MapPin, Navigation, Trash2, Bookmark, BookmarkPlus, MoreVertical, X, Pencil, Star } from 'lucide-react';
+import type { Pursuit, UserSavedView } from '@/types';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -23,6 +24,24 @@ export default function DashboardPage() {
   const [regionFilter, setRegionFilter] = useState<string>('');
   const [sortBy, setSortBy] = useState<'updated' | 'newest' | 'name' | 'city'>('updated');
   const [viewMode, setViewMode] = useState<'grid' | 'map' | 'list'>('grid');
+  
+  // View states logic
+  const { data: savedViews = [] } = useSavedViews('pursuits');
+  const hasAppliedDefault = useRef(false);
+
+  useEffect(() => {
+     if (savedViews.length > 0 && !hasAppliedDefault.current) {
+        const defaultView = savedViews.find((v: UserSavedView) => v.is_default);
+        if (defaultView && defaultView.filters) {
+            const f = defaultView.filters;
+            if (f.stageFilter !== undefined) setStageFilter(f.stageFilter);
+            if (f.regionFilter !== undefined) setRegionFilter(f.regionFilter);
+            if (f.sortBy !== undefined) setSortBy(f.sortBy);
+            if (f.viewMode !== undefined) setViewMode(f.viewMode);
+        }
+        hasAppliedDefault.current = true;
+     }
+  }, [savedViews]);
 
   // New Pursuit dialog state
   const [showNewPursuitDialog, setShowNewPursuitDialog] = useState(false);
@@ -250,6 +269,15 @@ export default function DashboardPage() {
               className="w-full pl-10 pr-4 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-subtle)] focus:outline-none transition-all"
             />
           </div>
+          <SavedViewsDropdown 
+            currentFilters={{ stageFilter, regionFilter, sortBy, viewMode }}
+            onApplyView={(filters) => {
+                if (filters.stageFilter !== undefined) setStageFilter(filters.stageFilter);
+                if (filters.regionFilter !== undefined) setRegionFilter(filters.regionFilter);
+                if (filters.sortBy !== undefined) setSortBy(filters.sortBy);
+                if (filters.viewMode !== undefined) setViewMode(filters.viewMode);
+            }}
+          />
           <select
             value={stageFilter}
             onChange={(e) => setStageFilter(e.target.value)}

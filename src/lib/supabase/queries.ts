@@ -2457,3 +2457,46 @@ export async function deletePursuitAccountingEntity(id: string) {
     const { error } = await supabase.from('pursuit_accounting_entities').delete().eq('id', id);
     if (error) throw error;
 }
+
+// ============================================================
+// User Saved Views
+// ============================================================
+export async function fetchUserSavedViews(viewType: string = 'pursuits') {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) return [];
+    
+    const { data, error } = await supabase
+        .from('user_saved_views')
+        .select('*')
+        .eq('user_id', userData.user.id)
+        .eq('view_type', viewType)
+        .order('name');
+        
+    if (error) throw error;
+    return data as import('@/types').UserSavedView[];
+}
+
+export async function upsertUserSavedView(view: Partial<import('@/types').UserSavedView> & { name: string, filters: Record<string, any> }) {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) throw new Error("Not authenticated");
+
+    const payload = {
+        ...view,
+        user_id: userData.user.id,
+        view_type: view.view_type || 'pursuits'
+    };
+
+    const { data, error } = await supabase
+        .from('user_saved_views')
+        .upsert(payload, { onConflict: 'id' })
+        .select()
+        .single();
+        
+    if (error) throw error;
+    return data as import('@/types').UserSavedView;
+}
+
+export async function deleteUserSavedView(id: string) {
+    const { error } = await supabase.from('user_saved_views').delete().eq('id', id);
+    if (error) throw error;
+}

@@ -1661,3 +1661,35 @@ export function useDeletePursuitAccountingEntity() {
         },
     });
 }
+
+// ============================================================
+// User Saved Views System
+// ============================================================
+export function useSavedViews(viewType: string = 'pursuits') {
+    return useQuery({
+        queryKey: ['user-saved-views', viewType],
+        queryFn: () => queries.fetchUserSavedViews(viewType)
+    });
+}
+
+export function useUpsertSavedView(viewType: string = 'pursuits') {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (view: Partial<import('@/types').UserSavedView> & { name: string, filters: Record<string, any> }) => {
+            return queries.upsertUserSavedView(view);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['user-saved-views', viewType] });
+        }
+    });
+}
+
+export function useDeleteSavedView(viewType: string = 'pursuits') {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) => queries.deleteUserSavedView(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['user-saved-views', viewType] });
+        }
+    });
+}

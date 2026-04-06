@@ -317,6 +317,17 @@ export interface UserProfile {
   is_active: boolean;
 }
 
+export interface UserSavedView {
+  id: string;
+  user_id: string;
+  name: string;
+  view_type: string;
+  is_default: boolean;
+  filters: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
 // --- Key Date Types (Admin Lookup) ---
 
 export type KeyDateCategory = 'contract' | 'pre_development';

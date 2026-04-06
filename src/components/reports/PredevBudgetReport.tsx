@@ -612,33 +612,22 @@ export function PredevBudgetReport() {
                                     })}
                                 </tr>
                             ) : (
-                                <>
-                                    <tr className="bg-[var(--bg-elevated)] border-b border-[var(--border)]">
-                                        <th rowSpan={2} className="sticky left-0 z-20 bg-[var(--bg-elevated)] text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-r border-[var(--border)] shadow-[1px_0_0_var(--border)]" style={{ minWidth: 280 }}>
-                                            Pursuit
+                                <tr className="bg-[var(--bg-elevated)] border-b border-[var(--border)]">
+                                    <th className="sticky left-0 z-20 bg-[var(--bg-elevated)] text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-r border-[var(--border)] shadow-[1px_0_0_var(--border)]" style={{ minWidth: 280 }}>
+                                        Pursuit
+                                    </th>
+                                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-r border-[var(--border)]">
+                                        Total
+                                    </th>
+                                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-r border-[var(--border)] bg-[var(--bg-elevated)]">
+                                        LTD Actuals
+                                    </th>
+                                    {yearGroups.map((yg) => (
+                                        <th key={yg.year} className="text-right px-3 py-2.5 text-xs font-semibold text-[var(--text-primary)] border-r border-[var(--border)] last:border-0 min-w-[80px]">
+                                            {yg.year}
                                         </th>
-                                        <th rowSpan={2} className="text-right px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-r border-[var(--border)]">
-                                            Total
-                                        </th>
-                                        <th rowSpan={2} className="text-right px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-r border-[var(--border)] bg-[var(--bg-elevated)]">
-                                            LTD Actuals
-                                        </th>
-                                        {yearGroups.map((yg) => (
-                                            <th key={yg.year} colSpan={yg.months.length} className="text-center px-3 py-1.5 text-xs font-bold text-[var(--text-primary)] border-r border-[var(--border)] last:border-0 bg-[var(--bg-card)] border-b">
-                                                {yg.year}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                    <tr className="bg-[var(--bg-elevated)] border-b border-[var(--border)]">
-                                        {yearGroups.map((yg) => (
-                                            yg.months.map((mk) => (
-                                                <th key={mk} className="text-right px-3 py-1.5 text-[10px] uppercase font-semibold text-[var(--text-muted)] border-r border-[var(--border)] last:border-0 min-w-[80px]">
-                                                    {formatMonthLabel(mk).split(' ')[0]}
-                                                </th>
-                                            ))
-                                        ))}
-                                    </tr>
-                                </>
+                                    ))}
+                                </tr>
                             )}
                         </thead>
                         {/* Table bodies mapped per group */}
@@ -675,11 +664,21 @@ export function PredevBudgetReport() {
                                                 <td className="text-right px-4 py-2 text-xs font-bold font-mono text-[var(--text-primary)] border-r border-[var(--border)] bg-[var(--bg-elevated)]">
                                                     {formatCurrency(groupLtd, 0)}
                                                 </td>
-                                                {forwardMonths.map((mk) => {
+                                                {viewMode === 'monthly' ? forwardMonths.map((mk) => {
                                                     const mTot = groupRows.reduce((sum, r) => sum + pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
                                                     return (
                                                         <td key={mk} className="text-right px-3 py-2 text-xs font-medium font-mono text-[var(--text-secondary)] border-r border-[var(--border)] last:border-0 bg-[var(--bg-primary)]">
                                                             {mTot === 0 ? <span className="text-[var(--text-faint)]">—</span> : formatCurrency(mTot, 0)}
+                                                        </td>
+                                                    );
+                                                }) : yearGroups.map((yg) => {
+                                                    let yTot = 0;
+                                                    for (const mk of yg.months) {
+                                                        yTot += groupRows.reduce((sum, r) => sum + pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
+                                                    }
+                                                    return (
+                                                        <td key={yg.year} className="text-right px-3 py-2 text-xs font-bold font-mono text-[var(--text-primary)] border-r border-[var(--border)] last:border-0 bg-[var(--bg-primary)]">
+                                                            {yTot === 0 ? <span className="text-[var(--text-faint)]">—</span> : formatCurrency(yTot, 0)}
                                                         </td>
                                                     );
                                                 })}
@@ -722,7 +721,7 @@ export function PredevBudgetReport() {
                                                     <td className="text-right px-4 py-2 font-mono text-xs font-semibold text-[var(--text-primary)] border-r border-[var(--border)] bg-[var(--bg-elevated)]">
                                                         {lineLtd === 0 ? <span className="text-[var(--text-faint)]">—</span> : formatCurrency(lineLtd, 0)}
                                                     </td>
-                                                    {forwardMonths.map((mk) => {
+                                                    {viewMode === 'monthly' ? forwardMonths.map((mk) => {
                                                         const isPending = isMonthPendingClose(mk, today, getCurrentMonthKey());
                                                         const inRange = rmk.includes(mk);
                                                         if (!inRange) {
@@ -739,6 +738,18 @@ export function PredevBudgetReport() {
                                                                 (val > 0 ? 'text-[var(--text-primary)]' : 'text-[var(--text-faint)]')
                                                             }`}>
                                                                 {val === 0 ? '—' : formatCurrency(val, 0)}
+                                                            </td>
+                                                        );
+                                                    }) : yearGroups.map((yg) => {
+                                                        let yTot = 0;
+                                                        for (const mk of yg.months) {
+                                                            if (rmk.includes(mk)) {
+                                                                yTot += pursuitMonthTotalAdjusted(row.budget, mk, yardiAggregates?.[row.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
+                                                            }
+                                                        }
+                                                        return (
+                                                            <td key={yg.year} className={`text-right px-3 py-2 text-xs font-mono font-semibold border-r border-[var(--border)] last:border-0 ${yTot > 0 ? 'text-[var(--text-primary)]' : 'text-[var(--text-faint)]'}`}>
+                                                                {yTot === 0 ? '—' : formatCurrency(yTot, 0)}
                                                             </td>
                                                         );
                                                     })}
@@ -760,12 +771,22 @@ export function PredevBudgetReport() {
                                 <td className="text-right px-4 py-3 font-mono text-xs font-bold border-r border-[var(--text-secondary)] text-[var(--accent-fg)] bg-white/10">
                                     {formatCurrency(closedMonths.reduce((sum, mk) => sum + grandTotalByMonth(mk), 0), 0)}
                                 </td>
-                                {forwardMonths.map((mk) => {
+                                {viewMode === 'monthly' ? forwardMonths.map((mk) => {
                                     const mTot = grandTotalByMonth(mk);
                                     const isPending = isMonthPendingClose(mk, today, getCurrentMonthKey());
                                     return (
                                         <td key={mk} className={`text-right px-3 py-3 font-mono text-xs font-bold border-r border-[var(--text-secondary)] last:border-0 ${isPending ? 'text-amber-200' : 'text-[var(--accent-fg)]'}`}>
                                             {mTot === 0 ? '—' : formatCurrency(mTot, 0)}
+                                        </td>
+                                    );
+                                }) : yearGroups.map((yg) => {
+                                    let yTot = 0;
+                                    for (const mk of yg.months) {
+                                        yTot += grandTotalByMonth(mk);
+                                    }
+                                    return (
+                                        <td key={yg.year} className="text-right px-3 py-3 font-mono text-xs font-bold border-r border-[var(--text-secondary)] last:border-0 text-[var(--accent-fg)]">
+                                            {yTot === 0 ? '—' : formatCurrency(yTot, 0)}
                                         </td>
                                     );
                                 })}

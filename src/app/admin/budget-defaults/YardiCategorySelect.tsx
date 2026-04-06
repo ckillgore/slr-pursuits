@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, Check, X, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchCategoryMappings } from '@/app/actions/accounting';
-import type categoryMappingRaw from '../../../../category-mapping.json';
+import categoryMappingRaw from '../../../../category-mapping.json';
 
 const staticCategoryMapping = categoryMappingRaw as Record<string, string>;
 

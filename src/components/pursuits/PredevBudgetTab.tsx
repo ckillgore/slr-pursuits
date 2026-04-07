@@ -1213,7 +1213,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                         </div>
                                     </td>
                                     {/* LTD cell (collapsed) */}
-                                    {viewMode !== 'budget' && !expandLTD && (
+                                    {!expandLTD && (
                                         <td className="border-[var(--table-row-border)] text-right px-2 py-1.5 bg-[var(--success-bg)]/5 hover:bg-[var(--success-bg)]/20 transition-colors cursor-pointer group/ltd-unalloc"
                                             onClick={() => {
                                                 const codes = unallocatedItems.map(i => i.code).join(',');

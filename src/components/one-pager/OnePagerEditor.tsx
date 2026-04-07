@@ -787,7 +787,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                         <tr className="border-t border-[var(--table-row-border)]">
                                             <td className="text-xs text-[var(--accent)] font-medium">Premiums</td>
                                             <td></td><td></td><td></td><td></td>
-                                            <td className="text-right text-xs tabular-nums text-[var(--accent)]">{calc.total_nrsf > 0 ? formatCurrency(totalPremiumIncome / calc.total_nrsf, 2) : '—'}</td>
+                                            <td className="text-right text-xs tabular-nums text-[var(--accent)]">{calc.total_nrsf > 0 ? formatCurrency(totalPremiumIncome / calc.total_nrsf / 12, 2) : '—'}</td>
                                             <td className="text-right text-xs tabular-nums text-[var(--accent)]">{onePager.total_units > 0 ? formatCurrency(totalPremiumIncome / onePager.total_units / 12) : '—'}</td>
                                             <td className="text-right text-xs tabular-nums text-[var(--accent)]">{formatCurrency(totalPremiumIncome)}</td>
                                         </tr>

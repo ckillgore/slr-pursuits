@@ -412,8 +412,6 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
         // Check each Yardi aggregate — is it covered?
         const unallocated = new Map<string, number>();
         for (const agg of yardiAggregates) {
-            // Skip group-level aggregates (they're synthetic rollups)
-            if (agg.category_code.length <= 2) continue;
 
             const prefix = agg.category_code.substring(0, 2);
             // Covered if the parent group is mapped, or the specific code is mapped
@@ -444,7 +442,6 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
         }
         const itemMap = new Map<string, { code: string; name: string; total: number }>();
         for (const agg of yardiAggregates) {
-            if (agg.category_code.length <= 2) continue;
             const prefix = agg.category_code.substring(0, 2);
             if (coveredGroups.has(prefix) || coveredCodes.has(agg.category_code)) continue;
             

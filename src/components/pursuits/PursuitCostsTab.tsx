@@ -219,7 +219,7 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
         return sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 ml-1 text-[var(--accent)]" /> : <ArrowDown className="w-3 h-3 ml-1 text-[var(--accent)]" />;
     };
 
-    // Group Matrix Data by Top-Level Logical Category
+    // Base it on Matrix to include lines that are setup but have $0
     const matrixSummary = (matrixData || []).reduce((acc, row) => {
         const prefix = row.cost_code ? row.cost_code.substring(0, 2) : '99';
         const categoryName = CATEGORY_MAPPING[prefix] || 'Other Uncategorized Costs';
@@ -233,10 +233,26 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
         }
         
         acc[categoryName].prefixes.add(prefix);
-        acc[categoryName].total_spent += (row.total_billed_this_draw || 0);
+        // Do NOT sum total_billed_this_draw because it misses orphaned non-draw transactions
         
         return acc;
     }, {} as Record<string, { category_name: string, prefixes: Set<string>, total_spent: number }>);
+
+    // Provide the actual truth sum from the detailed Job Costs
+    jobCosts.forEach(tx => {
+        const prefix = tx.cost_category_code ? tx.cost_category_code.substring(0, 2) : '99';
+        const categoryName = CATEGORY_MAPPING[prefix] || 'Other Uncategorized Costs';
+        
+        if (!matrixSummary[categoryName]) {
+            matrixSummary[categoryName] = {
+                category_name: categoryName,
+                prefixes: new Set<string>(),
+                total_spent: 0
+            };
+        }
+        matrixSummary[categoryName].prefixes.add(prefix);
+        matrixSummary[categoryName].total_spent += Number(tx.amount || 0);
+    });
 
     const sortedMatrixRows = Object.values(matrixSummary).sort((a, b) => {
         if (a.category_name === 'Other Uncategorized Costs') return 1;

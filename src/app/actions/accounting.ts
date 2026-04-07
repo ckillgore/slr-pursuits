@@ -616,22 +616,8 @@ export async function fetchAllPortfolioJobCostAggregates(): Promise<Record<strin
             const costGroup = code.substring(0, 2);
             const month = tx.post_date.substring(0, 7);
             const detailKey = `${code}|${month}`;
-            const groupKey = `${costGroup}|${month}`;
-
-            if (!aggregateMap.has(groupKey)) {
-                const mapping = mappingLookup.get(costGroup);
-                aggregateMap.set(groupKey, {
-                    cost_group: costGroup,
-                    category_code: costGroup,
-                    category_name: mapping?.name || `Group ${costGroup}`,
-                    month,
-                    total_amount: 0,
-                });
-            }
-            aggregateMap.get(groupKey)!.total_amount += amount;
-
             if (!aggregateMap.has(detailKey)) {
-                const mapping = mappingLookup.get(code);
+                const mapping = mappingLookup.get(code); // Might be undefined for detail codes missing from mapping table
                 aggregateMap.set(detailKey, {
                     cost_group: costGroup,
                     category_code: code,

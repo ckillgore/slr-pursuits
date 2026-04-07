@@ -105,7 +105,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     const [isEditingName, setIsEditingName] = useState(false);
     const [editName, setEditName] = useState('');
     const [softCostExpanded, setSoftCostExpanded] = useState(false);
-    const [premiumsExpanded, setPremiumsExpanded] = useState(false);
+    const [premiumsExpanded] = useState(true); // always visible
     const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
     const [duplicateName, setDuplicateName] = useState('');
     const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
@@ -617,12 +617,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                             {totalPremiumIncome > 0 && (
                                 <tr>
                                     <td className="text-[var(--text-secondary)] text-xs">
-                                        <button
-                                            onClick={() => setPremiumsExpanded(!premiumsExpanded)}
-                                            className="flex items-center gap-1 text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
-                                        >
-                                            Premiums ({unitPremiums.length})
-                                        </button>
+                                        <span className="text-[var(--accent)]">Premiums ({unitPremiums.length})</span>
                                     </td>
                                     <td className="text-right text-xs tabular-nums text-[var(--text-secondary)]">{formatCurrency(totalPremiumIncome)}</td>
                                     <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{onePager.total_units > 0 ? formatCurrency(totalPremiumIncome / onePager.total_units) : '—'}</td>
@@ -1076,14 +1071,10 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                         </div>
                     </div>
 
-                {/* ===== PREMIUMS CARD (Toggleable, at bottom) ===== */}
+                {/* ===== PREMIUMS CARD (always visible) ===== */}
                 <div className="card">
-                    <button
-                        onClick={() => setPremiumsExpanded(!premiumsExpanded)}
-                        className="flex items-center justify-between w-full"
-                    >
+                    <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-1.5">
-                            {premiumsExpanded ? <ChevronDown className="w-3.5 h-3.5 text-[var(--text-faint)]" /> : <ChevronRight className="w-3.5 h-3.5 text-[var(--text-faint)]" />}
                             <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Premiums</h3>
                             {unitPremiums.length > 0 && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--accent-subtle)] text-[var(--accent)] font-semibold"
@@ -1091,9 +1082,8 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                             )}
                         </div>
                         <span className="text-xs tabular-nums text-[var(--text-secondary)] font-medium">{formatCurrency(totalPremiumIncome)}/yr</span>
-                    </button>
-                    {premiumsExpanded && (
-                        <div className="mt-3 -mx-5 overflow-x-auto">
+                    </div>
+                        <div className="-mx-5 overflow-x-auto">
                             <table className="data-table">
                                 <thead>
                                     <tr>
@@ -1132,7 +1122,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                     <tr>
                                         <td colSpan={4}>
                                             <button
-                                                onClick={() => { setPremiumsExpanded(true); upsertUnitPremium.mutate({
+                                                onClick={() => { upsertUnitPremium.mutate({
                                                     one_pager_id: onePager.id,
                                                     name: 'New Premium',
                                                     unit_count: 0,
@@ -1156,7 +1146,6 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                 </tbody>
                             </table>
                         </div>
-                    )}
                 </div>
 
                 {/* ===== SENSITIVITY ANALYSIS (full width, collapsible) ===== */}

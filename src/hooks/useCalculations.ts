@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { calculateAll, type CalculateAllInput } from '@/lib/calculations';
-import type { OnePager, UnitMixRow, PayrollRow, SoftCostDetailRow, CalculationResults } from '@/types';
+import type { OnePager, UnitMixRow, PayrollRow, SoftCostDetailRow, CalculationResults, UnitPremium } from '@/types';
 
 interface UseCalculationsInput {
     onePager: OnePager | null;
@@ -12,6 +12,7 @@ interface UseCalculationsInput {
     siteAreaSf: number;
     productTypeDensityLow?: number;
     productTypeDensityHigh?: number;
+    unitPremiums?: UnitPremium[];
 }
 
 const EMPTY_RESULTS: CalculationResults = {
@@ -64,6 +65,7 @@ export function useCalculations(input: UseCalculationsInput): CalculationResults
             siteAreaSf: input.siteAreaSf,
             productTypeDensityLow: input.productTypeDensityLow,
             productTypeDensityHigh: input.productTypeDensityHigh,
+            unitPremiums: input.unitPremiums,
         };
 
         return calculateAll(calcInput);
@@ -75,5 +77,6 @@ export function useCalculations(input: UseCalculationsInput): CalculationResults
         input.siteAreaSf,
         input.productTypeDensityLow,
         input.productTypeDensityHigh,
+        input.unitPremiums,
     ]);
 }

@@ -132,6 +132,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
         siteAreaSf: pursuit.site_area_sf,
         productTypeDensityLow: effectiveDensityLow,
         productTypeDensityHigh: effectiveDensityHigh,
+        unitPremiums,
     });
 
     // ============================================================
@@ -612,9 +613,9 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                             )}
                             <tr style={{ borderTop: '1px solid var(--table-row-border)' }}>
                                 <td className="text-[var(--text-primary)] text-xs font-medium">Gross Potential Revenue</td>
-                                <td className="text-right text-xs tabular-nums text-[var(--text-primary)] font-medium">{formatCurrency(calc.gross_potential_revenue + totalPremiumIncome)}</td>
-                                <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{onePager.total_units > 0 ? formatCurrency((calc.gross_potential_revenue + totalPremiumIncome) / onePager.total_units) : '—'}</td>
-                                <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{calc.total_nrsf > 0 ? formatCurrency((calc.gross_potential_revenue + totalPremiumIncome) / calc.total_nrsf, 2) : '—'}</td>
+                                <td className="text-right text-xs tabular-nums text-[var(--text-primary)] font-medium">{formatCurrency(calc.gross_potential_revenue)}</td>
+                                <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{onePager.total_units > 0 ? formatCurrency(calc.gross_potential_revenue / onePager.total_units) : '—'}</td>
+                                <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{calc.total_nrsf > 0 ? formatCurrency(calc.gross_potential_revenue / calc.total_nrsf, 2) : '—'}</td>
                             </tr>
                             <tr>
                                 <td>
@@ -630,9 +631,9 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                             </tr>
                             <tr className="total-row">
                                 <td className="font-bold">Net Revenue</td>
-                                <td className="text-right tabular-nums font-bold text-[var(--text-primary)]">{formatCurrency(calc.net_revenue + totalPremiumIncome)}</td>
-                                <td className="text-right tabular-nums font-bold">{onePager.total_units > 0 ? formatCurrency((calc.net_revenue + totalPremiumIncome) / onePager.total_units) : '—'}</td>
-                                <td className="text-right tabular-nums font-bold">{calc.total_nrsf > 0 ? formatCurrency((calc.net_revenue + totalPremiumIncome) / calc.total_nrsf, 2) : '—'}</td>
+                                <td className="text-right tabular-nums font-bold text-[var(--text-primary)]">{formatCurrency(calc.net_revenue)}</td>
+                                <td className="text-right tabular-nums font-bold">{onePager.total_units > 0 ? formatCurrency(calc.net_revenue / onePager.total_units) : '—'}</td>
+                                <td className="text-right tabular-nums font-bold">{calc.total_nrsf > 0 ? formatCurrency(calc.net_revenue / calc.total_nrsf, 2) : '—'}</td>
                             </tr>
                         </tbody>
                     </table>

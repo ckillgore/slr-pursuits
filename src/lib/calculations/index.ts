@@ -3,7 +3,7 @@
  * Chains all calculation modules into a single `calculateAll()` call.
  */
 
-import type { OnePager, UnitMixRow, PayrollRow, SoftCostDetailRow, CalculationResults } from '@/types';
+import type { OnePager, UnitMixRow, PayrollRow, SoftCostDetailRow, CalculationResults, UnitPremium } from '@/types';
 import { calcUnitMixAggregates } from './unitMix';
 import { calcRevenue } from './revenue';
 import { calcBudget } from './budget';
@@ -32,6 +32,7 @@ export interface CalculateAllInput {
     siteAreaSf: number;
     productTypeDensityLow?: number;
     productTypeDensityHigh?: number;
+    unitPremiums?: UnitPremium[];
 }
 
 export function calculateAll(input: CalculateAllInput): CalculationResults {
@@ -50,8 +51,13 @@ export function calculateAll(input: CalculateAllInput): CalculationResults {
         site_area_acres > 0 ? unitMixAgg.total_units / site_area_acres : 0;
 
     // Revenue
+    const totalPremiumIncome = (input.unitPremiums || []).reduce(
+        (sum, p) => sum + p.unit_count * (p.rent_premium_per_unit_month || 0) * 12,
+        0
+    );
+
     const rev = calcRevenue(
-        unitMixAgg.gross_potential_rent,
+        unitMixAgg.gross_potential_rent + totalPremiumIncome,
         onePager.other_income_per_unit_month,
         unitMixAgg.total_units,
         onePager.vacancy_rate

@@ -40,6 +40,8 @@ import {
     calcSensitivityMatrix,
 } from '@/lib/calculations/sensitivity';
 import { formatCurrency, formatPercent, formatNumber, SF_PER_ACRE } from '@/lib/constants';
+import { PrototypePicker, FloorPlanButton } from './PrototypePicker';
+import type { UnitPrototype } from '@/hooks/useUnitPrototypes';
 import type { Pursuit, OnePager, UnitPremium } from '@/types';
 import {
     ChevronLeft,
@@ -57,6 +59,7 @@ import {
     FileDown,
     X,
     Car,
+    Library,
 } from 'lucide-react';
 import * as queries from '@/lib/supabase/queries';
 
@@ -109,6 +112,21 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     const [isExportingPdf, setIsExportingPdf] = useState(false);
     const [isExportingExcel, setIsExportingExcel] = useState(false);
     const [editAllMode, setEditAllMode] = useState(false);
+    const [showPrototypePicker, setShowPrototypePicker] = useState(false);
+    const [showAddMenu, setShowAddMenu] = useState(false);
+    const addMenuRef = useRef<HTMLDivElement>(null);
+
+    // Close add menu on outside click
+    useEffect(() => {
+        if (!showAddMenu) return;
+        function handleClick(e: MouseEvent) {
+            if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
+                setShowAddMenu(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, [showAddMenu]);
 
     // Realtime subscription for multi-user sync
     useRealtimeOnePager(onePager.id);
@@ -647,26 +665,73 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                 <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Unit Mix</h3>
                                 <FieldNoteButton fieldKey="card_unit_mix" note={fieldNotes['card_unit_mix']} onNoteChange={updateFieldNote} />
                             </div>
-                            <button
-                                onClick={() => {
-                                    const newId = crypto.randomUUID();
-                                    upsertUnitMixRow.mutate({
-                                        id: newId,
-                                        one_pager_id: onePager.id,
-                                        unit_type: 'other',
-                                        unit_type_label: 'New Unit Type',
-                                        unit_count: 0,
-                                        avg_unit_sf: 0,
-                                        rent_per_sf: 0,
-                                        rent_whole_dollar: 0,
-                                        rent_input_mode: 'per_sf',
-                                        sort_order: sortedUnitMix.length,
-                                    } as any);
-                                }}
-                                className="flex items-center gap-1 text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] font-medium transition-colors"
-                            >
-                                <Plus className="w-3.5 h-3.5" /> Add Row
-                            </button>
+                            <div className="relative" ref={addMenuRef}>
+                                <button
+                                    onClick={() => setShowAddMenu(!showAddMenu)}
+                                    className="flex items-center gap-1 text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] font-medium transition-colors"
+                                >
+                                    <Plus className="w-3.5 h-3.5" /> Add Row <ChevronDown className="w-3 h-3 opacity-50" />
+                                </button>
+                                {showAddMenu && (
+                                    <div className="absolute right-0 top-full mt-1 z-40 w-44 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] shadow-xl overflow-hidden animate-fade-in">
+                                        <button
+                                            onClick={() => {
+                                                setShowAddMenu(false);
+                                                const newId = crypto.randomUUID();
+                                                upsertUnitMixRow.mutate({
+                                                    id: newId,
+                                                    one_pager_id: onePager.id,
+                                                    unit_type: 'other',
+                                                    unit_type_label: 'New Unit Type',
+                                                    unit_count: 0,
+                                                    avg_unit_sf: 0,
+                                                    rent_per_sf: 0,
+                                                    rent_whole_dollar: 0,
+                                                    rent_input_mode: 'per_sf',
+                                                    sort_order: sortedUnitMix.length,
+                                                } as any);
+                                            }}
+                                            className="w-full px-3 py-2 text-left text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] transition-colors flex items-center gap-2"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" /> Blank Row
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowAddMenu(false);
+                                                setShowPrototypePicker(true);
+                                            }}
+                                            className="w-full px-3 py-2 text-left text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] transition-colors flex items-center gap-2 border-t border-[var(--border)]"
+                                        >
+                                            <Library className="w-3.5 h-3.5" /> From Prototype Library
+                                        </button>
+                                    </div>
+                                )}
+                                {showPrototypePicker && (
+                                    <PrototypePicker
+                                        onSelect={(proto: UnitPrototype) => {
+                                            const newId = crypto.randomUUID();
+                                            const bedroomType = proto.bedroom_category === 'Studio' ? 'studio'
+                                                : proto.bedroom_category === '1 Bed' ? 'one_bed'
+                                                : proto.bedroom_category === '2 Bed' ? 'two_bed'
+                                                : 'three_bed';
+                                            upsertUnitMixRow.mutate({
+                                                id: newId,
+                                                one_pager_id: onePager.id,
+                                                unit_type: bedroomType,
+                                                unit_type_label: proto.display_name,
+                                                unit_count: 0,
+                                                avg_unit_sf: proto.avg_unit_sf,
+                                                rent_per_sf: 0,
+                                                rent_whole_dollar: 0,
+                                                rent_input_mode: 'per_sf',
+                                                sort_order: sortedUnitMix.length,
+                                            } as any);
+                                            setShowPrototypePicker(false);
+                                        }}
+                                        onClose={() => setShowPrototypePicker(false)}
+                                    />
+                                )}
+                            </div>
                         </div>
                         <div className="-mx-5 overflow-x-auto">
                             <table className="data-table">
@@ -679,6 +744,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                             <tr key={row.id}>
                                                 <td>
                                                     <div className="flex items-center gap-1 group/row">
+                                                        <FloorPlanButton unitTypeLabel={row.unit_type_label} />
                                                         <UnitTypeInput
                                                             value={row.unit_type_label}
                                                             onChange={(v) => handleUnitMixChange(row.id, 'unit_type_label', v, row.unit_type_label)}

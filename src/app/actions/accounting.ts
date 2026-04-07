@@ -258,10 +258,19 @@ export async function fetchJobCostMatrix(jobIds: string[]): Promise<YardiJobCost
     if (!jobIds.length) return [];
     const client = createYardiClient();
 
+    // Fetch the jobs array separately to map codes and ensure robustness
+    const { data: jobMapData } = await client
+        .from('jobs')
+        .select('job_id, job_code')
+        .in('job_id', jobIds);
+        
+    const jobCodes = (jobMapData || []).map(j => j.job_code).filter(Boolean);
+    const queryIds = Array.from(new Set([...jobIds, ...jobCodes]));
+
     const { data: rows, error } = await client
         .from('jobcost_master_matrix')
         .select('job_id, job_code, cost_code, category_name, cost_group, original_budget, revised_budget, total_billed_this_draw')
-        .in('job_id', jobIds);
+        .in('job_id', queryIds);
 
     if (error) {
         console.error('Failed to fetch Job Cost Matrix from Yardi:', error);
@@ -293,10 +302,13 @@ export async function fetchPursuitJobCosts(jobIds: string[]): Promise<YardiJobCo
         return acc;
     }, {} as Record<string, string>);
 
+    const jobCodes = Object.values(jobCodeMap).filter(Boolean);
+    const queryIds = Array.from(new Set([...jobIds, ...jobCodes]));
+
     const { data: rows, error } = await client
         .from('jobcost_transactions')
         .select('*')
-        .in('job_id', jobIds)
+        .in('job_id', queryIds)
         .order('post_date', { ascending: false });
 
     if (error) {
@@ -541,7 +553,7 @@ export async function fetchAllPortfolioJobCostAggregates(): Promise<Record<strin
     // 3. Query Jobs for those property_ids
     const { data: jobRows } = await client
         .from('jobs')
-        .select('job_id, property_id')
+        .select('job_id, job_code, property_id')
         .in('property_id', Array.from(uniquePropIds));
 
     const propertyToJobs = new Map<string, string[]>();
@@ -550,6 +562,7 @@ export async function fetchAllPortfolioJobCostAggregates(): Promise<Record<strin
         if (code) {
             if (!propertyToJobs.has(code)) propertyToJobs.set(code, []);
             propertyToJobs.get(code)!.push(String(jr.job_id));
+            if (jr.job_code) propertyToJobs.get(code)!.push(jr.job_code);
         }
     }
 

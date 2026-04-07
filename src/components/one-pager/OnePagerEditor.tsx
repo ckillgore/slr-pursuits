@@ -99,8 +99,8 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     const effectiveDensityHigh = (subProductType?.density_high != null ? subProductType.density_high : productType?.density_high) ?? 0;
     const densityLabel = subProductType?.density_low != null ? subProductType.name : productType?.name ?? '';
 
-    const [payrollExpanded, setPayrollExpanded] = useState(true);
-    const [taxExpanded, setTaxExpanded] = useState(false);
+    const [payrollExpanded] = useState(true); // always visible
+    const [taxExpanded] = useState(true); // always visible
     const [sensitivityExpanded, setSensitivityExpanded] = useState(false);
     const [isEditingName, setIsEditingName] = useState(false);
     const [editName, setEditName] = useState('');
@@ -430,7 +430,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                 const { pdf } = await import('@react-pdf/renderer');
                                 const { OnePagerPDF } = await import('@/components/export/OnePagerPDF');
                                 const pt = productTypes?.find((p) => p.id === onePager.product_type_id);
-                                const doc = <OnePagerPDF onePager={onePager} pursuit={pursuit} calc={calc} productTypeName={pt?.name} unitMix={sortedUnitMix} payroll={sortedPayroll} softCostDetails={softCostDetails} showPayroll={payrollExpanded} showPropertyTax={taxExpanded} />;
+                                const doc = <OnePagerPDF onePager={onePager} pursuit={pursuit} calc={calc} productTypeName={pt?.name} unitMix={sortedUnitMix} payroll={sortedPayroll} softCostDetails={softCostDetails} showPayroll={true} showPropertyTax={true} />;
                                 const blob = await pdf(doc).toBlob();
                                 const url = URL.createObjectURL(blob);
                                 const a = document.createElement('a');
@@ -975,9 +975,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                             <OpExRow label="Turnover" value={onePager.opex_turnover} units={onePager.total_units} onChange={(v) => updateField('opex_turnover', v)} editAllMode={editAllMode} noteKey="opex_turnover" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
                             <OpExRow label="Miscellaneous" value={onePager.opex_misc} units={onePager.total_units} onChange={(v) => updateField('opex_misc', v)} editAllMode={editAllMode} noteKey="opex_misc" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
                             <tr>
-                                <td><button onClick={() => setPayrollExpanded(!payrollExpanded)} className="flex items-center gap-1 text-[var(--accent)] hover:text-[var(--accent-hover)] text-xs font-medium">
-                                    {payrollExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />} Payroll & Related
-                                </button></td>
+                                <td><span className="text-[var(--accent)] text-xs font-medium">Payroll & Related</span></td>
                                 <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{onePager.total_units > 0 ? formatCurrency(calc.payroll_total / onePager.total_units) : '—'}</td>
                                 <td className="text-right text-xs tabular-nums text-[var(--text-secondary)]">{formatCurrency(calc.payroll_total)}</td>
                             </tr>
@@ -1000,9 +998,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                 <td className="text-right text-xs tabular-nums text-[var(--text-secondary)]">{formatCurrency(calc.mgmt_fee_total)}</td>
                             </tr>
                             <tr>
-                                <td><button onClick={() => setTaxExpanded(!taxExpanded)} className="flex items-center gap-1 text-[var(--accent)] hover:text-[var(--accent-hover)] text-xs font-medium">
-                                    {taxExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />} Property Tax
-                                </button></td>
+                                <td><span className="text-[var(--accent)] text-xs font-medium">Property Tax</span></td>
                                 <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{calc.property_tax_per_unit > 0 ? formatCurrency(calc.property_tax_per_unit) : '—'}</td>
                                 <td className="text-right text-xs tabular-nums text-[var(--text-secondary)]">{formatCurrency(calc.property_tax_total)}</td>
                             </tr>
@@ -1018,9 +1014,8 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                 </div>
 
 
-                {/* ===== PAYROLL DETAIL ===== */}
-                {payrollExpanded && (
-                    <div className="card animate-fade-in">
+                {/* ===== PAYROLL DETAIL (always visible) ===== */}
+                    <div className="card">
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-1.5 group/note">
                                 <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Payroll Detail</h3>
@@ -1064,11 +1059,9 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                             <InlineInput value={onePager.payroll_burden_pct} onChange={(v) => updateField('payroll_burden_pct', v)} format="percent" decimals={0} className="text-xs w-20" />
                         </div>
                     </div>
-                )}
 
-                {/* ===== PROPERTY TAX DETAIL ===== */}
-                {taxExpanded && (
-                    <div className="card animate-fade-in">
+                {/* ===== PROPERTY TAX DETAIL (always visible) ===== */}
+                    <div className="card">
                         <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Property Tax Detail</h3>
                         <div className="space-y-3">
                             <FieldRow label="Tax Rate" noteKey="tax_mil_rate" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.tax_mil_rate} onChange={(v) => updateField('tax_mil_rate', v)} format="percent" decimals={4} /></FieldRow>
@@ -1082,7 +1075,6 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                             </div>
                         </div>
                     </div>
-                )}
 
                 {/* ===== PREMIUMS CARD (Toggleable, at bottom) ===== */}
                 <div className="card">

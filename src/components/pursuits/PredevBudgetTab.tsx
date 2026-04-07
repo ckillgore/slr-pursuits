@@ -1041,7 +1041,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                     Line Item
                                 </th>
                                 {/* LTD Column (collapsed) */}
-                                {closedMonths.length > 0 && !expandLTD && (
+                                {viewMode !== 'budget' && !expandLTD && (
                                     <th
                                         className="text-center px-1 py-2.5 text-[10px] font-bold uppercase tracking-wider border-b border-[var(--border)] bg-[var(--success-bg)]/50 text-[var(--success)] cursor-pointer hover:bg-[var(--success-bg)] transition-colors"
                                         style={{ minWidth: 110 }}
@@ -1139,7 +1139,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                             </div>
                                         </td>
                                         {/* LTD cell (collapsed) */}
-                                        {closedMonths.length > 0 && !expandLTD && (
+                                        {viewMode !== 'budget' && !expandLTD && (
                                             <td className="border-[var(--table-row-border)] bg-[var(--success-bg)]/20 text-right px-2 py-1.5 hover:bg-[var(--success-bg)]/40 transition-colors cursor-pointer group/ltd"
                                                 onClick={() => {
                                                     if (li.yardi_cost_groups && li.yardi_cost_groups.length > 0) {
@@ -1215,7 +1215,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                         </div>
                                     </td>
                                     {/* LTD cell (collapsed) */}
-                                    {closedMonths.length > 0 && !expandLTD && (
+                                    {viewMode !== 'budget' && !expandLTD && (
                                         <td className="border-[var(--table-row-border)] text-right px-2 py-1.5 bg-[var(--success-bg)]/5 hover:bg-[var(--success-bg)]/20 transition-colors cursor-pointer group/ltd-unalloc"
                                             onClick={() => {
                                                 const codes = unallocatedItems.map(i => i.code).join(',');
@@ -1267,7 +1267,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                             <tr className="bg-[var(--text-primary)]">
                                 <td className="sticky left-0 z-10 bg-[var(--text-primary)] px-4 py-2 border-r border-[#2A3040] text-xs font-bold text-white uppercase tracking-wider">Total</td>
                                 {/* LTD total (collapsed) */}
-                                {closedMonths.length > 0 && !expandLTD && (
+                                {viewMode !== 'budget' && !expandLTD && (
                                     <td className="px-2 py-2 text-right bg-[var(--success)]/10">
                                         <span className="text-xs font-mono font-bold text-green-300 tabular-nums">
                                             {formatCurrency(closedMonths.reduce((sum, mk) => sum + colTotal(mk), 0), 0)}
@@ -1338,7 +1338,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                                     </div>
                                                 </td>
                                                 {/* LTD cell (collapsed) */}
-                                                {closedMonths.length > 0 && !expandLTD && (
+                                                {viewMode !== 'budget' && !expandLTD && (
                                                     <td className="border-[var(--table-row-border)] bg-[var(--success-bg)]/10 text-right px-2 py-1.5">
                                                         <span className={`text-xs font-mono tabular-nums ${partnerLtdTotal === 0 ? 'text-[var(--border-strong)]' : partner.is_slrh ? 'text-blue-500' : 'text-[var(--text-secondary)]'}`}>
                                                             {partnerLtdTotal === 0 ? '—' : formatCurrency(partnerLtdTotal, 0)}

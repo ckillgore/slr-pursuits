@@ -673,7 +673,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                     <Plus className="w-3.5 h-3.5" /> Add Row <ChevronDown className="w-3 h-3 opacity-50" />
                                 </button>
                                 {showAddMenu && (
-                                    <div className="absolute right-0 top-full mt-1 z-40 w-44 rounded-lg border border-[var(--border)] bg-[var(--card-bg)] shadow-xl overflow-hidden animate-fade-in">
+                                    <div className="absolute right-0 top-full mt-1 z-40 w-44 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] shadow-xl overflow-hidden animate-fade-in">
                                         <button
                                             onClick={() => {
                                                 setShowAddMenu(false);

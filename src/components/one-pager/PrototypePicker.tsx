@@ -90,11 +90,11 @@ export function PrototypePicker({ onSelect, onClose }: PrototypePickerProps) {
     return (
         <div
             ref={containerRef}
-            className="absolute right-0 top-full mt-1 z-50 w-[420px] max-h-[480px] rounded-xl border border-[var(--border)] bg-[var(--card-bg)] shadow-2xl flex flex-col overflow-hidden animate-fade-in"
-            style={{ backdropFilter: 'blur(20px)' }}
+            className="absolute right-0 top-full mt-1 z-50 w-[420px] max-h-[480px] rounded-xl border border-[var(--border)] shadow-2xl flex flex-col overflow-hidden animate-fade-in"
+            style={{ backgroundColor: 'var(--bg-card)' }}
         >
             {/* Header */}
-            <div className="px-3 pt-3 pb-2 border-b border-[var(--border)] flex-shrink-0">
+            <div className="px-3 pt-3 pb-2 border-b border-[var(--border)] flex-shrink-0" style={{ backgroundColor: 'var(--bg-card)' }}>
                 <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Unit Prototype Library</span>
                     <button onClick={onClose} className="p-0.5 text-[var(--text-faint)] hover:text-[var(--text-secondary)] transition-colors">
@@ -154,7 +154,8 @@ export function PrototypePicker({ onSelect, onClose }: PrototypePickerProps) {
                                 <div
                                     className="sticky top-0 z-10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider border-b border-[var(--border)]"
                                     style={{
-                                        backgroundColor: 'var(--bg-base)',
+                                        backgroundColor: 'var(--bg-card)',
+                                        opacity: 1,
                                         color: categoryColors[category],
                                     }}
                                 >
@@ -195,7 +196,7 @@ export function PrototypePicker({ onSelect, onClose }: PrototypePickerProps) {
             </div>
 
             {/* Footer */}
-            <div className="px-3 py-2 border-t border-[var(--border)] flex-shrink-0 bg-[var(--bg-elevated)]">
+            <div className="px-3 py-2 border-t border-[var(--border)] flex-shrink-0" style={{ backgroundColor: 'var(--bg-card)' }}>
                 <div className="text-[10px] text-[var(--text-faint)]">
                     {prototypes.length} prototypes • Select to add as unit mix row
                 </div>

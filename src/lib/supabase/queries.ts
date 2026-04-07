@@ -1012,13 +1012,21 @@ export async function createPredevBudget(
         if (liError) throw liError;
     }
 
-    // Auto-create SLRH as default funding partner at 100%
-    await supabase.from('pursuit_funding_partners').insert({
-        pursuit_id: pursuitId,
-        name: 'SLRH',
-        is_slrh: true,
-        default_split_pct: 100,
-    });
+    // Auto-create SLRH as default funding partner at 100%, ONLY if no partners exist
+    const { data: existingPartners } = await supabase
+        .from('pursuit_funding_partners')
+        .select('id')
+        .eq('pursuit_id', pursuitId)
+        .limit(1);
+
+    if (!existingPartners || existingPartners.length === 0) {
+        await supabase.from('pursuit_funding_partners').insert({
+            pursuit_id: pursuitId,
+            name: 'SLRH',
+            is_slrh: true,
+            default_split_pct: 100,
+        });
+    }
 
     // Refetch with line items
     return (await fetchPredevBudget(pursuitId))!;

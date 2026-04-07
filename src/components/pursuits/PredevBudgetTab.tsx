@@ -984,9 +984,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                     className="w-20 px-2 py-1 rounded border border-[var(--border)] text-xs text-right text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none" />
                                 <span className="text-xs text-[var(--text-muted)]">%</span>
                                 <span className="text-xs text-[var(--text-faint)] ml-auto tabular-nums">{formatCurrency(totalForecast * (p.default_split_pct / 100), 0)}</span>
-                                {!p.is_slrh && (
-                                    <button onClick={() => deletePartner.mutate({ id: p.id, pursuitId })} className="text-[var(--text-faint)] hover:text-[var(--danger)] p-0.5"><Trash2 className="w-3 h-3" /></button>
-                                )}
+                                <button onClick={() => deletePartner.mutate({ id: p.id, pursuitId })} className="text-[var(--text-faint)] hover:text-[var(--danger)] p-0.5" title="Remove funding partner"><Trash2 className="w-3 h-3" /></button>
                             </div>
                         ))}
                     </div>

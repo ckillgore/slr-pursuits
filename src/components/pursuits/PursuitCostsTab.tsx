@@ -221,42 +221,49 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
 
     // Base it on Matrix to include lines that are setup but have $0
     const matrixSummary = (matrixData || []).reduce((acc, row) => {
-        const prefix = row.cost_code ? row.cost_code.substring(0, 2) : '99';
-        const categoryName = CATEGORY_MAPPING[prefix] || 'Other Uncategorized Costs';
+        const code = row.cost_code || 'Uncategorized';
+        const name = row.category_name || code;
         
-        if (!acc[categoryName]) {
-            acc[categoryName] = {
-                category_name: categoryName,
-                prefixes: new Set<string>(),
+        if (!acc[code]) {
+            acc[code] = {
+                category_name: name,
+                cost_codes: new Set<string>(),
                 total_spent: 0
             };
         }
         
-        acc[categoryName].prefixes.add(prefix);
-        // Do NOT sum total_billed_this_draw because it misses orphaned non-draw transactions
-        
+        acc[code].cost_codes.add(code);
         return acc;
-    }, {} as Record<string, { category_name: string, prefixes: Set<string>, total_spent: number }>);
+    }, {} as Record<string, { category_name: string, cost_codes: Set<string>, total_spent: number }>);
 
     // Provide the actual truth sum from the detailed Job Costs
     jobCosts.forEach(tx => {
-        const prefix = tx.cost_category_code ? tx.cost_category_code.substring(0, 2) : '99';
-        const categoryName = CATEGORY_MAPPING[prefix] || 'Other Uncategorized Costs';
+        const code = tx.cost_category_code || 'Uncategorized';
+        // Use the matrix category name if available, otherwise fallback to the code
+        const name = categoryLookup[code] || code;
         
-        if (!matrixSummary[categoryName]) {
-            matrixSummary[categoryName] = {
-                category_name: categoryName,
-                prefixes: new Set<string>(),
+        if (!matrixSummary[code]) {
+            matrixSummary[code] = {
+                category_name: name,
+                cost_codes: new Set<string>(),
                 total_spent: 0
             };
         }
-        matrixSummary[categoryName].prefixes.add(prefix);
-        matrixSummary[categoryName].total_spent += Number(tx.amount || 0);
+        matrixSummary[code].cost_codes.add(code);
+        matrixSummary[code].total_spent += Number(tx.amount || 0);
     });
 
     const sortedMatrixRows = Object.values(matrixSummary).sort((a, b) => {
-        if (a.category_name === 'Other Uncategorized Costs') return 1;
-        if (b.category_name === 'Other Uncategorized Costs') return -1;
+        if (a.category_name === 'Uncategorized') return 1;
+        if (b.category_name === 'Uncategorized') return -1;
+        
+        // Sort by the code numerically if possible
+        const codeA = Array.from(a.cost_codes)[0] || '';
+        const codeB = Array.from(b.cost_codes)[0] || '';
+        if (codeA && codeB) {
+            return codeA.localeCompare(codeB);
+        }
+        
         return a.category_name.localeCompare(b.category_name);
     });
 
@@ -344,19 +351,19 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                             </thead>
                             <tbody>
                                 {sortedMatrixRows.map((row) => {
-                                    const prefixesArray = Array.from(row.prefixes).sort();
+                                    const codesArray = Array.from(row.cost_codes).sort();
                                     return (
-                                        <tr key={row.category_name} className="hover:bg-[var(--bg-elevated)] transition-colors text-sm cursor-pointer group"
+                                        <tr key={codesArray.join(',')} className="hover:bg-[var(--bg-elevated)] transition-colors text-sm cursor-pointer group"
                                             onClick={() => {
-                                                router.push(`/pursuits/${pursuitId}?tab=costs&cost_codes=${encodeURIComponent(prefixesArray.join(','))}`);
+                                                router.push(`/pursuits/${pursuitId}?tab=costs&cost_codes=${encodeURIComponent(codesArray.join(','))}`);
                                             }}
-                                            title={`Filter transactions down to groups: ${prefixesArray.join(', ')}`}
+                                            title={`Filter transactions down to groups: ${codesArray.join(', ')}`}
                                         >
                                             <td className="text-[var(--text-primary)] font-medium group-hover:text-[var(--accent)] transition-colors">
-                                                {row.category_name}
+                                                {row.category_name !== codesArray[0] ? row.category_name : 'No Description Found'}
                                             </td>
                                             <td className="font-mono text-xs text-[var(--text-muted)] gap-1 flex flex-wrap pt-3.5">
-                                                {prefixesArray.map(p => (
+                                                {codesArray.map(p => (
                                                     <span key={p} className="bg-[var(--bg-primary)] border border-[var(--border)] px-1.5 py-0.5 rounded leading-none">
                                                         {p}
                                                     </span>

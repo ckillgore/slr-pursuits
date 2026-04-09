@@ -706,15 +706,13 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             }
         }
         // Add unallocated Yardi amounts to total forecast
-        if (viewMode !== 'budget') {
-            fTotal += unallocatedTotal;
-        }
+        fTotal += unallocatedTotal;
 
         // SLRH split
         const slrh = fundingPartners?.find(p => p.is_slrh);
         const pct = slrh?.default_split_pct ?? 100;
         return { totalBudget: bTotal, totalForecast: fTotal, totalVariance: fTotal - bTotal, slrhPct: pct };
-    }, [lineItems, monthKeys, budget?.budget_snapshot, hasSnapshot, today, getYardiActual, fundingPartners, unallocatedTotal, viewMode]);
+    }, [lineItems, monthKeys, budget?.budget_snapshot, hasSnapshot, today, getYardiActual, fundingPartners, unallocatedTotal]);
 
     const rowTotal = useCallback((li: PredevBudgetLineItem) =>
         monthKeys.reduce((sum, mk) => {

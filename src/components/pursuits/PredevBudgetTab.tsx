@@ -282,6 +282,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
     const [newPartnerSplit, setNewPartnerSplit] = useState('');
     const [mappingLineItem, setMappingLineItem] = useState<PredevBudgetLineItem | null>(null);
     const [showUnallocatedMapping, setShowUnallocatedMapping] = useState(false);
+    const [showPushConfirm, setShowPushConfirm] = useState(false);
     const [isEditAll, setIsEditAll] = useState(false);
     const pendingUpdatesRef = useRef<Record<string, Record<string, MonthlyCell>>>({});
     // Creation dialog
@@ -609,13 +610,13 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
         [upsertValues, pursuitId, today, getYardiActual, viewMode, hasSnapshot, budget, updateBudget]
     );
 
-    const handlePushBudgetToForecast = useCallback(async () => {
+    const confirmPushBudgetToForecast = useCallback(async () => {
         if (!hasSnapshot || !budget?.budget_snapshot) {
             alert("No baseline budget snapshot exists yet.");
             return;
         }
 
-        if (!confirm("Are you sure you want to push the baseline budget to the working forecast? This will overwrite manual overrides for all future and pending months.")) return;
+        setShowPushConfirm(false);
 
         let operations = 0;
         for (const li of lineItems) {
@@ -923,7 +924,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                     </button>
 
                     {hasSnapshot && (
-                        <button onClick={handlePushBudgetToForecast} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-subtle)] transition-colors" title="Overwrite forward months with original budget totals">
+                        <button onClick={() => setShowPushConfirm(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-subtle)] transition-colors" title="Overwrite forward months with original budget totals">
                             <RefreshCw className="w-3.5 h-3.5" /> Push Budget to Forecast
                         </button>
                     )}
@@ -1494,6 +1495,31 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                             <button onClick={() => { setShowAmendDialog(false); setAmendReason(''); }} className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]">Cancel</button>
                             <button onClick={handleAmend} disabled={amendBudgetMut.isPending} className="px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-sm font-medium transition-colors">
                                 {amendBudgetMut.isPending ? 'Saving...' : 'Amend Budget'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Push Budget Dialog */}
+            {showPushConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm px-4">
+                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in text-center">
+                        <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
+                            <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
+                        </div>
+                        <h2 className="text-lg font-bold text-[var(--text-primary)] mb-2">Push Core Budget?</h2>
+                        <p className="text-sm text-[var(--text-secondary)] mb-6">
+                            This will completely overwrite your working forecast for all future and pending months using the original budget allocations. 
+                            <br /><br />
+                            <strong className="text-[var(--text-primary)]">Any manual forecasting overrides will be lost.</strong>
+                        </p>
+                        <div className="flex justify-center gap-3 w-full">
+                            <button onClick={() => setShowPushConfirm(false)} className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors">
+                                Cancel
+                            </button>
+                            <button onClick={confirmPushBudgetToForecast} className="flex-1 px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-bold shadow-sm transition-colors">
+                                Overwrite
                             </button>
                         </div>
                     </div>

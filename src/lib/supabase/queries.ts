@@ -1089,6 +1089,28 @@ export async function deletePredevScheduleItem(itemId: string) {
     if (error) throw error;
 }
 
+export async function seedDefaultScheduleItems(budgetId: string) {
+    const { data: scheduleDefaults, error: scheduleDefaultsError } = await supabase
+        .from('default_predev_schedule_items')
+        .select('*')
+        .order('sort_order');
+        
+    if (!scheduleDefaultsError && scheduleDefaults && scheduleDefaults.length > 0) {
+        const scheduleItemsToInsert = scheduleDefaults.map((li: any) => ({
+            budget_id: budgetId,
+            section: li.section,
+            label: li.label,
+            duration_weeks: li.duration_weeks,
+            sort_order: li.sort_order,
+        }));
+
+        const { error: sError } = await supabase
+            .from('predev_schedule_items')
+            .insert(scheduleItemsToInsert);
+        if (sError) throw sError;
+    }
+}
+
 export async function updatePredevBudget(
     id: string,
     updates: Partial<Pick<PredevBudget, 'start_date' | 'duration_months' | 'notes' | 'budget_snapshot' | 'snapshot_taken_at'>>,

@@ -20,6 +20,7 @@ import {
     useUpdateLineItemCostGroups,
     useUpsertScheduleItem,
     useDeleteScheduleItem,
+    useSeedDefaultScheduleItems,
     usePursuit,
 } from '@/hooks/useSupabaseQueries';
 import { fetchMonthlyJobCostAggregates } from '@/app/actions/accounting';
@@ -253,6 +254,8 @@ function PredevScheduleTbody({
     expandLTD,
     onUpsert,
     onDelete,
+    onSeed,
+    onAddBlank,
     pursuitId
 }: {
     scheduleItems: PredevScheduleItem[];
@@ -262,6 +265,8 @@ function PredevScheduleTbody({
     expandLTD: boolean;
     onUpsert: (id: string | null, updates: any) => void;
     onDelete: (id: string) => void;
+    onSeed: () => void;
+    onAddBlank: () => void;
     pursuitId: string;
 }) {
     // Group items by section
@@ -275,10 +280,27 @@ function PredevScheduleTbody({
     return (
         <tbody className="schedule-body border-b-[3px] border-[var(--border-strong)]">
             <tr className="bg-[var(--bg-elevated)]">
-                <td colSpan={visibleMonths.length + (expandLTD && closedMonths.length > 0 ? 2 : 1) + 1} className="px-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border-b border-[var(--border)] tracking-widest uppercase">
-                    Pre-Development Schedule
+                <td colSpan={visibleMonths.length + (expandLTD && closedMonths.length > 0 ? 2 : 1) + 1} className="px-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border-b border-[var(--border)] uppercase flex items-center justify-between">
+                    <span className="tracking-widest">Pre-Development Schedule</span>
+                    <div className="flex gap-2">
+                        {scheduleItems.length === 0 && (
+                            <button onClick={onSeed} className="flex items-center gap-1 text-[10px] text-[var(--accent)] hover:underline">
+                                Generate Default Schedule
+                            </button>
+                        )}
+                        <button onClick={onAddBlank} className="flex items-center gap-1 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+                            <Plus className="w-3 h-3" /> Add Item
+                        </button>
+                    </div>
                 </td>
             </tr>
+            {scheduleItems.length === 0 && (
+                <tr className="bg-[var(--bg-card)] h-12">
+                     <td colSpan={visibleMonths.length + (expandLTD && closedMonths.length > 0 ? 2 : 1) + 1} className="px-4 py-3 text-xs text-[var(--text-muted)] text-center border-b border-[var(--border)]">
+                        No schedule items defined. Use the buttons above to add entries.
+                    </td>
+                </tr>
+            )}
             {Object.entries(grouped).map(([section, items]: [string, PredevScheduleItem[]]) => (
                 <optgroup key={section} label={section} className="contents">
                     <tr className="bg-[var(--bg-primary)]">
@@ -373,6 +395,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
     const upsertSplit = useUpsertFundingSplit();
     const upsertScheduleItem = useUpsertScheduleItem();
     const deleteScheduleItem = useDeleteScheduleItem();
+    const seedScheduleItems = useSeedDefaultScheduleItems();
 
     const { data: pursuit } = usePursuit(pursuitId);
 
@@ -1295,7 +1318,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                 <th className="sticky right-0 z-20 bg-[var(--bg-primary)] text-right px-2 py-1.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-l border-[var(--border)]" style={{ minWidth: 90 }}>Total</th>
                             </tr>
                         </thead>
-                        {showSchedule && scheduleItems.length > 0 && (
+                        {showSchedule && (
                             <PredevScheduleTbody 
                                 scheduleItems={scheduleItems}
                                 monthKeys={monthKeys}
@@ -1304,6 +1327,8 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                 expandLTD={expandLTD}
                                 onUpsert={(id, up) => upsertScheduleItem.mutate({ itemId: id, budgetId: budget!.id, pursuitId, updates: up })}
                                 onDelete={(id) => deleteScheduleItem.mutate({ itemId: id, pursuitId })}
+                                onSeed={() => seedScheduleItems.mutate({ budgetId: budget!.id, pursuitId })}
+                                onAddBlank={() => upsertScheduleItem.mutate({ itemId: null, budgetId: budget!.id, pursuitId, updates: { section: 'Summary', label: 'New Milestone', duration_weeks: 4 } })}
                                 pursuitId={pursuitId}
                             />
                         )}

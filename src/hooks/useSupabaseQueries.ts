@@ -740,6 +740,17 @@ export function useUpsertScheduleItem() {
     });
 }
 
+export function useSeedDefaultScheduleItems() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ budgetId, pursuitId }: { budgetId: string; pursuitId: string }) =>
+            queries.seedDefaultScheduleItems(budgetId),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId] });
+        },
+    });
+}
+
 export function useDeleteScheduleItem() {
     const qc = useQueryClient();
     return useMutation({

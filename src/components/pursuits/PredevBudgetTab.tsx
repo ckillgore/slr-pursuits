@@ -18,6 +18,8 @@ import {
     useFundingSplits,
     useUpsertFundingSplit,
     useUpdateLineItemCostGroups,
+    useUpsertScheduleItem,
+    useDeleteScheduleItem,
     usePursuit,
 } from '@/hooks/useSupabaseQueries';
 import { fetchMonthlyJobCostAggregates } from '@/app/actions/accounting';
@@ -25,14 +27,14 @@ import { fetchPursuitAccountingEntity } from '@/lib/supabase/queries';
 import { fetchJobsForProperty } from '@/app/actions/accounting';
 import { useRouter } from 'next/navigation';
 import { RichTextEditor } from '@/components/shared/RichTextEditor';
-import type { PredevBudget, PredevBudgetLineItem, MonthlyCell, PursuitFundingPartner } from '@/types';
+import type { PredevBudget, PredevBudgetLineItem, MonthlyCell, PursuitFundingPartner, PredevScheduleItem } from '@/types';
 import type { YardiMonthlyCostAggregate } from '@/app/actions/accounting';
 import { CostCodeMappingDialog } from '@/components/pursuits/CostCodeMappingDialog';
 import { UnallocatedMappingDialog } from '@/components/pursuits/UnallocatedMappingDialog';
 import {
     Plus, Loader2, DollarSign, Trash2, Settings, ChevronDown, ChevronUp,
     CalendarDays, StickyNote, TrendingUp, Camera, Pencil, Pin, PinOff,
-    Database, AlertCircle, History, Users, Shield, BarChart3, FileDown, RefreshCw,
+    Database, AlertCircle, History, Users, Shield, BarChart3, FileDown, RefreshCw, Clock,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/constants';
 
@@ -241,6 +243,115 @@ function FundingSplitCell({
     );
 }
 
+// ── Predev Schedule Gantt Tbody ────────────────────────────────
+
+function PredevScheduleTbody({
+    scheduleItems,
+    monthKeys,
+    visibleMonths,
+    closedMonths,
+    expandLTD,
+    onUpsert,
+    onDelete,
+    pursuitId
+}: {
+    scheduleItems: PredevScheduleItem[];
+    monthKeys: string[];
+    visibleMonths: string[];
+    closedMonths: string[];
+    expandLTD: boolean;
+    onUpsert: (id: string | null, updates: any) => void;
+    onDelete: (id: string) => void;
+    pursuitId: string;
+}) {
+    // Group items by section
+    const grouped = scheduleItems.reduce((acc, item) => {
+        const sec = item.section || 'General';
+        if (!acc[sec]) acc[sec] = [];
+        acc[sec].push(item);
+        return acc;
+    }, {} as Record<string, PredevScheduleItem[]>);
+
+    return (
+        <tbody className="schedule-body border-b-[3px] border-[var(--border-strong)]">
+            <tr className="bg-[var(--bg-elevated)]">
+                <td colSpan={visibleMonths.length + (expandLTD && closedMonths.length > 0 ? 2 : 1) + 1} className="px-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border-b border-[var(--border)] tracking-widest uppercase">
+                    Pre-Development Schedule
+                </td>
+            </tr>
+            {Object.entries(grouped).map(([section, items]: [string, PredevScheduleItem[]]) => (
+                <optgroup key={section} label={section} className="contents">
+                    <tr className="bg-[var(--bg-primary)]">
+                        <td colSpan={visibleMonths.length + (expandLTD && closedMonths.length > 0 ? 2 : 1) + 1} className="px-2 py-1 text-[10px] font-bold text-[var(--text-muted)] bg-[var(--bg-elevated)] border-b border-[var(--table-row-border)]">
+                            {section}
+                        </td>
+                    </tr>
+                    {items.map(item => {
+                        // Calculate Gantt bar position based on the global monthKeys array index
+                        let barLeft = -1;
+                        let barWidth = 0;
+                        if (item.start_date && item.duration_weeks > 0) {
+                            const startMk = item.start_date.substring(0, 7);
+                            const startIndex = visibleMonths.indexOf(startMk);
+                            if (startIndex !== -1) {
+                                // Find day offset
+                                const day = parseInt(item.start_date.substring(8, 10), 10);
+                                const dayOffset = (day / 30) * 75; // 75px per col
+                                barLeft = (startIndex * 75) + dayOffset;
+                                barWidth = (item.duration_weeks / 4.33) * 75;
+                            }
+                        }
+
+                        return (
+                            <tr key={item.id} className="group/row hover:bg-[var(--bg-elevated)] transition-colors h-7 relative">
+                                <td className="sticky left-0 z-10 bg-inherit border-r border-[var(--table-row-border)]">
+                                    <div className="flex flex-row">
+                                        <div className="w-[120px] px-2 py-1 truncate text-xs text-[var(--text-primary)] border-r border-[var(--border)] shadow-sm">{item.label}</div>
+                                        <div className="w-[80px] p-0.5 border-r border-[var(--border)] relative">
+                                            <input type="date" className="w-full text-[9px] bg-transparent outline-none h-full" value={item.start_date || ''} onChange={(e) => onUpsert(item.id, { start_date: e.target.value })} />
+                                        </div>
+                                        <div className="w-[40px] p-0.5 flex items-center justify-center relative">
+                                            <input type="number" className="w-full text-[10px] text-center bg-transparent outline-none" value={item.duration_weeks || 0} onChange={(e) => onUpsert(item.id, { duration_weeks: parseInt(e.target.value) || 0 })} />
+                                        </div>
+                                    </div>
+                                    <button onClick={() => onDelete(item.id)} className="absolute right-1 top-1.5 opacity-0 group-hover/row:opacity-100 text-[var(--danger)] hover:bg-[var(--danger-bg)] p-0.5 rounded transition-[opacity,background]">
+                                        <Trash2 className="w-3 h-3" />
+                                    </button>
+                                </td>
+                                {/* Skip LTD collapsed if applicable */}
+                                {!expandLTD && closedMonths.length > 0 && <td className="border-r border-[var(--table-row-border)] bg-[var(--bg-card)]"></td>}
+                                {/* Today line */}
+                                {expandLTD && closedMonths.length > 0 && <td className="border-r border-[var(--border)] p-0" style={{ width: 3, minWidth: 3 }}><div className="h-full w-[3px] bg-[var(--accent)] mx-auto opacity-20" /></td>}
+                                
+                                {/* Timeline Columns container */}
+                                <td colSpan={visibleMonths.length} className="p-0 relative overflow-hidden" style={{ minWidth: visibleMonths.length * 75, maxWidth: visibleMonths.length * 75 }}>
+                                    <div className="flex h-full w-full absolute inset-0">
+                                        {/* Background column guides */}
+                                        {visibleMonths.map((mk, i) => (
+                                            <div key={mk} className="h-full border-r border-[var(--table-row-border)]" style={{ minWidth: 75, width: 75 }}></div>
+                                        ))}
+                                    </div>
+                                    {/* The Gantt Bar */}
+                                    {barLeft >= 0 && (
+                                        <div 
+                                            className="absolute top-1 bottom-1 bg-orange-300 dark:bg-orange-600/50 rounded shadow-sm border border-orange-400 dark:border-orange-500 z-10 flex items-center overflow-hidden px-1 pointer-events-none"
+                                            style={{ left: barLeft, width: barWidth }}
+                                        >
+                                           <span className="text-[8px] font-bold text-orange-900 dark:text-orange-100 truncate w-full">{item.label}</span>
+                                        </div>
+                                    )}
+                                </td>
+                                
+                                <td className="bg-[var(--bg-primary)] border-l border-[var(--table-row-border)]"></td>
+                            </tr>
+                        );
+                    })}
+                </optgroup>
+            ))}
+        </tbody>
+    );
+}
+
 // ── Main Component ──────────────────────────────────────────
 
 export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
@@ -260,6 +371,8 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
     const updatePartner = useUpdateFundingPartner();
     const deletePartner = useDeleteFundingPartner();
     const upsertSplit = useUpsertFundingSplit();
+    const upsertScheduleItem = useUpsertScheduleItem();
+    const deleteScheduleItem = useDeleteScheduleItem();
 
     const { data: pursuit } = usePursuit(pursuitId);
 
@@ -283,6 +396,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
     const [mappingLineItem, setMappingLineItem] = useState<PredevBudgetLineItem | null>(null);
     const [showUnallocatedMapping, setShowUnallocatedMapping] = useState(false);
     const [showPushConfirm, setShowPushConfirm] = useState(false);
+    const [showSchedule, setShowSchedule] = useState(true);
     const [isEditAll, setIsEditAll] = useState(false);
     const pendingUpdatesRef = useRef<Record<string, Record<string, MonthlyCell>>>({});
     // Creation dialog
@@ -328,16 +442,35 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
         [budget]
     );
 
-    // Extend month range to include any Yardi actuals that predate the budget start
+    // Extend month range to include any Yardi actuals that predate the budget start, AND schedule items
     const monthKeys = useMemo(() => {
         const allMonths = new Set(budgetMonthKeys);
-        // Add any months from Yardi data (group or detail level)
+        
+        // Add any months from Yardi data
         for (const agg of yardiAggregates) {
             allMonths.add(agg.month);
         }
+        
+        // Add any months from Schedule items
+        const currentScheduleItems = budget?.schedule_items ?? [];
+        for (const item of currentScheduleItems) {
+            if (item.start_date) {
+                const startMk = item.start_date.substring(0, 7); // yyyy-mm
+                allMonths.add(startMk);
+                
+                if (item.duration_weeks > 0) {
+                    const monthsToAdd = Math.ceil(item.duration_weeks / 4.33); 
+                    const extendedKeys = getMonthKeys(startMk + '-01', Math.max(1, monthsToAdd));
+                    extendedKeys.forEach(mk => allMonths.add(mk));
+                }
+            }
+        }
+        
         return Array.from(allMonths).sort();
-    }, [budgetMonthKeys, yardiAggregates]);
-     const lineItems = budget?.line_items ?? [];
+    }, [budgetMonthKeys, yardiAggregates, budget?.schedule_items]);
+    
+    const lineItems = budget?.line_items ?? [];
+    const scheduleItems = budget?.schedule_items ?? [];
     const hasSnapshot = !!budget?.budget_snapshot;
 
     // Split months into closed (LTD) and forward
@@ -927,6 +1060,10 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                         </button>
                     )}
 
+                    <button onClick={() => setShowSchedule(!showSchedule)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${showSchedule ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'}`}>
+                        <Clock className="w-3.5 h-3.5" /> Schedule
+                    </button>
+
                     <button onClick={() => setShowFunding(!showFunding)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${showFunding ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'}`}>
                         <Users className="w-3.5 h-3.5" /> Funding
                     </button>
@@ -1158,6 +1295,18 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                 <th className="sticky right-0 z-20 bg-[var(--bg-primary)] text-right px-2 py-1.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-l border-[var(--border)]" style={{ minWidth: 90 }}>Total</th>
                             </tr>
                         </thead>
+                        {showSchedule && scheduleItems.length > 0 && (
+                            <PredevScheduleTbody 
+                                scheduleItems={scheduleItems}
+                                monthKeys={monthKeys}
+                                visibleMonths={visibleMonths}
+                                closedMonths={closedMonths}
+                                expandLTD={expandLTD}
+                                onUpsert={(id, up) => upsertScheduleItem.mutate({ itemId: id, budgetId: budget!.id, pursuitId, updates: up })}
+                                onDelete={(id) => deleteScheduleItem.mutate({ itemId: id, pursuitId })}
+                                pursuitId={pursuitId}
+                            />
+                        )}
                         <tbody>
                             {lineItems.map((li, idx) => {
                                 const rt = rowTotal(li);

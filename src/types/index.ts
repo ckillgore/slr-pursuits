@@ -392,6 +392,17 @@ export interface PredevBudget {
   created_at: string;
   updated_at: string;
   line_items?: PredevBudgetLineItem[];
+  schedule_items?: PredevScheduleItem[];
+}
+
+export interface PredevScheduleItem {
+  id: string;
+  budget_id: string;
+  section: string;
+  label: string;
+  start_date: string | null;
+  duration_weeks: number;
+  sort_order: number;
 }
 
 // --- Calculation Results (used by useCalculations hook) ---

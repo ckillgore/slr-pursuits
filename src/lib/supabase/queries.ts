@@ -956,7 +956,7 @@ const DEFAULT_LINE_ITEMS: { category: string; label: string; sort_order: number;
 export async function fetchPredevBudget(pursuitId: string): Promise<PredevBudget | null> {
     const { data, error } = await supabase
         .from('predev_budgets')
-        .select('*, predev_budget_line_items(*)')
+        .select('*, predev_budget_line_items(*), predev_schedule_items(*)')
         .eq('pursuit_id', pursuitId)
         .maybeSingle();
     if (error) throw error;
@@ -965,6 +965,9 @@ export async function fetchPredevBudget(pursuitId: string): Promise<PredevBudget
         ...data,
         line_items: (data.predev_budget_line_items ?? []).sort(
             (a: PredevBudgetLineItem, b: PredevBudgetLineItem) => a.sort_order - b.sort_order
+        ),
+        schedule_items: (data.predev_schedule_items ?? []).sort(
+            (a: any, b: any) => a.sort_order - b.sort_order
         ),
     } as PredevBudget;
 }
@@ -1028,8 +1031,62 @@ export async function createPredevBudget(
         });
     }
 
+    // Seed default schedule items
+    const { data: scheduleDefaults, error: scheduleDefaultsError } = await supabase
+        .from('default_predev_schedule_items')
+        .select('*')
+        .order('sort_order');
+        
+    if (!scheduleDefaultsError && scheduleDefaults && scheduleDefaults.length > 0) {
+        const scheduleItemsToInsert = scheduleDefaults.map((li: any) => ({
+            budget_id: data.id,
+            section: li.section,
+            label: li.label,
+            duration_weeks: li.duration_weeks,
+            sort_order: li.sort_order,
+        }));
+
+        const { error: sError } = await supabase
+            .from('predev_schedule_items')
+            .insert(scheduleItemsToInsert);
+        if (sError) console.error("Failed to seed schedule items", sError);
+    }
+
     // Refetch with line items
     return (await fetchPredevBudget(pursuitId))!;
+}
+
+export async function upsertPredevScheduleItem(
+    itemId: string | null,
+    budgetId: string,
+    updates: {
+        section?: string;
+        label?: string;
+        start_date?: string | null;
+        duration_weeks?: number;
+        sort_order?: number;
+    }
+) {
+    if (itemId) {
+        const { error } = await supabase
+            .from('predev_schedule_items')
+            .update(updates)
+            .eq('id', itemId);
+        if (error) throw error;
+    } else {
+        const { error } = await supabase
+            .from('predev_schedule_items')
+            .insert({ ...updates, budget_id: budgetId });
+        if (error) throw error;
+    }
+}
+
+export async function deletePredevScheduleItem(itemId: string) {
+    const { error } = await supabase
+        .from('predev_schedule_items')
+        .delete()
+        .eq('id', itemId);
+    if (error) throw error;
 }
 
 export async function updatePredevBudget(

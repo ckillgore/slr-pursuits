@@ -728,6 +728,29 @@ export function useUpdatePredevBudget() {
     });
 }
 
+export function useUpsertScheduleItem() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ itemId, budgetId, pursuitId, updates }: {
+            itemId: string | null; budgetId: string; pursuitId: string; updates: any;
+        }) => queries.upsertPredevScheduleItem(itemId, budgetId, updates),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId] });
+        },
+    });
+}
+
+export function useDeleteScheduleItem() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ itemId, pursuitId }: { itemId: string; pursuitId: string }) =>
+            queries.deletePredevScheduleItem(itemId),
+        onSuccess: (_, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId] });
+        },
+    });
+}
+
 export function useUpsertLineItemValues() {
     const qc = useQueryClient();
     return useMutation({

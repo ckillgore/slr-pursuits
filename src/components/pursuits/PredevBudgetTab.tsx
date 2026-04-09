@@ -609,6 +609,46 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
         [upsertValues, pursuitId, today, getYardiActual, viewMode, hasSnapshot, budget, updateBudget]
     );
 
+    const handlePushBudgetToForecast = useCallback(async () => {
+        if (!hasSnapshot || !budget?.budget_snapshot) {
+            alert("No baseline budget snapshot exists yet.");
+            return;
+        }
+
+        if (!confirm("Are you sure you want to push the baseline budget to the working forecast? This will overwrite manual overrides for all future and pending months.")) return;
+
+        let operations = 0;
+        for (const li of budgetItems) {
+            let changed = false;
+            const newMonthly = { ...li.monthly_values };
+
+            for (const mk of forwardMonths) {
+                const snapshotVal = budget.budget_snapshot[li.id]?.[mk] ?? 0;
+                const current = newMonthly[mk] ?? { projected: 0, actual: null };
+                const yardiVal = getYardiActual(li, mk) ?? 0;
+
+                // We want the total shown in Forecast to equal snapshotVal.
+                // In forecast, total = yardiVal + projected
+                const newProjected = Math.max(0, snapshotVal - yardiVal);
+
+                if (current.projected !== newProjected) {
+                    newMonthly[mk] = { ...current, projected: newProjected, manual_override: true };
+                    changed = true;
+                }
+            }
+
+            if (changed) {
+                operations++;
+                // Bypass pendingUpdatesRef since we're bulk saving and not dealing with simultaneous keystrokes here
+                upsertValues.mutate({ lineItemId: li.id, monthlyValues: newMonthly, pursuitId });
+            }
+        }
+
+        if (operations === 0) {
+            alert("No future months needed updating (they already match the budget).");
+        }
+    }, [hasSnapshot, budget, budgetItems, forwardMonths, getYardiActual, upsertValues, pursuitId]);
+
     const handleTogglePin = useCallback(
         (lineItem: PredevBudgetLineItem, monthKey: string) => {
             const current = lineItem.monthly_values[monthKey] ?? { projected: 0, actual: null };
@@ -881,6 +921,12 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                     <button onClick={() => setIsEditAll(!isEditAll)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isEditAll ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'}`}>
                         <Pencil className="w-3.5 h-3.5" /> Edit All
                     </button>
+
+                    {hasSnapshot && (
+                        <button onClick={handlePushBudgetToForecast} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-subtle)] transition-colors" title="Overwrite forward months with original budget totals">
+                            <RefreshCw className="w-3.5 h-3.5" /> Push Budget to Forecast
+                        </button>
+                    )}
 
                     <button onClick={() => setShowFunding(!showFunding)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${showFunding ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'}`}>
                         <Users className="w-3.5 h-3.5" /> Funding

@@ -32,7 +32,7 @@ import { UnallocatedMappingDialog } from '@/components/pursuits/UnallocatedMappi
 import {
     Plus, Loader2, DollarSign, Trash2, Settings, ChevronDown, ChevronUp,
     CalendarDays, StickyNote, TrendingUp, Camera, Pencil, Pin, PinOff,
-    Database, AlertCircle, History, Users, Shield, BarChart3, FileDown,
+    Database, AlertCircle, History, Users, Shield, BarChart3, FileDown, RefreshCw,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/constants';
 
@@ -618,7 +618,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
         if (!confirm("Are you sure you want to push the baseline budget to the working forecast? This will overwrite manual overrides for all future and pending months.")) return;
 
         let operations = 0;
-        for (const li of budgetItems) {
+        for (const li of lineItems) {
             let changed = false;
             const newMonthly = { ...li.monthly_values };
 
@@ -647,7 +647,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
         if (operations === 0) {
             alert("No future months needed updating (they already match the budget).");
         }
-    }, [hasSnapshot, budget, budgetItems, forwardMonths, getYardiActual, upsertValues, pursuitId]);
+    }, [hasSnapshot, budget, lineItems, forwardMonths, getYardiActual, upsertValues, pursuitId]);
 
     const handleTogglePin = useCallback(
         (lineItem: PredevBudgetLineItem, monthKey: string) => {

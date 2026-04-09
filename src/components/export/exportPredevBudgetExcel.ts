@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import type { Pursuit, PredevBudget, PredevBudgetLineItem } from '@/types';
+import type { Pursuit, PredevBudget, PredevBudgetLineItem, PredevScheduleItem } from '@/types';
 
 // Formatting helpers
 function getMonthKeyLabel(mk: string) {
@@ -21,11 +21,14 @@ interface ExportOptions {
     hasUnallocated?: boolean;
     unallocatedByMonth?: Map<string, number>;
     viewMode: string;
+    showSchedule?: boolean;
+    scheduleItems?: PredevScheduleItem[];
 }
 
 export async function exportPredevBudgetToExcel({
     pursuit, budget, lineItems, monthKeys, closedMonths, forwardMonths,
-    expandLTD, getCellInfo, rowTotal, hasUnallocated, unallocatedByMonth, viewMode
+    expandLTD, getCellInfo, rowTotal, hasUnallocated, unallocatedByMonth, viewMode,
+    showSchedule, scheduleItems
 }: ExportOptions) {
     const wb = new ExcelJS.Workbook();
     wb.creator = 'SLR Pursuits';
@@ -55,6 +58,29 @@ export async function exportPredevBudgetToExcel({
     }
     forwardMonths.forEach(mk => cols.push(`Proj ${getMonthKeyLabel(mk)}`));
     cols.push('Total Amount');
+
+    // Add Schedule if requested
+    if (showSchedule && scheduleItems && scheduleItems.length > 0) {
+        ws.addRow(['Pre-Development Schedule']).font = { bold: true, color: { argb: 'FF1A1F2B' } };
+        
+        // Group items
+        const grouped = scheduleItems.reduce((acc, item) => {
+            const sec = item.section || 'General';
+            if (!acc[sec]) acc[sec] = [];
+            acc[sec].push(item);
+            return acc;
+        }, {} as Record<string, PredevScheduleItem[]>);
+
+        Object.entries(grouped).forEach(([section, items]) => {
+            const secRow = ws.addRow([section]);
+            secRow.font = { bold: true, italic: true };
+            items.forEach(item => {
+                const sRow = ws.addRow([`  ${item.label}`, `${item.start_date ? item.start_date : 'TBD'} (${item.duration_weeks} wks)`]);
+                sRow.font = { color: { argb: 'FF4B5563' } };
+            });
+        });
+        ws.addRow([]);
+    }
 
     const headerRow = ws.addRow(cols);
     headerRow.eachCell((cell) => {

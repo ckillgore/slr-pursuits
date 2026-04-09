@@ -7,7 +7,7 @@ import {
     StyleSheet,
     Font,
 } from '@react-pdf/renderer';
-import type { Pursuit, PredevBudget, PredevBudgetLineItem } from '@/types';
+import type { Pursuit, PredevBudget, PredevBudgetLineItem, PredevScheduleItem } from '@/types';
 
 // Register font
 Font.register({
@@ -111,11 +111,13 @@ interface PredevBudgetPDFProps {
     hasUnallocated?: boolean;
     unallocatedByMonth?: Map<string, number>;
     viewMode: string;
+    showSchedule?: boolean;
+    scheduleItems?: PredevScheduleItem[];
 }
 
 export function PredevBudgetPDF({
     pursuit, viewMode, lineItems, closedMonths, forwardMonths, expandLTD,
-    getCellInfo, rowTotal, hasUnallocated, unallocatedByMonth
+    getCellInfo, rowTotal, hasUnallocated, unallocatedByMonth, showSchedule, scheduleItems
 }: PredevBudgetPDFProps) {
     
     // Determine the columns we need to build for the active visual mode
@@ -144,6 +146,37 @@ export function PredevBudgetPDF({
                         <Image src="/images/slr-logo.png" style={{ width: 80, height: 'auto' }} />
                     </View>
                 </View>
+
+                {/* Predev Schedule */}
+                {showSchedule && scheduleItems && scheduleItems.length > 0 && (
+                    <View style={{ marginBottom: 10 }}>
+                        <View style={{ ...s.tableHeader, backgroundColor: 'transparent', borderBottom: 'none' }}>
+                            <Text style={s.cellHead}>Pre-Development Schedule</Text>
+                        </View>
+                        {Object.entries(
+                            scheduleItems.reduce((acc, item) => {
+                                const sec = item.section || 'General';
+                                if (!acc[sec]) acc[sec] = [];
+                                acc[sec].push(item);
+                                return acc;
+                            }, {} as Record<string, PredevScheduleItem[]>)
+                        ).map(([section, items]) => (
+                            <View key={section}>
+                                <View style={{ ...s.tableRow, backgroundColor: colors.bgLight }}>
+                                    <Text style={s.cellHead}>{section}</Text>
+                                </View>
+                                {items.map((item) => (
+                                    <View key={item.id} style={s.tableRow}>
+                                        <Text style={{ ...s.cellLabel, width: `${labelW}%` }}>  {item.label}</Text>
+                                        <Text style={{ ...s.cellValue, flex: 1, textAlign: 'left' }}>
+                                            {item.start_date ? item.start_date : 'TBD'} ({item.duration_weeks} wks)
+                                        </Text>
+                                    </View>
+                                ))}
+                            </View>
+                        ))}
+                    </View>
+                )}
 
                 {/* Table Header */}
                 <View style={s.tableHeader}>

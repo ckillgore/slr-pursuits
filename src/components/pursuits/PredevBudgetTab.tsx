@@ -244,9 +244,9 @@ function FundingSplitCell({
     );
 }
 
-// ── Predev Schedule Gantt Tbody ────────────────────────────────
+// ── Predev Schedule Gantt Rows ────────────────────────────────
 
-function PredevScheduleTbody({
+function PredevScheduleRows({
     scheduleItems,
     monthKeys,
     visibleMonths,
@@ -278,9 +278,9 @@ function PredevScheduleTbody({
     }, {} as Record<string, PredevScheduleItem[]>);
 
     return (
-        <tbody className="schedule-body border-b-[3px] border-[var(--border-strong)]">
+        <>
             <tr className="bg-[var(--bg-elevated)]">
-                <td colSpan={visibleMonths.length + (expandLTD && closedMonths.length > 0 ? 2 : 1) + 1} className="px-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border-b border-[var(--border)] uppercase flex items-center justify-between">
+                <td colSpan={visibleMonths.length + (expandLTD && closedMonths.length > 0 ? 2 : 1) + 1} className="px-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border-b border-[var(--border)] uppercase flex items-center justify-between border-t-0">
                     <span className="tracking-widest">Pre-Development Schedule</span>
                     <div className="flex gap-2">
                         {scheduleItems.length === 0 && (
@@ -296,19 +296,19 @@ function PredevScheduleTbody({
             </tr>
             {scheduleItems.length === 0 && (
                 <tr className="bg-[var(--bg-card)] h-12">
-                     <td colSpan={visibleMonths.length + (expandLTD && closedMonths.length > 0 ? 2 : 1) + 1} className="px-4 py-3 text-xs text-[var(--text-muted)] text-center border-b border-[var(--border)]">
+                     <td colSpan={visibleMonths.length + (expandLTD && closedMonths.length > 0 ? 2 : 1) + 1} className="px-4 py-3 text-xs text-[var(--text-muted)] text-center border-b-[3px] border-[var(--border-strong)]">
                         No schedule items defined. Use the buttons above to add entries.
                     </td>
                 </tr>
             )}
-            {Object.entries(grouped).map(([section, items]: [string, PredevScheduleItem[]]) => (
+            {Object.entries(grouped).map(([section, items]: [string, PredevScheduleItem[]], idx, arr) => (
                 <optgroup key={section} label={section} className="contents">
                     <tr className="bg-[var(--bg-primary)]">
                         <td colSpan={visibleMonths.length + (expandLTD && closedMonths.length > 0 ? 2 : 1) + 1} className="px-2 py-1 text-[10px] font-bold text-[var(--text-muted)] bg-[var(--bg-elevated)] border-b border-[var(--table-row-border)]">
                             {section}
                         </td>
                     </tr>
-                    {items.map(item => {
+                    {items.map((item, itemIdx) => {
                         // Calculate Gantt bar position based on the global monthKeys array index
                         let barLeft = -1;
                         let barWidth = 0;
@@ -324,9 +324,12 @@ function PredevScheduleTbody({
                             }
                         }
 
+                        const isLastItemInLastSection = idx === arr.length - 1 && itemIdx === items.length - 1;
+                        const cellBorderClass = isLastItemInLastSection ? "border-b-[3px] border-[var(--border-strong)]" : "border-b-[0px]";
+
                         return (
                             <tr key={item.id} className="group/row hover:bg-[var(--bg-elevated)] transition-colors h-7 relative">
-                                <td className="sticky left-0 z-10 bg-inherit border-r border-[var(--table-row-border)]">
+                                <td className={`sticky left-0 z-10 bg-inherit border-r border-[var(--table-row-border)] ${cellBorderClass}`}>
                                     <div className="flex flex-row">
                                         <div className="w-[120px] px-2 py-1 truncate text-xs text-[var(--text-primary)] border-r border-[var(--border)] shadow-sm">{item.label}</div>
                                         <div className="w-[80px] p-0.5 border-r border-[var(--border)] relative">
@@ -341,12 +344,12 @@ function PredevScheduleTbody({
                                     </button>
                                 </td>
                                 {/* Skip LTD collapsed if applicable */}
-                                {!expandLTD && closedMonths.length > 0 && <td className="border-r border-[var(--table-row-border)] bg-[var(--bg-card)]"></td>}
+                                {!expandLTD && closedMonths.length > 0 && <td className={`border-r border-[var(--table-row-border)] bg-[var(--bg-card)] ${cellBorderClass}`}></td>}
                                 {/* Today line */}
-                                {expandLTD && closedMonths.length > 0 && <td className="border-r border-[var(--border)] p-0" style={{ width: 3, minWidth: 3 }}><div className="h-full w-[3px] bg-[var(--accent)] mx-auto opacity-20" /></td>}
+                                {expandLTD && closedMonths.length > 0 && <td className={`border-r border-[var(--border)] p-0 ${cellBorderClass}`} style={{ width: 3, minWidth: 3 }}><div className="h-full w-[3px] bg-[var(--accent)] mx-auto opacity-20" /></td>}
                                 
                                 {/* Timeline Columns container */}
-                                <td colSpan={visibleMonths.length} className="p-0 relative overflow-hidden" style={{ minWidth: visibleMonths.length * 75, maxWidth: visibleMonths.length * 75 }}>
+                                <td colSpan={visibleMonths.length} className={`p-0 relative overflow-hidden ${cellBorderClass}`} style={{ minWidth: visibleMonths.length * 75, maxWidth: visibleMonths.length * 75 }}>
                                     <div className="flex h-full w-full absolute inset-0">
                                         {/* Background column guides */}
                                         {visibleMonths.map((mk, i) => (
@@ -364,13 +367,13 @@ function PredevScheduleTbody({
                                     )}
                                 </td>
                                 
-                                <td className="bg-[var(--bg-primary)] border-l border-[var(--table-row-border)]"></td>
+                                <td className={`bg-[var(--bg-primary)] border-l border-[var(--table-row-border)] ${cellBorderClass}`}></td>
                             </tr>
                         );
                     })}
                 </optgroup>
             ))}
-        </tbody>
+        </>
     );
 }
 
@@ -1027,7 +1030,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                             try {
                                 const { pdf } = await import('@react-pdf/renderer');
                                 const { PredevBudgetPDF } = await import('@/components/export/PredevBudgetPDF');
-                                const doc = <PredevBudgetPDF pursuit={pursuit!} budget={budget} lineItems={lineItems} monthKeys={monthKeys} closedMonths={closedMonths} forwardMonths={forwardMonths} expandLTD={expandLTD} getCellInfo={getCellInfo} rowTotal={rowTotal} hasUnallocated={hasUnallocated} unallocatedByMonth={unallocatedByMonth} viewMode={viewMode} />;
+                                const doc = <PredevBudgetPDF pursuit={pursuit!} budget={budget} lineItems={lineItems} monthKeys={monthKeys} closedMonths={closedMonths} forwardMonths={forwardMonths} expandLTD={expandLTD} getCellInfo={getCellInfo} rowTotal={rowTotal} hasUnallocated={hasUnallocated} unallocatedByMonth={unallocatedByMonth} viewMode={viewMode} showSchedule={showSchedule} scheduleItems={scheduleItems} />;
                                 const blob = await pdf(doc).toBlob();
                                 const url = URL.createObjectURL(blob);
                                 const a = document.createElement('a');
@@ -1056,7 +1059,8 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                 const { exportPredevBudgetToExcel } = await import('@/components/export/exportPredevBudgetExcel');
                                 await exportPredevBudgetToExcel({
                                     pursuit: pursuit!, budget, lineItems, monthKeys, closedMonths, forwardMonths,
-                                    expandLTD, getCellInfo, rowTotal, hasUnallocated, unallocatedByMonth, viewMode
+                                    expandLTD, getCellInfo, rowTotal, hasUnallocated, unallocatedByMonth, viewMode,
+                                    showSchedule, scheduleItems
                                 });
                             } catch (err) {
                                 console.error('Excel export failed:', err);
@@ -1254,6 +1258,20 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                 <div className="overflow-x-auto custom-scrollbar">
                     <table className="w-full border-collapse" style={{ minWidth: `${160 + (expandLTD ? monthKeys.length : forwardMonths.length + 1) * 75 + 90}px` }}>
                         <thead>
+                            {showSchedule && (
+                                <PredevScheduleRows 
+                                    scheduleItems={scheduleItems}
+                                    monthKeys={monthKeys}
+                                    visibleMonths={visibleMonths}
+                                    closedMonths={closedMonths}
+                                    expandLTD={expandLTD}
+                                    onUpsert={(id, up) => upsertScheduleItem.mutate({ itemId: id, budgetId: budget!.id, pursuitId, updates: up })}
+                                    onDelete={(id) => deleteScheduleItem.mutate({ itemId: id, pursuitId })}
+                                    onSeed={() => seedScheduleItems.mutate({ budgetId: budget!.id, pursuitId })}
+                                    onAddBlank={() => upsertScheduleItem.mutate({ itemId: null, budgetId: budget!.id, pursuitId, updates: { section: 'Summary', label: 'New Milestone', duration_weeks: 4 } })}
+                                    pursuitId={pursuitId}
+                                />
+                            )}
                             <tr className="bg-[var(--bg-primary)]">
                                 <th className="sticky left-0 z-20 bg-[var(--bg-primary)] text-left px-2 py-1.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-r border-[var(--border)]" style={{ minWidth: 160 }}>
                                     Line Item
@@ -1318,20 +1336,6 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                 <th className="sticky right-0 z-20 bg-[var(--bg-primary)] text-right px-2 py-1.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-l border-[var(--border)]" style={{ minWidth: 90 }}>Total</th>
                             </tr>
                         </thead>
-                        {showSchedule && (
-                            <PredevScheduleTbody 
-                                scheduleItems={scheduleItems}
-                                monthKeys={monthKeys}
-                                visibleMonths={visibleMonths}
-                                closedMonths={closedMonths}
-                                expandLTD={expandLTD}
-                                onUpsert={(id, up) => upsertScheduleItem.mutate({ itemId: id, budgetId: budget!.id, pursuitId, updates: up })}
-                                onDelete={(id) => deleteScheduleItem.mutate({ itemId: id, pursuitId })}
-                                onSeed={() => seedScheduleItems.mutate({ budgetId: budget!.id, pursuitId })}
-                                onAddBlank={() => upsertScheduleItem.mutate({ itemId: null, budgetId: budget!.id, pursuitId, updates: { section: 'Summary', label: 'New Milestone', duration_weeks: 4 } })}
-                                pursuitId={pursuitId}
-                            />
-                        )}
                         <tbody>
                             {lineItems.map((li, idx) => {
                                 const rt = rowTotal(li);

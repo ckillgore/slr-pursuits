@@ -1,0 +1,9 @@
+SELECT 'DRAWDET' as Source, COUNT(*) as Count
+FROM DRAWDET d
+WHERE d.HJOB = 145
+
+UNION ALL
+
+SELECT 'JCDETAIL' as Source, COUNT(*) as Count
+FROM JCDETAIL jc
+WHERE jc.HJOB = 145;

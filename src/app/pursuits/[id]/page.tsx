@@ -346,7 +346,7 @@ export default function PursuitDetailPage() {
 
     return (
         <AppShell>
-            <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-8">
+            <div className="max-w-[1600px] mx-auto px-4 md:px-6 py-6 md:py-8">
                 {/* Breadcrumb */}
                 <Link
                     href="/"

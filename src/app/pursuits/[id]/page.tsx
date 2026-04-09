@@ -123,8 +123,6 @@ export default function PursuitDetailPage() {
     const [aiError, setAiError] = useState<string | null>(null);
     const aiHydratedRef = useRef(false);
 
-    const [memoLoading, setMemoLoading] = useState(false);
-
     // Sync from DB once pursuit loads (useState initializer runs before data is fetched)
     useEffect(() => {
         const saved = (pursuit?.parcel_data as any)?.aiSummary;
@@ -191,55 +189,6 @@ export default function PursuitDetailPage() {
             setAiLoading(false);
         }
     }, [pursuit, onePagers, rentComps]);
-
-    const generateMemo = async () => {
-        if (!pursuit) return;
-        setMemoLoading(true);
-        try {
-            const res = await fetch('/api/ai-memo/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    pursuitData: pursuit,
-                    demographics: pursuit.demographics,
-                    onePagers,
-                    rentComps: rentComps.filter(rc => rc.property).map(rc => {
-                        const p = rc.property!;
-                        return {
-                            name: p.building_name || p.street_address,
-                            address: [p.street_address, p.city, p.state, p.zip_code].filter(Boolean).join(', '),
-                            totalUnits: p.number_units,
-                            yearBuilt: p.year_built,
-                            occupancyPct: p.occupancy_over_time?.length
-                                ? (p.occupancy_over_time[p.occupancy_over_time.length - 1] as any).leased * 100
-                                : null,
-                            qualityScore: p.building_quality?.property_overall_quality,
-                            compType: rc.comp_type || 'primary',
-                            units: ((p.units || []) as any[]).slice(0, 50).map((u: any) => ({
-                                bed: u.bed,
-                                bath: u.bath,
-                                sqft: u.sqft,
-                                askingRent: u.asking_price,
-                            })),
-                        };
-                    }),
-                    keyDates,
-                    predevBudget
-                }),
-            });
-            
-            const data = await res.json();
-            if (!res.ok || data.error) {
-                throw new Error(data.error || 'Failed to generate memo');
-            }
-
-            // Hard navigation to ensure fresh pursuit data is loaded with the new HTML string
-            window.location.href = `/pursuits/${pursuit.id}/memo`;
-        } catch (err: any) {
-            alert(err.message || 'Failed to generate memo');
-            setMemoLoading(false);
-        }
-    };
 
     const { data: templates = [] } = useTemplates({ enabled: needsOnePagerDeps });
     const matchingTemplates = templates.filter(
@@ -411,15 +360,6 @@ export default function PursuitDetailPage() {
                                     <option key={s.id} value={s.id} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>{s.name}</option>
                                 ))}
                             </select>
-                            
-                            <button
-                                onClick={generateMemo}
-                                disabled={memoLoading}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors disabled:opacity-50 flex-shrink-0 shadow-sm"
-                            >
-                                {memoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                                <span>Generate Memo</span>
-                            </button>
                             
                             <CommentTrigger entityType="pursuit" entityId={pursuitUuid} />
                             

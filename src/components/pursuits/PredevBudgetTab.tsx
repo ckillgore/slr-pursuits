@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect, Fragment } from 'react';
 import {
     usePredevBudget,
     useCreatePredevBudget,
@@ -277,10 +277,12 @@ function PredevScheduleRows({
         return acc;
     }, {} as Record<string, PredevScheduleItem[]>);
 
+    const totalCols = 1 + (!expandLTD ? 1 : (closedMonths.length + (closedMonths.length > 0 ? 1 : 0))) + forwardMonths.length + 1;
+
     return (
         <>
             <tr className="bg-[var(--bg-elevated)]">
-                <td colSpan={visibleMonths.length + (expandLTD && closedMonths.length > 0 ? 2 : 1) + 1} className="p-0 border-b border-[var(--border)] border-t-0 bg-[var(--bg-elevated)]">
+                <td colSpan={totalCols} className="p-0 border-b border-[var(--border)] border-t-0 bg-[var(--bg-elevated)]">
                     <div className="px-2 py-1.5 text-xs font-bold text-[var(--text-primary)] uppercase flex items-center justify-between">
                         <span className="tracking-widest">Pre-Development Schedule</span>
                         <div className="flex gap-2">
@@ -298,15 +300,18 @@ function PredevScheduleRows({
             </tr>
             {scheduleItems.length === 0 && (
                 <tr className="bg-[var(--bg-card)] h-12">
-                     <td colSpan={visibleMonths.length + (expandLTD && closedMonths.length > 0 ? 2 : 1) + 1} className="px-4 py-3 text-xs text-[var(--text-muted)] text-center border-b-[3px] border-[var(--border-strong)]">
-                        No schedule items defined. Use the buttons above to add entries.
+                     <td colSpan={totalCols} className="px-4 py-8 text-xs text-[var(--text-muted)] text-center border-b-[3px] border-[var(--border-strong)]">
+                         <div className="flex flex-col items-center justify-center text-[var(--text-faint)]">
+                            <CalendarDays className="w-6 h-6 mb-2 opacity-50" />
+                            No schedule items defined. Use the buttons above to add entries.
+                        </div>
                     </td>
                 </tr>
             )}
             {Object.entries(grouped).map(([section, items]: [string, PredevScheduleItem[]], idx, arr) => (
-                <optgroup key={section} label={section} className="contents">
+                <Fragment key={section}>
                     <tr className="bg-[var(--bg-primary)]">
-                        <td colSpan={visibleMonths.length + (expandLTD && closedMonths.length > 0 ? 2 : 1) + 1} className="px-2 py-1 text-[10px] font-bold text-[var(--text-muted)] bg-[var(--bg-elevated)] border-b border-[var(--table-row-border)]">
+                        <td colSpan={totalCols} className="px-3 py-1.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider bg-[var(--bg-elevated)] border-b border-[var(--table-row-border)]">
                             {section}
                         </td>
                     </tr>
@@ -316,55 +321,71 @@ function PredevScheduleRows({
                         let barWidth = 0;
                         if (item.start_date && item.duration_weeks > 0) {
                             const startMk = item.start_date.substring(0, 7);
-                            const startIndex = visibleMonths.indexOf(startMk);
+                            const startIndex = monthKeys.indexOf(startMk);
                             if (startIndex !== -1) {
                                 // Find day offset
                                 const day = parseInt(item.start_date.substring(8, 10), 10);
                                 const dayOffset = (day / 30) * 75; // 75px per col
                                 barLeft = (startIndex * 75) + dayOffset;
                                 barWidth = (item.duration_weeks / 4.33) * 75;
+                                
+                                if (!expandLTD) {
+                                    const firstVisibleMonth = forwardMonths[0];
+                                    const firstVisibleIndex = monthKeys.indexOf(firstVisibleMonth);
+                                    barLeft = barLeft - (firstVisibleIndex * 75);
+                                } else if (closedMonths.length > 0) {
+                                    if (startIndex >= closedMonths.length) {
+                                        barLeft += 3; // add today line offset
+                                    }
+                                }
                             }
                         }
 
                         const isLastItemInLastSection = idx === arr.length - 1 && itemIdx === items.length - 1;
-                        const cellBorderClass = isLastItemInLastSection ? "border-b-[3px] border-[var(--border-strong)]" : "border-b-[0px]";
+                        const cellBorderClass = isLastItemInLastSection ? "border-b-[3px] border-[var(--border-strong)]" : "border-b border-[var(--table-row-border)]";
+
+                        let timelineCols = forwardMonths.length;
+                        let timelineWidth = forwardMonths.length * 75;
+                        if (expandLTD) {
+                             timelineCols = closedMonths.length + (closedMonths.length > 0 ? 1 : 0) + forwardMonths.length;
+                             timelineWidth = (closedMonths.length + forwardMonths.length) * 75 + (closedMonths.length > 0 ? 3 : 0);
+                        }
 
                         return (
-                            <tr key={item.id} className="group/row hover:bg-[var(--bg-elevated)] transition-colors h-7 relative">
-                                <td className={`sticky left-0 z-10 bg-inherit border-r border-[var(--table-row-border)] ${cellBorderClass}`}>
-                                    <div className="flex flex-row">
-                                        <div className="w-[120px] px-2 py-1 truncate text-xs text-[var(--text-primary)] border-r border-[var(--border)] shadow-sm">{item.label}</div>
-                                        <div className="w-[80px] p-0.5 border-r border-[var(--border)] relative">
-                                            <input type="date" className="w-full text-[9px] bg-transparent outline-none h-full" value={item.start_date || ''} onChange={(e) => onUpsert(item.id, { start_date: e.target.value })} />
+                            <tr key={item.id} className="group/row hover:bg-[var(--bg-elevated)] transition-colors h-[32px] relative">
+                                <td className={`sticky left-0 z-10 bg-inherit border-r border-[var(--table-row-border)] p-0 ${cellBorderClass}`}>
+                                    <div className="flex h-full w-full items-center">
+                                        <div className="flex-1 px-3 py-1 truncate text-xs font-medium text-[var(--text-primary)] border-r border-[var(--border)]">{item.label}</div>
+                                        <div className="w-[120px] px-1 border-r border-[var(--border)] relative h-full flex items-center">
+                                            <input type="date" className="w-full text-xs bg-transparent outline-none" value={item.start_date || ''} onChange={(e) => onUpsert(item.id, { start_date: e.target.value })} />
                                         </div>
-                                        <div className="w-[40px] p-0.5 flex items-center justify-center relative">
-                                            <input type="number" className="w-full text-[10px] text-center bg-transparent outline-none" value={item.duration_weeks || 0} onChange={(e) => onUpsert(item.id, { duration_weeks: parseInt(e.target.value) || 0 })} />
+                                        <div className="w-[70px] p-1 flex items-center justify-center relative h-full">
+                                            <input type="number" className="w-10 text-xs text-right bg-transparent outline-none appearance-none pr-1" value={item.duration_weeks || 0} onChange={(e) => onUpsert(item.id, { duration_weeks: parseInt(e.target.value) || 0 })} />
+                                            <span className="text-[10px] text-[var(--text-faint)]">wks</span>
                                         </div>
                                     </div>
-                                    <button onClick={() => onDelete(item.id)} className="absolute right-1 top-1.5 opacity-0 group-hover/row:opacity-100 text-[var(--danger)] hover:bg-[var(--danger-bg)] p-0.5 rounded transition-[opacity,background]">
-                                        <Trash2 className="w-3 h-3" />
+                                    <button onClick={() => onDelete(item.id)} className="absolute right-0 top-0 bottom-0 px-2 opacity-0 group-hover/row:opacity-100 text-[var(--danger)] bg-[var(--bg-elevated)] backdrop-blur-sm transition-opacity flex items-center justify-center border-l border-[var(--border)] z-10">
+                                        <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                 </td>
-                                {/* Skip LTD collapsed if applicable */}
-                                {!expandLTD && closedMonths.length > 0 && <td className={`border-r border-[var(--table-row-border)] bg-[var(--bg-card)] ${cellBorderClass}`}></td>}
-                                {/* Today line */}
-                                {expandLTD && closedMonths.length > 0 && <td className={`border-r border-[var(--border)] p-0 ${cellBorderClass}`} style={{ width: 3, minWidth: 3 }}><div className="h-full w-[3px] bg-[var(--accent)] mx-auto opacity-20" /></td>}
+                                
+                                {!expandLTD && <td className={`border-r border-[var(--table-row-border)] bg-[var(--bg-card)] ${cellBorderClass}`}></td>}
                                 
                                 {/* Timeline Columns container */}
-                                <td colSpan={visibleMonths.length} className={`p-0 relative overflow-hidden ${cellBorderClass}`} style={{ minWidth: visibleMonths.length * 75, maxWidth: visibleMonths.length * 75 }}>
+                                <td colSpan={timelineCols} className={`p-0 relative overflow-hidden ${cellBorderClass}`} style={{ minWidth: timelineWidth, maxWidth: timelineWidth }}>
                                     <div className="flex h-full w-full absolute inset-0">
                                         {/* Background column guides */}
-                                        {visibleMonths.map((mk, i) => (
-                                            <div key={mk} className="h-full border-r border-[var(--table-row-border)]" style={{ minWidth: 75, width: 75 }}></div>
-                                        ))}
+                                        {expandLTD && closedMonths.map(mk => <div key={mk} className="h-full border-r border-[var(--table-row-border)] bg-[var(--success-bg)]/5" style={{ minWidth: 75, width: 75 }}></div>)}
+                                        {expandLTD && closedMonths.length > 0 && <div className="h-full bg-[var(--accent)]/10 border-r border-[var(--table-row-border)]" style={{ minWidth: 3, width: 3 }}></div>}
+                                        {forwardMonths.map(mk => <div key={mk} className="h-full border-r border-[var(--table-row-border)]" style={{ minWidth: 75, width: 75 }}></div>)}
                                     </div>
                                     {/* The Gantt Bar */}
                                     {barLeft >= 0 && (
                                         <div 
-                                            className="absolute top-1 bottom-1 bg-orange-300 dark:bg-orange-600/50 rounded shadow-sm border border-orange-400 dark:border-orange-500 z-10 flex items-center overflow-hidden px-1 pointer-events-none"
+                                            className="absolute top-1.5 bottom-1.5 bg-orange-200 dark:bg-orange-600/50 rounded shadow-sm border border-orange-400 dark:border-orange-500 z-10 flex items-center overflow-hidden px-1.5 pointer-events-none"
                                             style={{ left: barLeft, width: barWidth }}
                                         >
-                                           <span className="text-[8px] font-bold text-orange-900 dark:text-orange-100 truncate w-full">{item.label}</span>
+                                           <span className="text-[9px] font-semibold text-orange-900 dark:text-orange-100 truncate w-full">{item.label}</span>
                                         </div>
                                     )}
                                 </td>
@@ -373,7 +394,7 @@ function PredevScheduleRows({
                             </tr>
                         );
                     })}
-                </optgroup>
+                </Fragment>
             ))}
         </>
     );
@@ -1257,8 +1278,8 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
 
             {/* Budget Grid */}
             <div className="card p-0 overflow-hidden">
-                <div className="overflow-x-auto custom-scrollbar">
-                    <table className="border-collapse relative" style={{ minWidth: `${160 + (expandLTD ? monthKeys.length : forwardMonths.length + 1) * 75 + 90}px` }}>
+                <div className="overflow-x-auto custom-scrollbar pb-32">
+                    <table className="border-collapse relative" style={{ minWidth: `${340 + (expandLTD ? monthKeys.length : forwardMonths.length + 1) * 75 + 90}px` }}>
                         <thead>
                             {showSchedule && (
                                 <PredevScheduleRows 
@@ -1275,7 +1296,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                 />
                             )}
                             <tr className="bg-[var(--bg-primary)]">
-                                <th className="sticky left-0 z-20 bg-[var(--bg-primary)] text-left px-2 py-1.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-r border-[var(--border)]" style={{ minWidth: 160 }}>
+                                <th className="sticky left-0 z-20 bg-[var(--bg-primary)] text-left px-3 py-2 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-r border-[var(--border)] shadow-[1px_0_0_0_var(--border)]" style={{ minWidth: 340 }}>
                                     Line Item
                                 </th>
                                 {/* LTD Column (collapsed) */}
@@ -1347,10 +1368,10 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                     return sum + info.value;
                                 }, 0);
                                 return (
-                                <tr key={li.id} className={`group/row ${idx % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]'} hover:bg-[var(--bg-elevated)] transition-colors h-7`}>
-                                        <td className="sticky left-0 z-10 bg-inherit px-2 py-0 border-r border-[var(--table-row-border)]">
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="text-xs text-[var(--text-primary)] font-medium truncate">{li.label}</span>
+                                <tr key={li.id} className={`group/row ${idx % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]'} hover:bg-[var(--bg-elevated)] transition-colors h-[32px]`}>
+                                        <td className="sticky left-0 z-10 bg-inherit px-3 py-0 border-r border-[var(--table-row-border)] shadow-[1px_0_0_0_var(--border)]">
+                                            <div className="flex items-center gap-1.5 h-[32px]">
+                                                <span className="text-xs text-[var(--text-primary)] font-medium truncate flex-1">{li.label}</span>
                                                 {li.yardi_cost_groups?.length > 0 && (
                                                     <button
                                                         onClick={() => setMappingLineItem(li)}

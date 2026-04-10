@@ -280,17 +280,19 @@ function PredevScheduleRows({
     return (
         <>
             <tr className="bg-[var(--bg-elevated)]">
-                <td colSpan={visibleMonths.length + (expandLTD && closedMonths.length > 0 ? 2 : 1) + 1} className="px-2 py-1.5 text-xs font-bold text-[var(--text-primary)] border-b border-[var(--border)] uppercase flex items-center justify-between border-t-0">
-                    <span className="tracking-widest">Pre-Development Schedule</span>
-                    <div className="flex gap-2">
-                        {scheduleItems.length === 0 && (
-                            <button onClick={onSeed} className="flex items-center gap-1 text-[10px] text-[var(--accent)] hover:underline">
-                                Generate Default Schedule
+                <td colSpan={visibleMonths.length + (expandLTD && closedMonths.length > 0 ? 2 : 1) + 1} className="p-0 border-b border-[var(--border)] border-t-0 bg-[var(--bg-elevated)]">
+                    <div className="px-2 py-1.5 text-xs font-bold text-[var(--text-primary)] uppercase flex items-center justify-between">
+                        <span className="tracking-widest">Pre-Development Schedule</span>
+                        <div className="flex gap-2">
+                            {scheduleItems.length === 0 && (
+                                <button onClick={onSeed} className="flex items-center gap-1 text-[10px] text-[var(--accent)] hover:underline flex-shrink-0">
+                                    Generate Default Schedule
+                                </button>
+                            )}
+                            <button onClick={onAddBlank} className="flex items-center gap-1 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0">
+                                <Plus className="w-3 h-3" /> Add Item
                             </button>
-                        )}
-                        <button onClick={onAddBlank} className="flex items-center gap-1 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
-                            <Plus className="w-3 h-3" /> Add Item
-                        </button>
+                        </div>
                     </div>
                 </td>
             </tr>
@@ -992,8 +994,8 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             )}
 
             {/* Toolbar */}
-            <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center flex-wrap gap-3">
                     <h2 className="text-lg font-semibold text-[var(--text-primary)]">Pre-Dev Budget</h2>
                     <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
                         <CalendarDays className="w-3.5 h-3.5" />
@@ -1007,7 +1009,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                     )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 mt-2 lg:mt-0">
                     {/* View Mode Toggle */}
                     <div className="flex items-center rounded-lg bg-[var(--bg-elevated)] p-0.5">
                         {(['budget', 'forecast', 'variance'] as ViewMode[]).map((mode) => (
@@ -1109,7 +1111,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                 <div className="card p-4 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-[var(--bg-elevated)] flex items-center justify-center shrink-0"><DollarSign className="w-5 h-5 text-[var(--text-primary)]" /></div>
                     <div>
@@ -1158,7 +1160,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             {showSettings && (
                 <div className="card p-4 border-[var(--accent)]/20">
                     <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Budget Settings</h3>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Start Month</label>
                             <input type="month" value={budget.start_date.substring(0, 7)}
@@ -1199,7 +1201,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                     <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Funding Partners</h3>
                     <div className="space-y-2">
                         {(fundingPartners ?? []).map((p) => (
-                            <div key={p.id} className="flex items-center gap-3 py-1.5">
+                            <div key={p.id} className="flex flex-wrap items-center gap-3 py-1.5 border-b border-[var(--border)] sm:border-0 last:border-0">
                                 <span className={`text-xs font-medium min-w-[120px] ${p.is_slrh ? 'text-blue-500' : 'text-[var(--text-primary)]'}`}>
                                     {p.is_slrh && <Shield className="w-3 h-3 inline mr-1" />}{p.name}
                                 </span>
@@ -1221,7 +1223,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                         return null;
                     })()}
                     {/* Add partner */}
-                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[var(--border)]">
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 mt-3 pt-3 border-t border-[var(--border)]">
                         <input type="text" value={newPartnerName} onChange={(e) => setNewPartnerName(e.target.value)} placeholder="Partner name..."
                             className="flex-1 px-2 py-1 rounded border border-[var(--border)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none" />
                         <input type="number" value={newPartnerSplit} onChange={(e) => setNewPartnerSplit(e.target.value)} placeholder="%" min="0" max="100"
@@ -1256,7 +1258,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             {/* Budget Grid */}
             <div className="card p-0 overflow-hidden">
                 <div className="overflow-x-auto custom-scrollbar">
-                    <table className="w-full border-collapse" style={{ minWidth: `${160 + (expandLTD ? monthKeys.length : forwardMonths.length + 1) * 75 + 90}px` }}>
+                    <table className="border-collapse relative" style={{ minWidth: `${160 + (expandLTD ? monthKeys.length : forwardMonths.length + 1) * 75 + 90}px` }}>
                         <thead>
                             {showSchedule && (
                                 <PredevScheduleRows 

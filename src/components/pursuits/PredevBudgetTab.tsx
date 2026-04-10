@@ -251,6 +251,7 @@ function PredevScheduleRows({
     monthKeys,
     visibleMonths,
     closedMonths,
+    forwardMonths,
     expandLTD,
     onUpsert,
     onDelete,
@@ -262,6 +263,7 @@ function PredevScheduleRows({
     monthKeys: string[];
     visibleMonths: string[];
     closedMonths: string[];
+    forwardMonths: string[];
     expandLTD: boolean;
     onUpsert: (id: string | null, updates: any) => void;
     onDelete: (id: string) => void;
@@ -1287,6 +1289,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                     monthKeys={monthKeys}
                                     visibleMonths={visibleMonths}
                                     closedMonths={closedMonths}
+                                    forwardMonths={forwardMonths}
                                     expandLTD={expandLTD}
                                     onUpsert={(id, up) => upsertScheduleItem.mutate({ itemId: id, budgetId: budget!.id, pursuitId, updates: up })}
                                     onDelete={(id) => deleteScheduleItem.mutate({ itemId: id, pursuitId })}

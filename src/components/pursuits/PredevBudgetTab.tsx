@@ -360,16 +360,41 @@ function PredevScheduleRows({
                             <tr key={item.id} className="group/row hover:bg-[var(--bg-elevated)] transition-colors h-[32px] relative">
                                 <td className={`sticky left-0 z-10 bg-inherit border-r border-[var(--table-row-border)] p-0 ${cellBorderClass}`}>
                                     <div className="flex h-full w-full items-center">
-                                        <div className="flex-1 px-3 py-1 truncate text-xs font-medium text-[var(--text-primary)] border-r border-[var(--border)]">{item.label}</div>
-                                        <div className="w-[120px] px-1 border-r border-[var(--border)] relative h-full flex items-center">
-                                            <input type="date" className="w-full text-xs bg-transparent outline-none" value={item.start_date || ''} onChange={(e) => onUpsert(item.id, { start_date: e.target.value })} />
+                                        <div className="flex-1 px-3 py-1 flex items-center text-xs font-medium text-[var(--text-primary)] border-r border-[var(--border)] hover:bg-[var(--background-hover)] transition-colors">
+                                            <input 
+                                                type="text" 
+                                                className="w-full bg-transparent outline-none placeholder-[var(--text-faint)] focus:bg-[var(--bg-card)] px-1 -mx-1 rounded" 
+                                                defaultValue={item.label || ''} 
+                                                onBlur={(e) => { if (e.target.value !== item.label) onUpsert(item.id, { label: e.target.value }) }}
+                                                onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                                                placeholder="Milestone name" 
+                                            />
                                         </div>
-                                        <div className="w-[70px] p-1 flex items-center justify-center relative h-full">
-                                            <input type="number" className="w-10 text-xs text-right bg-transparent outline-none appearance-none pr-1" value={item.duration_weeks || 0} onChange={(e) => onUpsert(item.id, { duration_weeks: parseInt(e.target.value) || 0 })} />
+                                        <div className="w-[120px] px-1 border-r border-[var(--border)] relative h-full flex items-center hover:bg-[var(--background-hover)] transition-colors">
+                                            <input 
+                                                type="date" 
+                                                className="w-full text-xs bg-transparent outline-none focus:bg-[var(--bg-card)] px-1 -mx-1 rounded cursor-pointer" 
+                                                defaultValue={item.start_date || ''} 
+                                                onBlur={(e) => { if (e.target.value !== item.start_date) onUpsert(item.id, { start_date: e.target.value }) }}
+                                                onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                                            />
+                                        </div>
+                                        <div className="w-[70px] p-1 flex items-center justify-center relative h-full hover:bg-[var(--background-hover)] transition-colors">
+                                            <input 
+                                                type="number" 
+                                                className="w-10 text-xs text-right bg-transparent outline-none appearance-none pr-1 focus:bg-[var(--bg-card)] px-1 -ml-1 rounded" 
+                                                defaultValue={item.duration_weeks || 0} 
+                                                onBlur={(e) => { 
+                                                    const val = parseInt(e.target.value) || 0;
+                                                    if (val !== item.duration_weeks) onUpsert(item.id, { duration_weeks: val });
+                                                }}
+                                                onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                                                min={0}
+                                            />
                                             <span className="text-[10px] text-[var(--text-faint)]">wks</span>
                                         </div>
                                     </div>
-                                    <button onClick={() => onDelete(item.id)} className="absolute right-0 top-0 bottom-0 px-2 opacity-0 group-hover/row:opacity-100 text-[var(--danger)] bg-[var(--bg-elevated)] backdrop-blur-sm transition-opacity flex items-center justify-center border-l border-[var(--border)] z-10">
+                                    <button onClick={() => onDelete(item.id)} className="absolute right-0 top-0 bottom-0 px-2 opacity-0 group-hover/row:opacity-100 text-[var(--danger)] bg-[var(--bg-card)] backdrop-blur-sm transition-opacity flex items-center justify-center border-l border-[var(--border)] z-10 hover:bg-red-50 dark:hover:bg-red-950/30">
                                         <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                 </td>

@@ -285,15 +285,16 @@ function PredevScheduleRows({
         <>
             <tr className="bg-[var(--bg-elevated)]">
                 <td colSpan={totalCols} className="p-0 border-b border-[var(--border)] border-t-0 bg-[var(--bg-elevated)]">
-                    <div className="px-2 py-1.5 text-xs font-bold text-[var(--text-primary)] uppercase flex items-center justify-between">
+                    <div className="sticky left-0 z-30 px-3 py-2 text-xs font-bold text-[var(--text-primary)] uppercase flex items-center gap-6 w-max bg-[var(--bg-elevated)] shadow-[1px_0_0_0_var(--border)]" style={{ minWidth: 340 }}>
                         <span className="tracking-widest">Pre-Development Schedule</span>
                         <div className="flex gap-2">
                             {scheduleItems.length === 0 && (
-                                <button onClick={onSeed} className="flex items-center gap-1 text-[10px] text-[var(--accent)] hover:underline flex-shrink-0">
+                                <button onClick={onSeed} className="flex items-center gap-1.5 px-3 py-1 bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] transition-colors rounded-md shadow-sm normal-case flex-shrink-0">
+                                    <CalendarDays className="w-3.5 h-3.5" />
                                     Generate Default Schedule
                                 </button>
                             )}
-                            <button onClick={onAddBlank} className="flex items-center gap-1 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0">
+                            <button onClick={onAddBlank} className="flex items-center gap-1.5 px-3 py-1 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors rounded-md shadow-sm normal-case flex-shrink-0">
                                 <Plus className="w-3 h-3" /> Add Item
                             </button>
                         </div>
@@ -301,11 +302,11 @@ function PredevScheduleRows({
                 </td>
             </tr>
             {scheduleItems.length === 0 && (
-                <tr className="bg-[var(--bg-card)] h-12">
-                     <td colSpan={totalCols} className="px-4 py-8 text-xs text-[var(--text-muted)] text-center border-b-[3px] border-[var(--border-strong)]">
-                         <div className="flex flex-col items-center justify-center text-[var(--text-faint)]">
+                <tr className="bg-[var(--bg-card)]">
+                     <td colSpan={totalCols} className="p-0 border-b-[3px] border-[var(--border-strong)] relative">
+                         <div className="sticky left-0 z-20 flex flex-col items-center justify-center text-[var(--text-faint)] py-8 px-4 w-full" style={{ maxWidth: 'calc(100vw - 320px)' }}>
                             <CalendarDays className="w-6 h-6 mb-2 opacity-50" />
-                            No schedule items defined. Use the buttons above to add entries.
+                            <span className="text-xs text-[var(--text-muted)]">No schedule items defined. Use the buttons above to add entries.</span>
                         </div>
                     </td>
                 </tr>
@@ -313,8 +314,10 @@ function PredevScheduleRows({
             {Object.entries(grouped).map(([section, items]: [string, PredevScheduleItem[]], idx, arr) => (
                 <Fragment key={section}>
                     <tr className="bg-[var(--bg-primary)]">
-                        <td colSpan={totalCols} className="px-3 py-1.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider bg-[var(--bg-elevated)] border-b border-[var(--table-row-border)]">
-                            {section}
+                        <td colSpan={totalCols} className="p-0 border-b border-[var(--table-row-border)] bg-[var(--bg-elevated)] relative">
+                            <div className="sticky left-0 z-20 px-3 py-1.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider w-max bg-[var(--bg-elevated)] shadow-[1px_0_0_0_var(--border)]" style={{ minWidth: 340 }}>
+                                {section}
+                            </div>
                         </td>
                     </tr>
                     {items.map((item, itemIdx) => {

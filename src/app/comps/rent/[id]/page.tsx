@@ -86,7 +86,7 @@ function OverviewTab({ property }: { property: HellodataProperty }) {
     }, [property]);
 
     const qualityScores = property.building_quality ? Object.entries(property.building_quality).filter(([, v]) => v != null && typeof v === 'number') : [];
-    const fees = property.fees ? Object.entries(property.fees).filter(([, v]) => v != null && v !== '') : [];
+    const fees = property.fees ? Object.entries(property.fees).filter(([, v]) => v != null && v !== '' && typeof v !== 'object') : [];
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -179,7 +179,7 @@ function OverviewTab({ property }: { property: HellodataProperty }) {
                         {fees.map(([key, val]) => (
                             <div key={key} className="flex justify-between items-center text-sm">
                                 <span className="text-[var(--text-muted)] capitalize">{key.replace(/_/g, ' ')}</span>
-                                <span className="font-medium text-[var(--text-primary)]">{typeof val === 'number' ? fmtCurrency(val) : val}</span>
+                                <span className="font-medium text-[var(--text-primary)]">{typeof val === 'number' ? fmtCurrency(val) : typeof val === 'object' ? fmtCurrency((val as any)?.amount) : String(val)}</span>
                             </div>
                         ))}
                     </div>

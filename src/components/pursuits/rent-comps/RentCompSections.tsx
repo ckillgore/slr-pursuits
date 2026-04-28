@@ -587,9 +587,16 @@ export function ConcessionsSection({ comps }: { comps: PropertyMetrics[] }) {
 // Fees & Other Income
 // ============================================================
 export function FeesSection({ comps }: { comps: PropertyMetrics[] }) {
-    const fmtFee = (v: unknown) => {
+    const fmtFee = (v: unknown): string => {
         if (v === null || v === undefined) return '—';
         if (typeof v === 'number') return `$${v.toLocaleString()}`;
+        if (typeof v === 'object') {
+            const amount = (v as Record<string, unknown>)?.amount;
+            if (typeof amount === 'number') return `$${amount.toLocaleString()}`;
+            const label = (v as Record<string, unknown>)?.label;
+            if (typeof label === 'string') return label;
+            return '—';
+        }
         return String(v);
     };
 

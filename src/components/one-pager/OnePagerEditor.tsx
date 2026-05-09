@@ -537,7 +537,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                 </div>
 
                 {/* ===== SITE & DENSITY ===== */}
-                <div className="card">
+                <div className="card min-w-0">
                     <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4">Site & Density</h3>
                     <div className="space-y-3">
                         <FieldRow label="Site Area (SF)" value={formatNumber(pursuit.site_area_sf)} display noteKey="site_area_sf" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
@@ -579,8 +579,9 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                 </div>
 
                 {/* ===== REVENUE ===== */}
-                <div className="card">
+                <div className="card min-w-0">
                     <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4">Revenue</h3>
+                    <div className="overflow-x-auto -mx-5 px-5">
                     <table className="data-table">
                         <thead>
                             <tr>
@@ -650,6 +651,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                             </tr>
                         </tbody>
                     </table>
+                    </div>
                 </div>
 
                 {/* ===== UNIT MIX + PRO FORMA (spans 2 columns) ===== */}
@@ -841,8 +843,9 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
 
                 {/* ===== DEVELOPMENT BUDGET ===== */}
                 <div className="space-y-4">
-                    <div className="card">
+                    <div className="card min-w-0">
                         <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4">Development Budget</h3>
+                        <div className="overflow-x-auto -mx-5 px-5">
                         <table className="data-table">
                             <thead>
                                 <tr>
@@ -896,6 +899,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                 </tr>
                             </tbody>
                         </table>
+                        </div>
 
                         {/* Soft cost controls below table */}
                         {!onePager.use_detailed_soft_costs && (

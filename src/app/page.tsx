@@ -44,6 +44,12 @@ export default function DashboardPage() {
      }
   }, [savedViews]);
 
+  // Dynamic page title
+  useEffect(() => {
+    document.title = 'Pipeline | SLR Pursuits';
+    return () => { document.title = 'SLR Pursuits | Feasibility Analysis'; };
+  }, []);
+
   // New Pursuit dialog state
   const [showNewPursuitDialog, setShowNewPursuitDialog] = useState(false);
   const [deletePursuitId, setDeletePursuitId] = useState<string | null>(null);

@@ -108,6 +108,14 @@ export default function PursuitDetailPage() {
         }
     }, [searchParams]);
 
+    // Dynamic page title
+    useEffect(() => {
+        if (pursuit?.name) {
+            document.title = `${pursuit.name} | SLR Pursuits`;
+        }
+        return () => { document.title = 'SLR Pursuits | Feasibility Analysis'; };
+    }, [pursuit?.name]);
+
     // Only load product types and templates when one-pagers tab is active (creation dialog)
     const needsOnePagerDeps = activeTab === 'onepagers';
     const { data: productTypes = [] } = useProductTypes({ enabled: needsOnePagerDeps });
@@ -418,7 +426,7 @@ export default function PursuitDetailPage() {
                     </div>
 
                 {/* Tab Bar */}
-                <div className="flex flex-wrap items-center gap-x-1 gap-y-2 mb-6 border-b border-[var(--border)]">
+                <div className="flex items-center gap-x-1 mb-6 border-b border-[var(--border)] overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
                     <button
                         onClick={() => setActiveTab('overview')}
                         className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'overview'
@@ -591,7 +599,18 @@ export default function PursuitDetailPage() {
                                                 </span>
                                             )}
                                         </div>
-                                        {primaryOp ? (
+                                        {loadingOnePagers ? (
+                                            <div className="space-y-3 animate-pulse">
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div><div className="h-3 w-12 bg-[var(--bg-elevated)] rounded mb-1.5" /><div className="h-6 w-16 bg-[var(--bg-elevated)] rounded" /></div>
+                                                    <div><div className="h-3 w-12 bg-[var(--bg-elevated)] rounded mb-1.5" /><div className="h-6 w-16 bg-[var(--bg-elevated)] rounded" /></div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div><div className="h-3 w-16 bg-[var(--bg-elevated)] rounded mb-1.5" /><div className="h-5 w-20 bg-[var(--bg-elevated)] rounded" /></div>
+                                                    <div><div className="h-3 w-12 bg-[var(--bg-elevated)] rounded mb-1.5" /><div className="h-5 w-20 bg-[var(--bg-elevated)] rounded" /></div>
+                                                </div>
+                                            </div>
+                                        ) : primaryOp ? (
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div>
                                                     <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Units</div>

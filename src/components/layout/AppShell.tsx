@@ -107,12 +107,12 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
         }`;
 
     return (
-        <div className="min-h-screen flex flex-col">
+        <div className="min-h-screen flex flex-col overflow-x-hidden">
             {/* Top Bar */}
             <header className="sticky top-0 z-50 h-14 border-b border-[var(--border)] bg-[var(--bg-nav)]/95 backdrop-blur-sm">
-                <div className="flex items-center justify-between h-full px-4 md:px-6">
+                <div className="flex items-center justify-between h-full px-4 md:px-6 overflow-hidden">
                     {/* Left: Logo + Navigation */}
-                    <div className="flex items-center gap-1 md:gap-4">
+                    <div className="flex items-center gap-1 md:gap-4 min-w-0">
                         <Link href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity mr-2">
                             <div className="w-8 h-8 rounded-lg bg-[var(--text-primary)] flex items-center justify-center">
                                 <Building2 className="w-4 h-4 text-[var(--bg-primary)]" />
@@ -157,7 +157,7 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                     </div>
 
                     {/* Right: Admin + Actions + User */}
-                    <div className="flex items-center gap-2 md:gap-3">
+                    <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
                         {/* Desktop Admin (owner/admin only) */}
                         {isAdminOrOwner && (
                             <Link

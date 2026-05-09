@@ -5,7 +5,7 @@ import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { AdminNav } from '@/components/layout/AdminNav';
 import {
     useTemplates,
     useUpsertTemplate,
@@ -77,14 +77,7 @@ export default function TemplatesPage() {
     return (
         <AppShell>
             <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-                <div className="flex gap-2 mb-6 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
-                    <Link href="/admin/product-types" className="px-3 py-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] text-sm transition-colors">Product Types</Link>
-                    <Link href="/admin/stages" className="px-3 py-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] text-sm transition-colors">Stages</Link>
-                    <Link href="/admin/templates" className="px-3 py-1.5 rounded-lg bg-[var(--bg-elevated)] text-[var(--text-primary)] text-sm font-medium">Templates</Link>
-                    <Link href="/admin/key-date-types" className="px-3 py-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] text-sm transition-colors">Key Date Types</Link>
-                    <Link href="/admin/checklist-templates" className="px-3 py-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] text-sm transition-colors">Checklists</Link>
-                    <Link href="/admin/accounting" className="px-3 py-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] text-sm transition-colors">Accounting</Link>
-                </div>
+                <AdminNav />
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)]">Data Model Templates</h1>

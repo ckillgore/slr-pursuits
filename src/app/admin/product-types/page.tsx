@@ -5,7 +5,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { useProductTypes, useUpsertProductType } from '@/hooks/useSupabaseQueries';
-import Link from 'next/link';
+import { AdminNav } from '@/components/layout/AdminNav';
 import { Plus, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 
 export default function ProductTypesPage() {
@@ -34,14 +34,7 @@ export default function ProductTypesPage() {
     return (
         <AppShell>
             <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-                <div className="flex gap-2 mb-6 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
-                    <Link href="/admin/product-types" className="px-3 py-1.5 rounded-lg bg-[var(--bg-elevated)] text-[var(--text-primary)] text-sm font-medium">Product Types</Link>
-                    <Link href="/admin/stages" className="px-3 py-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] text-sm transition-colors">Stages</Link>
-                    <Link href="/admin/templates" className="px-3 py-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] text-sm transition-colors">Templates</Link>
-                    <Link href="/admin/key-date-types" className="px-3 py-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] text-sm transition-colors">Key Date Types</Link>
-                    <Link href="/admin/checklist-templates" className="px-3 py-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] text-sm transition-colors">Checklists</Link>
-                    <Link href="/admin/accounting" className="px-3 py-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] text-sm transition-colors">Accounting</Link>
-                </div>
+                <AdminNav />
                 <div className="flex items-center justify-between mb-6">
                     <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)]">Product Types</h1>
                     <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors shadow-sm">

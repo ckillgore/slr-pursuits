@@ -478,7 +478,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                     <div>
                         <div>{addressDisplay}</div>
                         {pursuit.county && (
-                            <div className="text-[10px] text-[var(--text-faint)] mt-0.5">{pursuit.county} County</div>
+                            <div className="text-[10px] text-[var(--text-faint)] mt-0.5">{pursuit.county.replace(/\s+County$/i, '')} County</div>
                         )}
                         {hasLocation && (
                             <div className="text-[10px] text-[var(--text-faint)] mt-0.5">

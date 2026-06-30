@@ -140,10 +140,37 @@ export function useUpdatePursuit() {
     return useMutation({
         mutationFn: ({ id, updates }: { id: string; updates: Partial<Pursuit>; queryId?: string }) =>
             queries.updatePursuit(id, updates),
-        onSuccess: (_, { id, queryId }) => {
-            qc.invalidateQueries({ queryKey: queryKeys.pursuit(id) });
+        // Optimistic update
+        onMutate: async ({ id, updates, queryId }) => {
+            await qc.cancelQueries({ queryKey: queryKeys.pursuit(id) });
             if (queryId && queryId !== id) {
-                qc.invalidateQueries({ queryKey: queryKeys.pursuit(queryId) });
+                await qc.cancelQueries({ queryKey: queryKeys.pursuit(queryId) });
+            }
+
+            const prev = qc.getQueryData(queryKeys.pursuit(id));
+            const prevByQueryId = queryId && queryId !== id ? qc.getQueryData(queryKeys.pursuit(queryId)) : undefined;
+
+            qc.setQueryData(queryKeys.pursuit(id), (old: any) =>
+                old ? { ...old, ...updates } : old
+            );
+            if (queryId && queryId !== id) {
+                qc.setQueryData(queryKeys.pursuit(queryId), (old: any) =>
+                    old ? { ...old, ...updates } : old
+                );
+            }
+
+            return { prev, prevByQueryId, queryId, id };
+        },
+        onError: (_err, _variables, ctx) => {
+            if (ctx?.prev) qc.setQueryData(queryKeys.pursuit(ctx.id), ctx.prev);
+            if (ctx?.prevByQueryId && ctx?.queryId && ctx.queryId !== ctx.id) {
+                qc.setQueryData(queryKeys.pursuit(ctx.queryId), ctx.prevByQueryId);
+            }
+        },
+        onSettled: (_, __, { id, queryId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuit(id), refetchType: 'none' });
+            if (queryId && queryId !== id) {
+                qc.invalidateQueries({ queryKey: queryKeys.pursuit(queryId), refetchType: 'none' });
             }
             qc.invalidateQueries({ queryKey: queryKeys.pursuits });
         },

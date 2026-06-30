@@ -39,6 +39,7 @@ export function RichTextEditor({
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const onChangeRef = useRef(onChange);
     onChangeRef.current = onChange;
+    const lastSentRef = useRef<string | null>(null);
 
     const editor = useEditor({
         immediatelyRender: false,
@@ -61,6 +62,7 @@ export function RichTextEditor({
             debounceRef.current = setTimeout(() => {
                 const json = editor.getJSON();
                 const html = editor.getHTML();
+                lastSentRef.current = JSON.stringify(json);
                 onChangeRef.current(json as Record<string, unknown>, html);
             }, debounceMs);
         },
@@ -70,6 +72,14 @@ export function RichTextEditor({
     useEffect(() => {
         if (!editor || !content) return;
         
+        const incomingJson = typeof content === 'string' ? content : JSON.stringify(content);
+        
+        // If the incoming content matches what we last sent, we don't need to sync it back.
+        if (lastSentRef.current === incomingJson) return;
+
+        // Skip syncing if the editor is focused to avoid cursor jumping / text reverting
+        if (editor.isFocused) return;
+        
         if (typeof content === 'string') {
             const currentHtml = editor.getHTML();
             if (currentHtml !== content) {
@@ -77,7 +87,6 @@ export function RichTextEditor({
             }
         } else {
             const currentJson = JSON.stringify(editor.getJSON());
-            const incomingJson = JSON.stringify(content);
             if (currentJson !== incomingJson) {
                 editor.commands.setContent(content);
             }

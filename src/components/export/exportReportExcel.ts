@@ -56,8 +56,10 @@ function sourceLabel(ds: ReportDataSource): string {
         case 'pursuits': return 'Pursuits';
         case 'land_comps': return 'Land Comps';
         case 'rent_comps': return 'Rent Comps';
+        case 'sale_comps': return 'Sale Comps';
         case 'key_dates': return 'Key Dates';
         case 'predev_budgets': return 'Pre-Dev Budgets';
+        case 'pursuit_costs': return 'Pursuit Costs';
         default: return 'Report';
     }
 }

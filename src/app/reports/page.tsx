@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import type { ReportFieldDef } from '@/lib/reportFields';
+import type { DocumentProps } from '@react-pdf/renderer';
 import { AppShell } from '@/components/layout/AppShell';
 import { ReportTable } from '@/components/reports/ReportTable';
 import { ReportConfigPanel } from '@/components/reports/ReportConfigPanel';
@@ -9,6 +10,7 @@ import { PredevBudgetReport } from '@/components/reports/PredevBudgetReport';
 import { KeyDateReport } from '@/components/reports/KeyDateReport';
 import { PursuitCostReport } from '@/components/reports/PursuitCostReport';
 import { TemplateSaveDialog } from '@/components/reports/TemplateSaveDialog';
+import { ReportExportProvider, type ReportExportBuilder } from '@/components/reports/ReportExportContext';
 import {
     useReportTemplates,
     useCreateReportTemplate,
@@ -126,6 +128,14 @@ export default function ReportsPage() {
     const [isExportingPdf, setIsExportingPdf] = useState(false);
     const [isExportingXlsx, setIsExportingXlsx] = useState(false);
     const [editMode, setEditMode] = useState(false);
+
+    // ── Export ownership ───────────────────────────────────────────
+    // Tabs that render their own grid register a builder here; the toolbar
+    // exports whatever the active tab hands over instead of the engine output.
+    const [tabExport, setTabExport] = useState<{ build: ReportExportBuilder } | null>(null);
+    const registerTabExport = useCallback((build: ReportExportBuilder | null) => {
+        setTabExport(build ? { build } : null);
+    }, []);
 
     // Load template config when selected
     useEffect(() => {
@@ -288,6 +298,11 @@ export default function ReportsPage() {
 
     const isLoading = loadingTemplates || loadingData || loadingCompData || loadingKeyDateData || loadingRentCompData || loadingSaleCompData;
 
+    // Tabs with their own grid must export through their registered builder —
+    // never through the engine, which holds a different data source.
+    const usesOwnGrid = dataSource === 'predev_budgets' || dataSource === 'pursuit_costs' || dataSource === 'key_dates';
+    const canExport = usesOwnGrid ? tabExport !== null : filteredRows.length > 0;
+
     return (
         <AppShell>
             <div className="flex flex-col h-[calc(100vh-56px)]">
@@ -447,14 +462,19 @@ export default function ReportsPage() {
                             onClick={async () => {
                                 setIsExportingXlsx(true);
                                 try {
-                                    const { exportReportToExcel } = await import('@/components/export/exportReportExcel');
-                                    await exportReportToExcel({ config, groupTree, flatRows: filteredRows, isGrouped, totalAggregates, stages });
+                                    if (tabExport) {
+                                        const { exportTableToExcel } = await import('@/components/export/tableExport');
+                                        await exportTableToExcel(tabExport.build());
+                                    } else {
+                                        const { exportReportToExcel } = await import('@/components/export/exportReportExcel');
+                                        await exportReportToExcel({ config, groupTree, flatRows: filteredRows, isGrouped, totalAggregates, stages });
+                                    }
                                 } catch (err) {
                                     console.error('XLSX export failed:', err);
                                 }
                                 setIsExportingXlsx(false);
                             }}
-                            disabled={isExportingXlsx || filteredRows.length === 0}
+                            disabled={isExportingXlsx || !canExport}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-40 transition-colors"
                             title="Export Excel"
                         >
@@ -468,15 +488,28 @@ export default function ReportsPage() {
                                 setIsExportingPdf(true);
                                 try {
                                     const { pdf } = await import('@react-pdf/renderer');
-                                    const { ReportPDF } = await import('@/components/export/ReportPDF');
-                                    const doc = <ReportPDF config={config} groupTree={groupTree} flatRows={filteredRows} isGrouped={isGrouped} totalAggregates={totalAggregates} stages={stages} />;
+                                    let doc: React.ReactElement<DocumentProps>;
+                                    let fileName: string;
+
+                                    if (tabExport) {
+                                        const { TablePDF } = await import('@/components/export/TablePDF');
+                                        const { downloadFileName } = await import('@/components/export/tableExport');
+                                        const spec = tabExport.build();
+                                        doc = <TablePDF spec={spec} />;
+                                        fileName = downloadFileName(spec.fileBase, 'pdf');
+                                    } else {
+                                        const { ReportPDF } = await import('@/components/export/ReportPDF');
+                                        doc = <ReportPDF config={config} groupTree={groupTree} flatRows={filteredRows} isGrouped={isGrouped} totalAggregates={totalAggregates} stages={stages} />;
+                                        const dateStr = new Date().toISOString().slice(0, 10);
+                                        const src = config.dataSource === 'land_comps' ? 'Land_Comps' : config.dataSource === 'rent_comps' ? 'Rent_Comps' : config.dataSource === 'sale_comps' ? 'Sale_Comps' : 'Pursuits';
+                                        fileName = `${src}_Report_${dateStr}.pdf`;
+                                    }
+
                                     const blob = await pdf(doc).toBlob();
                                     const url = URL.createObjectURL(blob);
                                     const a = document.createElement('a');
                                     a.href = url;
-                                    const dateStr = new Date().toISOString().slice(0, 10);
-                                    const src = config.dataSource === 'land_comps' ? 'Land_Comps' : config.dataSource === 'rent_comps' ? 'Rent_Comps' : config.dataSource === 'sale_comps' ? 'Sale_Comps' : 'Pursuits';
-                                    a.download = `${src}_Report_${dateStr}.pdf`;
+                                    a.download = fileName;
                                     a.click();
                                     URL.revokeObjectURL(url);
                                 } catch (err) {
@@ -484,7 +517,7 @@ export default function ReportsPage() {
                                 }
                                 setIsExportingPdf(false);
                             }}
-                            disabled={isExportingPdf || filteredRows.length === 0}
+                            disabled={isExportingPdf || !canExport}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-40 transition-colors"
                             title="Export PDF"
                         >
@@ -616,6 +649,7 @@ export default function ReportsPage() {
 
                     {/* Report table */}
                     <div className="flex-1 overflow-auto p-4 md:p-6">
+                        <ReportExportProvider register={registerTabExport}>
                         {dataSource === 'predev_budgets' ? (
                             <PredevBudgetReport />
                         ) : dataSource === 'pursuit_costs' ? (
@@ -649,6 +683,7 @@ export default function ReportsPage() {
                                 onCellEdit={handleCellEdit}
                             />
                         )}
+                        </ReportExportProvider>
                     </div>
                 </div>
             </div>

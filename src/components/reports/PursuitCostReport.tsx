@@ -1,14 +1,95 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { fetchAllPursuitGLTotals, type YardiPursuitCostSummary } from '@/app/actions/accounting';
 import { usePursuitAccountingEntities, usePursuits } from '@/hooks/useSupabaseQueries';
 import { Loader2, DollarSign, Landmark, AlertCircle, ExternalLink, Info } from 'lucide-react';
 import { formatCurrency } from '@/lib/constants';
 import Link from 'next/link';
 import { EntityGLReport } from './EntityGLReport';
+import { useRegisterReportExport } from './ReportExportContext';
+import type { TableExportSpec, ExportColumn, ExportRow } from '@/components/export/tableExport';
 
 type CostTab = 'pursuitco' | 'slr-jv' | 'lamar-gp' | '1919-10th';
+
+const COST_TAB_LABELS: Record<CostTab, string> = {
+    'pursuitco': 'PursuitCo (Consolidated)',
+    'slr-jv': 'SLR JV, LLC (22300000)',
+    'lamar-gp': 'SLR-SML Lamar GP, LLC (53600000)',
+    '1919-10th': '1919 10th Avenue NE (40203166)',
+};
+
+type MappedCostRow = YardiPursuitCostSummary & {
+    entity?: { property_code: string; pursuit_id: string | null } | { property_code: string } | undefined;
+    pursuit?: { id: string; name: string } | undefined;
+    isJVSelfPursuit: boolean;
+};
+
+/** Registers this grid as the owner of the toolbar export while it is mounted. */
+function useCostTableExport(rows: MappedCostRow[], activeTab: CostTab) {
+    const buildExportSpec = useCallback((): TableExportSpec => {
+        const columns: ExportColumn[] = [
+            { label: 'Pursuit', type: 'text', weight: 2.4 },
+            { label: 'Property Code', type: 'text', weight: 1.2 },
+            { label: 'Property Name', type: 'text' },
+            { label: 'Earnest Money', type: 'currency' },
+            { label: 'Gross WIP', type: 'currency' },
+            { label: 'Contra WIP', type: 'currency' },
+            { label: 'Net Pursuit Cost', type: 'currency' },
+        ];
+
+        const exportRows: ExportRow[] = rows.map(row => ({
+            kind: 'data' as const,
+            cells: [
+                row.pursuit?.name ?? (row.isJVSelfPursuit ? row.property_name : `Unmapped (${row.property_name})`),
+                row.property_code,
+                row.property_name,
+                row.earnest_money,
+                row.wip,
+                row.wip_contra,
+                row.net_cost,
+            ],
+        }));
+
+        exportRows.push({
+            kind: 'total',
+            cells: [
+                'TOTALS',
+                null,
+                null,
+                rows.reduce((sum, r) => sum + r.earnest_money, 0),
+                rows.reduce((sum, r) => sum + r.wip, 0),
+                rows.reduce((sum, r) => sum + r.wip_contra, 0),
+                rows.reduce((sum, r) => sum + r.net_cost, 0),
+            ],
+        });
+
+        return {
+            title: 'Pursuit Costs Report',
+            sheetName: activeTab === 'pursuitco' ? 'Pursuit Costs' : `Costs - ${activeTab}`,
+            fileBase: `Pursuit_Costs_${activeTab}`,
+            subtitle: [
+                COST_TAB_LABELS[activeTab],
+                `${rows.length} entit${rows.length !== 1 ? 'ies' : 'y'}`,
+                activeTab === 'pursuitco' ? 'Net cost > $100' : null,
+            ].filter(Boolean).join(' · '),
+            columns,
+            rows: exportRows,
+            frozenCols: 1,
+        };
+    }, [rows, activeTab]);
+
+    useRegisterReportExport(rows.length === 0 ? null : buildExportSpec);
+}
+
+/**
+ * Claims the toolbar export for the WIP table. Rendered only in the branch that
+ * shows that table, so it never competes with EntityGLReport's registration.
+ */
+function CostTableExportRegistrar({ rows, activeTab }: { rows: MappedCostRow[]; activeTab: CostTab }) {
+    useCostTableExport(rows, activeTab);
+    return null;
+}
 
 export function PursuitCostReport() {
     const { data: pursuits = [], isLoading: loadingPursuits } = usePursuits();
@@ -41,33 +122,35 @@ export function PursuitCostReport() {
 
     // Filter to only show pursues (properties) that have > $100 in WIP to avoid cluttering, or show all mapped.
     // The requirement mentions 'filtered by Net WIP > $100'. Net WIP = Earnest + WIP + WIP Contra.
-    
-    let filteredCostData = costData;
-    
-    if (activeTab === 'pursuitco') {
-        filteredCostData = costData.filter(c => c.property_code.startsWith('11') && Math.abs(c.net_cost) > 100);
-    } else if (activeTab === 'slr-jv') {
-        // SLR JV uses GL 12110000 on property 22300000, which is transaction-level. This is a placeholder.
-        filteredCostData = costData.filter(c => c.property_code === '22300000');
-    } else if (activeTab === 'lamar-gp') {
-        filteredCostData = costData.filter(c => c.property_code === '53600000');
-    } else if (activeTab === '1919-10th') {
-        filteredCostData = costData.filter(c => c.property_code === '40203166');
-    }
+    // Memoized so the export registration below only re-fires when the data actually changes.
+    const mappedRows = useMemo(() => {
+        let filteredCostData = costData;
 
-    const mappedRows = filteredCostData
-        .map(cost => {
-            const entity = entities.find(e => e.property_code === cost.property_code);
-            const pursuit = pursuits.find(p => p.id === entity?.pursuit_id);
-            return {
-                ...cost,
-                entity,
-                pursuit,
-                // If we are looking at a specific JV tab, the JV itself acts as the pursuit, so we don't label it "Unmapped"
-                isJVSelfPursuit: activeTab !== 'pursuitco'
-            };
-        })
-        .sort((a, b) => b.net_cost - a.net_cost);
+        if (activeTab === 'pursuitco') {
+            filteredCostData = costData.filter(c => c.property_code.startsWith('11') && Math.abs(c.net_cost) > 100);
+        } else if (activeTab === 'slr-jv') {
+            // SLR JV uses GL 12110000 on property 22300000, which is transaction-level. This is a placeholder.
+            filteredCostData = costData.filter(c => c.property_code === '22300000');
+        } else if (activeTab === 'lamar-gp') {
+            filteredCostData = costData.filter(c => c.property_code === '53600000');
+        } else if (activeTab === '1919-10th') {
+            filteredCostData = costData.filter(c => c.property_code === '40203166');
+        }
+
+        return filteredCostData
+            .map(cost => {
+                const entity = entities.find(e => e.property_code === cost.property_code);
+                const pursuit = pursuits.find(p => p.id === entity?.pursuit_id);
+                return {
+                    ...cost,
+                    entity,
+                    pursuit,
+                    // If we are looking at a specific JV tab, the JV itself acts as the pursuit, so we don't label it "Unmapped"
+                    isJVSelfPursuit: activeTab !== 'pursuitco'
+                };
+            })
+            .sort((a, b) => b.net_cost - a.net_cost);
+    }, [costData, entities, pursuits, activeTab]);
 
     const totalEarnest = mappedRows.reduce((sum, row) => sum + row.earnest_money, 0);
     const totalWip = mappedRows.reduce((sum, row) => sum + row.wip, 0);
@@ -164,6 +247,8 @@ export function PursuitCostReport() {
                     ) : activeTab === '1919-10th' ? (
                         <EntityGLReport propertyCode="40203166" propertyName="1919 10th Avenue NE" />
                     ) : (
+                        <>
+                        <CostTableExportRegistrar rows={mappedRows} activeTab={activeTab} />
                         <table className="data-table w-full">
                             <thead className="sticky top-0 bg-[var(--bg-primary)] z-10 shadow-sm border-b border-[var(--border)]">
                             <tr>
@@ -254,6 +339,7 @@ export function PursuitCostReport() {
                             </tfoot>
                         )}
                     </table>
+                        </>
                     )}
                 </div>
             </div>

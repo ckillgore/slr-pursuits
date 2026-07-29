@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { 
     useAllPredevBudgets, 
@@ -25,6 +25,8 @@ import {
     Shield,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/constants';
+import { useRegisterReportExport } from './ReportExportContext';
+import type { TableExportSpec, ExportColumn, ExportRow } from '@/components/export/tableExport';
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -348,9 +350,9 @@ export function PredevBudgetReport() {
         }
     }, [groupedRows, groupBy]);
 
-    // Fast-access references
-    const fp = fundingPartnersRaw ?? [];
-    const fs = fundingSplitsRaw ?? [];
+    // Fast-access references — memoized so downstream useMemo/useCallback deps stay stable
+    const fp = useMemo(() => fundingPartnersRaw ?? [], [fundingPartnersRaw]);
+    const fs = useMemo(() => fundingSplitsRaw ?? [], [fundingSplitsRaw]);
 
     const grandTotalByMonth = (mk: string): number =>
         (rows).reduce((sum, r) => sum + pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
@@ -371,6 +373,146 @@ export function PredevBudgetReport() {
         const variance = totalForecast - totalBudget;
         return { totalBudget, totalForecast, variance, slrhObligation: totalForecast }; // Obligation is matched via fundingView dynamically
     }, [rows, monthKeys, lineItemFilter, yardiAggregates, today, fp, fs, fundingView]);
+
+    // ── Export ──────────────────────────────────────────────────
+    // Mirrors the grid below so the toolbar's XLSX/PDF buttons emit this tab's
+    // matrix rather than the Pursuits report. Collapsed groups are still
+    // included — an export is the data set, not the current viewport.
+    const buildExportSpec = useCallback((): TableExportSpec => {
+        const periodCols: ExportColumn[] = viewMode === 'monthly'
+            ? forwardMonths.map((mk) => ({ label: formatMonthLabel(mk), type: 'currency' as const, dashOnZero: true }))
+            : yearGroups.map((yg) => ({ label: yg.year, type: 'currency' as const, dashOnZero: true }));
+
+        const columns: ExportColumn[] = [
+            { label: 'Pursuit', type: 'text', weight: 2.6 },
+            { label: 'Location', type: 'text' },
+            { label: 'Stage', type: 'text', weight: 1.4 },
+            { label: 'Total', type: 'currency' },
+            { label: 'LTD Actuals', type: 'currency', dashOnZero: true },
+            ...periodCols,
+        ];
+
+        /** Sum a set of rows for one period column, respecting the active view. */
+        const periodTotal = (groupRows: PredevBudgetReportRow[], colIdx: number, restrictToRange: boolean): number => {
+            const months = viewMode === 'monthly' ? [forwardMonths[colIdx]] : yearGroups[colIdx].months;
+            let total = 0;
+            for (const r of groupRows) {
+                const rmk = restrictToRange ? getForwardMonthKeys([r]) : null;
+                for (const mk of months) {
+                    if (rmk && !rmk.includes(mk)) continue;
+                    total += pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
+                }
+            }
+            return total;
+        };
+
+        const exportRows: ExportRow[] = [];
+
+        for (const [groupKey, groupRows] of Object.entries(groupedRows)) {
+            if (groupBy === 'region') {
+                const groupTotal = groupRows.reduce((sum, r) =>
+                    sum + pursuitGrandTotal(r.budget, getForwardMonthKeys([r]), yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
+                const groupLtd = groupRows.reduce((sum, r) =>
+                    sum + pursuitGrandTotal(r.budget, closedMonths, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
+
+                exportRows.push({
+                    kind: 'group',
+                    cells: [
+                        `${groupKey} (${groupRows.length} pursuit${groupRows.length !== 1 ? 's' : ''})`,
+                        null,
+                        null,
+                        groupTotal,
+                        groupLtd,
+                        ...periodCols.map((_, i) => periodTotal(groupRows, i, false)),
+                    ],
+                });
+            }
+
+            for (const row of groupRows) {
+                const rmk = getForwardMonthKeys([row]);
+                const aggs = yardiAggregates?.[row.pursuit.id];
+                const lineTotal = pursuitGrandTotal(row.budget, rmk, aggs, today, fp, fs, fundingView, lineItemFilter);
+                const lineLtd = pursuitGrandTotal(row.budget, closedMonths.filter(m => rmk.includes(m)), aggs, today, fp, fs, fundingView, lineItemFilter);
+
+                const periodCells = periodCols.map((_, i) => {
+                    const months = viewMode === 'monthly' ? [forwardMonths[i]] : yearGroups[i].months;
+                    const inRange = months.some(mk => rmk.includes(mk));
+                    if (!inRange) return null; // renders as an em dash, like the grid
+                    return months.reduce((sum, mk) =>
+                        rmk.includes(mk)
+                            ? sum + pursuitMonthTotalAdjusted(row.budget, mk, aggs, today, fp, fs, fundingView, lineItemFilter)
+                            : sum, 0);
+                });
+
+                exportRows.push({
+                    kind: 'data',
+                    cells: [
+                        row.pursuit.name,
+                        [row.pursuit.city, row.pursuit.state].filter(Boolean).join(', ') || null,
+                        row.stage?.name ?? null,
+                        lineTotal,
+                        lineLtd,
+                        ...periodCells,
+                    ],
+                    depth: groupBy === 'region' ? 1 : 0,
+                });
+            }
+        }
+
+        const grandByMonth = (mk: string) => rows.reduce((sum, r) =>
+            sum + pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
+
+        exportRows.push({
+            kind: 'total',
+            cells: [
+                'GRAND TOTAL',
+                null,
+                null,
+                monthKeys.reduce((sum, mk) => sum + grandByMonth(mk), 0),
+                closedMonths.reduce((sum, mk) => sum + grandByMonth(mk), 0),
+                ...periodCols.map((_, i) => periodTotal(rows, i, false)),
+            ],
+        });
+
+        const dataViewLabel = fundingView === 'total'
+            ? 'Total Pursuit Forecast'
+            : fundingView === 'slrh'
+                ? 'SLRH Share Forecast'
+                : `Partner: ${fundingView.split(':')[1]} Share`;
+
+        const filterNotes: string[] = [];
+        if (stageFilter) filterNotes.push(`${stageFilter.size} stage filter${stageFilter.size !== 1 ? 's' : ''}`);
+        if (lineItemFilter) filterNotes.push(`${lineItemFilter.size} line item filter${lineItemFilter.size !== 1 ? 's' : ''}`);
+
+        const shareWord = fundingView !== 'total' ? 'Share ' : '';
+
+        return {
+            title: 'Pre-Dev Budget Report',
+            sheetName: 'Pre-Dev',
+            fileBase: 'Pre-Dev_Budgets_Report',
+            subtitle: [
+                `${rows.length} pursuit${rows.length !== 1 ? 's' : ''}`,
+                viewMode === 'monthly' ? 'Monthly' : 'Annual',
+                `Data View: ${dataViewLabel}`,
+                groupBy === 'region' ? 'Grouped by Region' : 'Ungrouped',
+                ...filterNotes,
+            ].join(' · '),
+            columns,
+            rows: exportRows,
+            frozenCols: 5,
+            metrics: [
+                { label: `Total ${shareWord}Forecast`, value: formatCurrency(portfolioMetrics.totalForecast, 0) },
+                { label: `Total ${shareWord}Budget`, value: formatCurrency(portfolioMetrics.totalBudget, 0) },
+                { label: 'Forecast Variance', value: `${portfolioMetrics.variance > 0 ? '+' : ''}${formatCurrency(portfolioMetrics.variance, 0)}` },
+                { label: 'Overall Forecast', value: formatCurrency(portfolioMetrics.slrhObligation, 0) },
+            ],
+        };
+    }, [
+        viewMode, forwardMonths, yearGroups, groupedRows, groupBy, rows, monthKeys, closedMonths,
+        yardiAggregates, today, fp, fs, fundingView, lineItemFilter, stageFilter, portfolioMetrics,
+    ]);
+
+    useRegisterReportExport(isLoading || rows.length === 0 ? null : buildExportSpec);
 
     if (isLoading) {
         return (

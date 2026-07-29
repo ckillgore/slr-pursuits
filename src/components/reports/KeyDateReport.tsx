@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useKeyDateReportData, useStages } from '@/hooks/useSupabaseQueries';
 import type { KeyDateReportRow } from '@/lib/supabase/queries';
 import { REPORT_FIELD_MAP } from '@/lib/reportFields';
 import type { ReportFieldKey } from '@/types';
+import { useRegisterReportExport } from './ReportExportContext';
+import type { TableExportSpec, ExportColumn, ExportRow } from '@/components/export/tableExport';
 import {
     Loader2,
     Calendar,
@@ -82,6 +84,62 @@ export function KeyDateReport() {
                 : { field, direction: 'asc' }
         );
     };
+
+    // ── Export ──────────────────────────────────────────────────
+    // Feeds the toolbar's XLSX/PDF buttons with this tab's rows, honoring the
+    // active sort, grouping and region filter.
+    const buildExportSpec = useCallback((): TableExportSpec => {
+        const fields = DEFAULT_COLUMNS.map(key => REPORT_FIELD_MAP[key]).filter(Boolean);
+        const columns: ExportColumn[] = fields.map(f => ({ label: f.label, type: f.type }));
+
+        const cellsFor = (row: KeyDateReportRow) =>
+            fields.map(f => (f.getKeyDateValue ? f.getKeyDateValue(row, stages) : null));
+
+        const exportRows: ExportRow[] = [];
+        if (grouped) {
+            for (const [groupName, groupRows] of grouped.entries()) {
+                exportRows.push({
+                    kind: 'group',
+                    cells: [`${groupName} (${groupRows.length})`, ...Array(columns.length - 1).fill(null)],
+                });
+                for (const row of groupRows) {
+                    exportRows.push({ kind: 'data', cells: cellsFor(row), depth: 1 });
+                }
+            }
+        } else {
+            for (const row of sorted) {
+                exportRows.push({ kind: 'data', cells: cellsFor(row) });
+            }
+        }
+
+        const totalDatesAll = filtered.reduce((sum, r) => sum + r.totalDates, 0);
+        const totalOverdueAll = filtered.reduce((sum, r) => sum + r.overdueCount, 0);
+        const next = filtered
+            .filter(r => r.nextDate)
+            .sort((a, b) => new Date(a.nextDate!.date).getTime() - new Date(b.nextDate!.date).getTime())[0]?.nextDate;
+
+        return {
+            title: 'Key Dates Report',
+            sheetName: 'Key Dates',
+            fileBase: 'Key_Dates_Report',
+            subtitle: [
+                `${filtered.length} pursuit${filtered.length !== 1 ? 's' : ''}`,
+                filterRegion ? `Region: ${filterRegion}` : 'All Regions',
+                groupBy === 'none' ? 'Ungrouped' : `Grouped by ${groupBy === 'region' ? 'Region' : 'Stage'}`,
+            ].join(' · '),
+            columns,
+            rows: exportRows,
+            frozenCols: 1,
+            metrics: [
+                { label: 'Pursuits', value: String(filtered.length) },
+                { label: 'Total Dates', value: String(totalDatesAll) },
+                { label: 'Overdue', value: String(totalOverdueAll) },
+                { label: 'Next Upcoming', value: next ? `${next.label} (${next.daysUntil}d)` : '—' },
+            ],
+        };
+    }, [sorted, grouped, filtered, stages, groupBy, filterRegion]);
+
+    useRegisterReportExport(isLoading || rows.length === 0 ? null : buildExportSpec);
 
     if (isLoading) {
         return (

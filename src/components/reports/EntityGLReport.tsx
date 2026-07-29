@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { fetchEntityGLTotals, type YardiDetailedGLSummary } from '@/app/actions/accounting';
 import { Loader2, FileText, AlertCircle, Search } from 'lucide-react';
 import { formatCurrency } from '@/lib/constants';
+import { useRegisterReportExport } from './ReportExportContext';
+import type { TableExportSpec, ExportColumn, ExportRow } from '@/components/export/tableExport';
 
 interface EntityGLReportProps {
     propertyCode: string;
@@ -40,6 +42,39 @@ export function EntityGLReport({ propertyCode, propertyName }: EntityGLReportPro
         
         return () => { isMounted = false; };
     }, [propertyCode]);
+
+    // ── Export ──────────────────────────────────────────────────
+    // While this sub-tab is mounted it owns the toolbar's XLSX/PDF buttons, so
+    // they emit this trial balance rather than the parent WIP table.
+    const buildExportSpec = useCallback((): TableExportSpec => {
+        const columns: ExportColumn[] = [
+            { label: 'Account Code', type: 'text', weight: 1.2 },
+            { label: 'Account Name', type: 'text', weight: 3 },
+            { label: 'Ending Balance', type: 'currency' },
+        ];
+
+        const rows: ExportRow[] = glData.map(row => ({
+            kind: 'data' as const,
+            cells: [row.account_code, row.account_name, row.total_amount],
+        }));
+
+        rows.push({
+            kind: 'total',
+            cells: ['Net Balance', null, glData.reduce((sum, r) => sum + r.total_amount, 0)],
+        });
+
+        return {
+            title: `General Ledger Trial Balance — ${propertyName}`,
+            sheetName: `GL ${propertyCode}`,
+            fileBase: `GL_Trial_Balance_${propertyCode}`,
+            subtitle: `Property ${propertyCode} · ${glData.length} account${glData.length !== 1 ? 's' : ''}`,
+            columns,
+            rows,
+            frozenCols: 1,
+        };
+    }, [glData, propertyCode, propertyName]);
+
+    useRegisterReportExport(isLoading || glData.length === 0 ? null : buildExportSpec);
 
     if (isLoading) {
         return (

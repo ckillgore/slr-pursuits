@@ -107,10 +107,10 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
         }`;
 
     return (
-        <div className="min-h-screen flex flex-col overflow-x-hidden">
+        <div className="min-h-screen flex flex-col overflow-x-clip">
             {/* Top Bar */}
             <header className="sticky top-0 z-50 h-14 border-b border-[var(--border)] bg-[var(--bg-nav)]/95 backdrop-blur-sm">
-                <div className="flex items-center justify-between h-full px-4 md:px-6 overflow-hidden">
+                <div className="flex items-center justify-between h-full px-4 md:px-6 overflow-x-clip">
                     {/* Left: Logo + Navigation */}
                     <div className="flex items-center gap-1 md:gap-4 min-w-0">
                         <Link href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity mr-2">

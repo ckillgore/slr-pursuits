@@ -10,7 +10,10 @@ export interface PursuitStage {
   name: string;
   sort_order: number;
   color: string;
+  /** Stage is offered in the stage picker. */
   is_active: boolean;
+  /** Pursuits in this stage roll up into pre-dev spend forecasts. */
+  counts_toward_forecast: boolean;
 }
 
 export interface ProductType {

@@ -492,6 +492,7 @@ export function PredevBudgetReport() {
             fileBase: 'Pre-Dev_Budgets_Report',
             subtitle: [
                 `${rows.length} pursuit${rows.length !== 1 ? 's' : ''}`,
+                'Active pipeline only',
                 viewMode === 'monthly' ? 'Monthly' : 'Annual',
                 `Data View: ${dataViewLabel}`,
                 groupBy === 'region' ? 'Grouped by Region' : 'Ungrouped',
@@ -673,6 +674,13 @@ export function PredevBudgetReport() {
                     )}
                 </div>
             </div>
+
+            {/* Scope note — totals below exclude pursuits whose stage is flagged
+                out of the forecast, so they won't tie to a raw budget list. */}
+            <p className="text-[11px] text-[var(--text-faint)] -mt-1">
+                Active pipeline only — pursuits in Closed, Passed, Dead or Inactive stages are excluded.
+                Adjust per stage under Admin &rsaquo; Stages.
+            </p>
 
             {/* Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

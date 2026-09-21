@@ -1190,6 +1190,12 @@ export async function updateLineItemLabel(id: string, label: string) {
 /**
  * Fetch all pre-dev budgets for portfolio rollup.
  * Returns budget + pursuit metadata (name, region, stage).
+ *
+ * Only pursuits still in the pre-dev pipeline are returned: a stage with
+ * `counts_toward_forecast = false` (Closed / Passed / Dead / Inactive out of
+ * the box) is no longer spending against a forecast, so including it would
+ * overstate the portfolio. Stages are admin-editable — see the Admin > Stages
+ * page for the per-stage toggle.
  */
 export interface PredevBudgetReportRow {
     budget: PredevBudget;
@@ -1213,7 +1219,10 @@ export async function fetchAllPredevBudgets(): Promise<PredevBudgetReportRow[]> 
     if (error) throw error;
 
     return (data ?? [])
-        .filter((d: any) => !d.pursuits?.is_archived)
+        // A pursuit with no stage is still in play — only drop the ones whose
+        // stage is explicitly flagged as out of the forecast.
+        .filter((d: any) => !d.pursuits?.is_archived
+            && d.pursuits?.pursuit_stages?.counts_toward_forecast !== false)
         .map((d: any) => ({
             budget: {
                 ...d,

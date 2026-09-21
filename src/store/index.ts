@@ -42,14 +42,14 @@ interface AppState {
 
 // Default stages
 const defaultStages: PursuitStage[] = [
-    { id: 's1', name: 'Screening', sort_order: 1, color: '#94A3B8', is_active: true },
-    { id: 's2', name: 'Initial Analysis', sort_order: 2, color: '#3B82F6', is_active: true },
-    { id: 's3', name: 'LOI', sort_order: 3, color: '#8B5CF6', is_active: true },
-    { id: 's4', name: 'Under Contract', sort_order: 4, color: '#F59E0B', is_active: true },
-    { id: 's5', name: 'Due Diligence', sort_order: 5, color: '#F97316', is_active: true },
-    { id: 's6', name: 'Closed', sort_order: 6, color: '#10B981', is_active: true },
-    { id: 's7', name: 'Passed', sort_order: 7, color: '#EF4444', is_active: true },
-    { id: 's8', name: 'Dead', sort_order: 8, color: '#6B7280', is_active: true },
+    { id: 's1', name: 'Screening', sort_order: 1, color: '#94A3B8', is_active: true, counts_toward_forecast: true },
+    { id: 's2', name: 'Initial Analysis', sort_order: 2, color: '#3B82F6', is_active: true, counts_toward_forecast: true },
+    { id: 's3', name: 'LOI', sort_order: 3, color: '#8B5CF6', is_active: true, counts_toward_forecast: true },
+    { id: 's4', name: 'Under Contract', sort_order: 4, color: '#F59E0B', is_active: true, counts_toward_forecast: true },
+    { id: 's5', name: 'Due Diligence', sort_order: 5, color: '#F97316', is_active: true, counts_toward_forecast: true },
+    { id: 's6', name: 'Closed', sort_order: 6, color: '#10B981', is_active: true, counts_toward_forecast: false },
+    { id: 's7', name: 'Passed', sort_order: 7, color: '#EF4444', is_active: true, counts_toward_forecast: false },
+    { id: 's8', name: 'Dead', sort_order: 8, color: '#6B7280', is_active: true, counts_toward_forecast: false },
 ];
 
 const defaultProductTypes: ProductType[] = [

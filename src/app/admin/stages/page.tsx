@@ -26,7 +26,7 @@ export default function StagesPage() {
 
     const handleAdd = () => {
         if (!newName.trim()) return;
-        upsertMutation.mutate({ name: newName.trim(), sort_order: stages.length + 1, color: newColor, is_active: true });
+        upsertMutation.mutate({ name: newName.trim(), sort_order: stages.length + 1, color: newColor, is_active: true, counts_toward_forecast: true });
         setNewName(''); setNewColor('var(--text-secondary)'); setShowAdd(false);
     };
 
@@ -49,8 +49,13 @@ export default function StagesPage() {
                             <DebouncedTextInput value={stage.name} onCommit={(v) => upsertMutation.mutate({ id: stage.id, name: v })} className="flex-1 min-w-[120px] inline-input text-sm text-[var(--text-primary)] text-left" />
                             <input type="color" value={stage.color} onChange={(e) => upsertMutation.mutate({ id: stage.id, color: e.target.value })} className="w-8 h-8 rounded cursor-pointer border border-[var(--border)] bg-transparent" />
                             <span className="text-xs text-[var(--text-faint)] font-mono w-16 hidden sm:inline">{stage.color}</span>
-                            <button onClick={() => upsertMutation.mutate({ id: stage.id, is_active: !stage.is_active })} className={`text-xs px-2 py-0.5 rounded ${stage.is_active ? 'bg-[var(--success-bg)] text-[var(--success)]' : 'bg-[var(--bg-elevated)] text-[var(--text-faint)]'}`}>
+                            <button onClick={() => upsertMutation.mutate({ id: stage.id, is_active: !stage.is_active })} title={stage.is_active ? 'Stage is offered in the stage picker' : 'Stage is hidden from the stage picker'} className={`text-xs px-2 py-0.5 rounded ${stage.is_active ? 'bg-[var(--success-bg)] text-[var(--success)]' : 'bg-[var(--bg-elevated)] text-[var(--text-faint)]'}`}>
                                 {stage.is_active ? 'Active' : 'Inactive'}
+                            </button>
+                            {/* Separate from Active: a Dead/Passed stage stays selectable but its
+                                pursuits drop out of the Pre-Dev spend forecast rollup. */}
+                            <button onClick={() => upsertMutation.mutate({ id: stage.id, counts_toward_forecast: !stage.counts_toward_forecast })} title={stage.counts_toward_forecast ? 'Pursuits in this stage are included in the Pre-Dev spend forecast' : 'Pursuits in this stage are excluded from the Pre-Dev spend forecast'} className={`text-xs px-2 py-0.5 rounded ${stage.counts_toward_forecast ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'bg-[var(--bg-elevated)] text-[var(--text-faint)]'}`}>
+                                {stage.counts_toward_forecast ? 'In Forecast' : 'Out of Forecast'}
                             </button>
                         </div>
                     ))}

@@ -67,34 +67,59 @@ export async function GET(req: Request) {
         let assetintelCount = 0;
         try {
             const yardiClient = createYardiClient();
-            const { data: aiComps, error: aiErr } = await yardiClient
-                .from('market_comp_config')
-                .select('hellodata_prop_id, property_name')
+
+            // 1. Get all active property codes from entity_config
+            const { data: activeConfigs, error: configErr } = await yardiClient
+                .from('entity_config')
+                .select('property_code')
                 .eq('is_active', true);
 
-            if (aiErr) {
-                console.warn('[cron] AssetIntel query failed (non-fatal):', aiErr.message);
-            } else if (aiComps && aiComps.length > 0) {
-                for (const comp of aiComps) {
-                    if (comp.hellodata_prop_id && !propertyMap.has(comp.hellodata_prop_id)) {
-                        // Check if this property is already cached in pursuits DB
-                        const { data: existing } = await supabase
-                            .from('hellodata_properties')
-                            .select('id, fetched_at')
-                            .eq('hellodata_id', comp.hellodata_prop_id)
-                            .maybeSingle();
+            if (configErr) {
+                console.warn('[cron] AssetIntel config query failed (non-fatal):', configErr.message);
+            } else if (activeConfigs && activeConfigs.length > 0) {
+                const activeCodes = activeConfigs.map(c => c.property_code);
 
-                        propertyMap.set(comp.hellodata_prop_id, {
-                            id: existing?.id ?? '',
-                            hellodata_id: comp.hellodata_prop_id,
-                            fetched_at: existing?.fetched_at ?? '',
-                            source: 'assetintel',
-                        });
-                        assetintelCount++;
+                // 2. Get comp links for those active property codes
+                const { data: aiComps, error: aiErr } = await yardiClient
+                    .from('hellodata_comp_links')
+                    .select('hellodata_property_id')
+                    .in('property_code', activeCodes);
+
+                if (aiErr) {
+                    console.warn('[cron] AssetIntel comp links query failed (non-fatal):', aiErr.message);
+                } else if (aiComps && aiComps.length > 0) {
+                    const localUuids = Array.from(new Set(
+                        aiComps
+                            .map(c => c.hellodata_property_id)
+                            .filter(Boolean)
+                    ));
+
+                    if (localUuids.length > 0) {
+                        // 3. Query hellodata_properties from pursuits DB for these UUIDs to resolve hellodata_id
+                        const { data: propertiesFromDb, error: dbErr } = await supabase
+                            .from('hellodata_properties')
+                            .select('id, hellodata_id, fetched_at')
+                            .in('id', localUuids);
+
+                        if (dbErr) {
+                            console.warn('[cron] Failed to fetch hellodata_properties from pursuits DB (non-fatal):', dbErr.message);
+                        } else if (propertiesFromDb && propertiesFromDb.length > 0) {
+                            for (const prop of propertiesFromDb) {
+                                if (prop.hellodata_id && !propertyMap.has(prop.hellodata_id)) {
+                                    propertyMap.set(prop.hellodata_id, {
+                                        id: prop.id,
+                                        hellodata_id: prop.hellodata_id,
+                                        fetched_at: prop.fetched_at,
+                                        source: 'assetintel',
+                                    });
+                                    assetintelCount++;
+                                }
+                            }
+                        }
                     }
                 }
-                console.log(`[cron] AssetIntel added ${assetintelCount} additional properties`);
             }
+            console.log(`[cron] AssetIntel added ${assetintelCount} additional properties`);
         } catch (aiError: any) {
             // AssetIntel connection failure should not block pursuit refreshes
             console.warn('[cron] AssetIntel connection failed (non-fatal):', aiError.message);

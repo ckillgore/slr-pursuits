@@ -24,6 +24,11 @@ function formatCurrency(val: number | null) {
     if (!val) return '—';
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
 }
+/** Date-only strings ("2024-03-01") are parsed as local dates so they don't render as the previous day in US timezones */
+function parseDateOnly(d: string): Date {
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + 'T00:00:00') : new Date(d);
+}
+
 function formatNumber(val: number | null, decimals = 0) {
     if (!val) return '—';
     return new Intl.NumberFormat('en-US', { maximumFractionDigits: decimals }).format(val);
@@ -41,7 +46,13 @@ function EditableField({ label, value, onSave, format = 'text', icon: Icon }: {
     const [draft, setDraft] = useState('');
 
     const startEdit = () => {
-        setDraft(value?.toString() ?? '');
+        // Percent values are stored as decimals (0.055) but entered as percents (5.5) — seed the draft in the
+        // same units the save() parser expects, otherwise an unchanged save divides the value by 100 again
+        if (format === 'percent' && typeof value === 'number') {
+            setDraft(String(Math.round(value * 100 * 10000) / 10000));
+        } else {
+            setDraft(value?.toString() ?? '');
+        }
         setEditing(true);
     };
 
@@ -65,7 +76,10 @@ function EditableField({ label, value, onSave, format = 'text', icon: Icon }: {
         if (format === 'number') return formatNumber(value as number);
         if (format === 'year') return String(Math.round(value as number));
         if (format === 'percent') return `${((value as number) * 100).toFixed(2)}%`;
-        if (format === 'date' && value) return new Date(value as string).toLocaleDateString();
+        if (format === 'date' && value) {
+            const dt = parseDateOnly(String(value));
+            return isNaN(dt.getTime()) ? String(value) : dt.toLocaleDateString();
+        }
         return String(value);
     })();
 
@@ -115,7 +129,7 @@ function TransactionRow({ tx, onUpdate, onDelete }: {
                         <DollarSign className="w-3 h-3 text-[var(--accent)]" />
                     </div>
                     <span className="text-xs font-semibold text-[var(--text-muted)] uppercase">
-                        {tx.sale_date ? new Date(tx.sale_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Sale Record'}
+                        {tx.sale_date ? parseDateOnly(tx.sale_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Sale Record'}
                     </span>
                 </div>
                 <button
@@ -165,6 +179,7 @@ export default function SaleCompDetailPage() {
     const [locLatStr, setLocLatStr] = useState('');
     const [locLngStr, setLocLngStr] = useState('');
     const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const searchSeqRef = useRef(0);
 
     const updateField = useCallback((field: keyof SaleComp, value: unknown) => {
         if (!comp) return;
@@ -183,6 +198,7 @@ export default function SaleCompDetailPage() {
 
     const handleDeleteTx = useCallback((txId: string) => {
         if (!comp) return;
+        if (!window.confirm('Delete this sale transaction? This cannot be undone.')) return;
         deleteTx.mutate({ id: txId, saleCompId: comp.id });
     }, [comp, deleteTx]);
 
@@ -190,6 +206,7 @@ export default function SaleCompDetailPage() {
     const handleLocSearch = useCallback((query: string) => {
         setLocSearch(query);
         if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+        const seq = ++searchSeqRef.current;
         if (!query.trim() || !MAPBOX_TOKEN) { setLocSuggestions([]); setShowLocSuggestions(false); return; }
         searchTimeoutRef.current = setTimeout(async () => {
             try {
@@ -197,6 +214,7 @@ export default function SaleCompDetailPage() {
                     `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&types=address,poi,place&country=US&limit=5`
                 );
                 const data = await res.json();
+                if (seq !== searchSeqRef.current) return; // stale response
                 setLocSuggestions(data.features || []);
                 setShowLocSuggestions(true);
             } catch { /* ignore */ }
@@ -205,6 +223,7 @@ export default function SaleCompDetailPage() {
 
     const selectLocSuggestion = useCallback((feature: any) => {
         if (!comp) return;
+        searchSeqRef.current++;
         const [lng, lat] = feature.center;
         const context = feature.context || [];
         const findCtx = (type: string) => context.find((c: any) => c.id?.startsWith(type))?.text || '';
@@ -232,7 +251,7 @@ export default function SaleCompDetailPage() {
         if (!comp) return;
         const lat = parseFloat(locLatStr);
         const lng = parseFloat(locLngStr);
-        if (isNaN(lat) || isNaN(lng)) return;
+        if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
         const updates: Partial<SaleComp> = { latitude: lat, longitude: lng };
         if (MAPBOX_TOKEN) {
             fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=address,place`)
@@ -266,7 +285,8 @@ export default function SaleCompDetailPage() {
         setEditingLocation(false);
     }, [comp, updateComp, locLatStr, locLngStr, compId]);
 
-    const transactions = (comp?.sale_transactions ?? []).sort(
+    // Copy before sorting — sorting in place would mutate the React Query cache
+    const transactions = [...(comp?.sale_transactions ?? [])].sort(
         (a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime()
     );
 
@@ -309,11 +329,11 @@ export default function SaleCompDetailPage() {
                                         className="text-xl font-bold text-[var(--text-primary)] border-b-2 border-[#6366F1] focus:outline-none bg-transparent"
                                         autoFocus
                                         onKeyDown={(e) => {
-                                            if (e.key === 'Enter') { updateField('name', editName.trim()); setIsEditingName(false); }
+                                            if (e.key === 'Enter') { if (editName.trim()) updateField('name', editName.trim()); setIsEditingName(false); }
                                             if (e.key === 'Escape') setIsEditingName(false);
                                         }}
                                     />
-                                    <button onClick={() => { updateField('name', editName.trim()); setIsEditingName(false); }} className="p-1 rounded hover:bg-[#EEF2FF] text-[var(--accent)]"><Check className="w-4 h-4" /></button>
+                                    <button onClick={() => { if (editName.trim()) updateField('name', editName.trim()); setIsEditingName(false); }} className="p-1 rounded hover:bg-[#EEF2FF] text-[var(--accent)]"><Check className="w-4 h-4" /></button>
                                     <button onClick={() => setIsEditingName(false)} className="p-1 rounded hover:bg-red-50 text-[var(--text-faint)]"><X className="w-4 h-4" /></button>
                                 </div>
                             ) : (
@@ -419,7 +439,7 @@ export default function SaleCompDetailPage() {
                                 <EditableField label="Year Built" value={comp.year_built} onSave={(v) => updateField('year_built', v)} format="year" icon={Calendar} />
                                 <EditableField label="Total Units" value={comp.total_units} onSave={(v) => updateField('total_units', v)} format="number" icon={Hash} />
                                 <EditableField label="Total SF" value={comp.total_sf} onSave={(v) => updateField('total_sf', v)} format="number" icon={Ruler} />
-                                {comp.total_units && comp.total_sf && comp.total_units > 0 && (
+                                {comp.total_units != null && comp.total_units > 0 && comp.total_sf != null && comp.total_sf > 0 && (
                                     <div className="flex items-center gap-2 py-2 px-1 border-b border-[var(--table-row-border)]">
                                         <Ruler className="w-3.5 h-3.5 text-[var(--text-faint)]" />
                                         <span className="text-xs text-[var(--text-muted)] flex-1">Avg Unit Size</span>

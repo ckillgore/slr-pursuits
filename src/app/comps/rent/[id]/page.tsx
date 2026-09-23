@@ -13,12 +13,18 @@ import {
     ChevronDown, DollarSign, Clock, Filter,
 } from 'lucide-react';
 import { RentTrendsSection, BubbleChartSection, LeasingActivitySection, OccupancySection } from '@/components/pursuits/rent-comps/RentCompSections';
-import { getAverageAskingRent, getAverageEffectiveRent } from '@/lib/calculations/hellodataCalculations';
+import { getAverageAskingRent, getAverageEffectiveRent, filterValidUnits } from '@/lib/calculations/hellodataCalculations';
 import type { PropertyMetrics } from '@/components/pursuits/rent-comps/types';
 import type { HellodataUnit, HellodataProperty } from '@/types';
 
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
+
+/** Date-only strings ("2024-03-01") are parsed as local dates so they don't render as the previous day in US timezones */
+function fmtDateOnly(d: string): string {
+    const dt = /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + 'T00:00:00') : new Date(d);
+    return isNaN(dt.getTime()) ? d : dt.toLocaleDateString();
+}
 
 function fmtCurrency(val: number | null | undefined) {
     if (val == null) return '—';
@@ -35,7 +41,10 @@ function PropertyMap({ lat, lon, name }: { lat: number; lon: number; name: strin
 
     useEffect(() => {
         if (!MAPBOX_TOKEN || !containerRef.current) return;
+        let cancelled = false;
         import('mapbox-gl').then((mapboxgl) => {
+            // Effect may have been cleaned up while the module was loading; don't create an orphan map
+            if (cancelled || !containerRef.current) return;
             const mbgl = mapboxgl.default || mapboxgl;
             mbgl.accessToken = MAPBOX_TOKEN;
             if (containerRef.current) containerRef.current.innerHTML = '';
@@ -50,7 +59,7 @@ function PropertyMap({ lat, lon, name }: { lat: number; lon: number; name: strin
             new mbgl.Marker({ color: '#2563EB' }).setLngLat([lon, lat]).addTo(map);
             mapRef.current = map;
         });
-        return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
+        return () => { cancelled = true; if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [lat, lon]);
 
@@ -128,9 +137,9 @@ function OverviewTab({ property }: { property: HellodataProperty }) {
                             <div key={key} className="flex items-center gap-3">
                                 <span className="text-xs text-[var(--text-muted)] w-24 capitalize">{key.replace(/_/g, ' ')}</span>
                                 <div className="flex-1 bg-[var(--bg-primary)] rounded-full h-2 overflow-hidden">
-                                    <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${Math.min(100, ((val as number) || 0) * 20)}%` }} />
+                                    <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${Math.min(100, Math.max(0, ((val as number) || 0) * 100))}%` }} />
                                 </div>
-                                <span className="text-xs font-semibold text-[var(--text-primary)] w-8 text-right">{((val as number) || 0).toFixed(1)}</span>
+                                <span className="text-xs font-semibold text-[var(--text-primary)] w-10 text-right">{Math.round(((val as number) || 0) * 100)}%</span>
                             </div>
                         ))}
                     </div>
@@ -458,7 +467,7 @@ function ConcessionsTab({ property }: { property: HellodataProperty }) {
                             <p className="text-sm font-medium text-[var(--text-primary)]">{c.concession_text || 'Concession'}</p>
                             {(c.from_date || c.to_date) && (
                                 <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                                    {c.from_date && new Date(c.from_date).toLocaleDateString()}{c.to_date ? ` — ${new Date(c.to_date).toLocaleDateString()}` : ''}
+                                    {c.from_date && fmtDateOnly(c.from_date)}{c.to_date ? ` — ${fmtDateOnly(c.to_date)}` : ''}
                                 </p>
                             )}
                         </div>
@@ -467,16 +476,16 @@ function ConcessionsTab({ property }: { property: HellodataProperty }) {
                         <div className="space-y-2 mt-3 pt-3 border-t border-[var(--table-row-border)]">
                             {c.items.map((item, j) => (
                                 <div key={j} className="text-xs text-[var(--text-secondary)] space-y-1">
-                                    {item.free_months_count && <p className="text-emerald-600 font-medium">🎉 {item.free_months_count} month{item.free_months_count > 1 ? 's' : ''} free</p>}
-                                    {item.free_weeks_count && <p className="text-emerald-600 font-medium">🎉 {item.free_weeks_count} week{item.free_weeks_count > 1 ? 's' : ''} free</p>}
-                                    {item.recurring_dollars_off_amount && <p className="text-emerald-600 font-medium">${item.recurring_dollars_off_amount}/mo off</p>}
-                                    {item.one_time_dollars_off_amount && <p className="text-blue-600">${item.one_time_dollars_off_amount} one-time discount</p>}
+                                    {!!item.free_months_count && item.free_months_count > 0 && <p className="text-emerald-600 font-medium">🎉 {item.free_months_count} month{item.free_months_count > 1 ? 's' : ''} free</p>}
+                                    {!!item.free_weeks_count && item.free_weeks_count > 0 && <p className="text-emerald-600 font-medium">🎉 {item.free_weeks_count} week{item.free_weeks_count > 1 ? 's' : ''} free</p>}
+                                    {!!item.recurring_dollars_off_amount && <p className="text-emerald-600 font-medium">${item.recurring_dollars_off_amount}/mo off</p>}
+                                    {!!item.one_time_dollars_off_amount && <p className="text-blue-600">${item.one_time_dollars_off_amount} one-time discount</p>}
                                     {item.waived_application_fee && <p>✓ Application fee waived</p>}
                                     {item.waived_security_deposit && <p>✓ Security deposit waived</p>}
                                     {item.waived_administrative_fee && <p>✓ Admin fee waived</p>}
                                     {item.waived_move_in_fee && <p>✓ Move-in fee waived</p>}
-                                    {item.condition_bedrooms && <p className="text-[var(--text-faint)]">Applies to: {item.condition_bedrooms.map(b => b === 0 ? 'Studio' : `${b}BR`).join(', ')}</p>}
-                                    {item.condition_lease_term_months && <p className="text-[var(--text-faint)]">Lease term: {item.condition_lease_term_months.join(', ')} months</p>}
+                                    {item.condition_bedrooms && item.condition_bedrooms.length > 0 && <p className="text-[var(--text-faint)]">Applies to: {item.condition_bedrooms.map(b => b === 0 ? 'Studio' : `${b}BR`).join(', ')}</p>}
+                                    {item.condition_lease_term_months && item.condition_lease_term_months.length > 0 && <p className="text-[var(--text-faint)]">Lease term: {item.condition_lease_term_months.join(', ')} months</p>}
                                 </div>
                             ))}
                         </div>
@@ -516,10 +525,12 @@ export default function RentCompDetailPage() {
         if (!property) return;
         setIsRefreshing(true);
         try {
-            await fetch(`/api/hellodata/property?hellodataId=${encodeURIComponent(property.hellodata_id)}&forceRefresh=true`);
+            const res = await fetch(`/api/hellodata/property?hellodataId=${encodeURIComponent(property.hellodata_id)}&forceRefresh=true`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             queryClient.invalidateQueries({ queryKey: hellodataKeys.propertyDetail(id) });
         } catch (err) {
             console.error('Refresh failed', err);
+            window.alert('Failed to refresh property data from HelloData.');
         } finally {
             setIsRefreshing(false);
         }
@@ -538,7 +549,7 @@ export default function RentCompDetailPage() {
 
     const compMetrics: PropertyMetrics[] = useMemo(() => {
         if (!property) return [];
-        const units = (property.units || []) as HellodataUnit[];
+        const units = filterValidUnits((property.units || []) as HellodataUnit[]);
         const concessions = (property.concessions || []) as any[];
         const ask = getAverageAskingRent(units);
         const eff = getAverageEffectiveRent(units);
@@ -550,7 +561,8 @@ export default function RentCompDetailPage() {
         const domsArr = units.filter(u => u.days_on_market != null).map(u => u.days_on_market!);
         const avgDom = domsArr.length > 0 ? domsArr.reduce((a, b) => a + b, 0) / domsArr.length : null;
         const occ = property.occupancy_over_time;
-        const leasedPct = occ && Array.isArray(occ) && occ.length > 0 ? Math.round((occ[occ.length - 1]?.leased ?? 0) * 100) : null;
+        const latestLeased = occ && Array.isArray(occ) && occ.length > 0 ? occ[occ.length - 1]?.leased : null;
+        const leasedPct = typeof latestLeased === 'number' ? Math.round(latestLeased * 100) : null;
         return [{
             name: property.building_name || property.street_address || 'Property',
             address: [property.street_address, property.city, property.state].filter(Boolean).join(', '),
@@ -567,7 +579,7 @@ export default function RentCompDetailPage() {
             propertyId: property.id,
             leasedPct,
             concessionText: concessions.length > 0 ? concessions[0]?.concession_text || '' : '',
-            avgDaysOnMarket: avgDom ? Math.round(avgDom) : null,
+            avgDaysOnMarket: avgDom != null ? Math.round(avgDom) : null,
             avgDaysVacant: null,
             vacancies: avail,
             concessionPct: null,
@@ -593,9 +605,10 @@ export default function RentCompDetailPage() {
     }
 
     const address = [property.street_address, property.city, property.state, property.zip_code].filter(Boolean).join(', ');
+    const validUnits = compMetrics[0]?.units ?? [];
     const tabs = [
         { id: 'overview' as const, label: 'Overview', icon: Home },
-        { id: 'units' as const, label: `Units (${property.units?.length ?? 0})`, icon: Building2 },
+        { id: 'units' as const, label: `Units (${validUnits.length})`, icon: Building2 },
         { id: 'trends' as const, label: 'Rent Trends', icon: TrendingUp },
         { id: 'bubble' as const, label: 'Rent vs Size', icon: Filter },
         { id: 'leasing' as const, label: 'Leasing', icon: Clock },
@@ -716,7 +729,7 @@ export default function RentCompDetailPage() {
 
                                 {/* Last refreshed */}
                                 <span className="text-[10px] text-[var(--text-faint)]">
-                                    Last refreshed: {new Date(property.fetched_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    Last refreshed: {property.fetched_at ? new Date(property.fetched_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                                 </span>
                             </div>
                         </div>
@@ -745,7 +758,7 @@ export default function RentCompDetailPage() {
 
                 {/* Tab Content */}
                 {activeTab === 'overview' && <OverviewTab property={property} />}
-                {activeTab === 'units' && <UnitDetailsTab units={property.units ?? []} />}
+                {activeTab === 'units' && <UnitDetailsTab units={validUnits} />}
                 {activeTab === 'trends' && <RentTrendsSection comps={compMetrics} />}
                 {activeTab === 'bubble' && <BubbleChartSection comps={compMetrics} />}
                 {activeTab === 'leasing' && <LeasingActivitySection comps={compMetrics} />}

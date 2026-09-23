@@ -65,6 +65,10 @@ interface StockRow {
     bed?: number;
 }
 
+function escapeHtml(v: unknown): string {
+    return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 // SF range bucket helpers
 function getSfRange(sqft: number): string {
     if (sqft < 500) return '<500';
@@ -86,10 +90,22 @@ function getSfRangeSortKey(label: string): number {
 interface MarketStudyTabProps {
     pursuitId: string;
     pursuitName?: string;
+    /** Optional comp-type filter from the parent Rent Comps tab (Primary / All) so tables + exports match */
+    compFilter?: 'all' | 'primary';
 }
 
-export default function MarketStudyTab({ pursuitId, pursuitName }: MarketStudyTabProps) {
-    const { data: rentComps = [], isLoading } = usePursuitRentComps(pursuitId);
+export default function MarketStudyTab({ pursuitId, pursuitName, compFilter = 'all' }: MarketStudyTabProps) {
+    const { data: allRentComps = [], isLoading } = usePursuitRentComps(pursuitId);
+    const rentComps = useMemo(
+        () => compFilter === 'primary'
+            ? allRentComps.filter((rc: PursuitRentComp) => (rc.comp_type || 'primary') === 'primary')
+            : allRentComps,
+        [allRentComps, compFilter]
+    );
+
+    // NOTE: all hooks must run before any early return below (hook order must be stable)
+    const [isExportingPdf, setIsExportingPdf] = useState(false);
+    const [isExportingXlsx, setIsExportingXlsx] = useState(false);
 
     // Compute summary data per comp
     const compSummaries = useMemo((): CompSummary[] => {
@@ -237,9 +253,6 @@ export default function MarketStudyTab({ pursuitId, pursuitName }: MarketStudyTa
     const now = new Date();
     const monthLabel = now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
-    const [isExportingPdf, setIsExportingPdf] = useState(false);
-    const [isExportingXlsx, setIsExportingXlsx] = useState(false);
-
     return (
         <div className="space-y-5">
             {/* Header */}
@@ -285,7 +298,8 @@ export default function MarketStudyTab({ pursuitId, pursuitName }: MarketStudyTa
                                 const safeName = (pursuitName || 'Market_Study').replace(/[^a-zA-Z0-9-_ ]/g, '');
                                 a.download = `${safeName}_Market_Study.pdf`;
                                 a.click();
-                                URL.revokeObjectURL(url);
+                                // Revoke after the download has started (immediate revoke can cancel it in some browsers)
+                                setTimeout(() => URL.revokeObjectURL(url), 1000);
                             } catch (err) {
                                 console.error('PDF export failed:', err);
                             }
@@ -423,9 +437,12 @@ function StudyMap({ comps }: { comps: CompSummary[] }) {
 
     const initMap = useCallback(() => {
         if (!MAPBOX_TOKEN || !containerRef.current || mappable.length === 0) return;
+        let cancelled = false;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         import('mapbox-gl').then((mapboxgl: any) => {
+            // Effect may have been cleaned up while the module was loading; don't create an orphan map
+            if (cancelled || !containerRef.current) return;
             const mbgl = mapboxgl.default || mapboxgl;
             mbgl.accessToken = MAPBOX_TOKEN;
 
@@ -443,6 +460,7 @@ function StudyMap({ comps }: { comps: CompSummary[] }) {
             mapRef.current = map;
 
             map.on('load', () => {
+                if (cancelled) return;
                 if (mappable.length > 1) {
                     const pad = 0.005;
                     map.fitBounds(
@@ -466,7 +484,7 @@ function StudyMap({ comps }: { comps: CompSummary[] }) {
                     const popup = new mbgl.Popup({ offset: 20, closeButton: false, maxWidth: '240px' })
                         .setHTML(`
                             <div style="font-family: system-ui; padding: 4px;">
-                                <div style="font-weight: 600; font-size: 12px; margin-bottom: 2px;">${c.name}</div>
+                                <div style="font-weight: 600; font-size: 12px; margin-bottom: 2px;">${escapeHtml(c.name)}</div>
                                 <div style="font-size: 11px; color: #64748B; display: grid; grid-template-columns: 1fr 1fr; gap: 1px 10px;">
                                     <span>Units:</span><span style="font-weight: 500;">${c.unitCount}</span>
                                     <span>Rent:</span><span style="font-weight: 500;">${fmtCur(c.marketRent)}</span>
@@ -485,6 +503,7 @@ function StudyMap({ comps }: { comps: CompSummary[] }) {
         });
 
         return () => {
+            cancelled = true;
             if (mapRef.current) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (mapRef.current as any).remove();

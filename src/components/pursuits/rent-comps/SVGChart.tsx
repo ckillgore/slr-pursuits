@@ -29,7 +29,11 @@ export default function SVGChart({ series, width = 700, height = 260, yLabel, fo
     const [hoverX, setHoverX] = useState<number | null>(null);
 
     const computed = useMemo(() => {
-        const allPts = series.flatMap(s => s.data);
+        // Drop points with non-finite values or unparseable dates — one bad point would make every scale NaN
+        const cleanSeries = series.map(s => (s.data || []).filter(p =>
+            p && typeof p.value === 'number' && Number.isFinite(p.value) && !!p.date && Number.isFinite(new Date(p.date).getTime())
+        ));
+        const allPts = cleanSeries.flat();
         if (allPts.length === 0) return null;
 
         const dates = allPts.map(p => new Date(p.date).getTime());
@@ -49,23 +53,27 @@ export default function SVGChart({ series, width = 700, height = 260, yLabel, fo
         // Y-axis ticks (5 ticks)
         const yTicks: number[] = [];
         const step = valRange / 4;
-        for (let i = 0; i < 5; i++) yTicks.push(Math.round(minVal + step * i));
+        // Only round to integers when the range is wide enough (e.g. $/SF charts need decimals)
+        for (let i = 0; i < 5; i++) {
+            const t = minVal + step * i;
+            yTicks.push(valRange >= 10 ? Math.round(t) : Math.round(t * 100) / 100);
+        }
 
         // X-axis ticks (labels)
         const uniqueMonths = [...new Set(allPts.map(p => p.date.slice(0, 7)))].sort();
         const xLabels = uniqueMonths.length <= 12 ? uniqueMonths : uniqueMonths.filter((_, i) => i % Math.ceil(uniqueMonths.length / 8) === 0);
 
-        const paths = series.map(s => {
-            const sorted = [...s.data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const paths = cleanSeries.map(data => {
+            const sorted = [...data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             if (sorted.length === 0) return '';
             return sorted.map((p, i) => `${i === 0 ? 'M' : 'L'}${scaleX(p.date).toFixed(1)},${scaleY(p.value).toFixed(1)}`).join(' ');
         });
 
         // Pre-sort each series by date for hover lookup
-        const sortedSeries = series.map(s => [...s.data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+        const sortedSeries = cleanSeries.map(data => [...data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
         
         const highlightTime = highlightDate ? new Date(highlightDate).getTime() : null;
-        const highlightX = highlightTime !== null && highlightTime >= minDate && highlightTime <= maxDate ? scaleX(highlightDate as string) : null;
+        const highlightX = highlightTime !== null && Number.isFinite(highlightTime) && highlightTime >= minDate && highlightTime <= maxDate ? scaleX(highlightDate as string) : null;
 
         return { paths, yTicks, xLabels, scaleX, scaleY, unscaleX, minVal, yPad, valRange, dateRange, minDate, sortedSeries, highlightX };
     }, [series, w, h, highlightDate]);

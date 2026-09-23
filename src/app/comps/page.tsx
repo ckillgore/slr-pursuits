@@ -23,6 +23,15 @@ function formatNumber(val: number | null, decimals = 0) {
     return new Intl.NumberFormat('en-US', { maximumFractionDigits: decimals }).format(val);
 }
 
+function escapeHtml(v: unknown): string {
+    return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/** Date-only strings ("2024-03-01") are parsed as local dates so they don't shift a day in US timezones */
+function parseDateOnly(d: string): Date {
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + 'T00:00:00') : new Date(d);
+}
+
 // ======================== Comps Map ========================
 
 function CompsMap({ comps }: { comps: LandComp[] }) {
@@ -39,7 +48,10 @@ function CompsMap({ comps }: { comps: LandComp[] }) {
         if (!MAPBOX_TOKEN || !containerRef.current) return;
 
         let map: any;
+        let cancelled = false;
         import('mapbox-gl').then((mapboxgl) => {
+            // Effect may have been cleaned up while the module was loading; don't create an orphan map
+            if (cancelled || !containerRef.current) return;
             const mbgl = mapboxgl.default || mapboxgl;
             mbgl.accessToken = MAPBOX_TOKEN;
 
@@ -68,6 +80,7 @@ function CompsMap({ comps }: { comps: LandComp[] }) {
             mapRef.current = map;
 
             map.on('load', () => {
+                if (cancelled) return;
                 if (locatedComps.length > 1) {
                     const bounds = new mbgl.LngLatBounds();
                     locatedComps.forEach((c) => bounds.extend([c.longitude!, c.latitude!]));
@@ -81,7 +94,7 @@ function CompsMap({ comps }: { comps: LandComp[] }) {
                     el.style.cssText = 'cursor:pointer;display:flex;flex-direction:column;align-items:center;';
                     el.innerHTML = `
                         <div style="background:#0D9488;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.15);line-height:1.3;text-align:center;">
-                            ${c.name}
+                            ${escapeHtml(c.name)}
                             ${priceLabel ? `<div style="font-weight:400;font-size:8px;opacity:0.85;">${priceLabel}</div>` : ''}
                         </div>
                         <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #0D9488;"></div>
@@ -96,6 +109,7 @@ function CompsMap({ comps }: { comps: LandComp[] }) {
         });
 
         return () => {
+            cancelled = true;
             markersRef.current.forEach((m) => m.remove());
             markersRef.current = [];
             if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
@@ -137,7 +151,10 @@ function SaleCompsMap({ comps }: { comps: SaleComp[] }) {
         if (!MAPBOX_TOKEN || !containerRef.current) return;
 
         let map: any;
+        let cancelled = false;
         import('mapbox-gl').then((mapboxgl) => {
+            // Effect may have been cleaned up while the module was loading; don't create an orphan map
+            if (cancelled || !containerRef.current) return;
             const mbgl = mapboxgl.default || mapboxgl;
             mbgl.accessToken = MAPBOX_TOKEN;
 
@@ -166,6 +183,7 @@ function SaleCompsMap({ comps }: { comps: SaleComp[] }) {
             mapRef.current = map;
 
             map.on('load', () => {
+                if (cancelled) return;
                 if (locatedComps.length > 1) {
                     const bounds = new mbgl.LngLatBounds();
                     locatedComps.forEach((c) => bounds.extend([c.longitude!, c.latitude!]));
@@ -173,7 +191,7 @@ function SaleCompsMap({ comps }: { comps: SaleComp[] }) {
                 }
 
                 locatedComps.forEach((c) => {
-                    const txs = (c.sale_transactions ?? []).sort(
+                    const txs = [...(c.sale_transactions ?? [])].sort(
                         (a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime()
                     );
                     const latest = txs[0];
@@ -182,7 +200,7 @@ function SaleCompsMap({ comps }: { comps: SaleComp[] }) {
                     el.style.cssText = 'cursor:pointer;display:flex;flex-direction:column;align-items:center;';
                     el.innerHTML = `
                         <div style="background:#6366F1;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.15);line-height:1.3;text-align:center;">
-                            ${c.name}
+                            ${escapeHtml(c.name)}
                             ${priceLabel ? `<div style="font-weight:400;font-size:8px;opacity:0.85;">${priceLabel}</div>` : ''}
                         </div>
                         <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #6366F1;"></div>
@@ -190,13 +208,14 @@ function SaleCompsMap({ comps }: { comps: SaleComp[] }) {
                     const marker = new mbgl.Marker({ element: el })
                         .setLngLat([c.longitude!, c.latitude!])
                         .addTo(map);
-                    el.addEventListener('click', () => { window.location.href = `/comps/sales/${c.short_id}`; });
+                    el.addEventListener('click', () => { window.location.href = `/comps/sales/${c.short_id || c.id}`; });
                     markersRef.current.push(marker);
                 });
             });
         });
 
         return () => {
+            cancelled = true;
             markersRef.current.forEach((m) => m.remove());
             markersRef.current = [];
             if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
@@ -238,7 +257,10 @@ function RentCompsMap({ comps }: { comps: HellodataProperty[] }) {
         if (!MAPBOX_TOKEN || !containerRef.current) return;
 
         let map: any;
+        let cancelled = false;
         import('mapbox-gl').then((mapboxgl) => {
+            // Effect may have been cleaned up while the module was loading; don't create an orphan map
+            if (cancelled || !containerRef.current) return;
             const mbgl = mapboxgl.default || mapboxgl;
             mbgl.accessToken = MAPBOX_TOKEN;
 
@@ -267,6 +289,7 @@ function RentCompsMap({ comps }: { comps: HellodataProperty[] }) {
             mapRef.current = map;
 
             map.on('load', () => {
+                if (cancelled) return;
                 if (locatedComps.length > 1) {
                     const bounds = new mbgl.LngLatBounds();
                     locatedComps.forEach((c) => bounds.extend([c.lon!, c.lat!]));
@@ -279,7 +302,7 @@ function RentCompsMap({ comps }: { comps: HellodataProperty[] }) {
                     el.style.cssText = 'cursor:pointer;display:flex;flex-direction:column;align-items:center;';
                     el.innerHTML = `
                         <div style="background:#2563EB;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.15);line-height:1.3;text-align:center;">
-                            ${c.building_name || c.street_address || 'Property'}
+                            ${escapeHtml(c.building_name || c.street_address || 'Property')}
                             ${units ? `<div style="font-weight:400;font-size:8px;opacity:0.85;">${units}</div>` : ''}
                         </div>
                         <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #2563EB;"></div>
@@ -294,6 +317,7 @@ function RentCompsMap({ comps }: { comps: HellodataProperty[] }) {
         });
 
         return () => {
+            cancelled = true;
             markersRef.current.forEach((m) => m.remove());
             markersRef.current = [];
             if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
@@ -386,6 +410,8 @@ export default function CompsPage() {
     const [saleSuggestions, setSaleSuggestions] = useState<any[]>([]);
     const [showSaleSuggestions, setShowSaleSuggestions] = useState(false);
     const saleSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const saleSearchSeqRef = useRef(0);
+    const searchSeqRef = useRef(0);
 
     // Product types from DB
     const { data: productTypes = [] } = useProductTypes();
@@ -416,6 +442,7 @@ export default function CompsPage() {
         setSaleAddressSearch(query);
         setSaleAddress(query);
         if (saleSearchTimeoutRef.current) clearTimeout(saleSearchTimeoutRef.current);
+        const seq = ++saleSearchSeqRef.current;
         if (!query.trim() || query.length < 3 || !MAPBOX_TOKEN) {
             setSaleSuggestions([]); setShowSaleSuggestions(false); return;
         }
@@ -425,6 +452,7 @@ export default function CompsPage() {
                     `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&types=address,poi,place&country=US&limit=5`
                 );
                 const data = await res.json();
+                if (seq !== saleSearchSeqRef.current) return; // stale response
                 setSaleSuggestions(data.features || []);
                 setShowSaleSuggestions(true);
             } catch { /* ignore */ }
@@ -432,6 +460,7 @@ export default function CompsPage() {
     }, []);
 
     const selectSaleSuggestion = useCallback((feature: any) => {
+        saleSearchSeqRef.current++;
         const [lng, lat] = feature.center;
         const context = feature.context || [];
         const findCtx = (type: string) => context.find((c: any) => c.id?.startsWith(type))?.text || '';
@@ -565,6 +594,7 @@ export default function CompsPage() {
     const handleAddressSearch = useCallback((query: string) => {
         setAddressSearch(query);
         if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+        const seq = ++searchSeqRef.current;
         if (!query.trim() || !MAPBOX_TOKEN) { setSuggestions([]); setShowSuggestions(false); return; }
         searchTimeoutRef.current = setTimeout(async () => {
             try {
@@ -572,6 +602,7 @@ export default function CompsPage() {
                     `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&types=address,poi,place&country=US&limit=5`
                 );
                 const data = await res.json();
+                if (seq !== searchSeqRef.current) return; // stale response
                 setSuggestions(data.features || []);
                 setShowSuggestions(true);
             } catch { /* ignore */ }
@@ -579,6 +610,7 @@ export default function CompsPage() {
     }, []);
 
     const selectSuggestion = useCallback((feature: any) => {
+        searchSeqRef.current++;
         const [lng, lat] = feature.center;
         const context = feature.context || [];
         const findCtx = (type: string) => context.find((c: any) => c.id?.startsWith(type))?.text || '';
@@ -744,7 +776,7 @@ export default function CompsPage() {
                                 className="w-full pl-10 pr-4 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 focus:outline-none transition-all"
                             />
                         </div>
-                        {(viewMode === 'grid' || viewMode === 'list') && (
+                        {(
                             <>
                                 <select
                                     value={rentFilterState}
@@ -925,12 +957,14 @@ export default function CompsPage() {
                             )}
 
                             {/* Empty State */}
-                            {!loadingRentComps && filteredRent.length === 0 && (
+                            {!loadingRentComps && filteredRent.length === 0 && viewMode !== 'map' && (
                                 <div className="text-center py-16">
                                     <Home className="w-12 h-12 text-[var(--border-strong)] mx-auto mb-3" />
-                                    <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1">No rent comps yet</h3>
+                                    <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1">{rentComps.length === 0 ? 'No rent comps yet' : 'No matching rent comps'}</h3>
                                     <p className="text-sm text-[var(--text-muted)] max-w-sm mx-auto">
-                                        Rent comps are loaded from Hellodata when added to a pursuit. Go to a pursuit&apos;s Rent Comps tab to search and add properties.
+                                        {rentComps.length === 0
+                                            ? <>Rent comps are loaded from Hellodata when added to a pursuit. Go to a pursuit&apos;s Rent Comps tab to search and add properties.</>
+                                            : 'Try adjusting your search or filters.'}
                                     </p>
                                 </div>
                             )}
@@ -953,7 +987,7 @@ export default function CompsPage() {
                                 className="w-full pl-10 pr-4 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D9488]/10 focus:outline-none transition-all"
                             />
                         </div>
-                        {(viewMode === 'grid' || viewMode === 'list') && (
+                        {(
                             <>
                                 <select
                                     value={filterState}
@@ -973,7 +1007,7 @@ export default function CompsPage() {
                                         {landCities.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
                                 )}
-                                <select
+                                {viewMode !== 'map' && <select
                                     value={sortBy}
                                     onChange={(e) => setSortBy(e.target.value as any)}
                                     className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[#0D9488] focus:outline-none"
@@ -981,7 +1015,7 @@ export default function CompsPage() {
                                     <option value="newest">Newest First</option>
                                     <option value="name">Name A→Z</option>
                                     <option value="price">Highest Price</option>
-                                </select>
+                                </select>}
                             </>
                         )}
                     </div>
@@ -1043,7 +1077,7 @@ export default function CompsPage() {
                                                 <Calendar className="w-3 h-3 text-[var(--text-muted)]" />
                                                 <div>
                                                     <div className="text-[10px] text-[var(--text-faint)] uppercase">Sale Date</div>
-                                                    <div className="text-xs text-[var(--text-secondary)]">{new Date(comp.sale_date).toLocaleDateString()}</div>
+                                                    <div className="text-xs text-[var(--text-secondary)]">{parseDateOnly(comp.sale_date).toLocaleDateString()}</div>
                                                 </div>
                                             </div>
                                         )}
@@ -1104,7 +1138,7 @@ export default function CompsPage() {
                                                 {c.site_area_sf > 0 ? formatNumber(c.site_area_sf) : '—'}
                                             </td>
                                             <td className="px-4 py-3 text-right text-xs text-[var(--text-muted)] hidden lg:table-cell">
-                                                {c.sale_date ? new Date(c.sale_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                                                {c.sale_date ? parseDateOnly(c.sale_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                                             </td>
                                             {isAdminOrOwner && (
                                                 <td className="px-4 py-1 text-right">
@@ -1217,7 +1251,7 @@ export default function CompsPage() {
                         {!loadingSaleComps && filteredSaleComps.length > 0 && (viewMode === 'grid' || viewMode === 'map') && viewMode === 'grid' && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {filteredSaleComps.map((sc) => {
-                                    const txs = (sc.sale_transactions ?? []).sort(
+                                    const txs = [...(sc.sale_transactions ?? [])].sort(
                                         (a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime()
                                     );
                                     const latest = txs[0];
@@ -1251,7 +1285,7 @@ export default function CompsPage() {
                                                         </div>
                                                     </div>
                                                 )}
-                                                {sc.total_units && sc.total_units > 0 && (
+                                                {sc.total_units != null && sc.total_units > 0 && (
                                                     <div className="flex items-center gap-1.5">
                                                         <Landmark className="w-3 h-3 text-[var(--accent)]" />
                                                         <div>
@@ -1260,7 +1294,7 @@ export default function CompsPage() {
                                                         </div>
                                                     </div>
                                                 )}
-                                                {latest?.sale_price && (
+                                                {latest?.sale_price ? (
                                                     <div className="flex items-center gap-1.5">
                                                         <DollarSign className="w-3 h-3 text-[var(--accent)]" />
                                                         <div>
@@ -1268,8 +1302,8 @@ export default function CompsPage() {
                                                             <div className="text-xs font-semibold text-[var(--text-primary)]">{formatCurrency(latest.sale_price)}</div>
                                                         </div>
                                                     </div>
-                                                )}
-                                                {latest?.cap_rate && (
+                                                ) : null}
+                                                {latest?.cap_rate ? (
                                                     <div className="flex items-center gap-1.5">
                                                         <TrendingUp className="w-3 h-3 text-[var(--accent)]" />
                                                         <div>
@@ -1277,7 +1311,7 @@ export default function CompsPage() {
                                                             <div className="text-xs font-semibold text-[var(--text-primary)]">{(latest.cap_rate * 100).toFixed(2)}%</div>
                                                         </div>
                                                     </div>
-                                                )}
+                                                ) : null}
                                             </div>
                                             <div className="mt-3 pt-2 border-t border-[var(--table-row-border)] flex items-center justify-between">
                                                 <span className="text-[10px] text-[var(--text-faint)]">Added {new Date(sc.created_at).toLocaleDateString()}</span>
@@ -1311,7 +1345,7 @@ export default function CompsPage() {
                                     </thead>
                                     <tbody>
                                         {filteredSaleComps.map((sc) => {
-                                            const txs = (sc.sale_transactions ?? []).sort(
+                                            const txs = [...(sc.sale_transactions ?? [])].sort(
                                                 (a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime()
                                             );
                                             const latest = txs[0];
@@ -1366,7 +1400,7 @@ export default function CompsPage() {
                             <SaleCompsMap comps={filteredSaleComps} />
                         )}
 
-                        {!loadingSaleComps && filteredSaleComps.length === 0 && (
+                        {!loadingSaleComps && filteredSaleComps.length === 0 && viewMode !== 'map' && (
                             <div className="flex flex-col items-center justify-center py-24 text-center">
                                 <div className="w-16 h-16 rounded-2xl bg-[var(--bg-elevated)] flex items-center justify-center mb-4">
                                     <Building2 className="w-8 h-8 text-[var(--text-faint)]" />
@@ -1498,10 +1532,16 @@ export default function CompsPage() {
                             <button onClick={() => setDeleteCompId(null)} className="px-4 py-2 text-sm text-[var(--text-muted)]">Cancel</button>
                             <button
                                 onClick={async () => {
-                                    await deleteCompMutation.mutateAsync(deleteCompId);
-                                    setDeleteCompId(null);
+                                    try {
+                                        await deleteCompMutation.mutateAsync(deleteCompId);
+                                        setDeleteCompId(null);
+                                    } catch (err) {
+                                        console.error('Failed to delete comp:', err);
+                                        window.alert('Failed to delete comp.');
+                                    }
                                 }}
-                                className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors"
+                                disabled={deleteCompMutation.isPending}
+                                className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 disabled:opacity-50 transition-colors"
                             >
                                 Delete
                             </button>
@@ -1626,10 +1666,16 @@ export default function CompsPage() {
                             <button onClick={() => setDeleteSaleCompId(null)} className="px-4 py-2 text-sm text-[var(--text-muted)]">Cancel</button>
                             <button
                                 onClick={async () => {
-                                    await deleteSaleCompMutation.mutateAsync(deleteSaleCompId);
-                                    setDeleteSaleCompId(null);
+                                    try {
+                                        await deleteSaleCompMutation.mutateAsync(deleteSaleCompId);
+                                        setDeleteSaleCompId(null);
+                                    } catch (err) {
+                                        console.error('Failed to delete sale comp:', err);
+                                        window.alert('Failed to delete sale comp.');
+                                    }
                                 }}
-                                className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors"
+                                disabled={deleteSaleCompMutation.isPending}
+                                className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 disabled:opacity-50 transition-colors"
                             >
                                 Delete
                             </button>

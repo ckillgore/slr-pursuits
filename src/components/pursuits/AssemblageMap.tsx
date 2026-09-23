@@ -41,6 +41,10 @@ function fmtCurrency(v: number | null): string {
     return '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
+function escapeHtml(v: unknown): string {
+    return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function fmtNumber(v: number | null): string {
     if (v == null) return 'N/A';
     return v.toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -236,12 +240,12 @@ export function AssemblageMap({
                             .setLngLat(e.lngLat)
                             .setHTML(`
                                 <div style="font-family: system-ui, sans-serif; font-size: 11px; line-height: 1.5;">
-                                    <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 2px;">${props.address}</div>
-                                    ${props.parcelNumber ? `<div style="color: var(--text-faint); font-size: 10px;">APN: ${props.parcelNumber}</div>` : ''}
-                                    ${props.ownerName ? `<div style="color: var(--text-secondary); margin-top: 3px;">📋 ${props.ownerName}</div>` : ''}
+                                    <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 2px;">${escapeHtml(props.address)}</div>
+                                    ${props.parcelNumber ? `<div style="color: var(--text-faint); font-size: 10px;">APN: ${escapeHtml(props.parcelNumber)}</div>` : ''}
+                                    ${props.ownerName ? `<div style="color: var(--text-secondary); margin-top: 3px;">📋 ${escapeHtml(props.ownerName)}</div>` : ''}
                                     ${props.lotSizeSF > 0 ? `<div style="color: var(--text-secondary);">📐 ${fmtNumber(props.lotSizeSF)} SF (${Number(props.lotSizeAcres).toFixed(2)} ac)</div>` : ''}
                                     ${props.totalAssessedValue > 0 ? `<div style="color: var(--text-secondary);">💰 ${fmtCurrency(props.totalAssessedValue)}</div>` : ''}
-                                    ${props.zoningCode ? `<div style="color: var(--text-secondary);">🏗️ ${props.zoningCode}</div>` : ''}
+                                    ${props.zoningCode ? `<div style="color: var(--text-secondary);">🏗️ ${escapeHtml(props.zoningCode)}</div>` : ''}
                                     <div style="margin-top: 4px; padding-top: 3px; border-top: 1px solid var(--border); font-size: 10px; color: ${isSelected ? '#7C3AED' : '#A0AABB'}; font-weight: 600;">
                                         ${isSelected ? '✓ Selected — click to remove' : 'Click to add to assemblage'}
                                     </div>

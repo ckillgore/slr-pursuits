@@ -85,123 +85,118 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
         }
     }, [breakMinutes, savedDriveTimeData]);
 
-    // Initialize Mapbox map
+    // Initialize Mapbox map (re-run when the container appears, i.e. once a location is set)
+    const [mapReady, setMapReady] = useState(false);
+    const markerRef = useRef<any>(null);
     useEffect(() => {
-        if (!MAPBOX_TOKEN || !mapContainerRef.current) return;
+        if (!MAPBOX_TOKEN || !hasLocation || !mapContainerRef.current) return;
 
         let map: any;
+        let cancelled = false;
         import('mapbox-gl').then((mapboxgl) => {
+            if (cancelled || !mapContainerRef.current) return;
             const mbgl = mapboxgl.default || mapboxgl;
             mbgl.accessToken = MAPBOX_TOKEN;
             mbglRef.current = mbgl;
 
-            if (mapContainerRef.current) mapContainerRef.current.innerHTML = '';
+            mapContainerRef.current.innerHTML = '';
 
             map = new mbgl.Map({
-                container: mapContainerRef.current!,
+                container: mapContainerRef.current,
                 style: 'mapbox://styles/mapbox/light-v11',
                 center,
-                zoom: hasLocation ? 12 : 10,
+                zoom: 12,
                 interactive: true,
             });
 
             map.addControl(new mbgl.NavigationControl({ showCompass: false }), 'top-right');
 
             // Add center marker
-            if (hasLocation) {
-                new mbgl.Marker({ color: '#2563EB' })
-                    .setLngLat(center)
-                    .addTo(map);
-            }
+            markerRef.current = new mbgl.Marker({ color: '#2563EB' })
+                .setLngLat(center)
+                .addTo(map);
 
             mapRef.current = map;
+            map.on('load', () => { if (!cancelled) setMapReady(true); });
         });
 
         return () => {
+            cancelled = true;
             if (map) map.remove();
+            mapRef.current = null;
+            markerRef.current = null;
+            setMapReady(false);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [MAPBOX_TOKEN]);
+    }, [hasLocation]);
 
-    // Update map center when lat/lng changes
+    // Update map center + marker when lat/lng changes
     useEffect(() => {
         if (!mapRef.current || !hasLocation) return;
+        markerRef.current?.setLngLat([longitude!, latitude!]);
         mapRef.current.flyTo({ center: [longitude!, latitude!], zoom: 12, duration: 800 });
     }, [latitude, longitude, hasLocation]);
 
     // Render polygon on map when data changes (or clear when null)
     useEffect(() => {
         const map = mapRef.current;
-        if (!map) return;
+        if (!map || !mapReady) return;
 
-        const removeLayers = () => {
-            try {
-                if (map.getLayer('isochrone-fill')) map.removeLayer('isochrone-fill');
-                if (map.getLayer('isochrone-outline')) map.removeLayer('isochrone-outline');
-                if (map.getSource('isochrone')) map.removeSource('isochrone');
-            } catch { /* ok */ }
-        };
+        try {
+            if (map.getLayer('isochrone-fill')) map.removeLayer('isochrone-fill');
+            if (map.getLayer('isochrone-outline')) map.removeLayer('isochrone-outline');
+            if (map.getSource('isochrone')) map.removeSource('isochrone');
+        } catch { /* ok */ }
 
         // If polygon is null, just remove old layers and reset view
         if (!polygon) {
-            const doRemove = () => {
-                removeLayers();
-                // Reset map to center marker
-                if (hasLocation) {
-                    map.flyTo({ center: [longitude!, latitude!], zoom: 12, duration: 800 });
-                }
-            };
-            if (map.isStyleLoaded()) doRemove();
-            else map.on('load', doRemove);
+            if (hasLocation) {
+                map.flyTo({ center: [longitude!, latitude!], zoom: 12, duration: 800 });
+            }
             return;
         }
 
-        const addLayer = () => {
-            removeLayers();
+        map.addSource('isochrone', {
+            type: 'geojson',
+            data: polygon,
+        });
 
-            map.addSource('isochrone', {
-                type: 'geojson',
-                data: polygon,
-            });
+        map.addLayer({
+            id: 'isochrone-fill',
+            type: 'fill',
+            source: 'isochrone',
+            paint: {
+                'fill-color': '#007cbf',
+                'fill-opacity': 0.25,
+            },
+        });
 
-            map.addLayer({
-                id: 'isochrone-fill',
-                type: 'fill',
-                source: 'isochrone',
-                paint: {
-                    'fill-color': '#007cbf',
-                    'fill-opacity': 0.25,
-                },
-            });
+        map.addLayer({
+            id: 'isochrone-outline',
+            type: 'line',
+            source: 'isochrone',
+            paint: {
+                'line-color': '#007cbf',
+                'line-width': 2,
+                'line-opacity': 0.8,
+            },
+        });
 
-            map.addLayer({
-                id: 'isochrone-outline',
-                type: 'line',
-                source: 'isochrone',
-                paint: {
-                    'line-color': '#007cbf',
-                    'line-width': 2,
-                    'line-opacity': 0.8,
-                },
-            });
-
-            // Fit map to polygon bounds
-            const mbgl = mbglRef.current;
-            if (mbgl && polygon.geometry?.coordinates?.[0]) {
-                const bounds = new mbgl.LngLatBounds();
-                polygon.geometry.coordinates[0].forEach(([lng, lat]: number[]) => {
-                    bounds.extend([lng, lat]);
-                });
-                map.fitBounds(bounds, { padding: 40, duration: 800 });
-            }
-        };
-
-        if (map.isStyleLoaded()) {
-            addLayer();
-        } else {
-            map.on('load', addLayer);
+        // Fit map to polygon bounds (handles Polygon and MultiPolygon)
+        const mbgl = mbglRef.current;
+        const coords = polygon.geometry?.coordinates;
+        if (mbgl && coords) {
+            const bounds = new mbgl.LngLatBounds();
+            const extend = (arr: any[]): void => {
+                for (const item of arr) {
+                    if (typeof item?.[0] === 'number') bounds.extend(item as [number, number]);
+                    else if (Array.isArray(item)) extend(item);
+                }
+            };
+            extend(coords);
+            if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 40, duration: 800 });
         }
-    }, [polygon, hasLocation, latitude, longitude]);
+    }, [polygon, mapReady, hasLocation, latitude, longitude]);
 
     // Fetch isochrone
     const fetchIsochrone = useCallback(async () => {

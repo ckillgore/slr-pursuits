@@ -115,8 +115,12 @@ function computeMetrics(rc: PursuitRentComp): PropertyMetrics | null {
     if (totalUnits > 0) {
         // First try from occupancy_over_time (most accurate)
         const occ = p.occupancy_over_time;
-        if (occ?.length) {
-            leasedPct = occ[occ.length - 1].leased * 100;
+        // Use the most recent snapshot by date (don't assume the array is sorted)
+        const latestOcc = occ?.length
+            ? occ.reduce((latest, o) => ((o.as_of || '') > (latest.as_of || '') ? o : latest), occ[0])
+            : null;
+        if (latestOcc && typeof latestOcc.leased === 'number') {
+            leasedPct = latestOcc.leased * 100;
         } else {
             // Fallback: estimate from unit availability
             let availableWithin7Days = 0;
@@ -129,7 +133,7 @@ function computeMetrics(rc: PursuitRentComp): PropertyMetrics | null {
                 });
                 if (isAvailable) availableWithin7Days++;
             }
-            leasedPct = ((totalUnits - availableWithin7Days) / totalUnits) * 100;
+            leasedPct = (Math.max(0, totalUnits - availableWithin7Days) / totalUnits) * 100;
         }
     }
 
@@ -146,7 +150,7 @@ function computeMetrics(rc: PursuitRentComp): PropertyMetrics | null {
     }
 
     // Days on market — average of units with data
-    const domValues = units.map(u => u.days_on_market).filter((v): v is number => v !== null && v !== undefined);
+    const domValues = units.map(u => u.days_on_market).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
     const avgDaysOnMarket = domValues.length > 0 ? domValues.reduce((s, v) => s + v, 0) / domValues.length : null;
 
     // Average days vacant — approximate from availability periods  
@@ -189,7 +193,7 @@ function computeMetrics(rc: PursuitRentComp): PropertyMetrics | null {
         avgConcession,
         occupancyPct: leasedPct,
         leasedPct,
-        qualityLabel: quality !== undefined ? `${(quality * 100).toFixed(0)}%` : '—',
+        qualityLabel: quality != null ? `${(quality * 100).toFixed(0)}%` : '—',
         reviewScore: p.review_analysis?.avg_score?.toFixed(1) ?? '—',
         pricingStrategy: p.pricing_strategy?.is_using_rev_management
             ? `Rev Mgmt: Yes\nUpdates: Every ${p.pricing_strategy.avg_duration?.toFixed(2) ?? '?'} days`
@@ -296,8 +300,14 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
     }, [pursuitId, fetchProperty, linkComp, clearResults]);
 
     const handleUnlink = useCallback(async (propertyId: string) => {
-        await unlinkComp.mutateAsync({ pursuitId, propertyId });
-        setUnlinkConfirmId(null);
+        try {
+            await unlinkComp.mutateAsync({ pursuitId, propertyId });
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Unknown error';
+            setAddError(`Failed to remove comp: ${message}`);
+        } finally {
+            setUnlinkConfirmId(null);
+        }
     }, [pursuitId, unlinkComp]);
 
     if (isLoading) {
@@ -366,7 +376,13 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
                 </div>
             )}
             {/* Empty State */}
-            {compMetrics.length === 0 && !showSearch && (
+            {compMetrics.length > 0 || allCompMetrics.length === 0 ? null : (
+                <div className="text-center py-10 border border-dashed border-[var(--border)] rounded-xl bg-[var(--bg-primary)]">
+                    <p className="text-sm text-[var(--text-muted)] mb-3">No primary comps — all {allCompMetrics.length} tracked properties are secondary.</p>
+                    <button onClick={() => setCompFilter('all')} className="text-xs font-medium text-[var(--accent)] hover:underline">Show all comps</button>
+                </div>
+            )}
+            {allCompMetrics.length === 0 && !showSearch && (
                 <div className="text-center py-16 border border-dashed border-[var(--border)] rounded-xl bg-[var(--bg-primary)]">
                     <Building2 className="w-10 h-10 text-[var(--text-faint)] mx-auto mb-3" />
                     <h3 className="text-sm font-semibold text-[var(--text-secondary)] mb-1">No rent comps yet</h3>
@@ -422,7 +438,7 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
                     </div>
 
                     {/* SECTION: Comp Overview Grid */}
-                    {activeSection === 'marketStudy' && <MarketStudyTab pursuitId={pursuitId} />}
+                    {activeSection === 'marketStudy' && <MarketStudyTab pursuitId={pursuitId} compFilter={compFilter} />}
 
                     {activeSection === 'overview' && (
                         <CompOverviewGrid
@@ -569,8 +585,8 @@ function SearchPanel({
 function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMetrics[]; onRemove: (id: string) => void; onToggleType: (propertyId: string, currentType: 'primary' | 'secondary') => void }) {
     // Comp average row
     const compAvg = useMemo(() => {
-        const avg = (vals: (number | null)[]) => {
-            const valid = vals.filter((v): v is number => v !== null);
+        const avg = (vals: (number | null | undefined)[]) => {
+            const valid = vals.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
             return valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
         };
         return {
@@ -584,9 +600,10 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
             concessionPct: avg(comps.map(c => c.concessionPct)),
             avgDaysOnMarket: avg(comps.map(c => c.avgDaysOnMarket)),
             avgDaysVacant: avg(comps.map(c => c.avgDaysVacant)),
-            totalUnits: comps.reduce((s, c) => s + (c.property.number_units ?? 0), 0),
+            // Average only over comps that report a unit count (don't treat unknown as 0)
+            avgUnits: avg(comps.map(c => c.property.number_units)),
             yearBuilt: avg(comps.map(c => c.property.year_built)),
-            vacancies: Math.round(comps.reduce((s, c) => s + c.vacancies, 0) / comps.length),
+            vacancies: comps.length ? Math.round(comps.reduce((s, c) => s + c.vacancies, 0) / comps.length) : 0,
         };
     }, [comps]);
 
@@ -601,7 +618,7 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
     const rows: Row[] = [
         { label: 'Management Company', avgValue: '—', values: (i) => comps[i].property.management_company || '—' },
         { label: 'Year Built', avgValue: compAvg.yearBuilt ? Math.round(compAvg.yearBuilt).toString() : '—', values: (i) => comps[i].property.year_built?.toString() || '—' },
-        { label: '# Units', avgValue: fmtNum(compAvg.totalUnits / comps.length), values: (i) => fmtNum(comps[i].property.number_units) },
+        { label: '# Units', avgValue: fmtNum(compAvg.avgUnits), values: (i) => fmtNum(comps[i].property.number_units) },
         { label: 'Leased %', avgValue: fmtPct(compAvg.leasedPct), values: (i) => fmtPct(comps[i].leasedPct) },
         { label: 'Quality', avgValue: '—', values: (i) => comps[i].qualityLabel },
         { label: 'Reviews', avgValue: '—', values: (i) => comps[i].reviewScore },
@@ -629,8 +646,8 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
                             <div className="text-[10px] uppercase tracking-wider">Comp Avg</div>
                             <div className="text-[10px] text-[var(--text-faint)]">{comps.length} Properties</div>
                         </th>
-                        {comps.map((c, i) => (
-                            <th key={i} className="text-center py-3 px-3 min-w-[140px]">
+                        {comps.map((c) => (
+                            <th key={c.propertyId} className="text-center py-3 px-3 min-w-[140px]">
                                 <div className="text-sm font-semibold text-[var(--accent)] truncate">{c.name}</div>
                                 <div className="text-[10px] text-[var(--text-muted)] truncate">{c.property.street_address}</div>
                                 <div className="flex items-center justify-center gap-2 mt-1">
@@ -712,9 +729,8 @@ function UnitBreakdownSection({ comps, bedTypes }: { comps: PropertyMetrics[]; b
                     const effRent = getAverageEffectiveRent(allUnits);
                     const askPsf = getAverageAskingPsf(allUnits);
                     const effPsf = getAverageEffectivePsf(allUnits);
-                    const avgDom = allUnits.filter(u => u.days_on_market !== null).length
-                        ? allUnits.reduce((s, u) => s + (u.days_on_market ?? 0), 0) / allUnits.filter(u => u.days_on_market !== null).length
-                        : null;
+                    const domVals = allUnits.map(u => u.days_on_market).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+                    const avgDom = domVals.length ? domVals.reduce((s, v) => s + v, 0) / domVals.length : null;
 
                     return (
                         <div key={bed} className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] overflow-hidden">
@@ -784,11 +800,11 @@ function BedTypeGrid({ comps, bed }: { comps: PropertyMetrics[]; bed: number }) 
 
     // Comp average
     const avg = (vals: (number | null)[]) => {
-        const v = vals.filter((x): x is number => x !== null);
+        const v = vals.filter((x): x is number => typeof x === 'number' && Number.isFinite(x));
         return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
     };
     const compAvg = {
-        count: Math.round(perComp.reduce((s, c) => s + c.count, 0) / perComp.length),
+        count: perComp.length ? Math.round(perComp.reduce((s, c) => s + c.count, 0) / perComp.length) : 0,
         askRent: avg(perComp.map(c => c.askRent)),
         effRent: avg(perComp.map(c => c.effRent)),
         avgSqft: avg(perComp.map(c => c.avgSqft)),
@@ -929,7 +945,7 @@ function AmenitiesGrid({ comps }: { comps: PropertyMetrics[] }) {
     const allAmenities = useMemo(() => {
         const set = new Set<string>();
         comps.forEach(c => {
-            const list = type === 'building' ? c.property.building_amenities : c.property.unit_amenities;
+            const list = (type === 'building' ? c.property.building_amenities : c.property.unit_amenities) || [];
             list.forEach(a => set.add(a));
         });
         return [...set].sort();
@@ -972,9 +988,9 @@ function AmenitiesGrid({ comps }: { comps: PropertyMetrics[] }) {
                         </thead>
                         <tbody>
                             {comps.map((c, i) => {
-                                const amenities = type === 'building' ? c.property.building_amenities : c.property.unit_amenities;
+                                const amenities = (type === 'building' ? c.property.building_amenities : c.property.unit_amenities) || [];
                                 return (
-                                    <tr key={i} className={`border-b border-[var(--bg-elevated)] ${i % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]'}`}>
+                                    <tr key={c.propertyId} className={`border-b border-[var(--bg-elevated)] ${i % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]'}`}>
                                         <td className="py-2 px-4 font-medium text-[var(--accent)] sticky left-0 bg-inherit z-10 truncate">{c.name}</td>
                                         {allAmenities.map(a => (
                                             <td key={a} className="py-2 px-2 text-center">

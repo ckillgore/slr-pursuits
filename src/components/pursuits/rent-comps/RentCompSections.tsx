@@ -80,11 +80,12 @@ export function RentTrendsSection({ comps }: { comps: PropertyMetrics[] }) {
 }
 
 function getWeekKey(dateStr: string): string {
-    const d = new Date(dateStr);
-    const day = d.getDay();
-    const diff = d.getDate() - day;
-    const monday = new Date(d.setDate(diff));
-    return monday.toISOString().slice(0, 10);
+    // Parse the YYYY-MM-DD portion as UTC so the bucket doesn't shift by a day in US timezones
+    const d = new Date(dateStr.slice(0, 10) + 'T00:00:00Z');
+    if (isNaN(d.getTime())) return dateStr.slice(0, 10);
+    const daysSinceMonday = (d.getUTCDay() + 6) % 7;
+    d.setUTCDate(d.getUTCDate() - daysSinceMonday);
+    return d.toISOString().slice(0, 10);
 }
 
 // ============================================================
@@ -135,8 +136,14 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
         return results;
     }, [comps, groupBy, yAxis, rentType]);
 
-    // Reset selection when filters change
-    useMemo(() => { setSelectedBubble(null); }, [groupBy, yAxis, rentType]);
+    // Reset selection when filters or the comp set change (indices would point at a different bubble).
+    // Adjust-state-during-render pattern (avoids an extra effect pass / setState-in-render inside useMemo).
+    const [selectionDeps, setSelectionDeps] = useState({ groupBy, yAxis, rentType, comps });
+    if (selectionDeps.groupBy !== groupBy || selectionDeps.yAxis !== yAxis || selectionDeps.rentType !== rentType || selectionDeps.comps !== comps) {
+        setSelectionDeps({ groupBy, yAxis, rentType, comps });
+        setSelectedBubble(null);
+        setHoveredBubble(null);
+    }
 
     const maxRent = Math.max(...bubbles.map(b => b.rent), 1);
     const maxSqft = Math.max(...bubbles.map(b => b.sqft), 1);
@@ -329,7 +336,7 @@ export function OccupancySection({ comps }: { comps: PropertyMetrics[] }) {
                     const notExited = !period.exit || period.exit >= weekStr;
                     if (entered && notExited) onMarket++;
                 }
-                const leasedPct = ((totalUnits - onMarket) / totalUnits) * 100;
+                const leasedPct = (Math.max(0, totalUnits - onMarket) / totalUnits) * 100;
                 weeklyData.push({ date: weekStr, value: Math.round(leasedPct * 10) / 10 });
                 current.setDate(current.getDate() + 7);
             }
@@ -347,19 +354,14 @@ export function OccupancySection({ comps }: { comps: PropertyMetrics[] }) {
             const totalUnits = c.property.number_units ?? 0;
             let onMarketNow = 0;
             let availableNext7Days = 0;
+            // Count each unit at most once, even if it has several overlapping availability periods
             c.units.forEach((u: HellodataUnit) => {
-                (u.availability_periods || []).forEach(ap => {
-                    const entered = !ap.enter_market || ap.enter_market <= todayStr;
-                    const notExited = !ap.exit_market || ap.exit_market >= todayStr;
-                    if (entered && notExited) onMarketNow++;
-
-                    const entering7 = !ap.enter_market || ap.enter_market <= sevenDaysOut;
-                    const notExited7 = !ap.exit_market || ap.exit_market >= todayStr;
-                    if (entering7 && notExited7) availableNext7Days++;
-                });
+                const periods = u.availability_periods || [];
+                if (periods.some(ap => (!ap.enter_market || ap.enter_market <= todayStr) && (!ap.exit_market || ap.exit_market >= todayStr))) onMarketNow++;
+                if (periods.some(ap => (!ap.enter_market || ap.enter_market <= sevenDaysOut) && (!ap.exit_market || ap.exit_market >= todayStr))) availableNext7Days++;
             });
 
-            const leasedPct = totalUnits > 0 ? ((totalUnits - availableNext7Days) / totalUnits) * 100 : null;
+            const leasedPct = totalUnits > 0 ? (Math.max(0, totalUnits - availableNext7Days) / totalUnits) * 100 : null;
             const exposurePct = totalUnits > 0 ? (onMarketNow / totalUnits) * 100 : null;
 
             return {
@@ -549,7 +551,7 @@ export function ConcessionsSection({ comps }: { comps: PropertyMetrics[] }) {
                 <p className="text-xs text-[var(--text-muted)]">Tracked concession periods by property.</p>
             </div>
             {comps.map((c, ci) => {
-                const concessions = c.concessions.sort((a: HellodataConcession, b: HellodataConcession) => (b.from_date || '').localeCompare(a.from_date || ''));
+                const concessions = [...(c.concessions || [])].sort((a: HellodataConcession, b: HellodataConcession) => (b.from_date || '').localeCompare(a.from_date || ''));
                 const latest = concessions[0];
                 const freeMonths = concessions.filter((cc: HellodataConcession) => {
                     const items = cc.items as { free_months_count?: number }[] | null;
@@ -566,7 +568,7 @@ export function ConcessionsSection({ comps }: { comps: PropertyMetrics[] }) {
                                 <div className="bg-[var(--accent-subtle)] rounded-lg px-3 py-2 text-xs">
                                     <span className="font-medium text-[var(--accent)]">Latest: </span>
                                     <span className="text-[var(--text-secondary)]">{latest.concession_text?.slice(0, 150) || 'No details'}</span>
-                                    {latest.from_date && <span className="text-[var(--text-muted)]"> ({latest.from_date} â†’ {latest.to_date || 'ongoing'})</span>}
+                                    {latest.from_date && <span className="text-[var(--text-muted)]"> ({latest.from_date} → {latest.to_date || 'ongoing'})</span>}
                                 </div>
                             )}
                             {freeMonths.length > 0 && (
@@ -798,7 +800,7 @@ export function MarketContextSection({ comps }: { comps: PropertyMetrics[] }) {
                         </thead>
                         <tbody>
                             {[
-                                { label: 'Revenue Management', fn: (c: PropertyMetrics) => c.property.pricing_strategy?.is_using_rev_management ? 'âœ“ Yes' : 'âœ— No' },
+                                { label: 'Revenue Management', fn: (c: PropertyMetrics) => c.property.pricing_strategy?.is_using_rev_management ? '✓ Yes' : '✗ No' },
                                 { label: 'Avg Price Change', fn: (c: PropertyMetrics) => { const v = c.property.pricing_strategy?.avg_price_change; return v != null ? `${(v * 100).toFixed(1)}%` : '—'; } },
                                 { label: 'Avg Update Frequency', fn: (c: PropertyMetrics) => { const v = c.property.pricing_strategy?.avg_duration; return v != null ? `Every ${v.toFixed(1)} days` : '—'; } },
                                 { label: 'Avg Days on Market', fn: (c: PropertyMetrics) => { const v = c.property.pricing_strategy?.avg_time_on_market; return v != null ? `${v.toFixed(0)} days` : '—'; } },
@@ -854,8 +856,10 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
     const [selectedComp, setSelectedComp] = useState(0);
     const [viewMode, setViewMode] = useState<'summary' | 'floorplan' | 'detail'>('summary');
 
-    const comp = comps[selectedComp];
-    if (!comp) return <p className="text-sm text-[var(--text-muted)] text-center py-8">No comp selected</p>;
+    // Clamp the selection when the comp list shrinks (e.g. Primary filter / comp removed)
+    const safeIndex = selectedComp < comps.length ? selectedComp : 0;
+    const comp = comps[safeIndex] as PropertyMetrics | undefined;
+    const compUnits = comp?.units ?? [];
 
     const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -885,7 +889,7 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
             units: HellodataUnit[]; statuses: ('occupied' | 'vacant' | 'notice')[];
         }> = {};
 
-        comp.units.forEach((u: HellodataUnit) => {
+        compUnits.forEach((u: HellodataUnit) => {
             let key, label;
             if (viewMode === 'floorplan') {
                 label = u.floorplan_name || 'Unknown Floorplan';
@@ -910,18 +914,17 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                 const occupied = g.statuses.filter(s => s === 'occupied').length;
                 const vacant = g.statuses.filter(s => s === 'vacant').length;
                 const notice = g.statuses.filter(s => s === 'notice').length;
-                const validPrices = g.units.filter(u => u.price !== null);
-                const validEff = g.units.filter(u => u.effective_price !== null);
-                const validSqft = g.units.filter(u => u.sqft !== null);
+                const validPrices = g.units.filter(u => typeof u.price === 'number');
+                const validEff = g.units.filter(u => typeof u.effective_price === 'number');
+                const validSqft = g.units.filter(u => typeof u.sqft === 'number' && u.sqft > 0);
 
                 const avgRent = validPrices.length > 0 ? validPrices.reduce((s, u) => s + (u.price ?? 0), 0) / validPrices.length : null;
                 const avgEff = validEff.length > 0 ? validEff.reduce((s, u) => s + (u.effective_price ?? 0), 0) / validEff.length : null;
                 const avgSqft = validSqft.length > 0 ? validSqft.reduce((s, u) => s + (u.sqft ?? 0), 0) / validSqft.length : null;
                 const rentPsf = avgRent && avgSqft ? avgRent / avgSqft : null;
                 const effPsf = avgEff && avgSqft ? avgEff / avgSqft : null;
-                const avgDom = g.units.filter(u => u.days_on_market !== null).length > 0
-                    ? g.units.reduce((s, u) => s + (u.days_on_market ?? 0), 0) / g.units.filter(u => u.days_on_market !== null).length
-                    : null;
+                const domVals = g.units.map(u => u.days_on_market).filter((v): v is number => typeof v === 'number');
+                const avgDom = domVals.length > 0 ? domVals.reduce((s, v) => s + v, 0) / domVals.length : null;
 
                 return {
                     label: g.label,
@@ -930,11 +933,12 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                     occupancyPct: count > 0 ? (occupied / count) * 100 : 0,
                 };
             });
-    }, [comp, viewMode]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [compUnits, viewMode]);
 
     // Detail view: individual units
     const detailRows = useMemo(() => {
-        return comp.units
+        return compUnits
             .map((u: HellodataUnit) => ({
                 unit: u.unit_name || u.floorplan_name || '—',
                 bed: u.bed,
@@ -948,15 +952,18 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                 status: getStatus(u),
                 floorplan: u.floorplan_name,
             }))
-            .sort((a, b) => (a.bed ?? -1) - (b.bed ?? -1) || (a.unit || '').localeCompare(b.unit || ''));
-    }, [comp]);
+            .sort((a, b) => (a.bed ?? -1) - (b.bed ?? -1) || (a.unit || '').localeCompare(b.unit || '', undefined, { numeric: true }));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [compUnits]);
 
-    const fmt = (v: number | null, dec = 0, prefix = '$') => v !== null ? `${prefix}${v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })}` : '—';
+    const fmt = (v: number | null | undefined, dec = 0, prefix = '$') => typeof v === 'number' && Number.isFinite(v) ? `${prefix}${v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })}` : '—';
 
     // Totals
     const totalCount = summaryRows.reduce((s, r) => s + r.count, 0);
     const totalOccupied = summaryRows.reduce((s, r) => s + r.occupied, 0);
     const totalVacant = summaryRows.reduce((s, r) => s + r.vacant, 0);
+
+    if (!comp) return <p className="text-sm text-[var(--text-muted)] text-center py-8">No comp selected</p>;
 
     return (
         <div className="space-y-3">
@@ -966,9 +973,9 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                     <p className="text-xs text-[var(--text-muted)]">Unit-level rent and occupancy data from HelloData listings.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <select value={selectedComp} onChange={e => setSelectedComp(Number(e.target.value))}
+                    <select value={safeIndex} onChange={e => setSelectedComp(Number(e.target.value))}
                         className="text-[11px] sm:text-xs border border-[var(--border)] rounded-lg px-2 py-1.5 text-[var(--text-secondary)] bg-[var(--bg-card)]">
-                        {comps.map((c, i) => <option key={i} value={i}>{c.name}</option>)}
+                        {comps.map((c, i) => <option key={c.propertyId} value={i}>{c.name}</option>)}
                     </select>
                     <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
                         {(['summary', 'floorplan', 'detail'] as const).map(m => (
@@ -1091,7 +1098,7 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                                     <td className="py-1.5 px-2 text-center">{fmt(row.rentPsf, 2)}/sf</td>
                                     <td className="py-1.5 px-2 text-center font-medium">{fmt(row.effRent)}</td>
                                     <td className="py-1.5 px-2 text-center">{fmt(row.effPsf, 2)}/sf</td>
-                                    <td className="py-1.5 px-2 text-center text-[var(--text-muted)]">{row.dom !== null ? `${row.dom}d` : '—'}</td>
+                                    <td className="py-1.5 px-2 text-center text-[var(--text-muted)]">{row.dom != null ? `${row.dom}d` : '—'}</td>
                                     <td className="py-1.5 px-2 text-left text-[var(--text-muted)] truncate max-w-[120px]">{row.floorplan || '—'}</td>
                                 </tr>
                             ))}
@@ -1109,6 +1116,10 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
 // ============================================================
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
+function escapeHtml(v: unknown): string {
+    return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
     const containerRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<unknown>(null);
@@ -1120,9 +1131,12 @@ export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
 
     const initMap = useCallback(() => {
         if (!MAPBOX_TOKEN || !containerRef.current || mappableComps.length === 0) return;
+        let cancelled = false;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         import('mapbox-gl').then((mapboxgl: any) => {
+            // Effect may have been cleaned up while the module was loading; don't create an orphan map
+            if (cancelled || !containerRef.current) return;
             const mbgl = mapboxgl.default || mapboxgl;
             mbgl.accessToken = MAPBOX_TOKEN;
 
@@ -1146,6 +1160,7 @@ export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
             mapInstanceRef.current = map;
 
             map.on('load', () => {
+                if (cancelled) return;
                 // Fit to bounds with padding
                 if (mappableComps.length > 1) {
                     const pad = 0.005;
@@ -1166,8 +1181,8 @@ export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
                         maxWidth: '280px',
                     }).setHTML(`
                         <div style="font-family: system-ui, sans-serif; padding: 4px;">
-                            <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px; color: var(--text-primary);">${c.name}</div>
-                            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">${c.address}</div>
+                            <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px; color: var(--text-primary);">${escapeHtml(c.name)}</div>
+                            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">${escapeHtml(c.address)}</div>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; font-size: 11px;">
                                 <span style="color: var(--text-muted);">Asking:</span><span style="font-weight: 500;">${fmtC(c.askingRent)}</span>
                                 <span style="color: var(--text-muted);">Effective:</span><span style="font-weight: 500;">${fmtC(c.effectiveRent)}</span>
@@ -1198,6 +1213,7 @@ export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
         });
 
         return () => {
+            cancelled = true;
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             markersRef.current.forEach((m: any) => m.remove());
             markersRef.current = [];
@@ -1305,7 +1321,7 @@ export function OccupancyForecastSectionFull({ comps }: { comps: PropertyMetrics
                 if (isCurrentlyOnMarket) onMarket++;
             });
 
-            const currentOccPct = ((totalUnits - onMarket) / totalUnits) * 100;
+            const currentOccPct = (Math.max(0, totalUnits - onMarket) / totalUnits) * 100;
             const wkSupply = supplyInWindow / (lookback / 7);
             const wkLeases = leasesInWindow / (lookback / 7);
             const netAbsorption = wkLeases - wkSupply;
@@ -1459,7 +1475,7 @@ export function OccupancyForecastSectionFull({ comps }: { comps: PropertyMetrics
                                 </td>
                             </tr>
                         )}
-                        {summaryData.sort((a,b) => Number(b.netAbs) - Number(a.netAbs)).map((row, ri) => (
+                        {[...summaryData].sort((a,b) => Number(b.netAbs) - Number(a.netAbs)).map((row, ri) => (
                             <tr key={ri} className={`border-b border-[var(--bg-elevated)] last:border-0 ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]'}`}>
                                 <td className="py-2.5 px-4 font-semibold text-[13px] text-[var(--text-primary)] truncate max-w-[200px] sticky left-0 bg-inherit z-10">{row.name}</td>
                                 <td className="py-2.5 px-3 text-center text-[13px] text-[var(--text-secondary)] tabular-nums">{row.currentOcc}%</td>

@@ -199,6 +199,26 @@ function formatNumber(val: number | null, decimals = 0): string {
     return new Intl.NumberFormat('en-US', { maximumFractionDigits: decimals }).format(val);
 }
 
+const SF_PER_ACRE = 43560;
+/** Lot SF, falling back to acres when Regrid only reports one of the two */
+function sfOf(sf: number | null | undefined, ac: number | null | undefined): number {
+    if (sf && sf > 0) return sf;
+    if (ac && ac > 0) return ac * SF_PER_ACRE;
+    return 0;
+}
+/** Lot acres, falling back to SF when Regrid only reports one of the two */
+function acOf(sf: number | null | undefined, ac: number | null | undefined): number {
+    if (ac && ac > 0) return ac;
+    if (sf && sf > 0) return sf / SF_PER_ACRE;
+    return 0;
+}
+/** Format a date string; date-only values are treated as local dates (avoids off-by-one in US timezones) */
+function formatDateStr(d: string): string {
+    const dt = /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + 'T00:00:00') : new Date(d);
+    if (isNaN(dt.getTime())) return d;
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 function getRiskColor(rating: string): string {
     const r = rating.toLowerCase();
     if (r.includes('very low')) return 'bg-green-50 text-green-700 border border-green-200';
@@ -282,6 +302,10 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
         (savedAssemblage as unknown as NearbyParcel[]) || []
     );
     const [nearbyRadius, setNearbyRadius] = useState(200); // meters
+    const [nearbySearchedRadius, setNearbySearchedRadius] = useState(200); // radius used for the displayed results
+    // Latest assemblage for the map's initial load handler (map is NOT recreated when the selection changes)
+    const assemblageRef = useRef(assemblage);
+    assemblageRef.current = assemblage;
 
     // Track latest cache value to prevent race conditions between saves
     const latestCacheRef = useRef<Record<string, unknown>>(savedParcelData || {});
@@ -376,8 +400,8 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                     });
 
                     // Render assemblage parcels on initial load
-                    const asmWithGeom = assemblage.filter(p => p.geometry);
-                    if (asmWithGeom.length > 0) {
+                    const asmWithGeom = assemblageRef.current.filter(p => p.geometry);
+                    if (asmWithGeom.length > 0 && !map.getSource('assemblage-parcels')) {
                         const asmFeatures = asmWithGeom.map(p => ({
                             type: 'Feature' as const,
                             properties: { address: p.address || 'Unknown', parcelNumber: p.parcelNumber || '' },
@@ -470,7 +494,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
             mapRef.current = null;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [parcel, buildings, assemblage]);
+    }, [parcel, buildings]);
 
     // Update assemblage parcels on the main map without recreating it
     useEffect(() => {
@@ -538,7 +562,8 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
         if (map.isStyleLoaded()) {
             updateAssemblage();
         } else {
-            map.on('load', updateAssemblage);
+            map.once('load', updateAssemblage);
+            return () => { map.off('load', updateAssemblage); };
         }
     }, [assemblage, parcel]);
 
@@ -590,7 +615,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
         } finally {
             setLoading(false);
         }
-    }, [latitude, longitude, hasLocation, pursuitAddress]);
+    }, [latitude, longitude, hasLocation, pursuitAddress, saveToCache]);
 
     // Auto-fetch on mount if location is set
     useEffect(() => {
@@ -710,14 +735,14 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                         <StatPill
                             label={assemblage.length > 0 ? 'Lot Size (combined)' : 'Lot Size'}
                             value={(() => {
-                                const primaryAc = parcel.details.lotSizeAcres || 0;
-                                const asmAc = assemblage.reduce((s, p) => s + (p.lotSizeAcres || 0), 0);
+                                const primaryAc = acOf(parcel.details.lotSizeSF, parcel.details.lotSizeAcres);
+                                const asmAc = assemblage.reduce((s, p) => s + acOf(p.lotSizeSF, p.lotSizeAcres), 0);
                                 const totalAc = primaryAc + asmAc;
                                 return totalAc > 0 ? `${formatNumber(totalAc, 2)} ac` : '—';
                             })()}
                             sub={(() => {
-                                const primarySF = parcel.details.lotSizeSF || 0;
-                                const asmSF = assemblage.reduce((s, p) => s + (p.lotSizeSF || 0), 0);
+                                const primarySF = sfOf(parcel.details.lotSizeSF, parcel.details.lotSizeAcres);
+                                const asmSF = assemblage.reduce((s, p) => s + sfOf(p.lotSizeSF, p.lotSizeAcres), 0);
                                 const totalSF = primarySF + asmSF;
                                 return totalSF > 0 ? `${formatNumber(totalSF)} SF` : undefined;
                             })()}
@@ -736,7 +761,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                             label={assemblage.length > 0 ? 'Price/SF (combined)' : 'Price/SF'}
                             value={(() => {
                                 const totalLand = (parcel.tax.landValue || 0) + assemblage.reduce((s, p) => s + (p.landValue || 0), 0);
-                                const totalSF = (parcel.details.lotSizeSF || 0) + assemblage.reduce((s, p) => s + (p.lotSizeSF || 0), 0);
+                                const totalSF = (sfOf(parcel.details.lotSizeSF, parcel.details.lotSizeAcres)) + assemblage.reduce((s, p) => s + sfOf(p.lotSizeSF, p.lotSizeAcres), 0);
                                 return totalLand > 0 && totalSF > 0 ? formatCurrency(totalLand / totalSF) : '—';
                             })()}
                             sub="Land assessed"
@@ -779,10 +804,10 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                             <InfoRow
                                 label={assemblage.length > 0 ? 'Lot Size (combined)' : 'Lot Size'}
                                 value={(() => {
-                                    const primaryAc = parcel.details.lotSizeAcres || 0;
-                                    const primarySF = parcel.details.lotSizeSF || 0;
-                                    const asmAc = assemblage.reduce((s, p) => s + (p.lotSizeAcres || 0), 0);
-                                    const asmSF = assemblage.reduce((s, p) => s + (p.lotSizeSF || 0), 0);
+                                    const primaryAc = acOf(parcel.details.lotSizeSF, parcel.details.lotSizeAcres);
+                                    const primarySF = sfOf(parcel.details.lotSizeSF, parcel.details.lotSizeAcres);
+                                    const asmAc = assemblage.reduce((s, p) => s + acOf(p.lotSizeSF, p.lotSizeAcres), 0);
+                                    const asmSF = assemblage.reduce((s, p) => s + sfOf(p.lotSizeSF, p.lotSizeAcres), 0);
                                     const totalAc = primaryAc + asmAc;
                                     const totalSF = primarySF + asmSF;
                                     return totalAc > 0 ? `${formatNumber(totalAc, 2)} acres (${formatNumber(totalSF)} SF)` : null;
@@ -1096,14 +1121,14 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                         <InfoRow label="Last Sale Price" value={formatCurrency(parcel.details.lastSalePrice)} icon={DollarSign} highlight />
                                     )}
                                     {parcel.details.lastSaleDate && (
-                                        <InfoRow label="Last Sale Date" value={new Date(parcel.details.lastSaleDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} icon={Calendar} />
+                                        <InfoRow label="Last Sale Date" value={formatDateStr(parcel.details.lastSaleDate)} icon={Calendar} />
                                     )}
 
                                     {/* Computed metrics */}
                                     {(() => {
                                         const totalLand = (parcel.tax.landValue || 0) + assemblage.reduce((s, p) => s + (p.landValue || 0), 0);
-                                        const totalSF = (parcel.details.lotSizeSF || 0) + assemblage.reduce((s, p) => s + (p.lotSizeSF || 0), 0);
-                                        const totalAc = (parcel.details.lotSizeAcres || 0) + assemblage.reduce((s, p) => s + (p.lotSizeAcres || 0), 0);
+                                        const totalSF = (sfOf(parcel.details.lotSizeSF, parcel.details.lotSizeAcres)) + assemblage.reduce((s, p) => s + sfOf(p.lotSizeSF, p.lotSizeAcres), 0);
+                                        const totalAc = (acOf(parcel.details.lotSizeSF, parcel.details.lotSizeAcres)) + assemblage.reduce((s, p) => s + acOf(p.lotSizeSF, p.lotSizeAcres), 0);
                                         const totalVal = (parcel.tax.totalValue || 0) + assemblage.reduce((s, p) => s + (p.totalAssessedValue || 0), 0);
                                         const totalTax = parcel.tax.taxAmount || 0;
                                         if (totalLand <= 0 || totalSF <= 0) return null;
@@ -1536,6 +1561,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                                 const data = await res.json();
                                                 if (!res.ok) throw new Error(data.error || 'Failed to discover nearby parcels');
                                                 setNearbyParcels(data.parcels || []);
+                                                setNearbySearchedRadius(nearbyRadius);
                                                 setShowNearby(true);
                                             } catch (err: any) {
                                                 setNearbyError(err.message);
@@ -1577,13 +1603,13 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                             <div className="text-sm font-bold text-[var(--text-primary)]">
                                                 {formatNumber(
                                                     (parcel?.details?.lotSizeSF || siteAreaSF || 0) +
-                                                    assemblage.reduce((s, p) => s + (p.lotSizeSF || 0), 0)
+                                                    assemblage.reduce((s, p) => s + sfOf(p.lotSizeSF, p.lotSizeAcres), 0)
                                                 )} SF
                                             </div>
                                             <div className="text-[9px] text-[var(--text-faint)]">
                                                 {((
                                                     (parcel?.details?.lotSizeSF || siteAreaSF || 0) +
-                                                    assemblage.reduce((s, p) => s + (p.lotSizeSF || 0), 0)
+                                                    assemblage.reduce((s, p) => s + sfOf(p.lotSizeSF, p.lotSizeAcres), 0)
                                                 ) / 43560).toFixed(2)} acres
                                             </div>
                                         </div>
@@ -1632,7 +1658,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                             {/* Nearby parcel results — map + list */}
                             {showNearby && nearbyParcels.length > 0 && (
                                 <div>
-                                    <div className="text-[10px] text-[var(--text-faint)] mb-2">{nearbyParcels.length} nearby parcels found within {nearbyRadius}m · Click parcels on the map or list to select</div>
+                                    <div className="text-[10px] text-[var(--text-faint)] mb-2">{nearbyParcels.length} nearby parcels found within {nearbySearchedRadius}m · Click parcels on the map or list to select</div>
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                                         {/* Interactive Map */}
                                         <AssemblageMap
@@ -1685,8 +1711,8 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                                             </div>
                                                             <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
                                                                 {np.ownerName && <span className="text-[10px] text-[var(--text-muted)]"><User className="w-2.5 h-2.5 inline mr-0.5" />{np.ownerName}</span>}
-                                                                {np.lotSizeSF && <span className="text-[10px] text-[var(--text-muted)]"><Ruler className="w-2.5 h-2.5 inline mr-0.5" />{formatNumber(np.lotSizeSF)} SF ({np.lotSizeAcres?.toFixed(2)} ac)</span>}
-                                                                {np.totalAssessedValue && <span className="text-[10px] text-[var(--text-muted)]"><DollarSign className="w-2.5 h-2.5 inline mr-0.5" />{formatCurrency(np.totalAssessedValue)}</span>}
+                                                                {np.lotSizeSF != null && np.lotSizeSF > 0 && <span className="text-[10px] text-[var(--text-muted)]"><Ruler className="w-2.5 h-2.5 inline mr-0.5" />{formatNumber(np.lotSizeSF)} SF ({acOf(np.lotSizeSF, np.lotSizeAcres).toFixed(2)} ac)</span>}
+                                                                {np.totalAssessedValue != null && np.totalAssessedValue > 0 && <span className="text-[10px] text-[var(--text-muted)]"><DollarSign className="w-2.5 h-2.5 inline mr-0.5" />{formatCurrency(np.totalAssessedValue)}</span>}
                                                                 {np.landUse && <span className="text-[10px] text-[var(--text-muted)]"><FileText className="w-2.5 h-2.5 inline mr-0.5" />{np.landUse}</span>}
                                                                 {np.zoningCode && <span className="text-[10px] text-[var(--text-muted)]"><Shield className="w-2.5 h-2.5 inline mr-0.5" />{np.zoningCode}</span>}
                                                             </div>
@@ -1714,7 +1740,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                 <div className="flex items-center justify-center py-6">
                                     <div className="text-center">
                                         <Radar className="w-5 h-5 text-[var(--border-strong)] mx-auto mb-2" />
-                                        <p className="text-xs text-[var(--text-faint)]">No nearby parcels found within {nearbyRadius}m</p>
+                                        <p className="text-xs text-[var(--text-faint)]">No nearby parcels found within {nearbySearchedRadius}m</p>
                                         <p className="text-[10px] text-[var(--border-strong)] mt-0.5">Try increasing the search radius</p>
                                     </div>
                                 </div>

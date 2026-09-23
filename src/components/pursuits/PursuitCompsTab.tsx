@@ -26,7 +26,20 @@ function fmtNum(v: number | null | undefined, dec = 0): string {
 }
 function fmtDate(d: string | null | undefined): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    // Date-only strings ("2024-03-01") parse as UTC midnight and would render as the previous month in US timezones
+    const dt = /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + 'T00:00:00') : new Date(d);
+    if (isNaN(dt.getTime())) return '—';
+    return dt.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+/** Land $/SF: use stored value, else derive from price / site area */
+function landPsf(c: LandComp): number | null {
+    if (c.sale_price_psf && c.sale_price_psf > 0) return c.sale_price_psf;
+    if (c.sale_price && c.sale_price > 0 && c.site_area_sf && c.site_area_sf > 0) return c.sale_price / c.site_area_sf;
+    return null;
+}
+function parseNum(v: string): number | null {
+    const n = parseFloat(v.replace(/[$,\s]/g, ''));
+    return Number.isFinite(n) ? n : null;
 }
 function fmtAcres(sf: number | null | undefined): string {
     if (!sf) return '—';
@@ -113,37 +126,58 @@ function LandCompsSection({ pursuitId }: { pursuitId: string }) {
     }, [allComps, linkedIds, searchQuery]);
 
     const handleLink = async (compId: string) => {
-        await linkMut.mutateAsync({ pursuitId, landCompId: compId });
+        try {
+            await linkMut.mutateAsync({ pursuitId, landCompId: compId });
+        } catch (err) {
+            console.error('Failed to link land comp:', err);
+            window.alert('Failed to link land comp.');
+        }
     };
 
     const handleUnlink = async (compId: string) => {
-        await unlinkMut.mutateAsync({ pursuitId, landCompId: compId });
+        if (!window.confirm('Unlink this land comp from the pursuit?')) return;
+        try {
+            await unlinkMut.mutateAsync({ pursuitId, landCompId: compId });
+        } catch (err) {
+            console.error('Failed to unlink land comp:', err);
+            window.alert('Failed to unlink land comp.');
+        }
     };
 
     const handleCreate = async () => {
         if (!newName.trim()) return;
-        const comp = await createMut.mutateAsync({
-            name: newName.trim(),
-            address: newAddress.trim(),
-            city: newCity.trim(),
-            state: newState.trim(),
-            county: '',
-            zip: '',
-            latitude: null,
-            longitude: null,
-            site_area_sf: newSiteArea ? parseFloat(newSiteArea) * SF_PER_ACRE : 0,
-            sale_price: newSalePrice ? parseFloat(newSalePrice) : null,
-            sale_price_psf: null,
-            sale_date: null,
-            buyer: null,
-            seller: null,
-            zoning: null,
-            land_use: null,
-            notes: null,
-            parcel_data: null,
-            parcel_data_updated_at: null,
-        });
-        await linkMut.mutateAsync({ pursuitId, landCompId: comp.id });
+        const acres = parseNum(newSiteArea);
+        const siteAreaSf = acres !== null && acres > 0 ? acres * SF_PER_ACRE : 0;
+        const salePrice = parseNum(newSalePrice);
+        let comp;
+        try {
+            comp = await createMut.mutateAsync({
+                name: newName.trim(),
+                address: newAddress.trim(),
+                city: newCity.trim(),
+                state: newState.trim(),
+                county: '',
+                zip: '',
+                latitude: null,
+                longitude: null,
+                site_area_sf: siteAreaSf,
+                sale_price: salePrice,
+                sale_price_psf: salePrice !== null && siteAreaSf > 0 ? salePrice / siteAreaSf : null,
+                sale_date: null,
+                buyer: null,
+                seller: null,
+                zoning: null,
+                land_use: null,
+                notes: null,
+                parcel_data: null,
+                parcel_data_updated_at: null,
+            });
+            await linkMut.mutateAsync({ pursuitId, landCompId: comp.id });
+        } catch (err) {
+            console.error('Failed to create/link land comp:', err);
+            window.alert(comp ? 'Land comp was created but could not be linked to this pursuit.' : 'Failed to create land comp.');
+            return;
+        }
         setNewName(''); setNewAddress(''); setNewCity(''); setNewState('');
         setNewSiteArea(''); setNewSalePrice('');
         setShowCreate(false);
@@ -285,7 +319,7 @@ function LandCompsSection({ pursuitId }: { pursuitId: string }) {
                                     </td>
                                     <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
                                         <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">$/SF</span>
-                                        <span>{fmtCur(c.sale_price_psf, 2)}</span>
+                                        <span>{fmtCur(landPsf(c), 2)}</span>
                                     </td>
                                     <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-center text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
                                         <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Sale Date</span>
@@ -311,8 +345,8 @@ function LandCompsSection({ pursuitId }: { pursuitId: string }) {
                                 const totalAcres = linkedComps.reduce((s: number, c: LandComp) => s + (c.site_area_sf || 0), 0) / SF_PER_ACRE;
                                 const priced = linkedComps.filter((c: LandComp) => c.sale_price && c.sale_price > 0);
                                 const avgPrice = priced.length > 0 ? priced.reduce((s: number, c: LandComp) => s + (c.sale_price ?? 0), 0) / priced.length : null;
-                                const psfComps = linkedComps.filter((c: LandComp) => c.sale_price_psf && c.sale_price_psf > 0);
-                                const avgPsf = psfComps.length > 0 ? psfComps.reduce((s: number, c: LandComp) => s + (c.sale_price_psf ?? 0), 0) / psfComps.length : null;
+                                const psfVals = linkedComps.map((c: LandComp) => landPsf(c)).filter((v: number | null): v is number => v !== null);
+                                const avgPsf = psfVals.length > 0 ? psfVals.reduce((s: number, v: number) => s + v, 0) / psfVals.length : null;
                                 return (
                                     <tr className="block md:table-row bg-[var(--bg-elevated)] font-semibold border-t border-[var(--border)] mt-4 md:mt-0 rounded-lg md:rounded-none">
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 text-[var(--text-primary)] border-b border-[var(--border)] md:border-0">
@@ -383,34 +417,54 @@ function SaleCompsSection({ pursuitId }: { pursuitId: string }) {
     }, [allComps, linkedIds, searchQuery]);
 
     const handleLink = async (compId: string) => {
-        await linkMut.mutateAsync({ pursuitId, saleCompId: compId });
+        try {
+            await linkMut.mutateAsync({ pursuitId, saleCompId: compId });
+        } catch (err) {
+            console.error('Failed to link sale comp:', err);
+            window.alert('Failed to link sale comp.');
+        }
     };
 
     const handleUnlink = async (compId: string) => {
-        await unlinkMut.mutateAsync({ pursuitId, saleCompId: compId });
+        if (!window.confirm('Unlink this sale comp from the pursuit?')) return;
+        try {
+            await unlinkMut.mutateAsync({ pursuitId, saleCompId: compId });
+        } catch (err) {
+            console.error('Failed to unlink sale comp:', err);
+            window.alert('Failed to unlink sale comp.');
+        }
     };
 
     const handleCreate = async () => {
         if (!newName.trim()) return;
-        const comp = await createMut.mutateAsync({
-            name: newName.trim(),
-            address: newAddress.trim(),
-            city: newCity.trim(),
-            state: newState.trim(),
-            county: '',
-            zip: '',
-            latitude: null,
-            longitude: null,
-            property_type: null,
-            year_built: newYearBuilt ? parseInt(newYearBuilt) : null,
-            total_units: newUnits ? parseInt(newUnits) : null,
-            total_sf: null,
-            lot_size_sf: 0,
-            notes: null,
-            parcel_data: null,
-            parcel_data_updated_at: null,
-        });
-        await linkMut.mutateAsync({ pursuitId, saleCompId: comp.id });
+        const yearBuilt = parseNum(newYearBuilt);
+        const units = parseNum(newUnits);
+        let comp;
+        try {
+            comp = await createMut.mutateAsync({
+                name: newName.trim(),
+                address: newAddress.trim(),
+                city: newCity.trim(),
+                state: newState.trim(),
+                county: '',
+                zip: '',
+                latitude: null,
+                longitude: null,
+                property_type: null,
+                year_built: yearBuilt !== null ? Math.round(yearBuilt) : null,
+                total_units: units !== null ? Math.round(units) : null,
+                total_sf: null,
+                lot_size_sf: 0,
+                notes: null,
+                parcel_data: null,
+                parcel_data_updated_at: null,
+            });
+            await linkMut.mutateAsync({ pursuitId, saleCompId: comp.id });
+        } catch (err) {
+            console.error('Failed to create/link sale comp:', err);
+            window.alert(comp ? 'Sale comp was created but could not be linked to this pursuit.' : 'Failed to create sale comp.');
+            return;
+        }
         setNewName(''); setNewAddress(''); setNewCity(''); setNewState('');
         setNewUnits(''); setNewYearBuilt('');
         setShowCreate(false);
@@ -420,7 +474,7 @@ function SaleCompsSection({ pursuitId }: { pursuitId: string }) {
     const getLatestTx = (comp: SaleComp): SaleTransaction | null => {
         const txs = comp.sale_transactions ?? [];
         if (txs.length === 0) return null;
-        return txs.sort((a, b) => (b.sale_date ?? '').localeCompare(a.sale_date ?? ''))[0];
+        return [...txs].sort((a, b) => (b.sale_date ?? '').localeCompare(a.sale_date ?? ''))[0];
     };
 
     if (isLoading) {
@@ -643,7 +697,7 @@ function SaleCompsSection({ pursuitId }: { pursuitId: string }) {
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
                                             <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Avg Cap</span>
-                                            <span>{avgCap ? `${avgCap.toFixed(2)}%` : '—'}</span>
+                                            <span>{avgCap ? `${(avgCap * 100).toFixed(2)}%` : '—'}</span>
                                         </td>
                                         <td className="hidden md:table-cell py-1.5 px-2"></td>
                                     </tr>

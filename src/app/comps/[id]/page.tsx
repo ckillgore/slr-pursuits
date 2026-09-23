@@ -57,7 +57,12 @@ function EditableField({ label, value, onSave, format = 'text', icon: Icon }: {
         if (value === null || value === undefined || value === '') return '—';
         if (format === 'currency') return formatCurrency(value as number);
         if (format === 'number') return formatNumber(value as number);
-        if (format === 'date' && value) return new Date(value as string).toLocaleDateString();
+        if (format === 'date' && value) {
+            // Date-only strings parse as UTC midnight; treat them as local dates to avoid showing the previous day
+            const str = String(value);
+            const dt = /^\d{4}-\d{2}-\d{2}$/.test(str) ? new Date(str + 'T00:00:00') : new Date(str);
+            return isNaN(dt.getTime()) ? str : dt.toLocaleDateString();
+        }
         return String(value);
     })();
 
@@ -113,6 +118,7 @@ export default function CompDetailPage() {
     const [locLatStr, setLocLatStr] = useState('');
     const [locLngStr, setLocLngStr] = useState('');
     const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const searchSeqRef = useRef(0);
 
     const updateField = useCallback((field: keyof LandComp, value: unknown) => {
         if (!comp) return;
@@ -123,6 +129,7 @@ export default function CompDetailPage() {
     const handleLocSearch = useCallback((query: string) => {
         setLocSearch(query);
         if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+        const seq = ++searchSeqRef.current;
         if (!query.trim() || !MAPBOX_TOKEN) { setLocSuggestions([]); setShowLocSuggestions(false); return; }
         searchTimeoutRef.current = setTimeout(async () => {
             try {
@@ -130,6 +137,7 @@ export default function CompDetailPage() {
                     `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&types=address,poi,place&country=US&limit=5`
                 );
                 const data = await res.json();
+                if (seq !== searchSeqRef.current) return; // stale response
                 setLocSuggestions(data.features || []);
                 setShowLocSuggestions(true);
             } catch { /* ignore */ }
@@ -138,6 +146,7 @@ export default function CompDetailPage() {
 
     const selectLocSuggestion = useCallback((feature: any) => {
         if (!comp) return;
+        searchSeqRef.current++;
         const [lng, lat] = feature.center;
         const context = feature.context || [];
         const findCtx = (type: string) => context.find((c: any) => c.id?.startsWith(type))?.text || '';
@@ -165,7 +174,7 @@ export default function CompDetailPage() {
         if (!comp) return;
         const lat = parseFloat(locLatStr);
         const lng = parseFloat(locLngStr);
-        if (isNaN(lat) || isNaN(lng)) return;
+        if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
         const updates: Partial<LandComp> = { latitude: lat, longitude: lng };
         // Reverse geocode
         if (MAPBOX_TOKEN) {
@@ -198,7 +207,7 @@ export default function CompDetailPage() {
             updateComp.mutate({ id: comp.id, updates, queryId: compId });
         }
         setEditingLocation(false);
-    }, [comp, updateComp, locLatStr, locLngStr]);
+    }, [comp, updateComp, locLatStr, locLngStr, compId]);
 
     if (isLoading) {
         return (
@@ -239,11 +248,11 @@ export default function CompDetailPage() {
                                         className="text-xl font-bold text-[var(--text-primary)] border-b-2 border-[#0D9488] focus:outline-none bg-transparent"
                                         autoFocus
                                         onKeyDown={(e) => {
-                                            if (e.key === 'Enter') { updateField('name', editName.trim()); setIsEditingName(false); }
+                                            if (e.key === 'Enter') { if (editName.trim()) updateField('name', editName.trim()); setIsEditingName(false); }
                                             if (e.key === 'Escape') setIsEditingName(false);
                                         }}
                                     />
-                                    <button onClick={() => { updateField('name', editName.trim()); setIsEditingName(false); }} className="p-1 rounded hover:bg-[var(--success-bg)] text-[#0D9488]"><Check className="w-4 h-4" /></button>
+                                    <button onClick={() => { if (editName.trim()) updateField('name', editName.trim()); setIsEditingName(false); }} className="p-1 rounded hover:bg-[var(--success-bg)] text-[#0D9488]"><Check className="w-4 h-4" /></button>
                                     <button onClick={() => setIsEditingName(false)} className="p-1 rounded hover:bg-red-50 text-[var(--text-faint)]"><X className="w-4 h-4" /></button>
                                 </div>
                             ) : (

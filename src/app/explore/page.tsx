@@ -185,6 +185,7 @@ export default function ExplorePage() {
     const [suggestions, setSuggestions] = useState<any[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const searchSeqRef = useRef(0);
 
     // Map state
     type MapStyleId = 'light' | 'satellite';
@@ -216,6 +217,48 @@ export default function ExplorePage() {
 
     // Track zoom for parcel visibility message
     const [showZoomMsg, setShowZoomMsg] = useState(true);
+
+    // ── Parcel detail loader (shared by desktop click + mobile "View Full Details") ──
+    // A sequence number guards against an older, slower response overwriting the parcel the user clicked last.
+    const parcelReqSeqRef = useRef(0);
+    const loadParcelDetail = useCallback((lngLat: [number, number], address?: string) => {
+        const seq = ++parcelReqSeqRef.current;
+        setClickedLngLat(lngLat);
+        setPanelOpen(true);
+        setPanelLoading(true);
+        setPanelError(null);
+        setPanelParcel(null);
+
+        fetch('/api/regrid', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                latitude: lngLat[1],
+                longitude: lngLat[0],
+                address: address || undefined,
+            }),
+        })
+            .then(async (res) => {
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || 'Failed to fetch parcel data');
+                return data;
+            })
+            .then((data) => {
+                if (seq !== parcelReqSeqRef.current) return;
+                if (data.parcel) {
+                    setPanelParcel(data.parcel);
+                } else {
+                    setPanelError('No parcel data found at this location.');
+                }
+            })
+            .catch((err) => {
+                if (seq !== parcelReqSeqRef.current) return;
+                setPanelError(err.message || 'Failed to fetch parcel data');
+            })
+            .finally(() => {
+                if (seq === parcelReqSeqRef.current) setPanelLoading(false);
+            });
+    }, []);
 
     // ── Regrid tile source helper ──
     const addRegridSource = useCallback((map: any) => {
@@ -333,18 +376,21 @@ export default function ExplorePage() {
                 }, e.features[0]);
                 const props = feature.properties || {};
 
-                // Update hover state
-                if (hoveredParcelIdRef.current !== null) {
+                // Update hover state (features without a promoted parcelnumb have no id — setFeatureState would throw)
+                if (hoveredParcelIdRef.current !== null && hoveredParcelIdRef.current !== feature.id) {
                     map.setFeatureState(
                         { source: 'regrid-parcels', sourceLayer: 'parcels', id: hoveredParcelIdRef.current },
                         { hover: false }
                     );
+                    hoveredParcelIdRef.current = null;
                 }
-                hoveredParcelIdRef.current = feature.id;
-                map.setFeatureState(
-                    { source: 'regrid-parcels', sourceLayer: 'parcels', id: feature.id },
-                    { hover: true }
-                );
+                if (feature.id != null) {
+                    hoveredParcelIdRef.current = feature.id;
+                    map.setFeatureState(
+                        { source: 'regrid-parcels', sourceLayer: 'parcels', id: feature.id },
+                        { hover: true }
+                    );
+                }
 
                 // Build tooltip data
                 const data: ParcelTooltipData = {
@@ -413,38 +459,8 @@ export default function ExplorePage() {
                 }
 
                 // Desktop: immediately load full details
-                setClickedLngLat([lngLat.lng, lngLat.lat]);
                 setTooltip(null);
-
-                // Fetch full parcel detail
-                setPanelOpen(true);
-                setPanelLoading(true);
-                setPanelError(null);
-                setPanelParcel(null);
-
-                fetch('/api/regrid', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        latitude: lngLat.lat,
-                        longitude: lngLat.lng,
-                        address: props.address || undefined,
-                    }),
-                })
-                    .then((res) => res.json())
-                    .then((data) => {
-                        if (data.parcel) {
-                            setPanelParcel(data.parcel);
-                        } else {
-                            setPanelError('No parcel data found at this location.');
-                        }
-                    })
-                    .catch((err) => {
-                        setPanelError(err.message || 'Failed to fetch parcel data');
-                    })
-                    .finally(() => {
-                        setPanelLoading(false);
-                    });
+                loadParcelDetail([lngLat.lng, lngLat.lat], props.address);
             });
 
             mapRef.current = map;
@@ -475,6 +491,7 @@ export default function ExplorePage() {
     const handleSearch = useCallback((query: string) => {
         setSearchQuery(query);
         if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+        const seq = ++searchSeqRef.current;
         if (!query.trim() || query.length < 3 || !MAPBOX_TOKEN) {
             setSuggestions([]);
             setShowSuggestions(false);
@@ -487,6 +504,7 @@ export default function ExplorePage() {
                     `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&types=address,poi,place,postcode,locality&country=US&limit=5`
                 );
                 const data = await res.json();
+                if (seq !== searchSeqRef.current) return; // stale response
                 setSuggestions(data.features || []);
                 setShowSuggestions(true);
             } catch { /* ignore */ }
@@ -494,6 +512,7 @@ export default function ExplorePage() {
     }, []);
 
     const selectSuggestion = useCallback((feature: any) => {
+        searchSeqRef.current++;
         const [lng, lat] = feature.center;
         setSearchQuery(feature.place_name);
         setSuggestions([]);
@@ -779,36 +798,7 @@ export default function ExplorePage() {
                                     const lngLat = mobilePopup.lngLat;
                                     const props = mobilePopup.props;
                                     setMobilePopup(null);
-                                    setClickedLngLat(lngLat);
-
-                                    setPanelOpen(true);
-                                    setPanelLoading(true);
-                                    setPanelError(null);
-                                    setPanelParcel(null);
-
-                                    fetch('/api/regrid', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                            latitude: lngLat[1],
-                                            longitude: lngLat[0],
-                                            address: props.address || undefined,
-                                        }),
-                                    })
-                                        .then((res) => res.json())
-                                        .then((data) => {
-                                            if (data.parcel) {
-                                                setPanelParcel(data.parcel);
-                                            } else {
-                                                setPanelError('No parcel data found at this location.');
-                                            }
-                                        })
-                                        .catch((err) => {
-                                            setPanelError(err.message || 'Failed to fetch parcel data');
-                                        })
-                                        .finally(() => {
-                                            setPanelLoading(false);
-                                        });
+                                    loadParcelDetail(lngLat, props.address);
                                 }}
                                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors"
                             >
@@ -833,7 +823,7 @@ export default function ExplorePage() {
                                 <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Parcel Detail</h3>
                             </div>
                             <button
-                                onClick={() => { setPanelOpen(false); setPanelParcel(null); setPanelError(null); }}
+                                onClick={() => { parcelReqSeqRef.current++; setPanelOpen(false); setPanelLoading(false); setPanelParcel(null); setPanelError(null); }}
                                 className="p-1 rounded-md text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
                             >
                                 <X className="w-4 h-4" />

@@ -15,6 +15,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<any>(null);
     const markerRef = useRef<any>(null);
+    const mbglRef = useRef<any>(null);
 
     const [isEditingAddress, setIsEditingAddress] = useState(false);
     const [editAddress, setEditAddress] = useState('');
@@ -28,6 +29,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
     const [suggestions, setSuggestions] = useState<any[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const searchSeqRef = useRef(0);
     const suggestionsRef = useRef<HTMLDivElement>(null);
 
     const hasLocation = pursuit.latitude !== null && pursuit.longitude !== null;
@@ -37,15 +39,16 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
         if (!MAPBOX_TOKEN || !mapContainerRef.current) return;
 
         let map: any;
+        let cancelled = false;
         import('mapbox-gl').then((mapboxgl) => {
+            // Guard: effect may have been cleaned up (unmount / deps change) during async import
+            if (cancelled || !mapContainerRef.current) return;
             // @ts-ignore
             const mbgl = mapboxgl.default || mapboxgl;
             mbgl.accessToken = MAPBOX_TOKEN;
+            mbglRef.current = mbgl;
 
-            if (mapContainerRef.current) mapContainerRef.current.innerHTML = '';
-
-            // Guard: container may be null if component unmounted during async import
-            if (!mapContainerRef.current) return;
+            mapContainerRef.current.innerHTML = '';
 
             map = new mbgl.Map({
                 container: mapContainerRef.current!,
@@ -68,6 +71,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
 
             // Once loaded, add parcel polygon layers
             map.on('load', () => {
+                if (cancelled) return;
                 const bounds = new mbgl.LngLatBounds();
                 let hasParcels = false;
 
@@ -152,7 +156,10 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
         });
 
         return () => {
+            cancelled = true;
             if (map) map.remove();
+            mapRef.current = null;
+            markerRef.current = null;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [MAPBOX_TOKEN, pursuit.parcel_data, pursuit.parcel_assemblage]);
@@ -164,6 +171,11 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
 
         if (markerRef.current) {
             markerRef.current.setLngLat([pursuit.longitude!, pursuit.latitude!]);
+        } else if (mbglRef.current) {
+            // Location was set after the map was created without one
+            markerRef.current = new mbglRef.current.Marker({ color: '#2563EB' })
+                .setLngLat([pursuit.longitude!, pursuit.latitude!])
+                .addTo(map);
         }
         map.flyTo({ center: [pursuit.longitude!, pursuit.latitude!], zoom: 14, duration: 1000 });
     }, [pursuit.latitude, pursuit.longitude, hasLocation]);
@@ -179,10 +191,23 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
         return () => document.removeEventListener('mousedown', handler);
     }, []);
 
+    // Cancel any pending autocomplete search on unmount
+    useEffect(() => () => {
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+        searchSeqRef.current++;
+    }, []);
+
+    const cancelPendingSearch = () => {
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+        searchTimeoutRef.current = null;
+        searchSeqRef.current++; // invalidate any in-flight response
+    };
+
     // Autocomplete search
     const handleAddressChange = useCallback((query: string) => {
         setEditAddress(query);
         if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+        const seq = ++searchSeqRef.current;
 
         if (!query.trim() || query.length < 3 || !MAPBOX_TOKEN) {
             setSuggestions([]);
@@ -196,6 +221,8 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                     `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&types=address,poi,place&country=US&limit=5`
                 );
                 const data = await res.json();
+                // Ignore stale responses (user kept typing, picked a suggestion, or cancelled)
+                if (seq !== searchSeqRef.current) return;
                 setSuggestions(data.features || []);
                 setShowSuggestions(true);
             } catch (err) {
@@ -206,6 +233,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
 
     // Select a suggestion
     const selectSuggestion = useCallback((feature: any) => {
+        cancelPendingSearch();
         const [lng, lat] = feature.center;
         const context = feature.context || [];
         const findCtx = (type: string) => context.find((c: any) => c.id?.startsWith(type))?.text || '';
@@ -291,6 +319,8 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
 
     // Save edits
     const saveEdits = async () => {
+        cancelPendingSearch();
+        setShowSuggestions(false);
         const parsedLat = parseFloat(editLat);
         const parsedLng = parseFloat(editLng);
         const hasManualCoords = !isNaN(parsedLat) && !isNaN(parsedLng) && parsedLat >= -90 && parsedLat <= 90 && parsedLng >= -180 && parsedLng <= 180;
@@ -341,6 +371,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
 
     // Cancel edits
     const cancelEdits = () => {
+        cancelPendingSearch();
         setIsEditingAddress(false);
         setSuggestions([]);
         setShowSuggestions(false);

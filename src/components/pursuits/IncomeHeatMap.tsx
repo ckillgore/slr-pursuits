@@ -18,6 +18,10 @@ const INCOME_COLORS = [
     '#67000d', // > 150k — darkest
 ];
 
+function escapeHtml(str: string): string {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 const LEGEND_LABELS = [
     '< $30k',
     '$30k–$45k',
@@ -96,117 +100,38 @@ export function IncomeHeatMap({
         }
     }, [radiusMiles, savedIncomeData]);
 
-    // Initialize Mapbox map
+    // Initialize Mapbox map (re-run when the container appears, i.e. once a location is set)
+    const [mapReady, setMapReady] = useState(false);
+    const markerRef = useRef<any>(null);
     useEffect(() => {
-        if (!MAPBOX_TOKEN || !mapContainerRef.current) return;
+        if (!MAPBOX_TOKEN || !hasLocation || !mapContainerRef.current) return;
 
         let map: any;
+        let cancelled = false;
         import('mapbox-gl').then((mapboxgl) => {
+            if (cancelled || !mapContainerRef.current) return;
             const mbgl = mapboxgl.default || mapboxgl;
             mbgl.accessToken = MAPBOX_TOKEN;
             mbglRef.current = mbgl;
 
-            if (mapContainerRef.current) mapContainerRef.current.innerHTML = '';
+            mapContainerRef.current.innerHTML = '';
 
             map = new mbgl.Map({
-                container: mapContainerRef.current!,
+                container: mapContainerRef.current,
                 style: 'mapbox://styles/mapbox/light-v11',
                 center,
-                zoom: hasLocation ? 11 : 10,
+                zoom: 11,
                 interactive: true,
             });
 
             map.addControl(new mbgl.NavigationControl({ showCompass: false }), 'top-right');
 
             // Site marker
-            if (hasLocation) {
-                new mbgl.Marker({ color: '#1A1F2B' })
-                    .setLngLat(center)
-                    .addTo(map);
-            }
+            markerRef.current = new mbgl.Marker({ color: '#1A1F2B' })
+                .setLngLat(center)
+                .addTo(map);
 
-            mapRef.current = map;
-        });
-
-        return () => {
-            if (popupRef.current) popupRef.current.remove();
-            if (map) map.remove();
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [MAPBOX_TOKEN]);
-
-    // Update map center
-    useEffect(() => {
-        if (!mapRef.current || !hasLocation) return;
-        mapRef.current.flyTo({ center: [longitude!, latitude!], zoom: 11, duration: 800 });
-    }, [latitude, longitude, hasLocation]);
-
-    // Render choropleth when geojson changes
-    useEffect(() => {
-        const map = mapRef.current;
-        const mbgl = mbglRef.current;
-        if (!map || !mbgl) return;
-
-        const removeLayers = () => {
-            try {
-                if (map.getLayer('income-fill')) map.removeLayer('income-fill');
-                if (map.getLayer('income-outline')) map.removeLayer('income-outline');
-                if (map.getSource('income-data')) map.removeSource('income-data');
-            } catch { /* ok */ }
-        };
-
-        if (!geojson) {
-            const doRemove = () => {
-                removeLayers();
-                if (hasLocation) {
-                    map.flyTo({ center: [longitude!, latitude!], zoom: 11, duration: 800 });
-                }
-            };
-            if (map.isStyleLoaded()) doRemove();
-            else map.on('load', doRemove);
-            return;
-        }
-
-        const addLayers = () => {
-            removeLayers();
-
-            map.addSource('income-data', {
-                type: 'geojson',
-                data: geojson,
-            });
-
-            // Build the step expression for color mapping
-            const colorExpr: any[] = [
-                'step',
-                ['coalesce', ['get', 'medianIncome'], 0],
-                INCOME_COLORS[0],
-            ];
-            for (let i = 0; i < INCOME_BREAKS.length; i++) {
-                colorExpr.push(INCOME_BREAKS[i], INCOME_COLORS[i + 1]);
-            }
-
-            map.addLayer({
-                id: 'income-fill',
-                type: 'fill',
-                source: 'income-data',
-                paint: {
-                    'fill-color': colorExpr,
-                    'fill-opacity': 0.6,
-                },
-            });
-
-            map.addLayer({
-                id: 'income-outline',
-                type: 'line',
-                source: 'income-data',
-                paint: {
-                    'line-color': '#ffffff',
-                    'line-width': 0.5,
-                    'line-opacity': 0.8,
-                },
-            });
-
-            // Hover popup
+            // Hover popup — registered once (layer-scoped handlers survive layer re-adds)
             map.on('mousemove', 'income-fill', (e: any) => {
                 if (!e.features?.[0]) return;
                 map.getCanvas().style.cursor = 'pointer';
@@ -218,8 +143,8 @@ export function IncomeHeatMap({
                     .setLngLat(e.lngLat)
                     .setHTML(`
                         <div style="font-family: system-ui, sans-serif; font-size: 12px; line-height: 1.5; min-width: 140px;">
-                            <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">${props.name || props.geoId}</div>
-                            <div style="color: var(--text-secondary);">Median Income: <strong style="color: var(--text-primary);">${income != null ? '$' + Number(income).toLocaleString() : 'N/A'}</strong></div>
+                            <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">${escapeHtml(String(props.name || props.geoId || ''))}</div>
+                            <div style="color: var(--text-secondary);">Median Income: <strong style="color: var(--text-primary);">${income != null && income !== '' && Number.isFinite(Number(income)) ? '$' + Number(income).toLocaleString() : 'N/A'}</strong></div>
                         </div>
                     `)
                     .addTo(map);
@@ -230,27 +155,101 @@ export function IncomeHeatMap({
                 if (popupRef.current) popupRef.current.remove();
             });
 
-            // Fit to data bounds
-            const bounds = new mbgl.LngLatBounds();
-            for (const f of geojson.features) {
-                const coords = f.geometry?.coordinates;
-                if (!coords) continue;
-                const flatten = (arr: any[]): void => {
-                    for (const item of arr) {
-                        if (typeof item[0] === 'number') bounds.extend(item as [number, number]);
-                        else flatten(item);
-                    }
-                };
-                flatten(coords);
+            mapRef.current = map;
+            map.on('load', () => { if (!cancelled) setMapReady(true); });
+        });
+
+        return () => {
+            cancelled = true;
+            if (popupRef.current) popupRef.current.remove();
+            popupRef.current = null;
+            if (map) map.remove();
+            mapRef.current = null;
+            markerRef.current = null;
+            setMapReady(false);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hasLocation]);
+
+    // Update map center + marker
+    useEffect(() => {
+        if (!mapRef.current || !hasLocation) return;
+        markerRef.current?.setLngLat([longitude!, latitude!]);
+        mapRef.current.flyTo({ center: [longitude!, latitude!], zoom: 11, duration: 800 });
+    }, [latitude, longitude, hasLocation]);
+
+    // Render choropleth when geojson changes
+    useEffect(() => {
+        const map = mapRef.current;
+        const mbgl = mbglRef.current;
+        if (!map || !mbgl || !mapReady) return;
+
+        try {
+            if (map.getLayer('income-fill')) map.removeLayer('income-fill');
+            if (map.getLayer('income-outline')) map.removeLayer('income-outline');
+            if (map.getSource('income-data')) map.removeSource('income-data');
+        } catch { /* ok */ }
+        if (popupRef.current) popupRef.current.remove();
+
+        if (!geojson) {
+            if (hasLocation) {
+                map.flyTo({ center: [longitude!, latitude!], zoom: 11, duration: 800 });
             }
-            if (!bounds.isEmpty()) {
-                map.fitBounds(bounds, { padding: 40, duration: 800 });
+            return;
+        }
+
+        map.addSource('income-data', {
+            type: 'geojson',
+            data: geojson,
+        });
+
+        // Build the step expression for color mapping
+        const colorExpr: any[] = [
+            'step',
+            ['coalesce', ['get', 'medianIncome'], 0],
+            INCOME_COLORS[0],
+        ];
+        for (let i = 0; i < INCOME_BREAKS.length; i++) {
+            colorExpr.push(INCOME_BREAKS[i], INCOME_COLORS[i + 1]);
+        }
+
+        map.addLayer({
+            id: 'income-fill',
+            type: 'fill',
+            source: 'income-data',
+            paint: {
+                'fill-color': colorExpr,
+                'fill-opacity': 0.6,
+            },
+        });
+
+        map.addLayer({
+            id: 'income-outline',
+            type: 'line',
+            source: 'income-data',
+            paint: {
+                'line-color': '#ffffff',
+                'line-width': 0.5,
+                'line-opacity': 0.8,
+            },
+        });
+
+        // Fit to data bounds
+        const bounds = new mbgl.LngLatBounds();
+        const flatten = (arr: any[]): void => {
+            for (const item of arr) {
+                if (typeof item?.[0] === 'number') bounds.extend(item as [number, number]);
+                else if (Array.isArray(item)) flatten(item);
             }
         };
-
-        if (map.isStyleLoaded()) addLayers();
-        else map.on('load', addLayers);
-    }, [geojson, hasLocation, latitude, longitude]);
+        for (const f of geojson.features || []) {
+            const coords = f.geometry?.coordinates;
+            if (coords) flatten(coords);
+        }
+        if (!bounds.isEmpty()) {
+            map.fitBounds(bounds, { padding: 40, duration: 800 });
+        }
+    }, [geojson, mapReady, hasLocation, latitude, longitude]);
 
     // Fetch income data
     const fetchIncome = useCallback(async () => {

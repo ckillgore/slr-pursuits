@@ -25,6 +25,7 @@ import {
     Shield,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/constants';
+import { isMonthClosed, forecastCellValue } from '@/lib/calculations/predevForecast';
 import { useRegisterReportExport } from './ReportExportContext';
 import type { TableExportSpec, ExportColumn, ExportRow } from '@/components/export/tableExport';
 
@@ -35,16 +36,28 @@ function getCurrentMonthKey(): string {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function isMonthClosed(monthKey: string, today: Date): boolean {
-    const [y, m] = monthKey.split('-').map(Number);
-    const monthEnd = new Date(y, m, 0); // day 0 of next month = last day of this month
-    const daysSinceMonthEnd = Math.floor((today.getTime() - monthEnd.getTime()) / (1000 * 60 * 60 * 24));
-    return daysSinceMonthEnd >= 15;
-}
-
 function isMonthPendingClose(monthKey: string, today: Date, currentMonth: string): boolean {
     if (monthKey >= currentMonth) return false;
     return !isMonthClosed(monthKey, today);
+}
+
+/**
+ * The per-pursuit Yardi feed returns a 2-digit group rollup row ("50") next to
+ * the detail rows ("50-00100") it was summed from. Summing both double counts,
+ * so drop a group row whenever detail rows exist for the same group + month —
+ * same rule as PredevBudgetTab. Cached per aggregate array.
+ */
+const dedupedAggsCache = new WeakMap<YardiMonthlyCostAggregate[], YardiMonthlyCostAggregate[]>();
+function dedupeYardiAggs(aggs: YardiMonthlyCostAggregate[]): YardiMonthlyCostAggregate[] {
+    const cached = dedupedAggsCache.get(aggs);
+    if (cached) return cached;
+    const hasDetail = new Set<string>();
+    for (const a of aggs) {
+        if (a.category_code.length > 2) hasDetail.add(`${a.category_code.substring(0, 2)}|${a.month}`);
+    }
+    const result = aggs.filter(a => a.category_code.length > 2 || !hasDetail.has(`${a.category_code}|${a.month}`));
+    dedupedAggsCache.set(aggs, result);
+    return result;
 }
 
 function getYardiActual(
@@ -56,15 +69,51 @@ function getYardiActual(
     let total = 0;
     let found = false;
 
-    for (const groupStr of li.yardi_cost_groups) {
-        const agg = aggs.find(a => a.category_code === groupStr && a.month === monthKey);
-        if (agg) {
-            total += agg.total_amount;
-            found = true;
+    // Aggregates are keyed by detail code ("50-00100"). A line item may map a
+    // whole 2-digit group ("50") or a specific detail code — same rule as
+    // PredevBudgetTab, so the portfolio report ties to the pursuit page.
+    const rows = dedupeYardiAggs(aggs);
+    for (const code of li.yardi_cost_groups) {
+        const isGroup = code.length <= 2;
+        for (const a of rows) {
+            if (a.month !== monthKey) continue;
+            if (isGroup ? a.category_code.substring(0, 2) === code : a.category_code === code) {
+                total += a.total_amount;
+                found = true;
+            }
         }
     }
 
     return found ? total : null;
+}
+
+/**
+ * Yardi cost for one month that no line item maps to. PredevBudgetTab shows
+ * this as "Unallocated Yardi Actuals" and includes it in the pursuit total, so
+ * the portfolio report must too or the two won't tie.
+ */
+function unallocatedYardiForMonth(
+    budget: PredevBudget,
+    monthKey: string,
+    aggs: YardiMonthlyCostAggregate[] | undefined,
+): number {
+    const lineItems = budget.line_items ?? [];
+    if (!aggs || aggs.length === 0 || lineItems.length === 0) return 0;
+    const coveredGroups = new Set<string>();
+    const coveredCodes = new Set<string>();
+    for (const li of lineItems) {
+        for (const code of li.yardi_cost_groups ?? []) {
+            if (code.length <= 2) coveredGroups.add(code);
+            else coveredCodes.add(code);
+        }
+    }
+    let total = 0;
+    for (const a of dedupeYardiAggs(aggs)) {
+        if (a.month !== monthKey) continue;
+        if (coveredGroups.has(a.category_code.substring(0, 2)) || coveredCodes.has(a.category_code)) continue;
+        total += a.total_amount;
+    }
+    return total;
 }
 
 function effectiveValueForLineItem(
@@ -76,17 +125,8 @@ function effectiveValueForLineItem(
     const cell = li.monthly_values[monthKey] ?? { projected: 0, actual: null };
     const closed = isMonthClosed(monthKey, today);
     const yardiVal = getYardiActual(li, monthKey, aggs);
-
-    if (closed) {
-        if (!cell.manual_override && yardiVal !== null && yardiVal !== 0) {
-            return yardiVal;
-        } else if (cell.actual !== null && cell.actual !== undefined) {
-            return cell.actual;
-        }
-        return cell.projected;
-    } else {
-        return (yardiVal ?? 0) + cell.projected; // Hybrid Math Fix
-    }
+    // Shared with PredevBudgetTab so the report ties to the pursuit page.
+    return forecastCellValue(cell, yardiVal, closed);
 }
 
 function pursuitMonthTotal(
@@ -96,9 +136,11 @@ function pursuitMonthTotal(
     today: Date,
     lineItemFilter?: Set<string>
 ): number {
-    return (budget.line_items ?? [])
+    const lineTotal = (budget.line_items ?? [])
         .filter((li) => !lineItemFilter || lineItemFilter.has(li.label))
         .reduce((sum, li) => sum + effectiveValueForLineItem(li, monthKey, aggs, today), 0);
+    // Unallocated spend belongs to no line item, so a line-item filter excludes it.
+    return lineItemFilter ? lineTotal : lineTotal + unallocatedYardiForMonth(budget, monthKey, aggs);
 }
 
 function getSplitPct(
@@ -173,10 +215,14 @@ function pursuitSnapshotTotal(
     fundingPartners: PursuitFundingPartner[],
     fundingSplits: PursuitFundingSplit[],
     fundingView: string,
+    lineItemFilter?: Set<string>,
 ): number {
     if (!budget.budget_snapshot) return 0;
+    // Snapshot is keyed by line item id; the filter is by label.
+    const labelById = new Map((budget.line_items ?? []).map(li => [li.id, li.label]));
     let total = 0;
-    for (const lineItemMonths of Object.values(budget.budget_snapshot)) {
+    for (const [lineItemId, lineItemMonths] of Object.entries(budget.budget_snapshot)) {
+        if (lineItemFilter && !lineItemFilter.has(labelById.get(lineItemId) ?? '')) continue;
         for (const [monthKey, val] of Object.entries(lineItemMonths)) {
             const pct = getSplitPct(budget.pursuit_id, monthKey, fundingPartners, fundingSplits, fundingView);
             total += (val as number) * pct;
@@ -213,6 +259,27 @@ function getForwardMonthKeys(rows: PredevBudgetReportRow[]): string[] {
         }
     }
     return Array.from(allMonths).sort();
+}
+
+/**
+ * The months one pursuit occupies in this report: its budgeted window plus any
+ * month Yardi has posted cost against it.
+ *
+ * Yardi spend routinely lands outside the budgeted window — diligence booked
+ * before the budget's start_date, or a deal running past its duration. The
+ * grand total has always picked that spend up (it walks the portfolio-wide
+ * month list), while the rows clipped it to the budget window. That mismatch
+ * is why the Grand Total row did not foot to the rows above it, and why a
+ * pursuit like South Lamar could show real spend in no column at all. Ranging
+ * both off the same set makes them reconcile by construction.
+ */
+function getPursuitMonthKeys(
+    row: PredevBudgetReportRow,
+    aggs: YardiMonthlyCostAggregate[] | undefined,
+): string[] {
+    const keys = new Set(getForwardMonthKeys([row]));
+    for (const agg of aggs ?? []) keys.add(agg.month);
+    return Array.from(keys).sort();
 }
 
 // ── Component ───────────────────────────────────────────────
@@ -258,8 +325,6 @@ export function PredevBudgetReport() {
         return Array.from(unique.values()).sort();
     }, [fundingPartnersRaw]);
 
-    console.log('YARDI AGGS', yardiAggregates);
-
     // Apply Stage Filter
     const stageFilter = selectedStages.size > 0 ? selectedStages : undefined;
     const rows = useMemo(() => {
@@ -270,14 +335,28 @@ export function PredevBudgetReport() {
 
     const monthKeys = useMemo(() => {
         const keys = new Set(getForwardMonthKeys(rows));
-        // Add organically occurring Yardi dates outside budget bounds
-        for (const predevId in yardiAggregates || {}) {
-            for (const agg of yardiAggregates![predevId] || []) {
+        // Add organically occurring Yardi dates outside budget bounds — only for
+        // pursuits still in the (stage-filtered) report, so filtered-out
+        // pursuits don't leave empty month columns behind.
+        for (const r of rows) {
+            for (const agg of yardiAggregates?.[r.pursuit.id] ?? []) {
                 keys.add(agg.month);
             }
         }
         return Array.from(keys).sort();
     }, [rows, yardiAggregates]);
+
+    // Per-pursuit month range (budget window ∪ Yardi months). Every total —
+    // row, group, column, grand — is restricted to this range so they foot.
+    const rowMonthKeys = useMemo(() => {
+        const m = new Map<string, Set<string>>();
+        for (const r of rows) m.set(r.pursuit.id, new Set(getPursuitMonthKeys(r, yardiAggregates?.[r.pursuit.id])));
+        return m;
+    }, [rows, yardiAggregates]);
+    const inRowRange = useCallback(
+        (r: PredevBudgetReportRow, mk: string) => rowMonthKeys.get(r.pursuit.id)?.has(mk) ?? false,
+        [rowMonthKeys],
+    );
     // Split into closed (LTD) and forward
     const closedMonths = useMemo(() => monthKeys.filter(mk => isMonthClosed(mk, today)), [monthKeys, today]);
     const forwardMonths = useMemo(() => monthKeys.filter(mk => !isMonthClosed(mk, today)), [monthKeys, today]);
@@ -355,7 +434,7 @@ export function PredevBudgetReport() {
     const fs = useMemo(() => fundingSplitsRaw ?? [], [fundingSplitsRaw]);
 
     const grandTotalByMonth = (mk: string): number =>
-        (rows).reduce((sum, r) => sum + pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
+        (rows).reduce((sum, r) => !inRowRange(r, mk) ? sum : sum + pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
 
     const overallGrandTotal = monthKeys.reduce((sum, mk) => sum + grandTotalByMonth(mk), 0);
 
@@ -365,9 +444,14 @@ export function PredevBudgetReport() {
         let totalForecast = 0;
 
         for (const r of data) {
-            const rMonthKeys = getForwardMonthKeys([r]);
-            totalForecast += pursuitGrandTotal(r.budget, rMonthKeys, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
-            totalBudget += pursuitSnapshotTotal(r.budget, fp, fs, fundingView) || pursuitGrandTotal(r.budget, rMonthKeys, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
+            const rMonthKeys = getPursuitMonthKeys(r, yardiAggregates?.[r.pursuit.id]);
+            // A pursuit with no snapshot budgets at its forecast (zero variance).
+            // Check for the snapshot explicitly — a snapshot that legitimately
+            // sums to 0 (e.g. under a line-item filter) must not fall back.
+            const forecast = pursuitGrandTotal(r.budget, rMonthKeys, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
+            totalForecast += forecast;
+            const hasSnapshot = !!r.budget.budget_snapshot && Object.keys(r.budget.budget_snapshot).length > 0;
+            totalBudget += hasSnapshot ? pursuitSnapshotTotal(r.budget, fp, fs, fundingView, lineItemFilter) : forecast;
         }
         
         const variance = totalForecast - totalBudget;
@@ -393,13 +477,12 @@ export function PredevBudgetReport() {
         ];
 
         /** Sum a set of rows for one period column, respecting the active view. */
-        const periodTotal = (groupRows: PredevBudgetReportRow[], colIdx: number, restrictToRange: boolean): number => {
+        const periodTotal = (groupRows: PredevBudgetReportRow[], colIdx: number): number => {
             const months = viewMode === 'monthly' ? [forwardMonths[colIdx]] : yearGroups[colIdx].months;
             let total = 0;
             for (const r of groupRows) {
-                const rmk = restrictToRange ? getForwardMonthKeys([r]) : null;
                 for (const mk of months) {
-                    if (rmk && !rmk.includes(mk)) continue;
+                    if (!inRowRange(r, mk)) continue;
                     total += pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
                 }
             }
@@ -411,9 +494,11 @@ export function PredevBudgetReport() {
         for (const [groupKey, groupRows] of Object.entries(groupedRows)) {
             if (groupBy === 'region') {
                 const groupTotal = groupRows.reduce((sum, r) =>
-                    sum + pursuitGrandTotal(r.budget, getForwardMonthKeys([r]), yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
-                const groupLtd = groupRows.reduce((sum, r) =>
-                    sum + pursuitGrandTotal(r.budget, closedMonths, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
+                    sum + pursuitGrandTotal(r.budget, getPursuitMonthKeys(r, yardiAggregates?.[r.pursuit.id]), yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
+                const groupLtd = groupRows.reduce((sum, r) => {
+                    const rmk = getPursuitMonthKeys(r, yardiAggregates?.[r.pursuit.id]);
+                    return sum + pursuitGrandTotal(r.budget, closedMonths.filter(m => rmk.includes(m)), yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
+                }, 0);
 
                 exportRows.push({
                     kind: 'group',
@@ -423,13 +508,13 @@ export function PredevBudgetReport() {
                         null,
                         groupTotal,
                         groupLtd,
-                        ...periodCols.map((_, i) => periodTotal(groupRows, i, false)),
+                        ...periodCols.map((_, i) => periodTotal(groupRows, i)),
                     ],
                 });
             }
 
             for (const row of groupRows) {
-                const rmk = getForwardMonthKeys([row]);
+                const rmk = getPursuitMonthKeys(row, yardiAggregates?.[row.pursuit.id]);
                 const aggs = yardiAggregates?.[row.pursuit.id];
                 const lineTotal = pursuitGrandTotal(row.budget, rmk, aggs, today, fp, fs, fundingView, lineItemFilter);
                 const lineLtd = pursuitGrandTotal(row.budget, closedMonths.filter(m => rmk.includes(m)), aggs, today, fp, fs, fundingView, lineItemFilter);
@@ -460,7 +545,7 @@ export function PredevBudgetReport() {
         }
 
         const grandByMonth = (mk: string) => rows.reduce((sum, r) =>
-            sum + pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
+            !inRowRange(r, mk) ? sum : sum + pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
 
         exportRows.push({
             kind: 'total',
@@ -470,7 +555,7 @@ export function PredevBudgetReport() {
                 null,
                 monthKeys.reduce((sum, mk) => sum + grandByMonth(mk), 0),
                 closedMonths.reduce((sum, mk) => sum + grandByMonth(mk), 0),
-                ...periodCols.map((_, i) => periodTotal(rows, i, false)),
+                ...periodCols.map((_, i) => periodTotal(rows, i)),
             ],
         });
 
@@ -510,7 +595,7 @@ export function PredevBudgetReport() {
         };
     }, [
         viewMode, forwardMonths, yearGroups, groupedRows, groupBy, rows, monthKeys, closedMonths,
-        yardiAggregates, today, fp, fs, fundingView, lineItemFilter, stageFilter, portfolioMetrics,
+        yardiAggregates, today, fp, fs, fundingView, lineItemFilter, stageFilter, portfolioMetrics, inRowRange,
     ]);
 
     useRegisterReportExport(isLoading || rows.length === 0 ? null : buildExportSpec);
@@ -787,12 +872,13 @@ export function PredevBudgetReport() {
 
                                 // Group Subtotals
                                 const groupTotal = groupRows.reduce((sum, r) => {
-                                    const mk = getForwardMonthKeys([r]);
+                                    const mk = getPursuitMonthKeys(r, yardiAggregates?.[r.pursuit.id]);
                                     return sum + pursuitGrandTotal(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
                                 }, 0);
 
                                 const groupLtd = groupRows.reduce((sum, r) => {
-                                    return sum + pursuitGrandTotal(r.budget, closedMonths, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
+                                    const mk = getPursuitMonthKeys(r, yardiAggregates?.[r.pursuit.id]);
+                                    return sum + pursuitGrandTotal(r.budget, closedMonths.filter(m => mk.includes(m)), yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
                                 }, 0);
 
                                 return (
@@ -815,7 +901,7 @@ export function PredevBudgetReport() {
                                                     {formatCurrency(groupLtd, 0)}
                                                 </td>
                                                 {viewMode === 'monthly' ? forwardMonths.map((mk) => {
-                                                    const mTot = groupRows.reduce((sum, r) => sum + pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
+                                                    const mTot = groupRows.reduce((sum, r) => !inRowRange(r, mk) ? sum : sum + pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
                                                     return (
                                                         <td key={mk} className="text-right px-3 py-2 text-xs font-medium font-mono text-[var(--text-secondary)] border-r border-[var(--border)] last:border-0 bg-[var(--bg-primary)]">
                                                             {mTot === 0 ? <span className="text-[var(--text-faint)]">—</span> : formatCurrency(mTot, 0)}
@@ -824,7 +910,7 @@ export function PredevBudgetReport() {
                                                 }) : yearGroups.map((yg) => {
                                                     let yTot = 0;
                                                     for (const mk of yg.months) {
-                                                        yTot += groupRows.reduce((sum, r) => sum + pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
+                                                        yTot += groupRows.reduce((sum, r) => !inRowRange(r, mk) ? sum : sum + pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
                                                     }
                                                     return (
                                                         <td key={yg.year} className="text-right px-3 py-2 text-xs font-bold font-mono text-[var(--text-primary)] border-r border-[var(--border)] last:border-0 bg-[var(--bg-primary)]">
@@ -836,7 +922,7 @@ export function PredevBudgetReport() {
                                         )}
 
                                         {isExpanded && groupRows.map((row) => {
-                                            const rmk = getForwardMonthKeys([row]);
+                                            const rmk = getPursuitMonthKeys(row, yardiAggregates?.[row.pursuit.id]);
                                             const lineTotal = pursuitGrandTotal(row.budget, rmk, yardiAggregates?.[row.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
                                             const lineLtd = pursuitGrandTotal(row.budget, closedMonths.filter(m => rmk.includes(m)), yardiAggregates?.[row.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
 

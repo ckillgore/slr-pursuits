@@ -123,7 +123,7 @@ const NO_BORDER: ITableCellBorders = {
 // ═══════════════════════════════════════════════════════════════
 
 function fmtCurrency(value: number | null | undefined, decimals = 0): string {
-    if (value == null) return '—';
+    if (value == null || !Number.isFinite(value)) return '—';
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
@@ -133,12 +133,12 @@ function fmtCurrency(value: number | null | undefined, decimals = 0): string {
 }
 
 function fmtNumber(value: number | null | undefined): string {
-    if (value == null) return '—';
+    if (value == null || !Number.isFinite(value)) return '—';
     return new Intl.NumberFormat('en-US').format(value);
 }
 
 function fmtPercent(value: number | null | undefined, decimals = 2): string {
-    if (value == null) return '—';
+    if (value == null || !Number.isFinite(value)) return '—';
     return `${(value * 100).toFixed(decimals)}%`;
 }
 

@@ -122,8 +122,15 @@ export function PredevBudgetPDF({
     
     // Determine the columns we need to build for the active visual mode
     const isBudget = viewMode === 'budget';
-    const showLTDBlob = closedMonths.length > 0 && !expandLTD && !isBudget;
-    const expandedMonths = expandLTD && !isBudget ? closedMonths : [];
+    // Closed months are shown in every view (as on screen) — rowTotal() spans
+    // all months, so hiding them in Budget view left rows not footing.
+    const showLTDBlob = closedMonths.length > 0 && !expandLTD;
+    const expandedMonths = expandLTD ? closedMonths : [];
+    const showUnalloc = !!(hasUnallocated && !isBudget && unallocatedByMonth);
+    const unalloc = (mk: string) => (showUnalloc ? unallocatedByMonth!.get(mk) || 0 : 0);
+    const colSum = (mk: string) => lineItems.reduce((sum, li) => sum + getCellInfo(li, mk).value, 0) + unalloc(mk);
+    const grandTotal = lineItems.reduce((sum, li) => sum + rowTotal(li), 0)
+        + (showUnalloc ? Array.from(unallocatedByMonth!.values()).reduce((sum, v) => sum + v, 0) : 0);
 
     const numCols = 1 + (showLTDBlob ? 1 : 0) + expandedMonths.length + forwardMonths.length + 1;
     const labelW = 20; // 20% width for label
@@ -181,7 +188,7 @@ export function PredevBudgetPDF({
                 {/* Table Header */}
                 <View style={s.tableHeader}>
                     <Text style={{ ...s.cellHead, width: `${labelW}%` }}>Line Item</Text>
-                    {showLTDBlob && <Text style={{ ...s.cellHeadRight, width: `${dataW}%` }}>LTD Actuals</Text>}
+                    {showLTDBlob && <Text style={{ ...s.cellHeadRight, width: `${dataW}%` }}>{isBudget ? 'LTD Budget' : 'LTD Actuals'}</Text>}
                     {expandedMonths.map(mk => (
                         <Text key={`h-${mk}`} style={{ ...s.cellHeadRight, width: `${dataW}%` }}>{getMonthKeyLabel(mk)}</Text>
                     ))}
@@ -226,13 +233,30 @@ export function PredevBudgetPDF({
                             <Text key={`u-${mk}`} style={{ ...s.unallocVal, width: `${dataW}%` }}>{fmt(unallocatedByMonth.get(mk) || 0)}</Text>
                         ))}
                         {forwardMonths.map(mk => (
-                            <Text key={`u-${mk}`} style={{ ...s.unallocVal, width: `${dataW}%` }}>—</Text>
+                            <Text key={`u-${mk}`} style={{ ...s.unallocVal, width: `${dataW}%` }}>{fmt(unallocatedByMonth.get(mk) || 0)}</Text>
                         ))}
                         <Text style={{ ...s.unallocVal, width: `${dataW}%` }}>
                             {fmt(Array.from(unallocatedByMonth.values()).reduce((sum, v) => sum + v, 0))}
                         </Text>
                     </View>
                 )}
+
+                {/* Total Row — mirrors the grid's Total row */}
+                <View style={{ ...s.tableRow, borderTopWidth: 1, borderTopColor: colors.primary }}>
+                    <Text style={{ ...s.cellLabel, width: `${labelW}%`, fontWeight: 700 }}>Total</Text>
+                    {showLTDBlob && (
+                        <Text style={{ ...s.cellValue, width: `${dataW}%`, fontWeight: 700 }}>
+                            {fmt(closedMonths.reduce((sum, mk) => sum + colSum(mk), 0))}
+                        </Text>
+                    )}
+                    {expandedMonths.map(mk => (
+                        <Text key={`t-${mk}`} style={{ ...s.cellValue, width: `${dataW}%`, fontWeight: 700 }}>{fmt(colSum(mk))}</Text>
+                    ))}
+                    {forwardMonths.map(mk => (
+                        <Text key={`t-${mk}`} style={{ ...s.cellValue, width: `${dataW}%`, fontWeight: 700 }}>{fmt(colSum(mk))}</Text>
+                    ))}
+                    <Text style={{ ...s.cellValue, width: `${dataW}%`, fontWeight: 700 }}>{fmt(grandTotal)}</Text>
+                </View>
 
                 <View style={s.footer} fixed>
                     <Text>{pursuit.name} · Pre-Dev Budget</Text>

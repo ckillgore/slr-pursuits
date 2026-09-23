@@ -8,8 +8,20 @@ import { calcBudget } from './budget';
 import { calcOpEx } from './opex';
 import { calcPropertyTax } from './propertyTax';
 import { calcReturns } from './returns';
-import type { OnePager, UnitMixRow, PayrollRow, SoftCostDetailRow } from '@/types';
+import type { OnePager, UnitMixRow, PayrollRow, SoftCostDetailRow, UnitPremium } from '@/types';
 import { calcUnitMixAggregates } from './unitMix';
+
+/**
+ * Annual premium income — must match calculateAll() so the step-0 row of every
+ * sensitivity reproduces the headline NOI / YOC. Premiums are a fixed $/unit/mo,
+ * so they are not scaled by rent-PSF steps.
+ */
+function premiumIncome(unitPremiums?: UnitPremium[]): number {
+    return (unitPremiums || []).reduce(
+        (sum, p) => sum + p.unit_count * (p.rent_premium_per_unit_month || 0) * 12,
+        0
+    );
+}
 
 export interface SensitivityRow {
     step: number;
@@ -35,7 +47,8 @@ export function calcRentSensitivity(
     unitMix: UnitMixRow[],
     payroll: PayrollRow[],
     softCostDetails: SoftCostDetailRow[],
-    rentSteps: number[]
+    rentSteps: number[],
+    unitPremiums?: UnitPremium[]
 ): SensitivityRow[] {
     const agg = calcUnitMixAggregates(unitMix, onePager.efficiency_ratio);
     const baseRentPsf = agg.weighted_avg_rent_per_sf;
@@ -47,7 +60,7 @@ export function calcRentSensitivity(
         const adjustedGpr = agg.gross_potential_rent * scaleFactor;
 
         const rev = calcRevenue(
-            adjustedGpr,
+            adjustedGpr + premiumIncome(unitPremiums),
             onePager.other_income_per_unit_month,
             agg.total_units,
             onePager.vacancy_rate
@@ -109,12 +122,13 @@ export function calcHardCostSensitivity(
     unitMix: UnitMixRow[],
     payroll: PayrollRow[],
     softCostDetails: SoftCostDetailRow[],
-    hardCostSteps: number[]
+    hardCostSteps: number[],
+    unitPremiums?: UnitPremium[]
 ): SensitivityRow[] {
     const agg = calcUnitMixAggregates(unitMix, onePager.efficiency_ratio);
 
     const rev = calcRevenue(
-        agg.gross_potential_rent,
+        agg.gross_potential_rent + premiumIncome(unitPremiums),
         onePager.other_income_per_unit_month,
         agg.total_units,
         onePager.vacancy_rate
@@ -179,12 +193,13 @@ export function calcLandCostSensitivity(
     unitMix: UnitMixRow[],
     payroll: PayrollRow[],
     softCostDetails: SoftCostDetailRow[],
-    landCostSteps: number[]
+    landCostSteps: number[],
+    unitPremiums?: UnitPremium[]
 ): SensitivityRow[] {
     const agg = calcUnitMixAggregates(unitMix, onePager.efficiency_ratio);
 
     const rev = calcRevenue(
-        agg.gross_potential_rent,
+        agg.gross_potential_rent + premiumIncome(unitPremiums),
         onePager.other_income_per_unit_month,
         agg.total_units,
         onePager.vacancy_rate
@@ -250,7 +265,8 @@ export function calcSensitivityMatrix(
     payroll: PayrollRow[],
     softCostDetails: SoftCostDetailRow[],
     rentSteps: number[],
-    hardCostSteps: number[]
+    hardCostSteps: number[],
+    unitPremiums?: UnitPremium[]
 ): SensitivityMatrix {
     const agg = calcUnitMixAggregates(unitMix, onePager.efficiency_ratio);
     const baseRentPsf = agg.weighted_avg_rent_per_sf;
@@ -264,7 +280,7 @@ export function calcSensitivityMatrix(
         const adjustedGpr = agg.gross_potential_rent * scaleFactor;
 
         const rev = calcRevenue(
-            adjustedGpr,
+            adjustedGpr + premiumIncome(unitPremiums),
             onePager.other_income_per_unit_month,
             agg.total_units,
             onePager.vacancy_rate

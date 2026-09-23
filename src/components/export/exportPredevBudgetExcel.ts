@@ -48,16 +48,20 @@ export async function exportPredevBudgetToExcel({
     ws.addRow([`Generated ${new Date().toLocaleDateString('en-US')}`]).font = { italic: true, size: 10, color: { argb: 'FF7A8599' } };
     ws.addRow([]);
 
-    // Determine Columns
+    // Determine Columns. Closed months appear in every view (as on screen) —
+    // rowTotal() spans all months, so dropping them would leave rows not footing.
+    const isBudget = viewMode === 'budget';
+    const showLTD = closedMonths.length > 0 && !expandLTD;
     const cols = ['Line Item Segment'];
-    if (closedMonths.length > 0 && !expandLTD && viewMode !== 'budget') {
-        cols.push('LTD Actuals');
+    if (showLTD) {
+        cols.push(isBudget ? 'LTD Budget' : 'LTD Actuals');
     }
-    if (expandLTD && viewMode !== 'budget') {
-        closedMonths.forEach(mk => cols.push(`Act ${getMonthKeyLabel(mk)}`));
+    if (expandLTD) {
+        closedMonths.forEach(mk => cols.push(`${isBudget ? '' : 'Act '}${getMonthKeyLabel(mk)}`));
     }
-    forwardMonths.forEach(mk => cols.push(`Proj ${getMonthKeyLabel(mk)}`));
+    forwardMonths.forEach(mk => cols.push(`${isBudget ? '' : 'Proj '}${getMonthKeyLabel(mk)}`));
     cols.push('Total Amount');
+    const colTotals: number[] = new Array(cols.length - 1).fill(0);
 
     // Add Schedule if requested
     if (showSchedule && scheduleItems && scheduleItems.length > 0) {
@@ -92,15 +96,16 @@ export async function exportPredevBudgetToExcel({
     // Write Line Items
     lineItems.forEach(li => {
         const trData: any[] = [li.label];
-        if (closedMonths.length > 0 && !expandLTD && viewMode !== 'budget') {
+        if (showLTD) {
             const sum = closedMonths.reduce((s, mk) => s + getCellInfo(li, mk).value, 0);
             trData.push(sum);
         }
-        if (expandLTD && viewMode !== 'budget') {
+        if (expandLTD) {
             closedMonths.forEach(mk => trData.push(getCellInfo(li, mk).value));
         }
         forwardMonths.forEach(mk => trData.push(getCellInfo(li, mk).value));
         trData.push(rowTotal(li));
+        trData.slice(1).forEach((v, i) => { colTotals[i] += Number(v) || 0; });
 
         const dataRow = ws.addRow(trData);
         dataRow.eachCell((cell, i) => {
@@ -109,11 +114,11 @@ export async function exportPredevBudgetToExcel({
         });
     });
 
-    if (hasUnallocated && viewMode !== 'budget' && unallocatedByMonth) {
+    if (hasUnallocated && !isBudget && unallocatedByMonth) {
         const unAllocTr: any[] = ['Unallocated Job Costs'];
         let unallocTotal = 0;
         
-        if (closedMonths.length > 0 && !expandLTD) {
+        if (showLTD) {
             const sum = closedMonths.reduce((s, mk) => s + (unallocatedByMonth.get(mk) || 0), 0);
             unallocTotal += sum;
             unAllocTr.push(sum);
@@ -125,13 +130,28 @@ export async function exportPredevBudgetToExcel({
                 unAllocTr.push(val);
             });
         }
-        forwardMonths.forEach(mk => unAllocTr.push(0)); // no forward unalloc
+        // Yardi posts into open months too (current / pending-close); the
+        // on-screen grid and the PDF show them, so the workbook must as well.
+        forwardMonths.forEach(mk => {
+            const val = unallocatedByMonth.get(mk) || 0;
+            unallocTotal += val;
+            unAllocTr.push(val);
+        });
         unAllocTr.push(unallocTotal);
+        unAllocTr.slice(1).forEach((v, i) => { colTotals[i] += Number(v) || 0; });
 
         const uRow = ws.addRow(unAllocTr);
         uRow.font = { color: { argb: 'FFD97706' }, italic: true };
         uRow.eachCell((cell, i) => { cell.border = BORDER; if (i > 1) cell.numFmt = '#,##0'; });
     }
+
+    // Total row — mirrors the grid's Total row
+    const totalRow = ws.addRow(['Total', ...colTotals]);
+    totalRow.font = { bold: true };
+    totalRow.eachCell((cell, i) => {
+        cell.border = { top: { style: 'medium', color: { argb: 'FF1A1F2B' } } };
+        if (i > 1) cell.numFmt = '#,##0';
+    });
 
     // Download
     const buffer = await wb.xlsx.writeBuffer();
@@ -139,7 +159,7 @@ export async function exportPredevBudgetToExcel({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${pursuit.name.replace(/[^a-zA-Z0-9-_]/g, '')}_PreDev_${sheetName}.xlsx`;
+    a.download = `${pursuit.name.replace(/[^a-zA-Z0-9-_]/g, '') || 'Pursuit'}_PreDev_${sheetName}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
 }

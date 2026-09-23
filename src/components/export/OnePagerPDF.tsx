@@ -9,7 +9,7 @@ import {
     StyleSheet,
     Font,
 } from '@react-pdf/renderer';
-import type { OnePager, Pursuit, UnitMixRow, PayrollRow, SoftCostDetailRow } from '@/types';
+import type { OnePager, Pursuit, UnitMixRow, PayrollRow, SoftCostDetailRow, UnitPremium } from '@/types';
 import type { CalculationResults } from '@/types';
 import { TiptapPdfContent } from './tiptapToPdf';
 import {
@@ -297,6 +297,8 @@ interface OnePagerPDFProps {
     unitMix: UnitMixRow[];
     payroll: PayrollRow[];
     softCostDetails: SoftCostDetailRow[];
+    /** Needed so the sensitivity base case matches page 1 when premiums exist. */
+    unitPremiums?: UnitPremium[];
     showPayroll?: boolean;
     showPropertyTax?: boolean;
 }
@@ -341,7 +343,7 @@ function SensitivityTable({
     );
 }
 
-export function OnePagerPDF({ onePager, pursuit, calc, productTypeName, unitMix, payroll, softCostDetails, showPayroll = true, showPropertyTax = true }: OnePagerPDFProps) {
+export function OnePagerPDF({ onePager, pursuit, calc, productTypeName, unitMix, payroll, softCostDetails, unitPremiums, showPayroll = true, showPropertyTax = true }: OnePagerPDFProps) {
     const unitMixRows = onePager.unit_mix || [];
 
     // ── Compute sensitivities for page 2 ──
@@ -352,10 +354,15 @@ export function OnePagerPDF({ onePager, pursuit, calc, productTypeName, unitMix,
     const sortedUnitMix = [...unitMix].sort((a, b) => a.sort_order - b.sort_order);
     const sortedPayroll = [...payroll].sort((a, b) => a.sort_order - b.sort_order);
 
-    const rentSens = calcRentSensitivity(onePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps);
-    const hcSens = calcHardCostSensitivity(onePager, sortedUnitMix, sortedPayroll, softCostDetails, hardCostSteps);
-    const lcSens = calcLandCostSensitivity(onePager, sortedUnitMix, sortedPayroll, softCostDetails, landCostSteps);
-    const matrix = calcSensitivityMatrix(onePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, hardCostSteps);
+    const rentSens = calcRentSensitivity(onePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, unitPremiums);
+    const hcSens = calcHardCostSensitivity(onePager, sortedUnitMix, sortedPayroll, softCostDetails, hardCostSteps, unitPremiums);
+    const lcSens = calcLandCostSensitivity(onePager, sortedUnitMix, sortedPayroll, softCostDetails, landCostSteps, unitPremiums);
+    const matrix = calcSensitivityMatrix(onePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, hardCostSteps, unitPremiums);
+
+    // OpEx inputs are $/unit/yr; the section below shows annual totals so it
+    // foots to Total OpEx. Same unit count calcOpEx() used (active unit-mix rows).
+    const opexUnits = unitMix.reduce((sum, r) => sum + (r.unit_count > 0 ? r.unit_count : 0), 0);
+    const opexTotal = (perUnit: number) => fmtCurrency((perUnit || 0) * opexUnits);
 
     // ── Shared header/footer renderers ──
     const renderHeader = () => (
@@ -455,16 +462,17 @@ export function OnePagerPDF({ onePager, pursuit, calc, productTypeName, unitMix,
 
                         {/* OpEx */}
                         <Text style={s.sectionTitle}>Operating Expenses</Text>
-                        <MetricRow label="Utilities" value={fmtCurrency(onePager.opex_utilities)} />
-                        <MetricRow label="Repairs & Maint." value={fmtCurrency(onePager.opex_repairs_maintenance)} />
-                        <MetricRow label="Contract Svcs" value={fmtCurrency(onePager.opex_contract_services)} />
-                        <MetricRow label="Marketing" value={fmtCurrency(onePager.opex_marketing)} />
-                        <MetricRow label="G&A" value={fmtCurrency(onePager.opex_general_admin)} />
-                        <MetricRow label="Turnover" value={fmtCurrency(onePager.opex_turnover)} />
+                        <MetricRow label="Utilities" value={opexTotal(onePager.opex_utilities)} />
+                        <MetricRow label="Repairs & Maint." value={opexTotal(onePager.opex_repairs_maintenance)} />
+                        <MetricRow label="Contract Svcs" value={opexTotal(onePager.opex_contract_services)} />
+                        <MetricRow label="Marketing" value={opexTotal(onePager.opex_marketing)} />
+                        <MetricRow label="G&A" value={opexTotal(onePager.opex_general_admin)} />
+                        <MetricRow label="Turnover" value={opexTotal(onePager.opex_turnover)} />
+                        <MetricRow label="Miscellaneous" value={opexTotal(onePager.opex_misc)} />
                         <MetricRow label="Payroll & Related" value={fmtCurrency(calc.payroll_total)} />
-                        <MetricRow label="Insurance" value={fmtCurrency(onePager.opex_insurance)} />
-                        <MetricRow label="Capex Reserves" value={fmtCurrency(onePager.opex_capex_reserves)} />
-                        <MetricRow label="Mgmt Fee" value={fmtPct(onePager.mgmt_fee_pct, 2)} />
+                        <MetricRow label="Insurance" value={opexTotal(onePager.opex_insurance)} />
+                        <MetricRow label="Capex Reserves" value={opexTotal(onePager.opex_capex_reserves)} />
+                        <MetricRow label={`Mgmt Fee (${fmtPct(onePager.mgmt_fee_pct, 2)})`} value={fmtCurrency(calc.mgmt_fee_total)} />
                         <MetricRow label="Property Tax" value={fmtCurrency(calc.property_tax_total)} />
                         <View style={s.totalRow}>
                             <Text style={s.totalLabel}>Total OpEx</Text>

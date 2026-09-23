@@ -48,7 +48,7 @@ export function getAverageEffectiveRent(units: HellodataUnit[]): number | null {
     const valid = filterValidUnits(units);
     const prices = valid
         .map(u => u.effective_price ?? u.min_effective_price)
-        .filter((p): p is number => p !== null);
+        .filter((p): p is number => p != null);
     if (prices.length === 0) return null;
     return prices.reduce((sum, p) => sum + p, 0) / prices.length;
 }
@@ -58,7 +58,7 @@ export function getAverageAskingRent(units: HellodataUnit[]): number | null {
     const valid = filterValidUnits(units);
     const prices = valid
         .map(u => u.price ?? u.min_price)
-        .filter((p): p is number => p !== null);
+        .filter((p): p is number => p != null);
     if (prices.length === 0) return null;
     return prices.reduce((sum, p) => sum + p, 0) / prices.length;
 }
@@ -68,7 +68,7 @@ export function getAverageSqft(units: HellodataUnit[]): number | null {
     const valid = filterValidUnits(units);
     const sqfts = valid
         .map(u => u.sqft ?? u.min_sqft)
-        .filter((s): s is number => s !== null);
+        .filter((s): s is number => s != null);
     if (sqfts.length === 0) return null;
     return sqfts.reduce((sum, s) => sum + s, 0) / sqfts.length;
 }
@@ -84,7 +84,7 @@ export function getAverageEffectivePsf(units: HellodataUnit[]): number | null {
     for (const u of valid) {
         const price = u.effective_price ?? u.min_effective_price;
         const sqft = u.sqft ?? u.min_sqft;
-        if (price !== null && sqft !== null && sqft > 0) {
+        if (price != null && sqft != null && sqft > 0) {
             pairs.push({ price, sqft });
         }
     }
@@ -101,7 +101,7 @@ export function getAverageAskingPsf(units: HellodataUnit[]): number | null {
     for (const u of valid) {
         const price = u.price ?? u.min_price;
         const sqft = u.sqft ?? u.min_sqft;
-        if (price !== null && sqft !== null && sqft > 0) {
+        if (price != null && sqft != null && sqft > 0) {
             pairs.push({ price, sqft });
         }
     }
@@ -122,7 +122,7 @@ export function getAverageConcession(units: HellodataUnit[]): number | null {
     for (const u of valid) {
         const asking = u.price ?? u.min_price;
         const effective = u.effective_price ?? u.min_effective_price;
-        if (asking !== null && effective !== null) {
+        if (asking != null && effective != null) {
             concessions.push(asking - effective);
         }
     }
@@ -240,7 +240,7 @@ function weightedPsf(units: HellodataUnit[], type: 'asking' | 'effective'): numb
             ? (u.effective_price ?? u.min_effective_price)
             : (u.price ?? u.min_price);
         const sqft = u.sqft ?? u.min_sqft;
-        if (price !== null && sqft !== null && sqft > 0) {
+        if (price != null && sqft != null && sqft > 0) {
             pairs.push({ price, sqft });
         }
     }

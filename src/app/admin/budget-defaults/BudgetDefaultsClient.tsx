@@ -184,14 +184,15 @@ export function BudgetDefaultsClient() {
     };
 
     const handleUpdate = async (id: string, updates: Partial<DefaultLineItem>) => {
-        setLineItems(lineItems.map(l => l.id === id ? { ...l, ...updates } : l));
+        setLineItems(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
         await supabase.from('default_predev_budget_line_items').update(updates).eq('id', id);
     };
 
     const handleDragEnd = async (event: any) => {
         const { active, over } = event;
 
-        if (active.id !== over.id) {
+        // `over` is null when the row is dropped outside the list
+        if (over && active.id !== over.id) {
             setIsSaving(true);
             const oldIndex = lineItems.findIndex((item) => item.id === active.id);
             const newIndex = lineItems.findIndex((item) => item.id === over.id);

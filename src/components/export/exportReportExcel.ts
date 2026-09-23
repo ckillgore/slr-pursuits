@@ -33,7 +33,14 @@ function getNumFormat(fieldDef: { type: string; key: string }): string | undefin
         return '$#,##0';
     }
     if (fieldDef.type === 'percent') return '0.0%';
-    if (fieldDef.type === 'number') return '#,##0';
+    if (fieldDef.type === 'number') {
+        // Match the on-screen formatters: years without a thousands separator,
+        // acres to 2 dp, millage (a small decimal like 0.0215) to 4 dp.
+        if (fieldDef.key.includes('year_built')) return '0';
+        if (fieldDef.key.includes('acres')) return '#,##0.00';
+        if (fieldDef.key === 'tax_mil_rate') return '0.0000';
+        return '#,##0';
+    }
     return undefined;
 }
 

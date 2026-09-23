@@ -115,15 +115,22 @@ export async function exportOnePagerToExcel({ onePager, pursuit, calc, productTy
 
     // Operating Expenses
     addSectionHeader(ws, 'Operating Expenses');
-    addMetricRow(ws, 'Utilities', onePager.opex_utilities, '$#,##0');
-    addMetricRow(ws, 'Repairs & Maint.', onePager.opex_repairs_maintenance, '$#,##0');
-    addMetricRow(ws, 'Contract Svcs', onePager.opex_contract_services, '$#,##0');
-    addMetricRow(ws, 'Marketing', onePager.opex_marketing, '$#,##0');
-    addMetricRow(ws, 'G&A', onePager.opex_general_admin, '$#,##0');
-    addMetricRow(ws, 'Turnover', onePager.opex_turnover, '$#,##0');
-    addMetricRow(ws, 'Insurance', onePager.opex_insurance, '$#,##0');
-    addMetricRow(ws, 'Capex Reserves', onePager.opex_capex_reserves, '$#,##0');
-    addMetricRow(ws, 'Mgmt Fee', onePager.mgmt_fee_pct, '0.0%');
+    // OpEx inputs are $/unit/yr. Show annual totals (same unit count calcOpEx
+    // uses: active unit-mix rows) and every component, so the section foots.
+    const opexUnits = (onePager.unit_mix || []).reduce((sum, r) => sum + (r.unit_count > 0 ? r.unit_count : 0), 0);
+    const opexTotal = (perUnit: number) => (perUnit || 0) * opexUnits;
+    addMetricRow(ws, 'Utilities', opexTotal(onePager.opex_utilities), '$#,##0');
+    addMetricRow(ws, 'Repairs & Maint.', opexTotal(onePager.opex_repairs_maintenance), '$#,##0');
+    addMetricRow(ws, 'Contract Svcs', opexTotal(onePager.opex_contract_services), '$#,##0');
+    addMetricRow(ws, 'Marketing', opexTotal(onePager.opex_marketing), '$#,##0');
+    addMetricRow(ws, 'G&A', opexTotal(onePager.opex_general_admin), '$#,##0');
+    addMetricRow(ws, 'Turnover', opexTotal(onePager.opex_turnover), '$#,##0');
+    addMetricRow(ws, 'Miscellaneous', opexTotal(onePager.opex_misc), '$#,##0');
+    addMetricRow(ws, 'Payroll & Related', calc.payroll_total, '$#,##0');
+    addMetricRow(ws, 'Insurance', opexTotal(onePager.opex_insurance), '$#,##0');
+    addMetricRow(ws, 'Capex Reserves', opexTotal(onePager.opex_capex_reserves), '$#,##0');
+    addMetricRow(ws, `Mgmt Fee (${((onePager.mgmt_fee_pct || 0) * 100).toFixed(2)}%)`, calc.mgmt_fee_total, '$#,##0');
+    addMetricRow(ws, 'Property Tax', calc.property_tax_total, '$#,##0');
     addTotalRow(ws, 'Total OpEx', calc.total_opex, '$#,##0');
     addMetricRow(ws, 'OpEx / Unit', calc.opex_per_unit, '$#,##0');
 
@@ -189,7 +196,7 @@ export async function exportOnePagerToExcel({ onePager, pursuit, calc, productTy
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${onePager.name.replace(/[^a-zA-Z0-9-_ ]/g, '')}.xlsx`;
+    a.download = `${onePager.name.replace(/[^a-zA-Z0-9-_ ]/g, '').trim() || 'One_Pager'}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
 }

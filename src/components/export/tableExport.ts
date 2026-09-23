@@ -63,7 +63,11 @@ export function formatCell(col: ExportColumn, value: string | number | null): st
         return formatNumber(num, col.decimals ?? 0);
     }
     if (col.type === 'date') {
-        const d = new Date(String(value));
+        // Bare 'YYYY-MM-DD' parses as UTC midnight and would print as the prior
+        // day in US timezones; build it as a local date instead.
+        const str = String(value);
+        const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str);
+        const d = ymd ? new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3])) : new Date(str);
         if (Number.isNaN(d.getTime())) return String(value);
         return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     }
@@ -108,8 +112,11 @@ function sanitizeSheetName(name: string): string {
 }
 
 export function downloadFileName(fileBase: string, ext: 'xlsx' | 'pdf'): string {
-    const dateStr = new Date().toISOString().slice(0, 10);
-    return `${fileBase.replace(/\s+/g, '_')}_${dateStr}.${ext}`;
+    // Local date — toISOString() is UTC and rolls to tomorrow on US evenings.
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const safeBase = fileBase.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').replace(/\s+/g, '_');
+    return `${safeBase}_${dateStr}.${ext}`;
 }
 
 // ── Excel theme (matches exportReportExcel.ts) ───────────────

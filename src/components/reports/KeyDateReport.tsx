@@ -159,10 +159,10 @@ export function KeyDateReport() {
         );
     }
 
-    // Summary stats
-    const totalDates = rows.reduce((sum, r) => sum + r.totalDates, 0);
-    const totalOverdue = rows.reduce((sum, r) => sum + r.overdueCount, 0);
-    const nextUpcoming = rows
+    // Summary stats — follow the region filter, same as the grid and the export
+    const totalDates = filtered.reduce((sum, r) => sum + r.totalDates, 0);
+    const totalOverdue = filtered.reduce((sum, r) => sum + r.overdueCount, 0);
+    const nextUpcoming = filtered
         .filter(r => r.nextDate)
         .sort((a, b) => new Date(a.nextDate!.date).getTime() - new Date(b.nextDate!.date).getTime())[0]?.nextDate;
 
@@ -215,7 +215,7 @@ export function KeyDateReport() {
             <div className="grid grid-cols-4 gap-4 mb-6">
                 <div className="card text-center">
                     <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-1">Pursuits</p>
-                    <p className="text-2xl font-bold text-[var(--text-primary)]">{rows.length}</p>
+                    <p className="text-2xl font-bold text-[var(--text-primary)]">{filtered.length}</p>
                 </div>
                 <div className="card text-center">
                     <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-1">Total Dates</p>

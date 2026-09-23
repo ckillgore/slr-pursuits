@@ -193,7 +193,8 @@ export default function MemoPage() {
     const { data: pursuit, isLoading: loadingPursuit } = usePursuit(pursuitId);
     const pursuitUuid = pursuit?.id ?? '';
     const { data: onePagers = [] } = useOnePagers(pursuitUuid);
-    const { data: rentComps = [] } = usePursuitRentComps(pursuitId);
+    // Rent comps are keyed by the pursuit UUID (the URL param is the short_id)
+    const { data: rentComps = [] } = usePursuitRentComps(pursuitUuid);
     const { data: landComps = [] } = usePursuitLandComps(pursuitUuid);
     const { data: saleComps = [] } = usePursuitSaleComps(pursuitUuid);
     const { mutate: updatePursuit } = useUpdatePursuit();
@@ -210,7 +211,9 @@ export default function MemoPage() {
         if (!pursuit || !html) return;
         updatePursuit({
             id: pursuit.id,
-            updates: { executive_memo: html }
+            updates: { executive_memo: html },
+            // Keep the short_id-keyed cache (used by this page and the pursuit page) in sync
+            queryId: pursuitId,
         });
     };
 

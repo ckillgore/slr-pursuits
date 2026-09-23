@@ -5,7 +5,19 @@ import { fetchPursuitGLTotals, fetchPursuitJobCosts, fetchJobCostMatrix, fetchJo
 import { usePursuitAccountingEntities } from '@/hooks/useSupabaseQueries';
 import { Loader2, DollarSign, Calendar, AlertCircle, Building2, Search, SlidersHorizontal, BarChart3, ArrowUpDown, ArrowUp, ArrowDown, Filter, X } from 'lucide-react';
 import { formatCurrency, formatPercent } from '@/lib/constants';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+
+/** 'YYYY-MM-DD…' → 'YYYY-MM-DD' (date-only, no timezone shift). */
+function datePart(d: string | null | undefined): string {
+    return d ? d.substring(0, 10) : '';
+}
+
+/** Format a Yardi post date without the UTC→local shift that `new Date('YYYY-MM-DD')` causes. */
+function formatPostDate(d: string): string {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString();
+    return new Date(d).toLocaleDateString();
+}
 
 interface PursuitCostsTabProps {
     pursuitId?: string;
@@ -45,9 +57,20 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
 
     // Hidden parameterized list-based cost code drilldown from external URLs
     const router = useRouter();
+    const pathname = usePathname();
     const searchParams = useSearchParams();
     const costCodesQuery = searchParams.get('cost_codes');
     const [filterCodes, setFilterCodes] = useState<string[]>([]);
+
+    // Drill-down URL on the current page (also used by the unmapped-property report page),
+    // preserving any other query params such as ?name=
+    const costCodesHref = (codes: string | null) => {
+        const sp = new URLSearchParams(searchParams.toString());
+        sp.set('tab', 'costs');
+        if (codes) sp.set('cost_codes', codes);
+        else sp.delete('cost_codes');
+        return `${pathname}?${sp.toString()}`;
+    };
     
     useEffect(() => {
         if (costCodesQuery) {
@@ -58,6 +81,12 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
     }, [costCodesQuery]);
 
     useEffect(() => {
+        let cancelled = false;
+        // Reset so a previous pursuit's data never shows while (or instead of) loading this one
+        setGlData(null);
+        setJobCosts([]);
+        setMatrixData([]);
+        setError(null);
         const loadCosts = async () => {
             const pursuitEntities = pursuitId 
                 ? entities.filter(e => e.pursuit_id === pursuitId)
@@ -86,7 +115,7 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                             wip_contra: acc.wip_contra + curr.wip_contra,
                             net_cost: acc.net_cost + curr.net_cost,
                         }), { ...data[0], earnest_money: 0, wip: 0, wip_contra: 0, net_cost: 0 });
-                        setGlData(aggregated);
+                        if (!cancelled) setGlData(aggregated);
                     }
                 }
                 
@@ -118,18 +147,20 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                         fetchPursuitJobCosts(jobIds),
                         fetchJobCostMatrix(jobIds)
                     ]);
+                    if (cancelled) return;
                     setJobCosts(txs);
                     setMatrixData(matrix);
                 }
             } catch (err: any) {
                 console.error('Error fetching pursuit details costs:', err);
-                setError(err.message || 'Failed to fetch accounting data from Yardi');
+                if (!cancelled) setError(err.message || 'Failed to fetch accounting data from Yardi');
             } finally {
-                setIsLoadingCosts(false);
+                if (!cancelled) setIsLoadingCosts(false);
             }
         };
         
         loadCosts();
+        return () => { cancelled = true; };
     }, [entities, pursuitId, unmappedPropertyCode]);
 
     const pursuitEntities = pursuitId 
@@ -156,8 +187,8 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
             category_name: categoryLookup[tx.cost_category_code] || tx.cost_category_code
         }))
         .filter(tx => {
-            // Search filter
-            const matchesSearch = 
+            // Search filter (empty search matches everything, even rows with no text fields)
+            const matchesSearch = !searchTerm ||
                 tx.line_description?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                 tx.vendor_invoice_num?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 tx.category_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -179,11 +210,12 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
             
             // Date filter
             let matchesDate = true;
+            // Compare date-only strings so the end date is inclusive and no timezone shift applies
             if (dateRange.start && tx.post_date) {
-                matchesDate = matchesDate && new Date(tx.post_date) >= new Date(dateRange.start);
+                matchesDate = matchesDate && datePart(tx.post_date) >= dateRange.start;
             }
             if (dateRange.end && tx.post_date) {
-                matchesDate = matchesDate && new Date(tx.post_date) <= new Date(dateRange.end);
+                matchesDate = matchesDate && datePart(tx.post_date) <= dateRange.end;
             }
 
             return matchesSearch && matchesCategory && matchesDrillDown && matchesDate;
@@ -355,7 +387,7 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                                     return (
                                         <tr key={codesArray.join(',')} className="hover:bg-[var(--bg-elevated)] transition-colors text-sm cursor-pointer group"
                                             onClick={() => {
-                                                router.push(`/pursuits/${pursuitId}?tab=costs&cost_codes=${encodeURIComponent(codesArray.join(','))}`);
+                                                router.push(costCodesHref(codesArray.join(',')));
                                             }}
                                             title={`Filter transactions down to groups: ${codesArray.join(', ')}`}
                                         >
@@ -436,7 +468,7 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                                     <Filter className="w-3 h-3" />
                                     Filtered by Line Item
                                     <button 
-                                        onClick={() => router.push(`/pursuits/${pursuitId}?tab=costs`)} 
+                                        onClick={() => router.push(costCodesHref(null))}  
                                         className="ml-1 p-0.5 hover:bg-[var(--accent)]/10 rounded-full transition-colors"
                                         title="Clear drill-down filter"
                                     >
@@ -486,7 +518,7 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                             {processedTx.map((tx, idx) => (
                                 <tr key={`${tx.id}-${idx}`} className="hover:bg-[var(--bg-elevated)] transition-colors text-sm">
                                     <td className="text-[var(--text-secondary)] whitespace-nowrap">
-                                        {tx.post_date ? new Date(tx.post_date).toLocaleDateString() : '—'}
+                                        {tx.post_date ? formatPostDate(tx.post_date) : '—'}
                                     </td>
                                     <td className="font-mono text-xs text-[var(--text-muted)]">{tx.job_code}</td>
                                     <td className="text-[var(--text-secondary)]">
@@ -506,7 +538,7 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                             {processedTx.length === 0 && (
                                 <tr>
                                     <td colSpan={6} className="text-center py-16 text-[var(--text-muted)]">
-                                        {searchTerm ? 'No job costs match your search.' : 'No job cost transactions found for mapped job IDs.'}
+                                        {jobCosts.length > 0 ? 'No job costs match your filters.' : 'No job cost transactions found for mapped job IDs.'}
                                     </td>
                                 </tr>
                             )}

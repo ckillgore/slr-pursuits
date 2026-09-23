@@ -140,7 +140,7 @@ export function UnallocatedMappingDialog({
                             </p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 -mr-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] rounded-lg transition-colors">
+                    <button onClick={onClose} disabled={isSaving} aria-label="Close" className="p-2 -mr-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] rounded-lg transition-colors">
                         <X className="w-5 h-5" />
                     </button>
                 </div>

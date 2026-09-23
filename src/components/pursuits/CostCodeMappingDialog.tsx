@@ -101,7 +101,13 @@ export function CostCodeMappingDialog({ lineItem, pursuitId, onClose }: CostCode
     const handleSave = () => {
         updateCostGroups.mutate(
             { lineItemId: lineItem.id, yardiCostGroups: Array.from(selectedGroups), pursuitId },
-            { onSuccess: onClose }
+            {
+                onSuccess: onClose,
+                onError: (err) => {
+                    console.error('Failed to save cost code mapping:', err);
+                    alert('Failed to save mapping. Please try again.');
+                },
+            }
         );
     };
 
@@ -125,7 +131,7 @@ export function CostCodeMappingDialog({ lineItem, pursuitId, onClose }: CostCode
                             <span className="font-medium text-[var(--accent)]">{lineItem.label}</span> — Select which Yardi cost groups should aggregate into this line item.
                         </p>
                     </div>
-                    <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[var(--bg-elevated)] text-[var(--text-muted)]">
+                    <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-lg hover:bg-[var(--bg-elevated)] text-[var(--text-muted)]">
                         <X className="w-4 h-4" />
                     </button>
                 </div>
@@ -158,7 +164,7 @@ export function CostCodeMappingDialog({ lineItem, pursuitId, onClose }: CostCode
                                 return (
                                     <span key={code} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${isGroup ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'}`}>
                                         <span className="font-mono">{code}</span> · {label}
-                                        <button onClick={() => toggleGroup(code)} className="hover:text-[var(--danger)]">
+                                        <button onClick={() => toggleGroup(code)} aria-label={`Remove ${code}`} className="hover:text-[var(--danger)]">
                                             <X className="w-2.5 h-2.5" />
                                         </button>
                                     </span>

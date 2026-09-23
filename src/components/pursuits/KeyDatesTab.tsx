@@ -38,15 +38,22 @@ const STATUS_CONFIG: Record<KeyDateStatus, { label: string; color: string; bgCol
     waived: { label: 'Waived', color: 'var(--text-muted)', bgColor: 'var(--bg-elevated)', Icon: XCircle },
 };
 
+/** Parse 'YYYY-MM-DD' (optionally with a time suffix) as a LOCAL calendar date. */
+function parseLocalDate(dateStr: string): Date {
+    const [y, m, d] = dateStr.split('T')[0].split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+}
+
 function daysUntil(dateStr: string): number {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const target = new Date(dateStr);
-    return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const target = parseLocalDate(dateStr);
+    // Round (not ceil) so DST transitions don't shift the count by a day
+    return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function formatDate(dateStr: string): string {
-    return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
+    return parseLocalDate(dateStr).toLocaleDateString('en-US', {
         month: 'short', day: 'numeric', year: 'numeric',
     });
 }
@@ -108,7 +115,7 @@ function AIReviewModal({
                             {items.length} found
                         </span>
                     </div>
-                    <button onClick={onClose} className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-faint)]">
+                    <button onClick={onClose} aria-label="Close" className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-faint)]">
                         <X className="w-4 h-4" />
                     </button>
                 </div>
@@ -323,13 +330,13 @@ function AddDateDialog({
 
 function TimelineView({ dates, types }: { dates: KeyDate[]; types: KeyDateType[] }) {
     const sortedDates = useMemo(() => {
-        return [...dates].sort((a, b) => new Date(a.date_value).getTime() - new Date(b.date_value).getTime());
+        return [...dates].sort((a, b) => parseLocalDate(a.date_value).getTime() - parseLocalDate(b.date_value).getTime());
     }, [dates]);
 
     if (sortedDates.length < 2) return null;
 
-    const earliest = new Date(sortedDates[0].date_value).getTime();
-    const latest = new Date(sortedDates[sortedDates.length - 1].date_value).getTime();
+    const earliest = parseLocalDate(sortedDates[0].date_value).getTime();
+    const latest = parseLocalDate(sortedDates[sortedDates.length - 1].date_value).getTime();
     const range = latest - earliest || 1;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -352,7 +359,7 @@ function TimelineView({ dates, types }: { dates: KeyDate[]; types: KeyDateType[]
                 </div>
                 {/* Date dots */}
                 {sortedDates.map((kd, i) => {
-                    const pct = ((new Date(kd.date_value).getTime() - earliest) / range) * 100;
+                    const pct = ((parseLocalDate(kd.date_value).getTime() - earliest) / range) * 100;
                     const statusCfg = STATUS_CONFIG[kd.status];
                     const color = getDateColor(kd, types);
                     return (
@@ -427,6 +434,9 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
             }
         }
 
+        // Chronological within each group (sort_order is not user-editable, and AI imports all use 0)
+        for (const g of groups) g.dates.sort((a, b) => a.date_value.localeCompare(b.date_value));
+
         return groups.filter(g => g.dates.length > 0);
     }, [keyDates]);
 
@@ -441,7 +451,8 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                 method: 'POST',
                 body: formData,
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({ error: `Upload failed (${res.status})` }));
+            if (!res.ok && !data.error) data.error = `Upload failed (${res.status})`;
             if (data.error) {
                 setExtractError(data.error);
             } else if (data.dates?.length > 0) {
@@ -459,6 +470,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
     // Handle importing accepted AI dates
     const handleAcceptDates = useCallback(async (accepted: ExtractedDate[]) => {
         setIsImporting(true);
+        let imported = 0;
         try {
             for (const d of accepted) {
                 // Try to match to a key_date_type
@@ -477,10 +489,12 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                     ai_confidence: d.confidence,
                     sort_order: 0,
                 });
+                imported++;
             }
             setExtractedDates(null);
         } catch (err) {
             console.error('Failed to import dates:', err);
+            alert(`Imported ${imported} of ${accepted.length} dates before an error occurred. Deselect already-imported dates before retrying.`);
         } finally {
             setIsImporting(false);
         }
@@ -494,15 +508,21 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
         status: KeyDateStatus;
         notes: string | null;
     }) => {
-        await upsertKeyDate.mutateAsync({
-            ...(editDate ? { id: editDate.id } : {}),
-            pursuit_id: pursuitId,
-            ...data,
-            ai_extracted: editDate?.ai_extracted ?? false,
-            ai_confidence: editDate?.ai_confidence ?? null,
-            contract_reference: editDate?.contract_reference ?? null,
-            sort_order: editDate?.sort_order ?? keyDates.length,
-        });
+        try {
+            await upsertKeyDate.mutateAsync({
+                ...(editDate ? { id: editDate.id } : {}),
+                pursuit_id: pursuitId,
+                ...data,
+                ai_extracted: editDate?.ai_extracted ?? false,
+                ai_confidence: editDate?.ai_confidence ?? null,
+                contract_reference: editDate?.contract_reference ?? null,
+                sort_order: editDate?.sort_order ?? keyDates.length,
+            });
+        } catch (err) {
+            console.error('Failed to save key date:', err);
+            alert('Failed to save key date. Please try again.');
+            return;
+        }
         setShowAddDialog(false);
         setEditDate(null);
     }, [editDate, pursuitId, keyDates.length, upsertKeyDate]);
@@ -515,11 +535,12 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
             overdue: 'completed',
             waived: 'upcoming',
         };
-        upsertKeyDate.mutate({
-            id: kd.id,
-            pursuit_id: kd.pursuit_id,
-            status: nextStatus[kd.status],
-        });
+        // Send the full row: this is an upsert, and a partial payload would violate
+        // NOT NULL columns (date_value) on the INSERT half before ON CONFLICT applies.
+        upsertKeyDate.mutate(
+            { ...kd, status: nextStatus[kd.status] },
+            { onError: (err) => { console.error('Failed to update key date status:', err); alert('Failed to update status.'); } }
+        );
     }, [upsertKeyDate]);
 
     if (isLoading) {
@@ -677,7 +698,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                                                         days <= 30 ? 'bg-[#FFF8E1] text-[#CA8A04]' :
                                                             'bg-[var(--accent-subtle)] text-[var(--accent)]'
                                                     }`}>
-                                                    {days === 0 ? 'Today' : days === 1 ? '1d' : `${days}d`}
+                                                    {days === 0 ? 'Today' : days < 0 ? `${-days}d overdue` : `${days}d`}
                                                 </span>
                                             )}
 
@@ -769,7 +790,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                         <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Delete Key Date</h2>
                         <p className="text-sm text-[var(--text-muted)] mb-1">
                             Are you sure you want to delete <span className="font-medium text-[var(--text-primary)]">
-                                {getDateLabel(keyDates.find(d => d.id === deleteConfirmId)!)}
+                                {(() => { const kd = keyDates.find(d => d.id === deleteConfirmId); return kd ? getDateLabel(kd) : 'this date'; })()}
                             </span>?
                         </p>
                         <p className="text-xs text-[var(--danger)] mb-6">This action cannot be undone.</p>
@@ -782,8 +803,13 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                             </button>
                             <button
                                 onClick={async () => {
-                                    await deleteKeyDate.mutateAsync({ id: deleteConfirmId, pursuitId });
-                                    setDeleteConfirmId(null);
+                                    try {
+                                        await deleteKeyDate.mutateAsync({ id: deleteConfirmId, pursuitId });
+                                        setDeleteConfirmId(null);
+                                    } catch (err) {
+                                        console.error('Failed to delete key date:', err);
+                                        alert('Failed to delete key date.');
+                                    }
                                 }}
                                 disabled={deleteKeyDate.isPending}
                                 className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"

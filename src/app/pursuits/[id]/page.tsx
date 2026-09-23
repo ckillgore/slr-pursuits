@@ -63,6 +63,23 @@ const RentCompsTab = lazy(() => import('@/components/pursuits/RentCompsTab'));
 const PursuitCompsTab = lazy(() => import('@/components/pursuits/PursuitCompsTab'));
 const PursuitCostsTab = lazy(() => import('@/components/pursuits/PursuitCostsTab').then(m => ({ default: m.PursuitCostsTab })));
 
+/** Local calendar date (YYYY-MM-DD) of a timestamp — toISOString() would give the UTC date. */
+function toLocalDateInput(ts: string): string {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Parse a date-only 'YYYY-MM-DD' as local midnight (new Date('YYYY-MM-DD') is UTC midnight). */
+function parseLocalDate(dateStr: string): Date {
+    const [y, m, d] = dateStr.split('T')[0].split('-').map(Number);
+    return new Date(y, m - 1, d);
+}
+
+/** Escape model output before injecting it as HTML. */
+function escapeHtml(text: string): string {
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function TabLoader() {
     return (
         <div className="flex items-center justify-center py-16">
@@ -96,6 +113,7 @@ export default function PursuitDetailPage() {
     const [selectedTemplateId, setSelectedTemplateId] = useState('');
     const [isEditingName, setIsEditingName] = useState(false);
     const [editName, setEditName] = useState('');
+    const skipNameCommitRef = useRef(false);
     const [activeTab, setActiveTab] = useState<'overview' | 'onepagers' | 'demographics' | 'publicinfo' | 'rent_comps' | 'comps' | 'predev' | 'keydates' | 'checklist' | 'costs'>(
         initialTab === 'onepagers' ? 'onepagers' : initialTab === 'predev' ? 'predev' : initialTab === 'keydates' ? 'keydates' : initialTab === 'checklist' ? 'checklist' : initialTab === 'rent_comps' ? 'rent_comps' : initialTab === 'costs' ? 'costs' : 'overview'
     );
@@ -130,15 +148,24 @@ export default function PursuitDetailPage() {
     const [aiLoading, setAiLoading] = useState(false);
     const [aiError, setAiError] = useState<string | null>(null);
     const aiHydratedRef = useRef(false);
+    const aiHydratedForRef = useRef<string | null>(null);
 
-    // Sync from DB once pursuit loads (useState initializer runs before data is fetched)
+    // Sync from DB once pursuit loads (useState initializer runs before data is fetched).
+    // Re-hydrate when navigating to a different pursuit — this page instance is reused.
     useEffect(() => {
-        const saved = (pursuit?.parcel_data as any)?.aiSummary;
+        if (!pursuit?.id) return;
+        if (aiHydratedForRef.current !== pursuit.id) {
+            aiHydratedForRef.current = pursuit.id;
+            aiHydratedRef.current = false;
+            setAiSummary(null);
+            setAiError(null);
+        }
+        const saved = (pursuit.parcel_data as any)?.aiSummary;
         if (saved && !aiHydratedRef.current) {
             aiHydratedRef.current = true;
             setAiSummary(saved);
         }
-    }, [pursuit?.parcel_data]);
+    }, [pursuit?.id, pursuit?.parcel_data]);
 
     const generateSummary = useCallback(async () => {
         if (!pursuit) return;
@@ -298,7 +325,16 @@ export default function PursuitDetailPage() {
             router.push(`/pursuits/${pursuitId}/one-pagers/${op.short_id}`);
         } catch (err) {
             console.error('Failed to create one-pager:', err);
+            alert('Failed to create one-pager. Please try again.');
         }
+    };
+
+    // Guards the name editor so Escape doesn't save via the blur fired on unmount
+    const commitName = () => {
+        if (skipNameCommitRef.current) { skipNameCommitRef.current = false; return; }
+        const trimmed = editName.trim();
+        if (trimmed && trimmed !== pursuit.name) handleUpdatePursuit({ name: trimmed });
+        setIsEditingName(false);
     };
 
     return (
@@ -322,24 +358,22 @@ export default function PursuitDetailPage() {
                                     type="text"
                                     value={editName}
                                     onChange={(e) => setEditName(e.target.value)}
-                                    onBlur={() => {
-                                        if (editName.trim()) handleUpdatePursuit({ name: editName.trim() });
-                                        setIsEditingName(false);
-                                    }}
+                                    onBlur={commitName}
                                     onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            if (editName.trim()) handleUpdatePursuit({ name: editName.trim() });
-                                            setIsEditingName(false);
-                                        }
-                                        if (e.key === 'Escape') setIsEditingName(false);
+                                        if (e.key === 'Enter') e.currentTarget.blur();
+                                        if (e.key === 'Escape') { skipNameCommitRef.current = true; setIsEditingName(false); }
                                     }}
+                                    aria-label="Pursuit name"
                                     className="text-2xl font-bold text-[var(--text-primary)] bg-transparent border-b-2 border-[var(--accent)] outline-none w-full"
                                     autoFocus
                                 />
                             ) : (
                                 <h1
                                     className="text-2xl font-bold text-[var(--text-primary)] cursor-pointer hover:text-[var(--accent)] transition-colors group flex items-center gap-2 truncate"
-                                    onClick={() => { setEditName(pursuit.name); setIsEditingName(true); }}
+                                    onClick={() => { skipNameCommitRef.current = false; setEditName(pursuit.name); setIsEditingName(true); }}
+                                    role="button"
+                                    tabIndex={0}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); skipNameCommitRef.current = false; setEditName(pursuit.name); setIsEditingName(true); } }}
                                 >
                                     {pursuit.name}
                                     <Pencil className="w-4 h-4 opacity-0 group-hover:opacity-40 transition-opacity flex-shrink-0" />
@@ -399,7 +433,7 @@ export default function PursuitDetailPage() {
                             <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Created</div>
                             <input
                                 type="date"
-                                value={pursuit.created_at ? new Date(pursuit.created_at).toISOString().split('T')[0] : ''}
+                                value={pursuit.created_at ? toLocalDateInput(pursuit.created_at) : ''}
                                 onChange={(e) => {
                                     if (e.target.value) {
                                         handleUpdatePursuit({ created_at: new Date(e.target.value + 'T12:00:00').toISOString() });
@@ -413,7 +447,7 @@ export default function PursuitDetailPage() {
                             <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Stage Since</div>
                             <input
                                 type="date"
-                                value={pursuit.stage_changed_at ? new Date(pursuit.stage_changed_at).toISOString().split('T')[0] : ''}
+                                value={pursuit.stage_changed_at ? toLocalDateInput(pursuit.stage_changed_at) : ''}
                                 onChange={(e) => {
                                     if (e.target.value) {
                                         handleUpdatePursuit({ stage_changed_at: new Date(e.target.value + 'T12:00:00').toISOString() });
@@ -573,13 +607,16 @@ export default function PursuitDetailPage() {
                             }, 0);
                             const budgetVariance = totalProjected - totalActual;
 
-                            // Key dates
+                            // Key dates — compare as local calendar dates (date_value is 'YYYY-MM-DD';
+                            // new Date() on it is UTC midnight, which made "today" count as overdue)
                             const now = new Date();
+                            now.setHours(0, 0, 0, 0);
+                            const todayKey = toLocalDateInput(now.toISOString());
                             const upcomingDates = keyDates
-                                .filter(kd => kd.status === 'upcoming' && kd.date_value)
-                                .sort((a, b) => new Date(a.date_value).getTime() - new Date(b.date_value).getTime());
+                                .filter(kd => kd.status === 'upcoming' && kd.date_value && kd.date_value.split('T')[0] >= todayKey)
+                                .sort((a, b) => a.date_value.localeCompare(b.date_value));
                             const nextDate = upcomingDates[0] || null;
-                            const overdueDates = keyDates.filter(kd => kd.status === 'overdue' || (kd.status === 'upcoming' && kd.date_value && new Date(kd.date_value) < now));
+                            const overdueDates = keyDates.filter(kd => kd.status === 'overdue' || (kd.status === 'upcoming' && kd.date_value && kd.date_value.split('T')[0] < todayKey));
 
                             return (
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -708,10 +745,10 @@ export default function PursuitDetailPage() {
                                                         <div className="flex items-center gap-1.5 mt-1">
                                                             <Clock className="w-3 h-3 text-[var(--text-muted)]" />
                                                             <span className="text-xs text-[var(--text-secondary)]">
-                                                                {new Date(nextDate.date_value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                                {parseLocalDate(nextDate.date_value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                                             </span>
                                                             <span className="text-[10px] text-[var(--text-muted)]">
-                                                                ({Math.ceil((new Date(nextDate.date_value).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))} days)
+                                                                ({Math.round((parseLocalDate(nextDate.date_value).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))} days)
                                                             </span>
                                                         </div>
                                                     </div>
@@ -859,7 +896,7 @@ export default function PursuitDetailPage() {
                                         flushBullets();
 
                                         const renderInline = (text: string) =>
-                                            text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-[var(--text-primary)] font-semibold">$1</strong>');
+                                            escapeHtml(text).replace(/\*\*(.*?)\*\*/g, '<strong class="text-[var(--text-primary)] font-semibold">$1</strong>');
 
                                         return (
                                             <div className="space-y-1">
@@ -1170,8 +1207,13 @@ export default function PursuitDetailPage() {
                                 </button>
                                 <button
                                     onClick={async () => {
-                                        await deleteOnePager.mutateAsync({ id: deleteConfirmId, pursuitId: pursuitUuid });
-                                        setDeleteConfirmId(null);
+                                        try {
+                                            await deleteOnePager.mutateAsync({ id: deleteConfirmId, pursuitId: pursuitUuid });
+                                            setDeleteConfirmId(null);
+                                        } catch (err) {
+                                            console.error('Failed to delete one-pager:', err);
+                                            alert('Failed to delete one-pager.');
+                                        }
                                     }}
                                     disabled={deleteOnePager.isPending}
                                     className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
@@ -1201,8 +1243,13 @@ export default function PursuitDetailPage() {
                                 </button>
                                 <button
                                     onClick={async () => {
-                                        await deletePursuit.mutateAsync(pursuitUuid);
-                                        router.push('/');
+                                        try {
+                                            await deletePursuit.mutateAsync(pursuitUuid);
+                                            router.push('/');
+                                        } catch (err) {
+                                            console.error('Failed to delete pursuit:', err);
+                                            alert('Failed to delete pursuit.');
+                                        }
                                     }}
                                     disabled={deletePursuit.isPending}
                                     className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"

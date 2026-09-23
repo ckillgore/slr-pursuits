@@ -38,6 +38,7 @@ import {
     Database, AlertCircle, History, Users, Shield, BarChart3, FileDown, RefreshCw, Clock,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/constants';
+import { forecastCellValue, isMonthClosed } from '@/lib/calculations/predevForecast';
 
 interface PredevBudgetTabProps {
     pursuitId: string;
@@ -77,18 +78,6 @@ function getCurrentMonthKey(): string {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
-/**
- * Is a month "closed" (actuals should replace forecast)?
- * Closed = month-end was ≥15 days ago
- */
-function isMonthClosed(monthKey: string, today: Date): boolean {
-    const [y, m] = monthKey.split('-').map(Number);
-    // Last day of the month
-    const monthEnd = new Date(y, m, 0); // day 0 of next month = last day of this month
-    const daysSinceMonthEnd = Math.floor((today.getTime() - monthEnd.getTime()) / (1000 * 60 * 60 * 24));
-    return daysSinceMonthEnd >= 15;
-}
-
 /** Is a month in the future (after current month)? */
 function isMonthFuture(monthKey: string, currentMonth: string): boolean {
     return monthKey > currentMonth;
@@ -98,6 +87,14 @@ function isMonthFuture(monthKey: string, currentMonth: string): boolean {
 function isMonthPendingClose(monthKey: string, today: Date, currentMonth: string): boolean {
     if (monthKey >= currentMonth) return false;
     return !isMonthClosed(monthKey, today);
+}
+
+/** Parse a user-typed currency string ("$1,250", " 900 ") → number, or null if not numeric. */
+function parseCurrencyInput(raw: string): number | null {
+    const cleaned = raw.replace(/[$,\s]/g, '');
+    if (cleaned === '') return 0;
+    const n = parseFloat(cleaned);
+    return Number.isFinite(n) ? n : null;
 }
 
 // ── EditableCell ────────────────────────────────────────────
@@ -120,11 +117,14 @@ function EditableCell({
     const [editing, setEditing] = useState(false);
     const [localVal, setLocalVal] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
+    // Set when the edit is cancelled (Escape) so the blur fired on unmount doesn't save
+    const skipCommitRef = useRef(false);
 
     const isEditing = editing || forceEditing;
 
     const handleStartEdit = useCallback(() => {
         if (disabled) return;
+        skipCommitRef.current = false;
         setLocalVal(value === 0 ? '' : value.toLocaleString('en-US'));
         setEditing(true);
     }, [value, disabled]);
@@ -141,7 +141,13 @@ function EditableCell({
 
     const handleBlur = useCallback(() => {
         if (!forceEditing) setEditing(false);
-        const parsed = parseFloat(localVal.replace(/,/g, '')) || 0;
+        if (skipCommitRef.current) { skipCommitRef.current = false; return; }
+        const parsed = parseCurrencyInput(localVal);
+        if (parsed === null) {
+            // Not a number — discard rather than silently saving 0
+            setLocalVal(value === 0 ? '' : value.toLocaleString('en-US'));
+            return;
+        }
         if (parsed !== value) onChange(parsed);
     }, [localVal, value, onChange, forceEditing]);
 
@@ -154,8 +160,9 @@ function EditableCell({
                 onChange={(e) => setLocalVal(e.target.value)}
                 onBlur={handleBlur}
                 onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleBlur();
-                    if (e.key === 'Escape' && !forceEditing) setEditing(false);
+                    // Blur (rather than calling handleBlur directly) so the commit runs exactly once
+                    if (e.key === 'Enter') e.currentTarget.blur();
+                    if (e.key === 'Escape' && !forceEditing) { skipCommitRef.current = true; setEditing(false); }
                 }}
                 className={`w-full h-full px-1 py-1 text-right text-xs font-mono bg-transparent outline-none border focus:border-[var(--accent)] rounded ${forceEditing ? 'border-[var(--table-row-border)] bg-[var(--bg-card)] shadow-inner' : 'border-2 border-[var(--accent)]'}`}
             />
@@ -226,8 +233,8 @@ function FundingSplitCell({
                     onChange={(e) => setLocalPct(e.target.value)}
                     onBlur={handleBlur}
                     onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleBlur();
-                        if (e.key === 'Escape') setEditing(false);
+                        if (e.key === 'Enter') e.currentTarget.blur();
+                        if (e.key === 'Escape') { setLocalPct(String(splitPct)); setEditing(false); }
                     }}
                     className="w-14 text-right text-[9px] font-mono bg-transparent outline-none border border-[var(--accent)] rounded px-1 py-0"
                 />
@@ -375,7 +382,7 @@ function PredevScheduleRows({
                                                 type="date" 
                                                 className="w-full text-xs bg-transparent outline-none focus:bg-[var(--bg-card)] px-1 -mx-1 rounded cursor-pointer" 
                                                 defaultValue={item.start_date || ''} 
-                                                onBlur={(e) => { if (e.target.value !== item.start_date) onUpsert(item.id, { start_date: e.target.value }) }}
+                                                onBlur={(e) => { const v = e.target.value || null; if (v !== (item.start_date || null)) onUpsert(item.id, { start_date: v }) }}
                                                 onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
                                             />
                                         </div>
@@ -385,7 +392,7 @@ function PredevScheduleRows({
                                                 className="w-10 text-xs text-right bg-transparent outline-none appearance-none pr-1 focus:bg-[var(--bg-card)] px-1 -ml-1 rounded" 
                                                 defaultValue={item.duration_weeks || 0} 
                                                 onBlur={(e) => { 
-                                                    const val = parseInt(e.target.value) || 0;
+                                                    const val = Math.max(0, parseInt(e.target.value, 10) || 0);
                                                     if (val !== item.duration_weeks) onUpsert(item.id, { duration_weeks: val });
                                                 }}
                                                 onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
@@ -394,7 +401,7 @@ function PredevScheduleRows({
                                             <span className="text-[10px] text-[var(--text-faint)]">wks</span>
                                         </div>
                                     </div>
-                                    <button onClick={() => onDelete(item.id)} className="absolute right-0 top-0 bottom-0 px-2 opacity-0 group-hover/row:opacity-100 text-[var(--danger)] bg-[var(--bg-card)] backdrop-blur-sm transition-opacity flex items-center justify-center border-l border-[var(--border)] z-10 hover:bg-red-50 dark:hover:bg-red-950/30">
+                                    <button onClick={() => { if (window.confirm(`Delete schedule item "${item.label || 'Untitled'}"?`)) onDelete(item.id); }} aria-label="Delete schedule item" className="absolute right-0 top-0 bottom-0 px-2 opacity-0 group-hover/row:opacity-100 text-[var(--danger)] bg-[var(--bg-card)] backdrop-blur-sm transition-opacity flex items-center justify-center border-l border-[var(--border)] z-10 hover:bg-red-50 dark:hover:bg-red-950/30">
                                         <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                 </td>
@@ -477,7 +484,12 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
     const [showPushConfirm, setShowPushConfirm] = useState(false);
     const [showSchedule, setShowSchedule] = useState(true);
     const [isEditAll, setIsEditAll] = useState(false);
-    const pendingUpdatesRef = useRef<Record<string, Record<string, MonthlyCell>>>({});
+    // Latest locally-edited monthly values per line item, used until the optimistic cache update
+    // lands (rapid edits across cells). `known` holds every monthly_values object this ref produced
+    // (plus the base it started from); if the cache holds anything else, something else changed it
+    // (pin, push-to-forecast, refetch) and the cache wins.
+    const pendingUpdatesRef = useRef<Record<string, { values: Record<string, MonthlyCell>; known: Record<string, MonthlyCell>[] }>>({});
+    useEffect(() => { pendingUpdatesRef.current = {}; }, [pursuitId]);
     // Creation dialog
     const [newStartDate, setNewStartDate] = useState(() => {
         const now = new Date();
@@ -492,6 +504,8 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
     // Fetch Yardi data on mount
     useEffect(() => {
         let cancelled = false;
+        // Clear the previous pursuit's actuals so they never render against this budget
+        setYardiAggregates([]);
         async function loadYardi() {
             try {
                 setYardiLoading(true);
@@ -637,7 +651,9 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
         // Check each Yardi aggregate — is it covered?
         const unallocated = new Map<string, number>();
         for (const agg of yardiAggregates) {
-
+            // The aggregate feed contains both 2-digit group rollups and detail rows for the
+            // same transactions — only count detail rows or everything is double counted.
+            if (agg.category_code.length <= 2) continue;
             const prefix = agg.category_code.substring(0, 2);
             // Covered if the parent group is mapped, or the specific code is mapped
             if (coveredGroups.has(prefix) || coveredCodes.has(agg.category_code)) continue;
@@ -667,6 +683,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
         }
         const itemMap = new Map<string, { code: string; name: string; total: number }>();
         for (const agg of yardiAggregates) {
+            if (agg.category_code.length <= 2) continue; // group rollup — details are counted instead
             const prefix = agg.category_code.substring(0, 2);
             if (coveredGroups.has(prefix) || coveredCodes.has(agg.category_code)) continue;
             
@@ -708,18 +725,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
 
         if (viewMode === 'variance') {
             // Forecast value (same logic as forecast mode)
-            let forecastVal = cell.projected;
-            
-            if (closed) {
-                if (!cell.manual_override && yardiVal !== null && yardiVal !== 0) {
-                    forecastVal = yardiVal;
-                } else if (cell.actual !== null && cell.actual !== undefined) {
-                    forecastVal = cell.actual;
-                }
-            } else {
-                // Pending or Future
-                forecastVal = (yardiVal ?? 0) + cell.projected;
-            }
+            const forecastVal = forecastCellValue(cell, yardiVal, closed);
 
             const budgetVal = hasSnapshot ? snapshotVal : cell.projected;
             const variance = forecastVal - budgetVal;
@@ -800,12 +806,17 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                 return;
             }
 
-            const currentOverrides = pendingUpdatesRef.current[lineItem.id] || lineItem.monthly_values;
+            const pending = pendingUpdatesRef.current[lineItem.id];
+            const usePending = !!pending && pending.known.includes(lineItem.monthly_values);
+            const currentOverrides = usePending ? pending.values : lineItem.monthly_values;
             const current = currentOverrides[monthKey] ?? { projected: 0, actual: null };
             const closed = isMonthClosed(monthKey, today);
 
             let updated: MonthlyCell;
-            if (closed) {
+            if (viewMode === 'budget') {
+                // No snapshot yet: the budget view shows raw projected values, so edit them directly
+                updated = { ...current, projected: newValue };
+            } else if (closed) {
                 // Editing a closed month = manual override of ACTUAL
                 updated = { projected: current.projected, actual: newValue, manual_override: true };
             } else {
@@ -816,8 +827,14 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                 updated = { projected: newProjected, actual: current.actual, manual_override: current.manual_override };
             }
             const newMonthly = { ...currentOverrides, [monthKey]: updated };
-            pendingUpdatesRef.current[lineItem.id] = newMonthly;
-            upsertValues.mutate({ lineItemId: lineItem.id, monthlyValues: newMonthly, pursuitId });
+            pendingUpdatesRef.current[lineItem.id] = {
+                values: newMonthly,
+                known: [...(usePending ? pending.known : [lineItem.monthly_values]), newMonthly],
+            };
+            upsertValues.mutate(
+                { lineItemId: lineItem.id, monthlyValues: newMonthly, pursuitId },
+                { onError: (err) => { console.error('Failed to save budget cell:', err); alert('Failed to save budget value. Your change was reverted.'); } }
+            );
         },
         [upsertValues, pursuitId, today, getYardiActual, viewMode, hasSnapshot, budget, updateBudget]
     );
@@ -845,7 +862,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                 const newProjected = Math.max(0, snapshotVal - yardiVal);
 
                 if (current.projected !== newProjected) {
-                    newMonthly[mk] = { ...current, projected: newProjected, manual_override: true };
+                    newMonthly[mk] = { ...current, projected: newProjected };
                     changed = true;
                 }
             }
@@ -870,11 +887,15 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             if (!newOverride) {
                 // Unpinning — clear actual so Yardi takes over
                 updated.actual = null;
+            } else if (updated.actual === null || updated.actual === undefined) {
+                // Pinning — start from the Yardi value; otherwise the cell still renders as
+                // (non-editable) Yardi because an override needs a non-null actual.
+                updated.actual = getYardiActual(lineItem, monthKey) ?? 0;
             }
             const newMonthly = { ...lineItem.monthly_values, [monthKey]: updated };
             upsertValues.mutate({ lineItemId: lineItem.id, monthlyValues: newMonthly, pursuitId });
         },
-        [upsertValues, pursuitId]
+        [upsertValues, pursuitId, getYardiActual]
     );
 
     const handleSnapshot = () => {
@@ -899,22 +920,8 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                 const snapshotVal = budget?.budget_snapshot?.[li.id]?.[mk] ?? 0;
                 bTotal += hasSnapshot ? snapshotVal : cell.projected;
 
-                // Forecast value
-                const closed = isMonthClosed(mk, today);
-                const yardiVal = getYardiActual(li, mk);
-                
-                if (closed) {
-                    if (!cell.manual_override && yardiVal !== null && yardiVal !== 0) {
-                        fTotal += yardiVal;
-                    } else if (cell.actual !== null && cell.actual !== undefined) {
-                        fTotal += cell.actual;
-                    } else {
-                        fTotal += cell.projected;
-                    }
-                } else {
-                    // Pending or future: Combined total
-                    fTotal += (yardiVal ?? 0) + cell.projected;
-                }
+                // Forecast value (same rules as the forecast grid)
+                fTotal += forecastCellValue(cell, getYardiActual(li, mk), isMonthClosed(mk, today));
             }
         }
         // Add unallocated Yardi amounts to total forecast
@@ -1215,7 +1222,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                         <div>
                             <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Start Month</label>
                             <input type="month" value={budget.start_date.substring(0, 7)}
-                                onChange={(e) => updateBudget.mutate({ id: budget.id, pursuitId, updates: { start_date: `${e.target.value}-01` } })}
+                                onChange={(e) => { if (e.target.value) updateBudget.mutate({ id: budget.id, pursuitId, updates: { start_date: `${e.target.value}-01` } }); }}
                                 className="w-full px-3 py-1.5 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none" />
                         </div>
                         <div>
@@ -1256,12 +1263,18 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                 <span className={`text-xs font-medium min-w-[120px] ${p.is_slrh ? 'text-blue-500' : 'text-[var(--text-primary)]'}`}>
                                     {p.is_slrh && <Shield className="w-3 h-3 inline mr-1" />}{p.name}
                                 </span>
-                                <input type="number" min="0" max="100" step="0.5" value={p.default_split_pct}
-                                    onChange={(e) => updatePartner.mutate({ id: p.id, pursuitId, updates: { default_split_pct: Number(e.target.value) } })}
+                                <input key={`${p.id}-${p.default_split_pct}`} type="number" min="0" max="100" step="0.5" defaultValue={p.default_split_pct}
+                                    aria-label={`${p.name} default split %`}
+                                    onBlur={(e) => {
+                                        const num = parseFloat(e.target.value);
+                                        if (e.target.value === '' || isNaN(num) || num < 0 || num > 100) { e.target.value = String(p.default_split_pct); return; }
+                                        if (num !== p.default_split_pct) updatePartner.mutate({ id: p.id, pursuitId, updates: { default_split_pct: num } });
+                                    }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                                     className="w-20 px-2 py-1 rounded border border-[var(--border)] text-xs text-right text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none" />
                                 <span className="text-xs text-[var(--text-muted)]">%</span>
                                 <span className="text-xs text-[var(--text-faint)] ml-auto tabular-nums">{formatCurrency(totalForecast * (p.default_split_pct / 100), 0)}</span>
-                                <button onClick={() => deletePartner.mutate({ id: p.id, pursuitId })} className="text-[var(--text-faint)] hover:text-[var(--danger)] p-0.5" title="Remove funding partner"><Trash2 className="w-3 h-3" /></button>
+                                <button onClick={() => { if (window.confirm(`Remove funding partner "${p.name}"?`)) deletePartner.mutate({ id: p.id, pursuitId }); }} className="text-[var(--text-faint)] hover:text-[var(--danger)] p-0.5" title="Remove funding partner"><Trash2 className="w-3 h-3" /></button>
                             </div>
                         ))}
                     </div>
@@ -1279,7 +1292,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                             className="flex-1 px-2 py-1 rounded border border-[var(--border)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none" />
                         <input type="number" value={newPartnerSplit} onChange={(e) => setNewPartnerSplit(e.target.value)} placeholder="%" min="0" max="100"
                             className="w-16 px-2 py-1 rounded border border-[var(--border)] text-xs text-right text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none" />
-                        <button disabled={!newPartnerName.trim() || !newPartnerSplit}
+                        <button disabled={!newPartnerName.trim() || !newPartnerSplit || isNaN(Number(newPartnerSplit)) || Number(newPartnerSplit) < 0 || Number(newPartnerSplit) > 100}
                             onClick={() => { createPartner.mutate({ pursuit_id: pursuitId, name: newPartnerName.trim(), default_split_pct: Number(newPartnerSplit) }); setNewPartnerName(''); setNewPartnerSplit(''); }}
                             className="px-3 py-1 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-xs font-medium">Add</button>
                     </div>
@@ -1422,7 +1435,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                                         <Database className="w-3 h-3 opacity-50" />
                                                     </button>
                                                 )}
-                                                <button onClick={() => deleteLineItemMut.mutate({ id: li.id, pursuitId })}
+                                                <button onClick={() => { if (window.confirm(`Remove line item "${li.label}" and all of its monthly values?`)) deleteLineItemMut.mutate({ id: li.id, pursuitId }); }}
                                                     className="opacity-0 group-hover/row:opacity-100 text-[var(--text-faint)] hover:text-[var(--danger)] p-0.5 rounded transition-all ml-auto" title="Remove line item">
                                                     <Trash2 className="w-3 h-3" />
                                                 </button>
@@ -1628,7 +1641,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                                     </div>
                                                 </td>
                                                 {/* LTD cell (collapsed) */}
-                                                {viewMode !== 'budget' && !expandLTD && (
+                                                {!expandLTD && (
                                                     <td className="border-[var(--table-row-border)] bg-[var(--success-bg)]/10 text-right px-2 py-1.5">
                                                         <span className={`text-xs font-mono tabular-nums ${partnerLtdTotal === 0 ? 'text-[var(--border-strong)]' : partner.is_slrh ? 'text-blue-500' : 'text-[var(--text-secondary)]'}`}>
                                                             {partnerLtdTotal === 0 ? '—' : formatCurrency(partnerLtdTotal, 0)}

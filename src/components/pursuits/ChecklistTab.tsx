@@ -78,14 +78,15 @@ const ALL_STATUSES: ChecklistTaskStatus[] = ['not_started', 'in_progress', 'in_r
 
 // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function daysUntil(dateStr: string): number {
-    const d = new Date(dateStr + 'T00:00:00');
+    // Local-midnight parse; tolerate values that already carry a time component
+    const d = new Date(dateStr.split('T')[0] + 'T00:00:00');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return Math.ceil((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.round((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function formatDate(dateStr: string): string {
-    return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return new Date(dateStr.split('T')[0] + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function timeAgo(dateStr: string): string {
@@ -169,7 +170,7 @@ function ApplyTemplateDialog({ pursuitId, onClose }: { pursuitId: string; onClos
                 {isLoading ? (
                     <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-[var(--text-faint)]" /></div>
                 ) : activeTemplates.length === 0 ? (
-                    <p className="text-sm text-[var(--text-muted)] py-6 text-center">No active templates. Create one in Admin â†’ Checklist Templates.</p>
+                    <p className="text-sm text-[var(--text-muted)] py-6 text-center">No active templates. Create one in Admin → Checklist Templates.</p>
                 ) : (
                     <div className="space-y-2 max-h-60 overflow-y-auto">
                         {activeTemplates.map(t => (
@@ -216,12 +217,19 @@ function MilestoneBar({ pursuitId, milestones }: { pursuitId: string; milestones
                     {milestones.map(m => (
                         <div key={m.id} className="flex flex-col gap-1.5 p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--table-row-border)]">
                             <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">{m.milestone_label}</label>
-                            <input type="date" value={m.target_date ?? ''}
-                                onChange={(e) => upsertMilestone.mutate({ id: m.id, target_date: e.target.value || null, pursuit_id: pursuitId })}
+                            {/* Uncontrolled + save on blur: saving on every change fires on each keystroke of a
+                                typed date (e.g. year 0002) and the server-controlled value jumps while typing */}
+                            <input type="date" key={`${m.id}-${m.target_date ?? ''}`} defaultValue={m.target_date ?? ''}
+                                aria-label={`${m.milestone_label} target date`}
+                                onBlur={(e) => {
+                                    const v = e.target.value || null;
+                                    if (v !== (m.target_date ?? null)) upsertMilestone.mutate({ id: m.id, target_date: v, pursuit_id: pursuitId });
+                                }}
+                                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                                 className={`px-2 py-1.5 rounded-md text-sm border ${m.target_date ? (m.is_confirmed ? 'border-[#10B981]' : 'border-dashed border-[#F59E0B]') : 'border-[var(--border)]'} bg-[var(--bg-card)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/20 focus:outline-none`} />
                             <button onClick={() => upsertMilestone.mutate({ id: m.id, is_confirmed: !m.is_confirmed, pursuit_id: pursuitId })}
                                 className={`text-[10px] uppercase tracking-wider font-semibold self-start px-2 py-0.5 rounded-full transition-colors ${m.is_confirmed ? 'bg-[var(--success-bg)] text-[var(--success)]' : 'bg-[var(--warning-bg)] text-[#D97706]'}`}>
-                                {m.is_confirmed ? 'âœ“ Confirmed' : 'Estimated'}
+                                {m.is_confirmed ? '✓ Confirmed' : 'Estimated'}
                             </button>
                         </div>
                     ))}
@@ -280,6 +288,9 @@ function MilestoneBar({ pursuitId, milestones }: { pursuitId: string; milestones
                 <span className="text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0" style={{ color: cfg.color, backgroundColor: cfg.bgColor }}>{cfg.label}</span>
             </button>
             <button onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                aria-label={`Delete task ${task.name}`}
+                onFocus={(e) => (e.currentTarget.style.opacity = '1')}
+                onBlur={(e) => (e.currentTarget.style.opacity = '0')}
                 className="p-1 text-[var(--text-faint)] hover:text-[#EF4444] opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
                 style={{ opacity: undefined }}
                 onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
@@ -298,8 +309,8 @@ function PhaseAccordion({
     phase: PursuitChecklistPhase; pursuitId: string;
     selectedTaskId: string | null; onSelectTask: (taskId: string) => void;
     users: UserProfile[];
-    onQueueDeletePhase: (label: string, execute: () => void) => void;
-    onQueueDeleteTask: (taskId: string, label: string, execute: () => void) => void;
+    onQueueDeletePhase: (label: string, execute: () => Promise<unknown>) => void;
+    onQueueDeleteTask: (taskId: string, label: string, execute: () => Promise<unknown>) => void;
 }) {
     const [expanded, setExpanded] = useState(true);
     const [addingTask, setAddingTask] = useState(false);
@@ -327,10 +338,12 @@ function PhaseAccordion({
     };
 
     // Drag state for reorder
-    const handleDrop = (targetIdx: number) => {
-        if (dragIdx === null || dragIdx === targetIdx) return;
+    // `fromIdx` is passed explicitly by the touch path, where the dragIdx state set in the
+    // same handler isn't visible yet (stale closure) and the reorder was silently dropped.
+    const handleDrop = (targetIdx: number, fromIdx: number | null = dragIdx) => {
+        if (fromIdx === null || fromIdx === targetIdx) return;
         const ordered = [...tasks];
-        const [moved] = ordered.splice(dragIdx, 1);
+        const [moved] = ordered.splice(fromIdx, 1);
         ordered.splice(targetIdx, 0, moved);
         reorderTasks.mutate({ phaseId: phase.id, orderedIds: ordered.map(t => t.id), pursuitId });
         setDragIdx(null);
@@ -379,7 +392,12 @@ function PhaseAccordion({
                             users={users}
                             onDelete={() => setConfirmDeleteTask(task.id)}
                             dragHandlers={{
-                                onDragStart: () => setDragIdx(idx),
+                                onDragStart: (e) => {
+                                    // Firefox won't start a drag without data set
+                                    e.dataTransfer.setData('text/plain', task.id);
+                                    e.dataTransfer.effectAllowed = 'move';
+                                    setDragIdx(idx);
+                                },
                                 onDragOver: (e) => e.preventDefault(),
                                 onDrop: () => handleDrop(idx),
                                 onDragEnd: () => setDragIdx(null),
@@ -391,8 +409,7 @@ function PhaseAccordion({
                                     const slots = Math.round(dy / 44); // ~44px per row
                                     if (slots !== 0) {
                                         const newIdx = Math.max(0, Math.min(tasks.length - 1, touchRef.current.idx + slots));
-                                        setDragIdx(touchRef.current.idx);
-                                        handleDrop(newIdx);
+                                        handleDrop(newIdx, touchRef.current.idx);
                                     }
                                     touchRef.current = null;
                                 },
@@ -419,7 +436,7 @@ function PhaseAccordion({
             {confirmDeletePhase && (
                 <ConfirmDialog title="Delete Section" requireString="DELETE" message={`Delete "${phase.name}" and all its tasks? This action implies deletion.`}
                     onConfirm={() => { 
-                        onQueueDeletePhase(phase.name, () => deletePhase.mutate({ id: phase.id, pursuitId })); 
+                        onQueueDeletePhase(phase.name, () => deletePhase.mutateAsync({ id: phase.id, pursuitId })); 
                         setConfirmDeletePhase(false); 
                     }}
                     onCancel={() => setConfirmDeletePhase(false)} />
@@ -428,7 +445,8 @@ function PhaseAccordion({
                 <ConfirmDialog title="Delete Task" requireString="DELETE" message="Delete this task and all its sub-items? This action implies deletion."
                     onConfirm={() => { 
                         const tName = tasks.find(t => t.id === confirmDeleteTask)?.name || 'Task';
-                        onQueueDeleteTask(confirmDeleteTask, tName, () => deleteTask.mutate({ id: confirmDeleteTask, pursuitId })); 
+                        const taskId = confirmDeleteTask;
+                        onQueueDeleteTask(taskId, tName, () => deleteTask.mutateAsync({ id: taskId, pursuitId })); 
                         setConfirmDeleteTask(null); 
                     }}
                     onCancel={() => setConfirmDeleteTask(null)} />
@@ -451,19 +469,30 @@ export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
     const addPhase = useAddChecklistPhase();
 
     // Undo Snackbar State
-    const [pendingDeletions, setPendingDeletions] = useState<Array<{ id: string; label: string; type: 'task' | 'phase' | 'reset'; targetId?: string; timeout: NodeJS.Timeout; execute: () => void; }>>([]);
+    const [pendingDeletions, setPendingDeletions] = useState<Array<{ id: string; label: string; type: 'task' | 'phase' | 'reset'; targetId?: string; timeout: NodeJS.Timeout; execute: () => Promise<unknown>; }>>([]);
     const [pendingTaskDeletes, setPendingTaskDeletes] = useState<Set<string>>(new Set());
     const [pendingPhaseDeletes, setPendingPhaseDeletes] = useState<Set<string>>(new Set());
     const [pendingReset, setPendingReset] = useState(false);
 
-    const queueDeletion = (type: 'task' | 'phase' | 'reset', label: string, execute: () => void, targetId?: string) => {
+    // Un-hide an item whose deletion was undone or failed
+    const clearPendingFlag = (type: 'task' | 'phase' | 'reset', targetId?: string) => {
+        if (type === 'task' && targetId) setPendingTaskDeletes(prev => { const next = new Set(prev); next.delete(targetId); return next; });
+        if (type === 'phase' && targetId) setPendingPhaseDeletes(prev => { const next = new Set(prev); next.delete(targetId); return next; });
+        if (type === 'reset') setPendingReset(false);
+    };
+
+    const queueDeletion = (type: 'task' | 'phase' | 'reset', label: string, execute: () => Promise<unknown>, targetId?: string) => {
         if (type === 'task' && targetId) setPendingTaskDeletes(prev => new Set(prev).add(targetId));
         if (type === 'phase' && targetId) setPendingPhaseDeletes(prev => new Set(prev).add(targetId));
         if (type === 'reset') setPendingReset(true);
 
         const id = Math.random().toString(36).substring(7);
         const timeout = setTimeout(() => {
-            execute();
+            execute().catch((err) => {
+                console.error(`Failed to delete ${label}:`, err);
+                clearPendingFlag(type, targetId);
+                alert(`Failed to delete "${label}". It has been restored.`);
+            });
             setPendingDeletions(prev => prev.filter(p => p.id !== id));
         }, 7000); // 7 seconds to undo
         
@@ -475,10 +504,8 @@ export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
         if (!item) return;
         
         clearTimeout(item.timeout);
-        
-        if (item.type === 'task' && item.targetId) setPendingTaskDeletes(prev => { const next = new Set(prev); next.delete(item.targetId!); return next; });
-        if (item.type === 'phase' && item.targetId) setPendingPhaseDeletes(prev => { const next = new Set(prev); next.delete(item.targetId!); return next; });
-        if (item.type === 'reset') setPendingReset(false);
+
+        clearPendingFlag(item.type, item.targetId);
         
         setPendingDeletions(prev => prev.filter(p => p.id !== id));
     };
@@ -489,6 +516,15 @@ export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
         setNewSectionName('');
         setAddingSection(false);
     };
+
+    // Once an executed reset has been refetched (checklist now empty), drop the local "hide
+    // everything" flag — otherwise a template applied afterwards stays invisible until remount.
+    const resetQueued = pendingDeletions.some(p => p.type === 'reset');
+    useEffect(() => {
+        if (pendingReset && !resetQueued && phases.length === 0) setPendingReset(false);
+    }, [pendingReset, resetQueued, phases.length]);
+    // Navigating to another pursuit reuses this component; don't carry a pending reset over
+    useEffect(() => { setPendingReset(false); }, [pursuitId]);
 
     const hasChecklist = phases.length > 0;
     const isLoading = checklistLoading || milestonesLoading;
@@ -615,7 +651,7 @@ export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
             {confirmReset && (
                 <ConfirmDialog title="Reset Checklist" requireString="DELETE"
                     message="This will delete the entire checklist including all tasks, notes, and progress."
-                    onConfirm={() => { queueDeletion('reset', 'Entire Checklist', () => deleteInstance.mutate({ pursuitId })); setConfirmReset(false); setSelectedTaskId(null); }}
+                    onConfirm={() => { queueDeletion('reset', 'Entire Checklist', () => deleteInstance.mutateAsync({ pursuitId })); setConfirmReset(false); setSelectedTaskId(null); }}
                     onCancel={() => setConfirmReset(false)} />
             )}
 

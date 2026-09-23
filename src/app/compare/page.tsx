@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
 import { usePursuits, useProductTypes } from '@/hooks/useSupabaseQueries';
@@ -93,12 +93,18 @@ export default function CrossComparisonPage() {
     const [pickerPursuitId, setPickerPursuitId] = useState('');
     const [pickerOnePagers, setPickerOnePagers] = useState<OnePager[]>([]);
     const [loadingPicker, setLoadingPicker] = useState(false);
+    const [pickerError, setPickerError] = useState<string | null>(null);
+    // Guards against a slow response for a previously-selected pursuit overwriting the current one
+    const pickerRequestRef = useRef(0);
 
     // Load one-pagers for a selected pursuit in the picker
     const handlePickerPursuitChange = async (pursuitId: string) => {
+        const requestId = ++pickerRequestRef.current;
         setPickerPursuitId(pursuitId);
+        setPickerError(null);
         if (!pursuitId) {
             setPickerOnePagers([]);
+            setLoadingPicker(false);
             return;
         }
         setLoadingPicker(true);
@@ -110,10 +116,13 @@ export default function CrossComparisonPage() {
                 .eq('is_archived', false)
                 .order('created_at', { ascending: false });
             if (error) throw error;
+            if (requestId !== pickerRequestRef.current) return;
             setPickerOnePagers(data || []);
         } catch (e) {
+            if (requestId !== pickerRequestRef.current) return;
             console.error('Failed to load one-pagers', e);
             setPickerOnePagers([]);
+            setPickerError('Failed to load one-pagers for this pursuit.');
         }
         setLoadingPicker(false);
     };
@@ -278,7 +287,10 @@ export default function CrossComparisonPage() {
                                 {loadingPicker && (
                                     <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-[var(--border-strong)]" /></div>
                                 )}
-                                {!loadingPicker && pickerOnePagers.length === 0 && (
+                                {!loadingPicker && pickerError && (
+                                    <p className="text-sm text-[var(--danger)] py-2">{pickerError}</p>
+                                )}
+                                {!loadingPicker && !pickerError && pickerOnePagers.length === 0 && (
                                     <p className="text-sm text-[var(--text-muted)] py-2">No one-pagers in this pursuit.</p>
                                 )}
                                 {!loadingPicker && pickerOnePagers.length > 0 && (

@@ -43,7 +43,7 @@ export default function ProductTypesPage() {
                 </div>
                 {isLoading && <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-[var(--border-strong)]" /></div>}
                 <div className="space-y-2">
-                    {productTypes.sort((a, b) => a.sort_order - b.sort_order).map((pt) => (
+                    {[...productTypes].sort((a, b) => a.sort_order - b.sort_order).map((pt) => (
                         <div key={pt.id} className="card">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                 <button onClick={() => setExpanded(expanded === pt.id ? null : pt.id)} className="flex items-center gap-2 text-[var(--text-primary)] font-medium">

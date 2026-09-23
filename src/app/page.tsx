@@ -79,12 +79,14 @@ export default function DashboardPage() {
   }, [pursuits]);
 
   const filteredPursuits = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     const filtered = pursuits.filter((p) => {
       const matchesSearch =
-        !searchQuery ||
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.address?.toLowerCase().includes(searchQuery.toLowerCase());
+        !q ||
+        (p.name ?? '').toLowerCase().includes(q) ||
+        p.city?.toLowerCase().includes(q) ||
+        p.address?.toLowerCase().includes(q) ||
+        p.region?.toLowerCase().includes(q);
       const matchesStage = stageFilter.length === 0 || (p.stage_id && stageFilter.includes(p.stage_id));
       const matchesRegion = regionFilter.length === 0 || (p.region && regionFilter.includes(p.region));
       return matchesSearch && matchesStage && matchesRegion;
@@ -93,7 +95,7 @@ export default function DashboardPage() {
     // Sort
     switch (sortBy) {
       case 'name':
-        filtered.sort((a, b) => a.name.localeCompare(b.name));
+        filtered.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', undefined, { numeric: true, sensitivity: 'base' }));
         break;
       case 'city':
         filtered.sort((a, b) => (a.city || '').localeCompare(b.city || ''));
@@ -227,6 +229,7 @@ export default function DashboardPage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : JSON.stringify(err);
       console.error('Failed to create pursuit:', msg, err);
+      alert(`Failed to create pursuit: ${msg}`);
     }
   };
 
@@ -238,6 +241,7 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-[var(--text-primary)]">Pursuits</h1>
             <p className="text-sm text-[var(--text-muted)] mt-1">
+              {filteredPursuits.length !== pursuits.length && `${filteredPursuits.length} of `}
               {pursuits.length} active pursuit{pursuits.length !== 1 ? 's' : ''}
             </p>
           </div>
@@ -458,8 +462,13 @@ export default function DashboardPage() {
               </button>
               <button
                 onClick={async () => {
-                  await deletePursuitMutation.mutateAsync(deletePursuitId);
-                  setDeletePursuitId(null);
+                  try {
+                    await deletePursuitMutation.mutateAsync(deletePursuitId);
+                    setDeletePursuitId(null);
+                  } catch (err) {
+                    console.error('Failed to delete pursuit:', err);
+                    alert(`Failed to delete pursuit: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                  }
                 }}
                 disabled={deletePursuitMutation.isPending}
                 className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
@@ -695,15 +704,22 @@ function DashboardMap({ pursuits, stages }: DashboardMapProps) {
       const color = stageInfo?.color || 'var(--text-muted)';
       const stageName = stageInfo?.name || 'Unknown';
 
+      // Build via DOM APIs — pursuit/stage names are user-entered and must not be parsed as HTML
       const el = document.createElement('div');
       el.style.cssText = 'cursor:pointer;display:flex;flex-direction:column;align-items:center;';
-      el.innerHTML = `
-        <div style="background:${color};color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.15);line-height:1.3;text-align:center;">
-          ${p.name}
-          <div style="font-weight:400;font-size:8px;opacity:0.85;">${stageName}</div>
-        </div>
-        <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid ${color};"></div>
-      `;
+      const label = document.createElement('div');
+      label.style.cssText = 'color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.15);line-height:1.3;text-align:center;';
+      label.style.background = color;
+      label.appendChild(document.createTextNode(p.name));
+      const stageEl = document.createElement('div');
+      stageEl.style.cssText = 'font-weight:400;font-size:8px;opacity:0.85;';
+      stageEl.textContent = stageName;
+      label.appendChild(stageEl);
+      const pointer = document.createElement('div');
+      pointer.style.cssText = 'width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;';
+      pointer.style.borderTop = `6px solid ${color}`;
+      el.appendChild(label);
+      el.appendChild(pointer);
 
       const marker = new mbgl.Marker({ element: el })
         .setLngLat([p.longitude!, p.latitude!])
@@ -716,13 +732,19 @@ function DashboardMap({ pursuits, stages }: DashboardMapProps) {
       markersRef.current.push(marker);
     });
   }, [locatedPursuits, stageColorMap]);
+  // Latest addMarkers for async map callbacks (load / style.load)
+  const addMarkersRef = useRef(addMarkers);
+  addMarkersRef.current = addMarkers;
+  const appliedStyleRef = useRef<MapStyleId>('light');
 
   // Initialize map
   useEffect(() => {
     if (!MAPBOX_TOKEN || !containerRef.current) return;
 
     let map: any;
+    let cancelled = false;
     import('mapbox-gl').then((mapboxgl) => {
+      if (cancelled || !containerRef.current) return;
       const mbgl = mapboxgl.default || mapboxgl;
       mbgl.accessToken = MAPBOX_TOKEN;
       mbglRef.current = mbgl;
@@ -759,16 +781,18 @@ function DashboardMap({ pursuits, stages }: DashboardMapProps) {
           map.fitBounds(bounds, { padding: 60, maxZoom: 14 });
         }
 
-        addMarkers(map, mbgl);
+        addMarkersRef.current(map, mbgl);
       });
 
       mapRef.current = map;
     });
 
     return () => {
+      cancelled = true;
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
       if (map) map.remove();
+      mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -790,14 +814,17 @@ function DashboardMap({ pursuits, stages }: DashboardMapProps) {
     const mbgl = mbglRef.current;
     if (!map || !mbgl) return;
 
-    const styleUrl = STYLES[activeStyle].url;
+    // Avoid re-setting the same style (this effect used to re-run on every
+    // filter change via addMarkers, reloading the whole style each time)
+    if (appliedStyleRef.current === activeStyle) return;
+    appliedStyleRef.current = activeStyle;
 
-    // Avoid re-setting same style
+    const styleUrl = STYLES[activeStyle].url;
     map.setStyle(styleUrl);
 
     map.once('style.load', () => {
       // Re-add markers
-      addMarkers(map, mbgl);
+      addMarkersRef.current(map, mbgl);
 
       // 3D terrain
       if (activeStyle === '3d') {
@@ -825,7 +852,7 @@ function DashboardMap({ pursuits, stages }: DashboardMapProps) {
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStyle, addMarkers]);
+  }, [activeStyle]);
 
   if (!MAPBOX_TOKEN) {
     return (

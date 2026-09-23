@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/components/AuthProvider';
@@ -185,7 +185,7 @@ export default function TemplatesPage() {
                                                 <table className="data-table">
                                                     <thead><tr><th>Role</th><th className="text-right"># Staff</th><th className="text-right">Base Salary</th><th className="text-right">Bonus %</th><th></th></tr></thead>
                                                     <tbody>
-                                                        {payrollDefaults.sort((a, b) => a.sort_order - b.sort_order).map((pr) => (
+                                                        {[...payrollDefaults].sort((a, b) => a.sort_order - b.sort_order).map((pr) => (
                                                             <tr key={pr.id}>
                                                                 <td>
                                                                     <DebouncedTextInput
@@ -196,16 +196,16 @@ export default function TemplatesPage() {
                                                                     />
                                                                 </td>
                                                                 <td>
-                                                                    <input type="number" value={pr.headcount} onChange={(e) => upsertPayrollDefault.mutate({ id: pr.id, data_model_id: t.id, headcount: Number(e.target.value) })} className="inline-input text-xs w-16" step="1" />
+                                                                    <CommitNumberInput value={pr.headcount} onCommit={(v) => upsertPayrollDefault.mutate({ id: pr.id, data_model_id: t.id, headcount: v })} className="inline-input text-xs w-16" step={1} />
                                                                 </td>
                                                                 <td>
-                                                                    <input type="number" value={pr.base_compensation} onChange={(e) => upsertPayrollDefault.mutate({ id: pr.id, data_model_id: t.id, base_compensation: Number(e.target.value) })} className="inline-input text-xs w-24" step="1000" />
+                                                                    <CommitNumberInput value={pr.base_compensation} onCommit={(v) => upsertPayrollDefault.mutate({ id: pr.id, data_model_id: t.id, base_compensation: v })} className="inline-input text-xs w-24" step={1000} />
                                                                 </td>
                                                                 <td>
-                                                                    <input type="number" value={pr.bonus_pct} onChange={(e) => upsertPayrollDefault.mutate({ id: pr.id, data_model_id: t.id, bonus_pct: Number(e.target.value) })} className="inline-input text-xs w-16" step="0.01" />
+                                                                    <CommitNumberInput value={pr.bonus_pct} onCommit={(v) => upsertPayrollDefault.mutate({ id: pr.id, data_model_id: t.id, bonus_pct: v })} className="inline-input text-xs w-16" step={0.01} />
                                                                 </td>
                                                                 <td>
-                                                                    <button onClick={() => deletePayrollDefaultMutation.mutate(pr.id)} className="text-[var(--border-strong)] hover:text-[var(--danger)] transition-colors">
+                                                                    <button onClick={() => { if (!pr.role_name || confirm(`Delete default role "${pr.role_name}"?`)) deletePayrollDefaultMutation.mutate(pr.id); }} className="text-[var(--border-strong)] hover:text-[var(--danger)] transition-colors">
                                                                         <Trash2 className="w-3.5 h-3.5" />
                                                                     </button>
                                                                 </td>
@@ -259,13 +259,53 @@ function TemplateField({ label, value, type, onChange }: { label: string; value:
     return (
         <div className="space-y-1">
             <span className="text-xs text-[var(--text-muted)]">{label}</span>
-            <input
-                type={type === 'text' ? 'text' : 'number'}
-                value={value}
-                onChange={(e) => onChange(type === 'text' ? e.target.value : Number(e.target.value))}
-                step={type === 'percent' ? 0.01 : type === 'currency' ? 1 : 0.01}
-                className="w-full inline-input text-xs text-left"
-            />
+            {type === 'text' ? (
+                <DebouncedTextInput value={String(value ?? '')} onCommit={(v) => onChange(v)} className="w-full inline-input text-xs text-left" />
+            ) : (
+                <CommitNumberInput
+                    value={Number(value ?? 0)}
+                    onCommit={(v) => onChange(v)}
+                    step={type === 'currency' ? 1 : 0.01}
+                    className="w-full inline-input text-xs text-left"
+                />
+            )}
         </div>
+    );
+}
+
+/**
+ * Number input that keeps a local draft and only commits a finite number on
+ * blur/Enter. (The mutations here have no optimistic update, so a controlled
+ * per-keystroke input reverted characters, and clearing the field saved 0.)
+ */
+function CommitNumberInput({ value, onCommit, step, className }: { value: number; onCommit: (v: number) => void; step?: number; className?: string }) {
+    const [draft, setDraft] = useState(String(value));
+    const editingRef = useRef(false);
+
+    useEffect(() => {
+        if (!editingRef.current) setDraft(String(value));
+    }, [value]);
+
+    const commit = () => {
+        editingRef.current = false;
+        const parsed = parseFloat(draft);
+        if (!Number.isFinite(parsed)) {
+            setDraft(String(value)); // revert empty/invalid input
+            return;
+        }
+        if (parsed !== value) onCommit(parsed);
+    };
+
+    return (
+        <input
+            type="number"
+            value={draft}
+            step={step}
+            onFocus={() => { editingRef.current = true; }}
+            onChange={(e) => { editingRef.current = true; setDraft(e.target.value); }}
+            onBlur={commit}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+            className={className}
+        />
     );
 }

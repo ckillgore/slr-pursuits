@@ -54,11 +54,11 @@ export default function AdminUsersPage() {
         setLoading(true);
         try {
             const res = await fetch('/api/admin/users');
-            const data = await res.json();
-            if (data.error) {
-                setError(data.error);
+            const data = await res.json().catch(() => ({ error: `Failed to load users (HTTP ${res.status}).` }));
+            if (data.error || !res.ok) {
+                setError(data.error || `Failed to load users (HTTP ${res.status}).`);
             } else {
-                setUsers(data.users);
+                setUsers(data.users ?? []);
             }
         } catch {
             setError('Failed to load users.');
@@ -87,7 +87,7 @@ export default function AdminUsersPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: inviteEmail.trim(), full_name: inviteName.trim(), role: inviteRole }),
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({ error: `Failed to send invitation (HTTP ${res.status}).` }));
             if (data.error) {
                 setInviteError(data.error);
             } else {
@@ -114,7 +114,7 @@ export default function AdminUsersPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, ...updates }),
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({ error: `Failed to update user (HTTP ${res.status}).` }));
             if (data.error) {
                 setError(data.error);
             } else {
@@ -222,7 +222,7 @@ export default function AdminUsersPage() {
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
-                                                        {u.full_name ? u.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : u.email[0].toUpperCase()}
+                                                        {u.full_name ? u.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : (u.email?.[0] ?? '?').toUpperCase()}
                                                     </div>
                                                     <div className="min-w-0">
                                                         <div className="text-sm font-semibold text-[var(--text-primary)] truncate">{u.full_name || '(No name)'}</div>
@@ -279,7 +279,10 @@ export default function AdminUsersPage() {
                                             <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                                                 {u.role !== 'owner' && (
                                                     <button
-                                                        onClick={() => handleUpdateUser(u.id, { is_active: !u.is_active })}
+                                                        onClick={() => {
+                                                            if (u.is_active && !window.confirm(`Deactivate ${u.full_name || u.email}? They will be signed out and unable to sign in.`)) return;
+                                                            handleUpdateUser(u.id, { is_active: !u.is_active });
+                                                        }}
                                                         className={`p-1.5 rounded-md transition-colors ${u.is_active ? 'text-[var(--success)] hover:bg-[var(--success-bg)]' : 'text-[var(--danger)] hover:bg-[var(--danger-bg)]'}`}
                                                         title={u.is_active ? 'Deactivate user' : 'Reactivate user'}
                                                     >

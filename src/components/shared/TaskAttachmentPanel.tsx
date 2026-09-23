@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/client';
 import { Paperclip, Download, Trash2, File as FileIcon, Loader2, Image as ImageIcon, FileText, Plus } from 'lucide-react';
 import type { TaskAttachment } from '@/types';
 
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // matches the "up to 50MB" hint below
+
 export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId: string; externalToken?: string }) {
     const { data: attachments = [], isLoading } = useTaskAttachments(taskId);
     const createAttachment = useCreateTaskAttachment();
@@ -30,19 +32,34 @@ export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId:
 
     const handleUpload = async (file: File) => {
         if (!file) return;
+        if (file.size > MAX_UPLOAD_BYTES) {
+            alert(`"${file.name}" is ${formatBytes(file.size)} — the limit is 50 MB.`);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+        if (file.size === 0) {
+            alert(`"${file.name}" is empty.`);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
         setUploading(true);
+        let uploadedPath: string | null = null;
         try {
-            // Generate unique path
-            const ext = file.name.split('.').pop();
-            const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${ext}`;
+            // Generate unique path. Only a sanitized extension from the user's file name is
+            // used (a name without a dot used to put the whole raw name in the path).
+            const dot = file.name.lastIndexOf('.');
+            const rawExt = dot > 0 ? file.name.slice(dot + 1) : '';
+            const ext = rawExt.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10).toLowerCase();
+            const fileName = `${crypto.randomUUID()}${ext ? `.${ext}` : ''}`;
             const storagePath = `${taskId}/${fileName}`;
 
             // 1. Upload to Supabase Storage
             const { error: uploadError } = await supabase.storage
                 .from('task-files')
-                .upload(storagePath, file);
+                .upload(storagePath, file, { contentType: file.type || undefined });
 
             if (uploadError) throw uploadError;
+            uploadedPath = storagePath;
 
             // 2. Create the Database Record
             const payload: Partial<TaskAttachment> = {
@@ -69,9 +86,15 @@ export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId:
             }
 
             await createAttachment.mutateAsync(payload);
+            uploadedPath = null;
         } catch (err) {
             console.error('Failed to upload file:', err);
-            alert('Failed to upload file. Please try again.');
+            // Don't leave an orphaned object in storage if the DB record failed
+            if (uploadedPath) {
+                await supabase.storage.from('task-files').remove([uploadedPath]).catch(() => {});
+            }
+            const msg = err instanceof Error ? err.message : (err as { message?: string })?.message;
+            alert(`Failed to upload file${msg ? `: ${msg}` : ''}. Please try again.`);
         } finally {
             setUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -126,7 +149,7 @@ export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId:
                                     </p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                                 <button onClick={() => handleDownload(att)} title="Download" className="p-1.5 text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-subtle)] rounded transition-colors">
                                     <Download className="w-4 h-4" />
                                 </button>
@@ -135,11 +158,14 @@ export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId:
                                         onClick={async () => {
                                             if (window.confirm(`Are you sure you want to delete "${att.file_name}"?`)) {
                                                 try {
+                                                    // Delete the record first: if that fails, the file is still
+                                                    // downloadable instead of leaving a record pointing at nothing.
+                                                    await deleteAttachment.mutateAsync({ id: att.id, taskId });
                                                     const { error: storageError } = await supabase.storage.from('task-files').remove([att.storage_path]);
                                                     if (storageError) console.error("Storage delete failed", storageError);
-                                                    await deleteAttachment.mutateAsync({ id: att.id, taskId });
                                                 } catch (e) {
                                                     console.error(e);
+                                                    alert('Failed to delete file. Please try again.');
                                                 }
                                             }
                                         }} 

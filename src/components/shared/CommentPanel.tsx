@@ -123,6 +123,30 @@ export default function CommentPanel({ entityType, entityId, onClose }: CommentP
         });
     }, [draft]);
 
+    const handleSubmit = useCallback(() => {
+        if (!draft.trim() || !profile?.id || createComment.isPending) return;
+
+        // Extract mention user IDs from @[userId](Name) format
+        const mentionMatches = draft.match(/@\[([a-f0-9-]+)\]\([^)]+\)/g);
+        const mentions = mentionMatches
+            ? [...new Set(mentionMatches.map((m) => m.match(/@\[([a-f0-9-]+)\]/)![1]))]
+            : [];
+
+        // Store clean content with mention tokens (@[userId])
+        const content = draft.replace(/@\[([a-f0-9-]+)\]\(([^)]+)\)/g, '@[$1]');
+
+        // Clear the draft only after the comment is saved so a failure doesn't lose it
+        createComment.mutate({
+            entityType, entityId,
+            authorId: profile.id,
+            content,
+            mentions,
+        }, {
+            onSuccess: () => setDraft(''),
+            onError: (err) => alert(`Failed to post comment: ${err instanceof Error ? err.message : 'Unknown error'}`),
+        });
+    }, [draft, profile?.id, entityType, entityId, createComment]);
+
     // Handle keyboard in mention menu
     const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (showMentionMenu && filteredUsers.length > 0) {
@@ -143,6 +167,8 @@ export default function CommentPanel({ entityType, entityId, onClose }: CommentP
             }
             if (e.key === 'Escape') {
                 e.preventDefault();
+                // Only close the mention menu — don't let the panel's document-level Escape close the panel
+                e.stopPropagation();
                 setShowMentionMenu(false);
                 return;
             }
@@ -151,28 +177,7 @@ export default function CommentPanel({ entityType, entityId, onClose }: CommentP
             e.preventDefault();
             handleSubmit();
         }
-    }, [showMentionMenu, filteredUsers, mentionIndex, insertMention]);
-
-    const handleSubmit = useCallback(() => {
-        if (!draft.trim() || !profile?.id) return;
-
-        // Extract mention user IDs from @[userId](Name) format
-        const mentionMatches = draft.match(/@\[([a-f0-9-]+)\]\([^)]+\)/g);
-        const mentions = mentionMatches
-            ? [...new Set(mentionMatches.map((m) => m.match(/@\[([a-f0-9-]+)\]/)![1]))]
-            : [];
-
-        // Store clean content with mention tokens (@[userId])
-        const content = draft.replace(/@\[([a-f0-9-]+)\]\(([^)]+)\)/g, '@[$1]');
-
-        createComment.mutate({
-            entityType, entityId,
-            authorId: profile.id,
-            content,
-            mentions,
-        });
-        setDraft('');
-    }, [draft, profile?.id, entityType, entityId, createComment]);
+    }, [showMentionMenu, filteredUsers, mentionIndex, insertMention, handleSubmit]);
 
     // Render comment content with mentions highlighted
     const renderContent = useCallback((text: string) => {

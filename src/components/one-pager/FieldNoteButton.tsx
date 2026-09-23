@@ -64,7 +64,7 @@ export default function FieldNoteButton({ fieldKey, note, onNoteChange }: FieldN
         <span className="relative inline-flex items-center">
             <button
                 ref={buttonRef}
-                onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+                onClick={(e) => { e.stopPropagation(); if (open) commitAndClose(); else setOpen(true); }}
                 className={`p-0.5 rounded transition-colors ${hasNote
                         ? 'text-[var(--accent)] hover:text-[#1D4ED8]'
                         : 'text-[var(--text-faint)] hover:text-[var(--text-muted)] opacity-0 group-hover/note:opacity-100'

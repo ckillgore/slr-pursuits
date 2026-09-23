@@ -75,40 +75,49 @@ export function InlineInput({
         previousValue.current = value;
     }, [value]);
 
+    // Guards against committing twice (e.g. Tab → keydown commit + blur commit)
+    const editingRef = useRef(false);
+
     const startEditing = useCallback(() => {
         if (disabled) return;
+        editingRef.current = true;
         setIsEditing(true);
-        // Show raw number for editing
-        let rawValue = value;
+        // Show raw number for editing (DB values can be null)
+        let rawValue = Number(value ?? 0);
         if (format === 'percent' && percentAsDecimal) {
-            rawValue = value * 100;
+            rawValue = rawValue * 100;
         }
-        setEditValue(rawValue.toString());
+        // Trim float noise (0.07 * 100 = 7.000000000000001)
+        setEditValue(Number.isFinite(rawValue) ? String(parseFloat(rawValue.toPrecision(12))) : '');
         requestAnimationFrame(() => {
             inputRef.current?.select();
         });
     }, [value, format, percentAsDecimal, disabled]);
 
     const commitValue = useCallback(() => {
+        if (!editingRef.current) return;
+        editingRef.current = false;
         setIsEditing(false);
         let parsed = parseFloat(editValue);
-        if (isNaN(parsed)) {
+        if (!Number.isFinite(parsed)) {
             return; // revert to previous value
         }
 
         if (format === 'percent' && percentAsDecimal) {
-            parsed = parsed / 100;
+            parsed = parseFloat((parsed / 100).toPrecision(12));
         }
 
         if (min !== undefined) parsed = Math.max(min, parsed);
         if (max !== undefined) parsed = Math.min(max, parsed);
 
         if (parsed !== previousValue.current) {
+            previousValue.current = parsed;
             onChange(parsed);
         }
     }, [editValue, format, percentAsDecimal, min, max, onChange]);
 
     const cancelEdit = useCallback(() => {
+        editingRef.current = false;
         setIsEditing(false);
     }, []);
 
@@ -147,7 +156,7 @@ export function InlineInput({
         );
     }
 
-    const displayText = formatDisplay(value, format, decimals, percentAsDecimal);
+    const displayText = formatDisplay(Number(value ?? 0), format, decimals, percentAsDecimal);
 
     return (
         <button

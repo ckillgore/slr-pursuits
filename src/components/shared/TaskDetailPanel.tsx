@@ -40,7 +40,8 @@ const STATUS_CONFIG: Record<ChecklistTaskStatus, { label: string; color: string;
 };
 
 function daysUntil(dateString: string) {
-    const d = new Date(dateString + 'T00:00:00');
+    // Local midnight of the calendar date (date-only strings; tolerate full timestamps)
+    const d = new Date(dateString.slice(0, 10) + 'T00:00:00');
     const now = new Date();
     d.setHours(0, 0, 0, 0);
     now.setHours(0, 0, 0, 0);
@@ -64,7 +65,9 @@ function timeAgo(dateString: string) {
 
 function formatDate(dateStr: string) {
     try {
-        const date = new Date(dateStr + 'T00:00:00');
+        // Parse as UTC midnight to match the UTC formatter — a local-midnight parse
+        // shifted the displayed day for users east of UTC.
+        const date = new Date(dateStr.slice(0, 10) + 'T00:00:00Z');
         return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(date);
     } catch {
         return dateStr;
@@ -113,7 +116,7 @@ export function TaskDetailPanel({
     // Sync description when task changes
     useEffect(() => { setDescText(task.description ?? ''); }, [task.id, task.description]);
 
-    const cfg = STATUS_CONFIG[task.status];
+    const cfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.not_started;
     const overdue = task.due_date && task.status !== 'complete' && task.status !== 'not_applicable' && daysUntil(task.due_date) < 0;
 
     const handleSaveDescription = () => {
@@ -131,8 +134,14 @@ export function TaskDetailPanel({
 
     const handleSubmitNote = () => {
         if (!noteText.trim()) return;
-        createNote.mutate({ taskId: task.id, content: noteText.trim() });
-        setNoteText('');
+        // Only clear the draft once the note is saved, so a failed post doesn't lose it
+        createNote.mutate(
+            { taskId: task.id, content: noteText.trim() },
+            {
+                onSuccess: () => setNoteText(''),
+                onError: (err) => alert(`Failed to post note: ${err instanceof Error ? err.message : 'Unknown error'}`),
+            }
+        );
     };
 
     const handleFixedDateChange = (date: string) => {
@@ -172,8 +181,9 @@ export function TaskDetailPanel({
         if (!task.relative_milestone) return null;
         const ms = milestones.find(m => m.milestone_key === task.relative_milestone);
         if (!ms?.target_date || task.relative_due_days == null) return 'Set milestone date first';
-        const d = new Date(ms.target_date + 'T00:00:00');
-        d.setDate(d.getDate() + task.relative_due_days);
+        // Do the day math in UTC so toISOString() can't roll the date across a TZ boundary
+        const d = new Date(ms.target_date.slice(0, 10) + 'T00:00:00Z');
+        d.setUTCDate(d.getUTCDate() + task.relative_due_days);
         return formatDate(d.toISOString().split('T')[0]);
     }, [task.relative_milestone, task.relative_due_days, milestones]);
 
@@ -352,7 +362,7 @@ export function TaskDetailPanel({
                                         onChange={(e) => handleRelativeDateChange(task.relative_milestone!, parseInt(e.target.value) || 0)}
                                         className="w-20 px-2 py-1 rounded-md text-sm border border-[var(--border)] bg-[var(--bg-card)] focus:border-[var(--accent)] focus:outline-none text-center" />
                                     <span className="text-xs text-[var(--text-muted)]">days</span>
-                                    {relativePreview && <span className="text-xs text-[var(--text-secondary)] ml-auto">â†’ {relativePreview}</span>}
+                                    {relativePreview && <span className="text-xs text-[var(--text-secondary)] ml-auto">→ {relativePreview}</span>}
                                 </div>
                             )}
                         </div>
@@ -383,7 +393,8 @@ export function TaskDetailPanel({
                                     <button 
                                         onClick={() => {
                                             if (typeof window !== 'undefined') {
-                                                navigator.clipboard.writeText(`${window.location.origin}/portal/task/${task.external_portal_token}`);
+                                                navigator.clipboard?.writeText(`${window.location.origin}/portal/task/${task.external_portal_token}`)
+                                                    .catch(() => alert('Could not copy to clipboard. Select the link text and copy it manually.'));
                                             }
                                         }}
                                         className="px-2 py-1 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-subtle)] rounded transition-colors whitespace-nowrap">
@@ -391,6 +402,7 @@ export function TaskDetailPanel({
                                     </button>
                                     <button 
                                         onClick={() => {
+                                            if (!window.confirm('Generate a new portal link? The current link will stop working immediately.')) return;
                                             const newToken = crypto.randomUUID();
                                             updateTask.mutate({ taskId: task.id, pursuitId, updates: { external_portal_token: newToken }});
                                         }}
@@ -561,7 +573,7 @@ export function TaskDetailPanel({
                                 <span>
                                     <span className="font-medium text-[var(--text-secondary)]">{entry.action.replace(/_/g, ' ')}</span>
                                     {entry.new_value && typeof entry.new_value === 'object' && 'status' in entry.new_value && (
-                                        <span> â†’ {String(entry.new_value.status).replace(/_/g, ' ')}</span>
+                                        <span> → {String(entry.new_value.status).replace(/_/g, ' ')}</span>
                                     )}
                                     <span className="ml-2 text-[var(--text-faint)]">{timeAgo(entry.created_at)}</span>
                                 </span>

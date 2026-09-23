@@ -76,7 +76,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     const { data: productTypes = [] } = useProductTypes();
     const { data: unitMixRows = [], isLoading: loadingUnitMix } = useUnitMix(onePager.id);
     const { data: payrollRows = [], isLoading: loadingPayroll } = usePayroll(onePager.id);
-    const { data: softCostDetails = [] } = useSoftCostDetails(onePager.id);
+    const { data: softCostDetails = [], isLoading: loadingSoftCosts } = useSoftCostDetails(onePager.id);
 
     const updateOnePagerMutation = useUpdateOnePager();
     const updatePursuitMutation = useUpdatePursuit();
@@ -88,7 +88,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     const deleteSoftCostRowMutation = useDeleteSoftCostRow();
     const duplicateOnePager = useDuplicateOnePager();
     const archiveOnePager = useArchiveOnePager();
-    const { data: unitPremiums = [] } = useUnitPremiums(onePager.id);
+    const { data: unitPremiums = [], isLoading: loadingPremiums } = useUnitPremiums(onePager.id);
     const upsertUnitPremium = useUpsertUnitPremium();
     const deleteUnitPremiumMutation = useDeleteUnitPremium();
 
@@ -104,6 +104,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     const [sensitivityExpanded, setSensitivityExpanded] = useState(false);
     const [isEditingName, setIsEditingName] = useState(false);
     const [editName, setEditName] = useState('');
+    const nameCancelledRef = useRef(false);
     const [softCostExpanded, setSoftCostExpanded] = useState(false);
     const [premiumsExpanded] = useState(true); // always visible
     const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
@@ -132,12 +133,42 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     useRealtimeOnePager(onePager.id);
 
     const pendingUpdatesRef = useRef<Partial<OnePager>>({});
+    // Updates sent to the server but not yet acknowledged. Together with
+    // pendingUpdatesRef these are re-applied if a refetch (realtime echo,
+    // window focus) lands mid-edit and would otherwise revert the UI.
+    const inFlightUpdatesRef = useRef<Partial<OnePager>>({});
+
+    // Always-current one-pager for callbacks (avoids stale oldValue in undo entries)
+    const onePagerRef = useRef(onePager);
+    onePagerRef.current = onePager;
 
     const { save, status: saveStatus } = useAutoSave(async (data: { id: string; updates: Partial<OnePager> }) => {
         // Clear the pending updates so subsequent edits accumulate in a fresh batch
         pendingUpdatesRef.current = {};
-        await updateOnePagerMutation.mutateAsync({ id: data.id, updates: data.updates, queryId });
+        inFlightUpdatesRef.current = { ...inFlightUpdatesRef.current, ...data.updates };
+        try {
+            await updateOnePagerMutation.mutateAsync({ id: data.id, updates: data.updates, queryId });
+        } finally {
+            // Drop acknowledged keys unless a newer save already replaced them
+            const inFlight = inFlightUpdatesRef.current as Record<string, unknown>;
+            for (const [k, v] of Object.entries(data.updates)) {
+                if (inFlight[k] === v) delete inFlight[k];
+            }
+        }
     });
+
+    // Re-apply unsaved/in-flight local edits on top of server data after a refetch
+    useEffect(() => {
+        const overlay = { ...inFlightUpdatesRef.current, ...pendingUpdatesRef.current } as Record<string, unknown>;
+        const current = onePager as unknown as Record<string, unknown>;
+        const stale = Object.keys(overlay).some((k) => JSON.stringify(current[k]) !== JSON.stringify(overlay[k]));
+        if (!stale) return;
+        const apply = (old: any) => (old ? { ...old, ...overlay } : old);
+        queryClient.setQueryData(queryKeys.onePager(onePager.id), apply);
+        if (queryId && queryId !== onePager.id) {
+            queryClient.setQueryData(queryKeys.onePager(queryId), apply);
+        }
+    }, [onePager, queryClient, queryId]);
 
     const sortedUnitMix = useMemo(() => [...unitMixRows].sort((a, b) => a.sort_order - b.sort_order), [unitMixRows]);
     const sortedPayroll = useMemo(() => [...payrollRows].sort((a, b) => a.sort_order - b.sort_order), [payrollRows]);
@@ -159,7 +190,10 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     // (one step behind). This effect ensures the DB always has the latest.
     // ============================================================
     const lastSyncedCalcRef = useRef('');
+    const childDataLoading = loadingUnitMix || loadingPayroll || loadingSoftCosts || loadingPremiums;
     useEffect(() => {
+        // Never sync while child rows are still loading — calc would be all zeros
+        if (childDataLoading) return;
         const totalUnits = sortedUnitMix.reduce((s, r) => s + r.unit_count, 0);
         const calcSnapshot = {
             total_units: totalUnits,
@@ -180,10 +214,21 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
         if (key === lastSyncedCalcRef.current) return;
         lastSyncedCalcRef.current = key;
 
+        // Don't write when the stored values already match — otherwise merely
+        // opening a one-pager issues an UPDATE (and a realtime event for everyone else).
+        const stored = onePagerRef.current as unknown as Record<string, unknown>;
+        const alreadyStored = Object.entries(calcSnapshot).every(([k, v]) => {
+            const sv = Number(stored[k] ?? 0);
+            return Math.abs(sv - v) <= Math.max(1e-6, Math.abs(v) * 1e-9);
+        });
+        const queued = { ...inFlightUpdatesRef.current, ...pendingUpdatesRef.current } as Record<string, unknown>;
+        const hasQueuedCalc = Object.keys(calcSnapshot).some((k) => k in queued);
+        if (alreadyStored && !hasQueuedCalc) return;
+
         // Add the calc fields to the pending queue and hit the unified debouncer
         pendingUpdatesRef.current = { ...pendingUpdatesRef.current, ...calcSnapshot };
         save({ id: onePager.id, updates: { ...pendingUpdatesRef.current } });
-    }, [calc, sortedUnitMix, onePager.id, save]);
+    }, [calc, sortedUnitMix, onePager.id, save, childDataLoading]);
 
     // ============================================================
     // Undo/Redo System
@@ -195,8 +240,15 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
 
             switch (action.entity) {
                 case 'onePager': {
-                    const updates: Partial<OnePager> = { [action.field]: value };
-                    updateOnePagerMutation.mutate({ id: action.entityId, updates, queryId });
+                    // Route through the shared debounced queue so a still-pending
+                    // save of the newer value can't overwrite the undo afterwards.
+                    const updates = { [action.field]: value } as Partial<OnePager>;
+                    pendingUpdatesRef.current = { ...pendingUpdatesRef.current, ...updates };
+                    queryClient.setQueryData(queryKeys.onePager(action.entityId), (old: any) => old ? { ...old, ...updates } : old);
+                    if (queryId && queryId !== action.entityId) {
+                        queryClient.setQueryData(queryKeys.onePager(queryId), (old: any) => old ? { ...old, ...updates } : old);
+                    }
+                    save({ id: action.entityId, updates: { ...pendingUpdatesRef.current } });
                     break;
                 }
                 case 'unitMix': {
@@ -209,7 +261,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                 }
             }
         },
-        [updateOnePagerMutation, upsertUnitMixRow, upsertPayrollRow, onePager.id, save]
+        [queryClient, upsertUnitMixRow, upsertPayrollRow, onePager.id, save, queryId]
     );
 
     const { push: pushUndo, undo, redo, canUndo, canRedo } = useUndoRedo(applyUndoRedo);
@@ -220,7 +272,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
 
     const updateField = useCallback(
         (field: string, value: number | boolean | string) => {
-            const oldValue = (onePager as unknown as Record<string, unknown>)[field];
+            const oldValue = (onePagerRef.current as unknown as Record<string, unknown>)[field];
             pushUndo({ entity: 'onePager', entityId: onePager.id, field, oldValue, newValue: value });
 
             const updates: Partial<OnePager> = { [field]: value };
@@ -344,23 +396,23 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     const landCostSteps = onePager.sensitivity_land_cost_steps ?? [-2000000, -1000000, -500000, 0, 500000, 1000000, 2000000];
 
     const rentSensitivity = useMemo(
-        () => sensitivityExpanded ? calcRentSensitivity(onePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps) : [],
-        [sensitivityExpanded, onePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps]
+        () => sensitivityExpanded ? calcRentSensitivity(onePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, unitPremiums) : [],
+        [sensitivityExpanded, onePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, unitPremiums]
     );
 
     const hardCostSensitivity = useMemo(
-        () => sensitivityExpanded ? calcHardCostSensitivity(onePager, sortedUnitMix, sortedPayroll, softCostDetails, hardCostSteps) : [],
-        [sensitivityExpanded, onePager, sortedUnitMix, sortedPayroll, softCostDetails, hardCostSteps]
+        () => sensitivityExpanded ? calcHardCostSensitivity(onePager, sortedUnitMix, sortedPayroll, softCostDetails, hardCostSteps, unitPremiums) : [],
+        [sensitivityExpanded, onePager, sortedUnitMix, sortedPayroll, softCostDetails, hardCostSteps, unitPremiums]
     );
 
     const landCostSensitivity = useMemo(
-        () => sensitivityExpanded ? calcLandCostSensitivity(onePager, sortedUnitMix, sortedPayroll, softCostDetails, landCostSteps) : [],
-        [sensitivityExpanded, onePager, sortedUnitMix, sortedPayroll, softCostDetails, landCostSteps]
+        () => sensitivityExpanded ? calcLandCostSensitivity(onePager, sortedUnitMix, sortedPayroll, softCostDetails, landCostSteps, unitPremiums) : [],
+        [sensitivityExpanded, onePager, sortedUnitMix, sortedPayroll, softCostDetails, landCostSteps, unitPremiums]
     );
 
     const sensitivityMatrix = useMemo(
-        () => sensitivityExpanded ? calcSensitivityMatrix(onePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, hardCostSteps) : null,
-        [sensitivityExpanded, onePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, hardCostSteps]
+        () => sensitivityExpanded ? calcSensitivityMatrix(onePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, hardCostSteps, unitPremiums) : null,
+        [sensitivityExpanded, onePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, hardCostSteps, unitPremiums]
     );
 
     if (loadingUnitMix || loadingPayroll) {
@@ -381,13 +433,13 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                             type="text"
                             value={editName}
                             onChange={(e) => setEditName(e.target.value)}
-                            onBlur={() => { if (editName.trim()) updateOnePagerMutation.mutate({ id: onePager.id, updates: { name: editName.trim() } }); setIsEditingName(false); }}
-                            onKeyDown={(e) => { if (e.key === 'Enter') { if (editName.trim()) updateOnePagerMutation.mutate({ id: onePager.id, updates: { name: editName.trim() } }); setIsEditingName(false); } if (e.key === 'Escape') setIsEditingName(false); }}
+                            onBlur={() => { if (!nameCancelledRef.current && editName.trim() && editName.trim() !== onePager.name) updateOnePagerMutation.mutate({ id: onePager.id, updates: { name: editName.trim() }, queryId }); setIsEditingName(false); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { nameCancelledRef.current = true; setIsEditingName(false); } }}
                             className="text-lg font-semibold text-[var(--text-primary)] bg-transparent border-b-2 border-[var(--accent)] outline-none"
                             autoFocus
                         />
                     ) : (
-                        <button className="text-lg font-semibold text-[var(--text-primary)] hover:text-[var(--accent)] transition-colors group flex items-center gap-1.5" onClick={() => { setEditName(onePager.name); setIsEditingName(true); }}>
+                        <button className="text-lg font-semibold text-[var(--text-primary)] hover:text-[var(--accent)] transition-colors group flex items-center gap-1.5" onClick={() => { nameCancelledRef.current = false; setEditName(onePager.name); setIsEditingName(true); }}>
                             {onePager.name}
                             <Pencil className="w-3.5 h-3.5 opacity-0 group-hover:opacity-40 transition-opacity" />
                         </button>
@@ -430,14 +482,14 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                 const { pdf } = await import('@react-pdf/renderer');
                                 const { OnePagerPDF } = await import('@/components/export/OnePagerPDF');
                                 const pt = productTypes?.find((p) => p.id === onePager.product_type_id);
-                                const doc = <OnePagerPDF onePager={onePager} pursuit={pursuit} calc={calc} productTypeName={pt?.name} unitMix={sortedUnitMix} payroll={sortedPayroll} softCostDetails={softCostDetails} showPayroll={true} showPropertyTax={true} />;
+                                const doc = <OnePagerPDF onePager={onePager} pursuit={pursuit} calc={calc} productTypeName={pt?.name} unitMix={sortedUnitMix} payroll={sortedPayroll} softCostDetails={softCostDetails} unitPremiums={unitPremiums} showPayroll={true} showPropertyTax={true} />;
                                 const blob = await pdf(doc).toBlob();
                                 const url = URL.createObjectURL(blob);
                                 const a = document.createElement('a');
                                 a.href = url;
                                 a.download = `${onePager.name.replace(/[^a-zA-Z0-9-_ ]/g, '')}.pdf`;
                                 a.click();
-                                URL.revokeObjectURL(url);
+                                setTimeout(() => URL.revokeObjectURL(url), 1000);
                             } catch (err) {
                                 console.error('PDF export failed:', err);
                             }
@@ -747,7 +799,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                                             onChange={(v) => handleUnitMixChange(row.id, 'unit_type_label', v, row.unit_type_label)}
                                                         />
                                                         <button
-                                                            onClick={(e) => { e.stopPropagation(); deleteUnitMixRowMutation.mutate({ id: row.id, onePagerId: onePager.id }); }}
+                                                            onClick={(e) => { e.stopPropagation(); if (row.unit_count > 0 && !window.confirm(`Delete "${row.unit_type_label || 'this row'}" (${row.unit_count} units)? This can't be undone.`)) return; deleteUnitMixRowMutation.mutate({ id: row.id, onePagerId: onePager.id }); }}
                                                             className="text-[var(--border-strong)] hover:text-[var(--danger)] transition-colors opacity-0 group-hover/row:opacity-100 flex-shrink-0 p-0.5"
                                                             title="Delete row"
                                                         >
@@ -1048,7 +1100,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                                 </>
                                             )}
                                             <td className="text-right text-xs tabular-nums text-[var(--text-secondary)]">{formatCurrency(total)}</td>
-                                            <td><button onClick={() => deletePayrollRowMutation.mutate({ id: row.id, onePagerId: onePager.id })} className="text-[var(--border-strong)] hover:text-[var(--danger)] transition-colors"><Trash2 className="w-3.5 h-3.5" /></button></td>
+                                            <td><button onClick={() => { if (row.role_name && !window.confirm(`Delete payroll line "${row.role_name}"? This can't be undone.`)) return; deletePayrollRowMutation.mutate({ id: row.id, onePagerId: onePager.id }); }} title="Delete row" className="text-[var(--border-strong)] hover:text-[var(--danger)] transition-colors"><Trash2 className="w-3.5 h-3.5" /></button></td>
                                         </tr>
                                     );
                                 })}

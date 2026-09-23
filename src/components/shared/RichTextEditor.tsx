@@ -60,13 +60,27 @@ export function RichTextEditor({
         onUpdate: ({ editor }) => {
             if (debounceRef.current) clearTimeout(debounceRef.current);
             debounceRef.current = setTimeout(() => {
+                debounceRef.current = null;
                 const json = editor.getJSON();
                 const html = editor.getHTML();
                 lastSentRef.current = JSON.stringify(json);
                 onChangeRef.current(json as Record<string, unknown>, html);
             }, debounceMs);
         },
+        // Flush the pending debounce as soon as the user leaves the editor
+        onBlur: () => flushRef.current(),
     });
+
+    // Send any debounced-but-unsent edit right now (blur / unmount)
+    const flushRef = useRef<() => void>(() => {});
+    flushRef.current = () => {
+        if (!debounceRef.current || !editor || editor.isDestroyed) return;
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+        const json = editor.getJSON();
+        lastSentRef.current = JSON.stringify(json);
+        onChangeRef.current(json as Record<string, unknown>, editor.getHTML());
+    };
 
     // Sync external content changes (e.g., from Realtime refetch)
     useEffect(() => {
@@ -83,19 +97,22 @@ export function RichTextEditor({
         if (typeof content === 'string') {
             const currentHtml = editor.getHTML();
             if (currentHtml !== content) {
-                editor.commands.setContent(content);
+                // emitUpdate: false — don't echo remote content back as a new save
+                editor.commands.setContent(content, { emitUpdate: false });
             }
         } else {
             const currentJson = JSON.stringify(editor.getJSON());
             if (currentJson !== incomingJson) {
-                editor.commands.setContent(content);
+                editor.commands.setContent(content, { emitUpdate: false });
             }
         }
     }, [content, editor]);
 
-    // Cleanup
+    // Cleanup — flush (not drop) the last debounced edit, e.g. on navigation.
+    // useEditor defers its destroy, so the editor is still readable here.
     useEffect(() => {
         return () => {
+            flushRef.current();
             if (debounceRef.current) clearTimeout(debounceRef.current);
         };
     }, []);

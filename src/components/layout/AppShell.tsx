@@ -74,8 +74,18 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                 setUserMenuOpen(false);
             }
         };
+        const handleKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setUserMenuOpen(false);
+                setMobileMenuOpen(false);
+            }
+        };
         document.addEventListener('mousedown', handleClick);
-        return () => document.removeEventListener('mousedown', handleClick);
+        document.addEventListener('keydown', handleKey);
+        return () => {
+            document.removeEventListener('mousedown', handleClick);
+            document.removeEventListener('keydown', handleKey);
+        };
     }, []);
 
     const initials = profile?.full_name
@@ -93,6 +103,10 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
             member: 'bg-[var(--badge-member-bg)] text-[var(--badge-member-text)]'
         }[profile.role]
         : '';
+
+    // Section match on path segment boundary (so /compare doesn't light up /comps, etc.)
+    const isSection = (base: string) => pathname === base || pathname.startsWith(`${base}/`);
+    const isPursuitsActive = pathname === '/' || isSection('/pursuits');
 
     const navLinkClass = (active: boolean) =>
         `flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${active
@@ -124,32 +138,32 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                         </Link>
 
                         <nav className="hidden md:flex items-center gap-1">
-                            <Link href="/" className={navLinkClass(pathname === '/')}>
+                            <Link href="/" className={navLinkClass(isPursuitsActive)}>
                                 <LayoutDashboard className="w-4 h-4" />
                                 Pursuits
                             </Link>
 
-                            <Link href="/explore" className={navLinkClass(pathname === '/explore')}>
+                            <Link href="/explore" className={navLinkClass(isSection('/explore'))}>
                                 <Compass className="w-4 h-4" />
                                 Explore
                             </Link>
-                            <Link href="/comps" className={navLinkClass(pathname.startsWith('/comps'))}>
+                            <Link href="/comps" className={navLinkClass(isSection('/comps'))}>
                                 <Landmark className="w-4 h-4" />
                                 Comps
                             </Link>
-                            <Link href="/reports" className={navLinkClass(pathname === '/reports')}>
+                            <Link href="/reports" className={navLinkClass(isSection('/reports'))}>
                                 <FileSpreadsheet className="w-4 h-4" />
                                 Reports
                             </Link>
-                            <Link href="/analytics" className={navLinkClass(pathname === '/analytics')}>
+                            <Link href="/analytics" className={navLinkClass(isSection('/analytics'))}>
                                 <TrendingUp className="w-4 h-4" />
                                 Analytics
                             </Link>
-                            <Link href="/compare" className={navLinkClass(pathname === '/compare')}>
+                            <Link href="/compare" className={navLinkClass(isSection('/compare'))}>
                                 <BarChart3 className="w-4 h-4" />
                                 Compare
                             </Link>
-                            <Link href="/tasks" className={navLinkClass(pathname.startsWith('/tasks'))}>
+                            <Link href="/tasks" className={navLinkClass(isSection('/tasks'))}>
                                 <CheckSquare className="w-4 h-4" />
                                 Tasks
                             </Link>
@@ -195,6 +209,7 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                             className="md:hidden flex items-center justify-center w-8 h-8 rounded-md text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] transition-colors"
                             aria-label="Toggle menu"
+                            aria-expanded={mobileMenuOpen}
                         >
                             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                         </button>
@@ -218,6 +233,9 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                         <div className="hidden md:block relative" ref={userMenuRef}>
                             <button
                                 onClick={() => setUserMenuOpen(!userMenuOpen)}
+                                aria-haspopup="menu"
+                                aria-expanded={userMenuOpen}
+                                aria-label="User menu"
                                 className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full hover:bg-[var(--bg-elevated)] transition-colors"
                             >
                                 <div className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-xs font-bold text-white">
@@ -277,32 +295,32 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
             {mobileMenuOpen && (
                 <div className="md:hidden fixed inset-0 top-14 z-40 bg-[var(--bg-card)] border-t border-[var(--border)]">
                     <nav className="flex flex-col p-4 gap-1">
-                        <Link href="/" className={mobileNavLinkClass(pathname === '/')} onClick={() => setMobileMenuOpen(false)}>
+                        <Link href="/" className={mobileNavLinkClass(isPursuitsActive)} onClick={() => setMobileMenuOpen(false)}>
                             <LayoutDashboard className="w-5 h-5" />
                             Pursuits
                         </Link>
 
-                        <Link href="/explore" className={mobileNavLinkClass(pathname === '/explore')} onClick={() => setMobileMenuOpen(false)}>
+                        <Link href="/explore" className={mobileNavLinkClass(isSection('/explore'))} onClick={() => setMobileMenuOpen(false)}>
                             <Compass className="w-5 h-5" />
                             Explore
                         </Link>
-                        <Link href="/comps" className={mobileNavLinkClass(pathname.startsWith('/comps'))} onClick={() => setMobileMenuOpen(false)}>
+                        <Link href="/comps" className={mobileNavLinkClass(isSection('/comps'))} onClick={() => setMobileMenuOpen(false)}>
                             <Landmark className="w-5 h-5" />
                             Comps
                         </Link>
-                        <Link href="/reports" className={mobileNavLinkClass(pathname === '/reports')} onClick={() => setMobileMenuOpen(false)}>
+                        <Link href="/reports" className={mobileNavLinkClass(isSection('/reports'))} onClick={() => setMobileMenuOpen(false)}>
                             <FileSpreadsheet className="w-5 h-5" />
                             Reports
                         </Link>
-                        <Link href="/analytics" className={mobileNavLinkClass(pathname === '/analytics')} onClick={() => setMobileMenuOpen(false)}>
+                        <Link href="/analytics" className={mobileNavLinkClass(isSection('/analytics'))} onClick={() => setMobileMenuOpen(false)}>
                             <TrendingUp className="w-5 h-5" />
                             Analytics
                         </Link>
-                        <Link href="/compare" className={mobileNavLinkClass(pathname === '/compare')} onClick={() => setMobileMenuOpen(false)}>
+                        <Link href="/compare" className={mobileNavLinkClass(isSection('/compare'))} onClick={() => setMobileMenuOpen(false)}>
                             <BarChart3 className="w-5 h-5" />
                             Compare
                         </Link>
-                        <Link href="/tasks" className={mobileNavLinkClass(pathname.startsWith('/tasks'))} onClick={() => setMobileMenuOpen(false)}>
+                        <Link href="/tasks" className={mobileNavLinkClass(isSection('/tasks'))} onClick={() => setMobileMenuOpen(false)}>
                             <CheckSquare className="w-5 h-5" />
                             Tasks
                         </Link>

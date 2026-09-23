@@ -33,19 +33,24 @@ export function AddToPursuitButton({ compId, compType, linkedPursuitIds = [] }: 
 
     const filtered = useMemo(() => {
         if (!search.trim()) return pursuits.slice(0, 10);
-        const q = search.toLowerCase();
+        const q = search.trim().toLowerCase();
         return pursuits
-            .filter((p) => p.name.toLowerCase().includes(q) || p.city?.toLowerCase().includes(q) || p.address?.toLowerCase().includes(q))
+            .filter((p) => (p.name ?? '').toLowerCase().includes(q) || p.city?.toLowerCase().includes(q) || p.address?.toLowerCase().includes(q))
             .slice(0, 10);
     }, [pursuits, search]);
 
     const handleLink = (pursuitId: string) => {
-        if (compType === 'land') {
-            linkLand.mutate({ pursuitId, landCompId: compId });
-        } else {
-            linkSale.mutate({ pursuitId, saleCompId: compId });
-        }
+        // Show "Linked" immediately, but roll it back if the link fails
         setRecentlyAdded((prev) => new Set(prev).add(pursuitId));
+        const onError = (err: unknown) => {
+            setRecentlyAdded((prev) => { const next = new Set(prev); next.delete(pursuitId); return next; });
+            alert(`Failed to link comp: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        };
+        if (compType === 'land') {
+            linkLand.mutate({ pursuitId, landCompId: compId }, { onError });
+        } else {
+            linkSale.mutate({ pursuitId, saleCompId: compId }, { onError });
+        }
     };
 
     const isLinked = (pursuitId: string) =>

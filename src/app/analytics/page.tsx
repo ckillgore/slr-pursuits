@@ -33,19 +33,31 @@ import type { Pursuit, PursuitStage, PursuitStageHistory } from '@/types';
 // ── Time Period ──────────────────────────────────────────────
 type TimePeriod = 'ytd' | 'prior_year' | 'all_time' | 'custom';
 
+/** Parse a <input type="date"> value (YYYY-MM-DD) as a LOCAL calendar date. */
+function parseLocalDate(value: string, endOfDay = false): Date | null {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (!m) return null;
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (endOfDay) d.setHours(23, 59, 59, 999);
+    return d;
+}
+
 function getDateRange(period: TimePeriod, customStart?: string, customEnd?: string): { start: Date; end: Date } {
     const now = new Date();
     switch (period) {
         case 'ytd':
             return { start: new Date(now.getFullYear(), 0, 1), end: now };
         case 'prior_year':
-            return { start: new Date(now.getFullYear() - 1, 0, 1), end: new Date(now.getFullYear() - 1, 11, 31) };
+            // End is the last millisecond of Dec 31 (midnight Dec 31 dropped that whole day)
+            return { start: new Date(now.getFullYear() - 1, 0, 1), end: new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59, 999) };
         case 'all_time':
-            return { start: new Date(2020, 0, 1), end: now };
+            return { start: new Date(0), end: now };
         case 'custom':
+            // new Date('YYYY-MM-DD') is UTC midnight — the previous evening in US time zones —
+            // and the end date excluded everything created on that day. Use local, inclusive bounds.
             return {
-                start: customStart ? new Date(customStart) : new Date(now.getFullYear(), 0, 1),
-                end: customEnd ? new Date(customEnd) : now,
+                start: (customStart && parseLocalDate(customStart)) || new Date(now.getFullYear(), 0, 1),
+                end: (customEnd && parseLocalDate(customEnd, true)) || now,
             };
     }
 }
@@ -96,7 +108,13 @@ export default function AnalyticsPage() {
     }, [analyticsData]);
 
     // Date range
-    const { start: dateStart, end: dateEnd } = getDateRange(period, customStart, customEnd);
+    // Memoized so the filter memos below aren't invalidated by a fresh `now` on every render
+    const { start: dateStart, end: dateEnd } = useMemo(
+        () => getDateRange(period, customStart, customEnd),
+        // analyticsData: recompute `now` when fresh data arrives
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [period, customStart, customEnd, analyticsData]
+    );
 
     // ── Filtered pursuits ──────────────────────────────────
     const filteredPursuits = useMemo(() => {

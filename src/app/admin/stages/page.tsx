@@ -22,12 +22,12 @@ export default function StagesPage() {
 
     const [showAdd, setShowAdd] = useState(false);
     const [newName, setNewName] = useState('');
-    const [newColor, setNewColor] = useState('var(--text-secondary)');
+    const [newColor, setNewColor] = useState('#64748B');
 
     const handleAdd = () => {
         if (!newName.trim()) return;
         upsertMutation.mutate({ name: newName.trim(), sort_order: stages.length + 1, color: newColor, is_active: true, counts_toward_forecast: true });
-        setNewName(''); setNewColor('var(--text-secondary)'); setShowAdd(false);
+        setNewName(''); setNewColor('#64748B'); setShowAdd(false);
     };
 
     return (
@@ -42,7 +42,7 @@ export default function StagesPage() {
                 </div>
                 {isLoading && <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-[var(--border-strong)]" /></div>}
                 <div className="space-y-2">
-                    {stages.sort((a, b) => a.sort_order - b.sort_order).map((stage) => (
+                    {[...stages].sort((a, b) => a.sort_order - b.sort_order).map((stage) => (
                         <div key={stage.id} className="card flex flex-wrap items-center gap-2 sm:gap-4">
                             <GripVertical className="w-4 h-4 text-[var(--border-strong)] cursor-grab" />
                             <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />

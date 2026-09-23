@@ -22,7 +22,17 @@ type FilterStatus = 'all' | 'incomplete' | 'complete';
 export function TasksClient() {
     const { profile } = useAuth();
     const { data: tasks = [], isLoading } = useMyTasks(profile?.id);
-    const [selectedTask, setSelectedTask] = useState<PursuitChecklistTask | null>(null);
+    // Track the selected task by id and read it from the live query data so the
+    // detail panel reflects edits (a stored snapshot never updated after a change).
+    const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+    const [selectedSnapshot, setSelectedSnapshot] = useState<PursuitChecklistTask | null>(null);
+    const selectedTask = selectedTaskId
+        ? (tasks.find(t => t.id === selectedTaskId) ?? selectedSnapshot)
+        : null;
+    const setSelectedTask = (t: PursuitChecklistTask | null) => {
+        setSelectedTaskId(t?.id ?? null);
+        setSelectedSnapshot(t);
+    };
     
     // Toolbar State
     const [searchQuery, setSearchQuery] = useState('');
@@ -77,9 +87,14 @@ export function TasksClient() {
                 return (a.name || '').localeCompare(b.name || '');
             }
             // Due Date Sorting (Default)
-            const dateA = a.due_date ? new Date(a.due_date).getTime() : (sortBy === 'due_date_asc' ? Infinity : -Infinity);
-            const dateB = b.due_date ? new Date(b.due_date).getTime() : (sortBy === 'due_date_asc' ? Infinity : -Infinity);
-            
+            // Tasks without a due date always sort last (Infinity - Infinity is NaN, so handle ties explicitly)
+            if (!a.due_date || !b.due_date) {
+                if (a.due_date) return -1;
+                if (b.due_date) return 1;
+                return (a.name || '').localeCompare(b.name || '');
+            }
+            const dateA = new Date(a.due_date).getTime();
+            const dateB = new Date(b.due_date).getTime();
             if (sortBy === 'due_date_asc') return dateA - dateB;
             return dateB - dateA; // due_date_desc
         });
@@ -87,7 +102,9 @@ export function TasksClient() {
 
 
     const daysUntil = (dateStr: string) => {
-        const target = new Date(dateStr);
+        // due_date is a calendar date; new Date('YYYY-MM-DD') is UTC midnight, which is the
+        // previous local day in US timezones (tasks showed overdue a day early)
+        const target = new Date(dateStr.slice(0, 10) + 'T00:00:00');
         target.setHours(0, 0, 0, 0);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -95,7 +112,7 @@ export function TasksClient() {
     };
 
     const formatDate = (dateStr: string) => {
-        const date = new Date(dateStr);
+        const date = new Date(dateStr.slice(0, 10) + 'T00:00:00Z');
         return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(date);
     };
 
@@ -203,7 +220,7 @@ export function TasksClient() {
                         </div>
                     ) : (
                         processedTasks.map(task => {
-                            const cfg = STATUS_CONFIG[task.status];
+                            const cfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.not_started;
                             const overdue = task.due_date && task.status !== 'complete' && task.status !== 'not_applicable' && daysUntil(task.due_date) < 0;
                             const isSelected = selectedTask?.id === task.id;
                             const pursuitName = (task as any).pursuit?.name || 'Unknown Pursuit';

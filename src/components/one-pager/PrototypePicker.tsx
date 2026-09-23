@@ -19,7 +19,7 @@ interface PrototypePickerProps {
 }
 
 export function PrototypePicker({ onSelect, onClose }: PrototypePickerProps) {
-    const { data: prototypes = [], isLoading } = useUnitPrototypes();
+    const { data: prototypes = [], isLoading, isError } = useUnitPrototypes();
     const [search, setSearch] = useState('');
     const [activeCategory, setActiveCategory] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -141,6 +141,10 @@ export function PrototypePicker({ onSelect, onClose }: PrototypePickerProps) {
                     <div className="flex items-center justify-center py-12">
                         <Loader2 className="w-5 h-5 animate-spin text-[var(--text-faint)]" />
                     </div>
+                ) : isError ? (
+                    <div className="text-center py-12 text-xs text-[var(--danger)]">
+                        Couldn&rsquo;t load the prototype library. Try again later.
+                    </div>
                 ) : grouped.size === 0 ? (
                     <div className="text-center py-12 text-xs text-[var(--text-faint)]">
                         No prototypes found{search ? ` for "${search}"` : ''}
@@ -223,7 +227,7 @@ export function FloorPlanButton({ unitTypeLabel, floorPlanUrl }: FloorPlanButton
     // Try direct URL first, then match by display_name
     const url = floorPlanUrl || (() => {
         const match = prototypes.find(p =>
-            p.display_name.toLowerCase() === unitTypeLabel.toLowerCase()
+            p.display_name.toLowerCase() === (unitTypeLabel ?? '').toLowerCase()
         );
         return match?.floor_plan_url ?? null;
     })();

@@ -24,7 +24,7 @@ export default function KeyDateTypesPage() {
     const [showAdd, setShowAdd] = useState(false);
     const [newName, setNewName] = useState('');
     const [newCategory, setNewCategory] = useState<KeyDateCategory>('contract');
-    const [newColor, setNewColor] = useState('var(--text-secondary)');
+    const [newColor, setNewColor] = useState('#64748B');
 
     const handleAdd = () => {
         if (!newName.trim()) return;
@@ -37,7 +37,7 @@ export default function KeyDateTypesPage() {
         });
         setNewName('');
         setNewCategory('contract');
-        setNewColor('var(--text-secondary)');
+        setNewColor('#64748B');
         setShowAdd(false);
     };
 

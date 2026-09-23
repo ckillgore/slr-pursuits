@@ -19,7 +19,11 @@ export default function CommentTrigger({ entityType, entityId, className }: Comm
     return (
         <div className={`relative ${className || ''}`}>
             <button
-                onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+                // Keep the panel's outside-click handler from closing it on mousedown and
+                // this click immediately reopening it — the trigger itself toggles.
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
+                aria-expanded={open}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border ${open
                     ? 'bg-[var(--accent-subtle)] text-[var(--accent)] border-[var(--accent)]/30 shadow-sm'
                     : 'text-[var(--text-secondary)] bg-[var(--bg-primary)] border-[var(--border)] hover:text-[var(--accent)] hover:bg-[var(--accent-subtle)] hover:border-[var(--accent)]/30'

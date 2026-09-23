@@ -11,6 +11,10 @@
 --    Only honor the metadata role for invited users, and never 'owner'.
 -- 3. task-files storage policies had no role restriction, so the public anon
 --    key could list/read/upload/overwrite/delete every task attachment.
+--    External portal users no longer need anon access: list/upload/download
+--    go through token-checked server actions in app/portal/task/[token]/
+--    actions.ts (uploads use service-role-issued signed upload URLs, which
+--    bypass these policies). Deploy that code before applying this.
 -- 4. external_task_parties and pursuit_team_members were readable by anon
 --    (FOR SELECT USING (true) with no TO clause). The external portal reads
 --    through the service-role client, so anon access is not needed.

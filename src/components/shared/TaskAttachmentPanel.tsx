@@ -1,16 +1,61 @@
 import { useState, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTaskAttachments, useCreateTaskAttachment, useDeleteTaskAttachment } from '@/hooks/useSupabaseQueries';
 import { createClient } from '@/lib/supabase/client';
+import {
+    listExternalAttachments,
+    createExternalUploadUrl,
+    finalizeExternalUpload,
+    getExternalDownloadUrl,
+} from '@/app/portal/task/[token]/actions';
 import { Paperclip, Download, Trash2, File as FileIcon, Loader2, Image as ImageIcon, FileText, Plus } from 'lucide-react';
 import type { TaskAttachment } from '@/types';
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // matches the "up to 50MB" hint below
 
+/** Row shape shared by the internal (RLS) and external (portal action) sources. */
+type AttachmentRow = {
+    id: string;
+    file_name: string;
+    content_type: string | null;
+    size_bytes: number | null;
+    uploaderName: string | null;
+    storage_path?: string; // internal only — portal users never see storage paths
+};
+
+/**
+ * Internal users read/write attachments directly under RLS. External portal
+ * users have no Supabase session, so when `externalToken` is set every
+ * operation goes through the token-checked portal server actions instead.
+ */
 export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId: string; externalToken?: string }) {
-    const { data: attachments = [], isLoading } = useTaskAttachments(taskId);
+    const isExternal = !!externalToken;
+    const queryClient = useQueryClient();
+    const internalQuery = useTaskAttachments(isExternal ? '' : taskId);
+    const externalQueryKey = ['portal-attachments', externalToken] as const;
+    const externalQuery = useQuery({
+        queryKey: externalQueryKey,
+        queryFn: async () => {
+            const res = await listExternalAttachments(externalToken!);
+            if (res.error) throw new Error(res.error);
+            return res.attachments ?? [];
+        },
+        enabled: isExternal,
+    });
+    const isLoading = isExternal ? externalQuery.isLoading : internalQuery.isLoading;
+    const attachments: AttachmentRow[] = isExternal
+        ? (externalQuery.data ?? []).map(a => ({ ...a, uploaderName: a.uploader_name }))
+        : (internalQuery.data ?? []).map((a: TaskAttachment) => ({
+            id: a.id,
+            file_name: a.file_name,
+            content_type: a.content_type,
+            size_bytes: a.size_bytes,
+            storage_path: a.storage_path,
+            uploaderName: a.uploader?.full_name || a.uploader_external?.name || null,
+        }));
     const createAttachment = useCreateTaskAttachment();
     const deleteAttachment = useDeleteTaskAttachment();
-    
+
     const [isDragging, setIsDragging] = useState(false);
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -43,6 +88,27 @@ export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId:
             return;
         }
         setUploading(true);
+        if (externalToken) {
+            try {
+                const prep = await createExternalUploadUrl(externalToken, file.name, file.size);
+                if (prep.error || !prep.path || !prep.uploadToken) throw new Error(prep.error || 'Failed to prepare upload');
+                const { error: uploadError } = await supabase.storage
+                    .from('task-files')
+                    .uploadToSignedUrl(prep.path, prep.uploadToken, file, { contentType: file.type || undefined });
+                if (uploadError) throw uploadError;
+                const done = await finalizeExternalUpload(externalToken, prep.path, file.name);
+                if (done.error) throw new Error(done.error);
+                await queryClient.invalidateQueries({ queryKey: externalQueryKey });
+            } catch (err) {
+                console.error('Failed to upload file:', err);
+                const msg = err instanceof Error ? err.message : (err as { message?: string })?.message;
+                alert(`Failed to upload file${msg ? `: ${msg}` : ''}. Please try again.`);
+            } finally {
+                setUploading(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            }
+            return;
+        }
         let uploadedPath: string | null = null;
         try {
             // Generate unique path. Only a sanitized extension from the user's file name is
@@ -70,19 +136,9 @@ export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId:
                 size_bytes: file.size,
             };
 
-            // Identify uploader
-            if (externalToken) {
-                // If we are in the external portal, we need an edge-case to get their party ID
-                // For this implementation, we will fetch the task to get the assigned_external_party_id
-                const { data: taskData } = await supabase.from('pursuit_checklist_tasks').select('assigned_external_party_id').eq('id', taskId).single();
-                if (taskData) {
-                    payload.uploaded_by_external_party_id = taskData.assigned_external_party_id;
-                }
-            } else {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (user) {
-                    payload.uploaded_by = user.id;
-                }
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                payload.uploaded_by = user.id;
             }
 
             await createAttachment.mutateAsync(payload);
@@ -101,7 +157,17 @@ export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId:
         }
     };
 
-    const handleDownload = async (attachment: TaskAttachment) => {
+    const handleDownload = async (attachment: AttachmentRow) => {
+        if (externalToken) {
+            const res = await getExternalDownloadUrl(externalToken, attachment.id);
+            if (res.error || !res.url) {
+                alert(res.error || 'Could not download file.');
+                return;
+            }
+            window.open(res.url, '_blank');
+            return;
+        }
+        if (!attachment.storage_path) return;
         const { data, error } = await supabase.storage.from('task-files').createSignedUrl(attachment.storage_path, 3600); // 1 hour link
         if (error || !data) {
             alert('Could not download file.');
@@ -134,7 +200,7 @@ export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId:
                 </div>
             ) : attachments.length > 0 ? (
                 <div className="border border-[var(--border)] rounded-lg divide-y divide-[var(--table-row-border)] bg-[var(--bg-card)]">
-                    {attachments.map((att: any) => (
+                    {attachments.map((att) => (
                         <div key={att.id} className="flex items-center justify-between p-3 hover:bg-[var(--bg-elevated)] transition-colors group">
                             <div className="flex items-center gap-3 min-w-0">
                                 {getIcon(att.content_type)}
@@ -144,7 +210,7 @@ export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId:
                                         <span>{formatBytes(att.size_bytes || 0)}</span>
                                         <span>•</span>
                                         <span className="truncate">
-                                            {att.uploader?.full_name || att.uploader_external?.name || 'System Generated'}
+                                            {att.uploaderName || 'System Generated'}
                                         </span>
                                     </p>
                                 </div>
@@ -161,8 +227,10 @@ export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId:
                                                     // Delete the record first: if that fails, the file is still
                                                     // downloadable instead of leaving a record pointing at nothing.
                                                     await deleteAttachment.mutateAsync({ id: att.id, taskId });
-                                                    const { error: storageError } = await supabase.storage.from('task-files').remove([att.storage_path]);
-                                                    if (storageError) console.error("Storage delete failed", storageError);
+                                                    if (att.storage_path) {
+                                                        const { error: storageError } = await supabase.storage.from('task-files').remove([att.storage_path]);
+                                                        if (storageError) console.error("Storage delete failed", storageError);
+                                                    }
                                                 } catch (e) {
                                                     console.error(e);
                                                     alert('Failed to delete file. Please try again.');

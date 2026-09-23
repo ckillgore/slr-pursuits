@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
             console.error('[hellodata/search] API error:', response.status, errorText.slice(0, 200));
             return NextResponse.json(
                 { error: `Search failed (${response.status})` },
-                { status: response.status }
+                { status: 502 }
             );
         }
 

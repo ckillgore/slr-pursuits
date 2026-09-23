@@ -25,7 +25,9 @@ export async function GET() {
 
         // Get all auth users for last_sign_in_at
         const adminClient = createAdminClient();
-        const { data: authData, error: authError } = await adminClient.auth.admin.listUsers();
+        // listUsers() defaults to 50 per page — request a large page so users
+        // beyond the first 50 still get last_sign_in / confirmation data.
+        const { data: authData, error: authError } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
 
         if (authError) {
             console.error('List users error:', authError);
@@ -159,8 +161,17 @@ export async function PATCH(request: Request) {
         const body = await request.json();
         const { userId, role, is_active } = body;
 
-        if (!userId) {
+        if (!userId || typeof userId !== 'string') {
             return NextResponse.json({ error: 'userId is required.' }, { status: 400 });
+        }
+
+        if (is_active !== undefined && typeof is_active !== 'boolean') {
+            return NextResponse.json({ error: 'is_active must be a boolean.' }, { status: 400 });
+        }
+
+        // Prevent owner from deactivating themselves (would lock out user management)
+        if (userId === user.id && is_active === false) {
+            return NextResponse.json({ error: 'Cannot deactivate your own account.' }, { status: 400 });
         }
 
         // Prevent owner from changing their own role
@@ -180,15 +191,39 @@ export async function PATCH(request: Request) {
             updates.is_active = is_active;
         }
 
+        if (Object.keys(updates).length === 0) {
+            return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });
+        }
+
         // Use admin client to bypass RLS for updating other users' profiles
         const adminClient = createAdminClient();
-        const { error } = await adminClient
+        const { data: updatedRows, error } = await adminClient
             .from('user_profiles')
             .update(updates)
-            .eq('id', userId);
+            .eq('id', userId)
+            .select('id');
 
         if (error) {
             return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+        if (!updatedRows || updatedRows.length === 0) {
+            return NextResponse.json({ error: 'User not found.' }, { status: 404 });
+        }
+
+        // is_active is only a profile flag — nothing else checks it — so enforce
+        // deactivation at the auth layer by banning / unbanning the auth user.
+        // A ban blocks sign-in and token refresh.
+        if (is_active !== undefined) {
+            const { error: banError } = await adminClient.auth.admin.updateUserById(userId, {
+                ban_duration: is_active ? 'none' : '876000h',
+            });
+            if (banError) {
+                console.error('Update user ban status error:', banError);
+                return NextResponse.json(
+                    { error: 'Profile updated, but failed to update sign-in access.' },
+                    { status: 500 }
+                );
+            }
         }
 
         return NextResponse.json({ success: true });

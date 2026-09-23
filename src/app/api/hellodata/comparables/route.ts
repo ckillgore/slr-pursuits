@@ -41,16 +41,19 @@ export async function POST(req: NextRequest) {
         let payload: Record<string, unknown>;
 
         if (hellodataId) {
+            if (typeof hellodataId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(hellodataId)) {
+                return NextResponse.json({ error: 'Invalid hellodataId' }, { status: 400 });
+            }
             // Option 1: Use full property details from Hellodata as subject
             // First fetch the property (this is a paid call, but usually already cached)
             const propResponse = await fetch(
-                `https://api.hellodata.ai/property/${hellodataId}`,
+                `https://api.hellodata.ai/property/${encodeURIComponent(hellodataId)}`,
                 { headers: { 'x-api-key': apiKey } }
             );
             if (!propResponse.ok) {
                 return NextResponse.json(
                     { error: `Failed to fetch subject property: ${propResponse.status}` },
-                    { status: propResponse.status }
+                    { status: 502 }
                 );
             }
             const subject = await propResponse.json();
@@ -97,7 +100,7 @@ export async function POST(req: NextRequest) {
             console.error('[hellodata/comparables] API error:', response.status, errorText.slice(0, 200));
             return NextResponse.json(
                 { error: `Comparables lookup failed (${response.status})` },
-                { status: response.status }
+                { status: 502 }
             );
         }
 

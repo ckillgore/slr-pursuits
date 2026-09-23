@@ -11,7 +11,7 @@ export async function POST(request: Request) {
 
     try {
         const { pursuitId } = await request.json();
-        if (!pursuitId) {
+        if (!pursuitId || typeof pursuitId !== 'string') {
             return NextResponse.json({ error: 'pursuitId is required' }, { status: 400 });
         }
 
@@ -118,8 +118,9 @@ export async function POST(request: Request) {
         let mapImageBuffer: Buffer | null = null;
         if (MAPBOX_TOKEN && pursuit.latitude && pursuit.longitude) {
             try {
-                const lng = pursuit.longitude;
-                const lat = pursuit.latitude;
+                const lng = Number(pursuit.longitude);
+                const lat = Number(pursuit.latitude);
+                if (!Number.isFinite(lng) || !Number.isFinite(lat)) throw new Error('Invalid coordinates');
                 const mapUrl = `https://api.mapbox.com/styles/v1/mapbox/light-v11/static/pin-l+2563EB(${lng},${lat})/${lng},${lat},14,0/800x500@2x?access_token=${MAPBOX_TOKEN}&attribution=false&logo=false`;
                 const mapRes = await fetch(mapUrl);
                 if (mapRes.ok) {
@@ -176,7 +177,7 @@ export async function POST(request: Request) {
         const docxBuffer = await buildMemoDocx(docxData);
 
         // ──── 8. Return as downloadable file ────
-        const filename = `Deal_Summary_${pursuit.name.replace(/[^a-zA-Z0-9]/g, '_')}.docx`;
+        const filename = `Deal_Summary_${String(pursuit.name ?? 'Pursuit').replace(/[^a-zA-Z0-9]/g, '_')}.docx`;
 
         return new NextResponse(new Uint8Array(docxBuffer), {
             status: 200,

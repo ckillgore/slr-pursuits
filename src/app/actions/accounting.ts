@@ -3,6 +3,78 @@
 import { createYardiClient } from '@/lib/supabase/yardi-client';
 import { createClient } from '@/lib/supabase/server';
 
+// ------------------------------------------------------------
+// Auth / input guards
+// Server actions are publicly reachable POST endpoints, so every
+// exported action must verify the caller and validate its inputs.
+// ------------------------------------------------------------
+
+/**
+ * PostgREST caps un-ranged selects at db-max-rows (1000 by default) without
+ * erroring, so an unpaged transaction pull silently understates actuals for
+ * any pursuit — or the whole portfolio — past that count. `build` must return
+ * a fresh query each call with a deterministic order (unique tie-breaker).
+ */
+const PAGE_SIZE = 1000;
+async function fetchAllRows<T>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    build: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }> }
+): Promise<{ data: T[]; error: unknown }> {
+    const all: T[] = [];
+    for (;;) {
+        const from = all.length;
+        const { data, error } = await build().range(from, from + PAGE_SIZE - 1);
+        if (error) return { data: all, error };
+        if (!data?.length) break;
+        all.push(...data);
+    }
+    return { data: all, error: null };
+}
+
+async function requireUser() {
+    const supabase = await createClient();
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) {
+        throw new Error('Unauthorized');
+    }
+    return { supabase, user };
+}
+
+async function requireAdminUser() {
+    const { supabase, user } = await requireUser();
+    const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+    if (profile?.role !== 'owner' && profile?.role !== 'admin') {
+        throw new Error('Forbidden');
+    }
+    return { supabase, user };
+}
+
+const MAX_IDS = 500;
+
+/** Coerce an untrusted value into a bounded list of non-empty strings. */
+function toStringList(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value
+        .filter((v): v is string | number => typeof v === 'string' || typeof v === 'number')
+        .map(v => String(v).trim())
+        .filter(v => v.length > 0 && v.length <= 64)
+        .slice(0, MAX_IDS);
+}
+
+/**
+ * Strip characters that have meaning inside a PostgREST `.or()` filter
+ * string (commas, parens, quotes, backslashes) and LIKE wildcards, so user
+ * search text can't inject extra filter clauses.
+ */
+function sanitizeSearch(value: unknown): string {
+    if (typeof value !== 'string') return '';
+    return value.replace(/[,()"'\\%*:]/g, ' ').trim().slice(0, 100);
+}
+
 export type YardiGLAccountSummary = {
     account_code: string;
     account_name: string;
@@ -20,15 +92,18 @@ export type YardiPursuitCostSummary = {
 };
 
 export async function fetchPursuitGLTotals(propertyCodes: string[]): Promise<YardiPursuitCostSummary[]> {
+    await requireUser();
+    propertyCodes = toStringList(propertyCodes);
     if (!propertyCodes.length) return [];
     const client = createYardiClient();
 
-    const { data: rows, error } = await client
+    const { data: rows, error } = await fetchAllRows(() => client
         .from('gl_period_totals')
         .select('property_code, property_name, account_code, actual_period_amount, actual_beginning_balance, synced_at, financial_period')
         .in('property_code', propertyCodes)
         .in('account_code', ['11720000', '11410000', '11415000'])
-        .order('financial_period', { ascending: false });
+        .order('financial_period', { ascending: false })
+        .order('id'));
 
     if (error) {
         console.error('Failed to fetch GL Totals from Yardi:', error);
@@ -103,15 +178,18 @@ export type YardiDetailedGLSummary = {
 };
 
 export async function fetchEntityGLTotals(propertyCode: string): Promise<YardiDetailedGLSummary[]> {
+    await requireUser();
+    if (typeof propertyCode !== 'string') return [];
     if (!propertyCode) return [];
     const client = createYardiClient();
 
     // Fetch all accounts for this property
-    const { data: rows, error } = await client
+    const { data: rows, error } = await fetchAllRows(() => client
         .from('gl_period_totals')
         .select('account_code, account_name, actual_period_amount, actual_beginning_balance, financial_period')
         .eq('property_code', propertyCode)
-        .order('financial_period', { ascending: false });
+        .order('financial_period', { ascending: false })
+        .order('id'));
 
     if (error) {
         console.error(`Failed to fetch GL Totals for entity ${propertyCode}:`, error);
@@ -158,14 +236,16 @@ export async function fetchEntityGLTotals(propertyCode: string): Promise<YardiDe
 }
 
 export async function fetchAllPursuitGLTotals(): Promise<YardiPursuitCostSummary[]> {
+    await requireUser();
     const client = createYardiClient();
 
-    const { data: rows, error } = await client
+    const { data: rows, error } = await fetchAllRows(() => client
         .from('gl_period_totals')
         .select('property_code, property_name, account_code, account_name, actual_period_amount, actual_beginning_balance, synced_at, financial_period')
         .in('account_code', ['11720000', '11410000', '11415000'])
         .like('property_code', '11%') // pursuits start with 11
-        .order('financial_period', { ascending: false });
+        .order('financial_period', { ascending: false })
+        .order('id'));
 
     if (error) {
         console.error('Failed to fetch Global GL Totals from Yardi:', error);
@@ -255,6 +335,8 @@ export type YardiJobCostMatrixRow = {
 };
 
 export async function fetchJobCostMatrix(jobIds: string[]): Promise<YardiJobCostMatrixRow[]> {
+    await requireUser();
+    jobIds = toStringList(jobIds);
     if (!jobIds.length) return [];
     const client = createYardiClient();
 
@@ -288,6 +370,8 @@ export async function fetchJobCostMatrix(jobIds: string[]): Promise<YardiJobCost
 }
 
 export async function fetchPursuitJobCosts(jobIds: string[]): Promise<YardiJobCostTransaction[]> {
+    await requireUser();
+    jobIds = toStringList(jobIds);
     if (!jobIds.length) return [];
     const client = createYardiClient();
 
@@ -305,15 +389,16 @@ export async function fetchPursuitJobCosts(jobIds: string[]): Promise<YardiJobCo
     const jobCodes = Object.values(jobCodeMap).filter(Boolean);
     const queryIds = Array.from(new Set([...jobIds, ...jobCodes]));
 
-    const { data: rows, error } = await client
+    const { data: rows, error } = await fetchAllRows(() => client
         .from('jobcost_transactions')
         .select('*')
         .in('job_id', queryIds)
-        .order('post_date', { ascending: false });
+        .order('post_date', { ascending: false })
+        .order('id'));
 
     if (error) {
         console.error('Failed to fetch Job Costs from Yardi:', error);
-        throw new Error(`Failed to fetch job cost data: ${error.message || JSON.stringify(error)}`);
+        throw new Error('Failed to fetch job cost data');
     }
 
     const safeRows = (rows || []).map(r => ({
@@ -326,6 +411,8 @@ export async function fetchPursuitJobCosts(jobIds: string[]): Promise<YardiJobCo
 }
 
 export async function fetchJobsForProperty(propertyCode: string): Promise<string[]> {
+    await requireUser();
+    if (typeof propertyCode !== 'string' || !propertyCode) return [];
     const client = createYardiClient();
     
     // First find the internal property_id
@@ -360,6 +447,8 @@ export type YardiPropertyOption = {
 };
 
 export async function fetchYardiProperties(search?: string): Promise<YardiPropertyOption[]> {
+    await requireUser();
+    search = sanitizeSearch(search);
     const client = createYardiClient();
     
     let query = client.from('properties').select('property_code, property_name').order('property_code', { ascending: true }).limit(50);
@@ -388,6 +477,8 @@ export type YardiJobOption = {
 };
 
 export async function fetchYardiJobs(search?: string): Promise<YardiJobOption[]> {
+    await requireUser();
+    search = sanitizeSearch(search);
     const client = createYardiClient();
     
     let query = client.from('jobs').select('job_id, job_code, job_description').order('job_code', { ascending: true }).limit(50);
@@ -428,14 +519,17 @@ export type YardiMonthlyCostAggregate = {
 export async function fetchMonthlyJobCostAggregates(
     jobIds: string[]
 ): Promise<YardiMonthlyCostAggregate[]> {
+    await requireUser();
+    jobIds = toStringList(jobIds);
     if (!jobIds.length) return [];
     const client = createYardiClient();
 
     // Fetch all transactions for these jobs
-    const { data: txRows, error: txError } = await client
+    const { data: txRows, error: txError } = await fetchAllRows(() => client
         .from('jobcost_transactions')
         .select('cost_category_code, post_date, amount')
-        .in('job_id', jobIds);
+        .in('job_id', jobIds)
+        .order('id'));
 
     if (txError) {
         console.error('Failed to fetch job cost transactions for aggregation:', txError);
@@ -443,9 +537,10 @@ export async function fetchMonthlyJobCostAggregates(
     }
 
     // Fetch category mappings for name resolution
-    const { data: mappings } = await client
+    const { data: mappings } = await fetchAllRows(() => client
         .from('jobcost_category_mapping')
-        .select('category_code, category_name, cost_group');
+        .select('category_code, category_name, cost_group')
+        .order('category_code'));
 
     const mappingLookup = new Map<string, { name: string; group: string }>();
     for (const m of (mappings || [])) {
@@ -489,6 +584,10 @@ export async function fetchMonthlyJobCostAggregates(
         }
         aggregateMap.get(groupKey)!.total_amount += amount;
 
+        // A bare 2-char code is its own group: detailKey === groupKey, so
+        // aggregating again would add the amount to the same entry twice.
+        if (detailKey === groupKey) continue;
+
         // Detail-level aggregation (for drill-down)
         if (!aggregateMap.has(detailKey)) {
             const mapping = mappingLookup.get(code);
@@ -513,7 +612,7 @@ export async function fetchMonthlyJobCostAggregates(
  */
 export async function fetchAllPortfolioJobCostAggregates(): Promise<Record<string, YardiMonthlyCostAggregate[]>> {
     // 1. Fetch all accounting entities from SLR Supabase
-    const slrClient = await createClient();
+    const { supabase: slrClient } = await requireUser();
     const { data: accEntities } = await slrClient
         .from('pursuit_accounting_entities')
         .select('pursuit_id, property_code');
@@ -582,15 +681,17 @@ export async function fetchAllPortfolioJobCostAggregates(): Promise<Record<strin
     if (!allJobIds.size) return {};
 
     // 4. Fetch all transactions for those combined job IDs
-    const { data: txRows } = await client
+    const { data: txRows } = await fetchAllRows(() => client
         .from('jobcost_transactions')
         .select('job_id, cost_category_code, post_date, amount')
-        .in('job_id', Array.from(allJobIds));
+        .in('job_id', Array.from(allJobIds))
+        .order('id'));
 
     // 5. Fetch code mappings
-    const { data: mappings } = await client
+    const { data: mappings } = await fetchAllRows(() => client
         .from('jobcost_category_mapping')
-        .select('category_code, category_name, cost_group');
+        .select('category_code, category_name, cost_group')
+        .order('category_code'));
     const mappingLookup = new Map<string, { name: string; group: string }>();
     for (const m of (mappings || [])) {
         mappingLookup.set(m.category_code, { name: m.category_name, group: m.cost_group });
@@ -646,12 +747,13 @@ export type CategoryMappingEntry = {
 };
 
 export async function fetchCategoryMappings(): Promise<CategoryMappingEntry[]> {
+    await requireUser();
     const client = createYardiClient();
 
-    const { data, error } = await client
+    const { data, error } = await fetchAllRows(() => client
         .from('jobcost_category_mapping')
         .select('category_code, category_name, cost_group, is_group_header')
-        .order('category_code');
+        .order('category_code'));
 
     if (error) {
         console.error('Failed to fetch category mappings:', error);
@@ -665,11 +767,23 @@ export async function updateCategoryMapping(
     categoryCode: string,
     updates: { category_name?: string; cost_group?: string }
 ): Promise<void> {
+    await requireAdminUser();
+
+    if (typeof categoryCode !== 'string' || !categoryCode) {
+        throw new Error('categoryCode is required');
+    }
+
+    // Whitelist updatable columns — `updates` comes straight from the caller.
+    const safeUpdates: { category_name?: string; cost_group?: string } = {};
+    if (typeof updates?.category_name === 'string') safeUpdates.category_name = updates.category_name;
+    if (typeof updates?.cost_group === 'string') safeUpdates.cost_group = updates.cost_group;
+    if (Object.keys(safeUpdates).length === 0) return;
+
     const client = createYardiClient();
 
     const { error } = await client
         .from('jobcost_category_mapping')
-        .update(updates)
+        .update(safeUpdates)
         .eq('category_code', categoryCode);
 
     if (error) {

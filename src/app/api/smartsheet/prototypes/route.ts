@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/app/api/_lib/auth';
 
 // ============================================================
 // Smartsheet Unit Prototype Inventory API
@@ -92,6 +93,9 @@ let cacheTimestamp = 0;
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 export async function GET() {
+    const auth = await requireAuth();
+    if (auth.response) return auth.response;
+
     try {
         const apiKey = process.env.SMARTSHEET_API_KEY || process.env.SS_TOKEN;
         const sheetId = process.env.SMARTSHEET_PROTOTYPE_SHEET_ID;

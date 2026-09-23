@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { AlertCircle, LogIn, Loader2 } from 'lucide-react';
 
@@ -14,16 +14,23 @@ import { AlertCircle, LogIn, Loader2 } from 'lucide-react';
 export function SessionGuard({ children }: { children: React.ReactNode }) {
     const { isSessionLost, isLoading, user, signOut } = useAuth();
     const [countdown, setCountdown] = useState(5);
+    // Guard so the countdown only triggers one signOut() — re-renders caused by
+    // the sign-out itself would otherwise re-run this effect at countdown 0.
+    const signingOutRef = useRef(false);
 
     // Auto-redirect countdown when session is lost
     useEffect(() => {
         if (!isSessionLost) {
             setCountdown(5);
+            signingOutRef.current = false;
             return;
         }
 
         if (countdown <= 0) {
-            signOut();
+            if (!signingOutRef.current) {
+                signingOutRef.current = true;
+                signOut();
+            }
             return;
         }
 

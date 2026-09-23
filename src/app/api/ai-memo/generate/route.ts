@@ -69,7 +69,8 @@ export async function POST(request: Request) {
 
     try {
         const payload = await request.json();
-        const pursuitId = payload.pursuitData?.id; // UUID from the Database
+        const rawPursuitId = payload?.pursuitData?.id; // UUID from the Database
+        const pursuitId = typeof rawPursuitId === 'string' ? rawPursuitId : null;
         
         // --- 1. Aggregation / Context String ---
         // Strip out massive GeoJSON, coordinate arrays, and raw API responses that blow up the token count
@@ -109,7 +110,7 @@ export async function POST(request: Request) {
                     role: 'user',
                     parts: [
                         { text: GEMINI_ANALYST_PROMPT },
-                        { text: "\\n\\nRAW PURSUIT DATA:\\n" + rawJsonString }
+                        { text: "\n\nRAW PURSUIT DATA:\n" + rawJsonString }
                     ],
                 },
             ],
@@ -139,12 +140,17 @@ export async function POST(request: Request) {
         });
 
         let htmlContent = '';
-        if (claudeResponse.content[0].type === 'text') {
-            htmlContent = claudeResponse.content[0].text;
+        const firstBlock = claudeResponse.content[0];
+        if (firstBlock && firstBlock.type === 'text') {
+            htmlContent = firstBlock.text;
         }
 
         // Clean up markdown fences if Claude ignored instructions
-        htmlContent = htmlContent.replace(/\\`\\`\\`html\\n/g, '').replace(/\\`\\`\\`/g, '').trim();
+        // (the previous regex matched literal backslashes, so it never stripped anything)
+        htmlContent = htmlContent.replace(/```html\s*/g, '').replace(/```/g, '').trim();
+        if (!htmlContent) {
+            return NextResponse.json({ error: 'Memo generation returned no content' }, { status: 502 });
+        }
         console.log('[AI Memo] Pass 2 complete. HTML length: %d chars', htmlContent.length);
 
         // --- 3.5. Save to Supabase ---

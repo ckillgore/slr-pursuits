@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
+import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 
 /**
@@ -71,7 +72,10 @@ export async function proxy(request: NextRequest) {
         // If the user has auth cookies but getUser() failed, this is likely a
         // transient error (network blip, Supabase outage). Let the request
         // through — the client-side AuthProvider will handle recovery.
-        if (error && hasAuthCookies) {
+        // Only for retryable (network) errors — an invalid/revoked refresh
+        // token or a banned user must still be sent to /login, otherwise stale
+        // cookies would bypass this check indefinitely.
+        if (error && hasAuthCookies && isAuthRetryableFetchError(error)) {
             console.warn('[Proxy] getUser failed but auth cookies exist — allowing through:', error.message);
             return supabaseResponse;
         }

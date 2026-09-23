@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireAuth } from '@/app/api/_lib/auth';
 import { HELLODATA_CACHE_TTL_DAYS } from '@/lib/calculations/hellodataCalculations';
+import { refreshHellodataProperty } from '@/lib/hellodata/refresh-property';
 
 /**
  * POST /api/hellodata/refresh
@@ -24,6 +25,16 @@ export async function POST() {
     }
 
     const supabase = await createClient();
+
+    // Batch refresh spends paid HelloData requests — admins/owners only.
+    const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('id', user!.id)
+        .single();
+    if (profile?.role !== 'owner' && profile?.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     try {
         // 1. Find all properties linked to pursuits with active stages
@@ -68,23 +79,15 @@ export async function POST() {
         // 2. Refresh each property via the cache endpoint
         for (const [hellodataId] of uniqueIds) {
             try {
-                // Call our own property endpoint with forceRefresh
-                const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-                const response = await fetch(
-                    `${baseUrl}/api/hellodata/property?hellodataId=${hellodataId}&forceRefresh=true`,
-                    {
-                        headers: {
-                            // Forward auth cookies
-                            cookie: '',
-                        },
-                    }
-                );
+                // Call the shared refresh utility directly. (Previously this
+                // self-fetched /api/hellodata/property with no auth cookies,
+                // so every call 401'd.)
+                const result = await refreshHellodataProperty(supabase, hellodataId, apiKey, user?.id);
 
-                if (response.ok) {
+                if (result.success) {
                     results.push({ hellodataId, status: 'success' });
                 } else {
-                    const err = await response.text();
-                    results.push({ hellodataId, status: 'error', error: err });
+                    results.push({ hellodataId, status: 'error', error: result.error });
                 }
 
                 // Respectful rate limiting — small delay between calls

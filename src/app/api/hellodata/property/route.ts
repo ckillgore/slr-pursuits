@@ -40,6 +40,11 @@ export async function GET(req: NextRequest) {
     if (!hellodataId) {
         return NextResponse.json({ error: 'hellodataId is required' }, { status: 400 });
     }
+    // hellodataId is interpolated into the upstream URL path — restrict it to a
+    // safe charset so callers can't traverse to other HelloData endpoints.
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(hellodataId)) {
+        return NextResponse.json({ error: 'Invalid hellodataId' }, { status: 400 });
+    }
 
     // Use admin client for cron calls (bypasses RLS), regular client for user calls
     const supabase = isCronCall ? createAdminClient() : await createClient();

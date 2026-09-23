@@ -4,12 +4,12 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
 interface UnmappedPropertyCostsPageProps {
-    params: {
+    params: Promise<{
         property_code: string;
-    };
-    searchParams?: {
+    }>;
+    searchParams?: Promise<{
         name?: string;
-    };
+    }>;
 }
 
 export default async function UnmappedPropertyCostsPage({ params, searchParams }: UnmappedPropertyCostsPageProps) {
@@ -38,7 +38,7 @@ export default async function UnmappedPropertyCostsPage({ params, searchParams }
                             {name}
                         </h1>
                         <p className="text-sm text-[var(--text-secondary)] mt-1">
-                            Accounting Details Code: {params.property_code}
+                            Accounting Details Code: {property_code}
                         </p>
                     </div>
                 </div>

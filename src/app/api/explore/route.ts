@@ -41,7 +41,15 @@ export async function GET(request: Request) {
             );
         }
 
-        const zNum = parseInt(z);
+        // z/x/y are interpolated into the upstream URL path — require plain integers
+        if (!/^\d{1,2}$/.test(z) || !/^\d{1,8}$/.test(x) || !/^\d{1,8}$/.test(y)) {
+            return NextResponse.json(
+                { error: 'z, x, y must be integers' },
+                { status: 400 }
+            );
+        }
+
+        const zNum = parseInt(z, 10);
         if (zNum < 10 || zNum > 21) {
             return NextResponse.json(
                 { error: 'Zoom level must be between 10 and 21' },
@@ -71,7 +79,7 @@ export async function GET(request: Request) {
             console.error(`[Explore Tile] Regrid error z=${z} x=${x} y=${y}: status=${res.status} body=${errBody.slice(0, 500)}`);
             return NextResponse.json(
                 { error: `Regrid tile server error: ${res.status}` },
-                { status: res.status }
+                { status: 502 }
             );
         }
 
@@ -81,8 +89,9 @@ export async function GET(request: Request) {
             status: 200,
             headers: {
                 'Content-Type': 'application/vnd.mapbox-vector-tile',
-                'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
-                'Access-Control-Allow-Origin': '*',
+                // Auth-gated data: allow browser caching only, never shared caches,
+                // and don't open it up to cross-origin reads.
+                'Cache-Control': 'private, max-age=3600, stale-while-revalidate=86400',
             },
         });
     } catch (err: any) {

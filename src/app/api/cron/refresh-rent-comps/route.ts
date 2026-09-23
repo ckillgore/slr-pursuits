@@ -18,7 +18,13 @@ export async function GET(req: Request) {
     // Verify cron secret (Vercel sets this header for cron invocations)
     const authHeader = req.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    // Fail closed: if CRON_SECRET isn't configured, nobody can trigger this
+    // (it uses the service-role client and spends paid HelloData requests).
+    if (!cronSecret) {
+        console.error('[cron] CRON_SECRET is not configured — refusing to run');
+        return NextResponse.json({ error: 'Cron not configured' }, { status: 500 });
+    }
+    if (authHeader !== `Bearer ${cronSecret}`) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -159,6 +165,6 @@ export async function GET(req: Request) {
         });
     } catch (err: any) {
         console.error('[cron] Unexpected error:', err);
-        return NextResponse.json({ error: err.message }, { status: 500 });
+        return NextResponse.json({ error: err?.message ?? 'Unexpected error' }, { status: 500 });
     }
 }

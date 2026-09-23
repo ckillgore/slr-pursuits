@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import type { User, AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 export type UserRole = 'owner' | 'admin' | 'member';
@@ -116,6 +117,12 @@ export function AuthProvider({
 
                 if (error) {
                     console.warn('[Auth] getUser error:', error.message);
+                    // A network blip is not a sign-out: keep whatever SSR gave us
+                    // rather than bouncing the user to /login.
+                    if (isAuthRetryableFetchError(error)) {
+                        setIsLoading(false);
+                        return;
+                    }
                     setUser(null);
                     setProfile(null);
                     setIsLoading(false);
@@ -272,6 +279,12 @@ export function AuthProvider({
 
             try {
                 const { data: { user: healthUser }, error } = await supabase.auth.getUser();
+                if (error && isAuthRetryableFetchError(error)) {
+                    // getUser() returns (not throws) network errors — don't treat
+                    // a transient outage as a lost session.
+                    console.warn('[Auth] Session health check: network error');
+                    return;
+                }
                 if (error || !healthUser) {
                     console.warn('[Auth] Session health check failed:', error?.message ?? 'no user');
                     // If we previously had a session, mark it as lost so the UI
@@ -311,7 +324,7 @@ export function AuthProvider({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const signOut = async () => {
+    const signOut = useCallback(async () => {
         try {
             await supabase.auth.signOut();
         } catch (err) {
@@ -327,7 +340,15 @@ export function AuthProvider({
         if (!window.location.pathname.startsWith('/portal')) {
             window.location.href = '/login';
         }
-    };
+    }, [supabase]);
+
+    // Deactivated accounts (is_active = false) must not keep using the app.
+    useEffect(() => {
+        if (profile && profile.is_active === false) {
+            console.warn('[Auth] Account is deactivated — signing out');
+            signOut();
+        }
+    }, [profile, signOut]);
 
     const isOwner = profile?.role === 'owner';
     const isAdmin = profile?.role === 'admin';

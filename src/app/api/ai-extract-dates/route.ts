@@ -47,6 +47,11 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Only PDF files are supported' }, { status: 400 });
         }
 
+        // Gemini inline data is capped at ~20MB; reject oversized uploads early.
+        if (file.size > 20 * 1024 * 1024) {
+            return NextResponse.json({ error: 'PDF must be 20MB or smaller' }, { status: 413 });
+        }
+
         // Convert file to base64
         const bytes = await file.arrayBuffer();
         const base64Data = Buffer.from(bytes).toString('base64');
@@ -101,6 +106,7 @@ export async function POST(request: Request) {
         }
 
         // Validate and normalize results
+        if (!Array.isArray(dates)) dates = [];
         const normalized = dates
             .filter((d: any) => d && typeof d === 'object')
             .map((d: any) => ({

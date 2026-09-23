@@ -67,10 +67,13 @@ export function useHellodataSearch() {
     const [isSearching, setIsSearching] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Incremented per search; responses from superseded searches are discarded
+    const requestIdRef = useRef(0);
 
     const search = useCallback((query: string, filters?: { state?: string; zip_code?: string }) => {
         // Clear previous debounce
         if (debounceRef.current) clearTimeout(debounceRef.current);
+        const requestId = ++requestIdRef.current;
 
         if (!query || query.length < 2) {
             setResults([]);
@@ -89,23 +92,27 @@ export function useHellodataSearch() {
 
                 const response = await fetch(`/api/hellodata/search?${params.toString()}`);
                 if (!response.ok) {
-                    const err = await response.json();
+                    const err = await response.json().catch(() => ({}));
                     throw new Error(err.error || `Search failed: ${response.status}`);
                 }
                 const data = await response.json();
+                if (requestId !== requestIdRef.current) return;
                 setResults(Array.isArray(data) ? data : []);
             } catch (err) {
+                if (requestId !== requestIdRef.current) return;
                 setSearchError(err instanceof Error ? err.message : 'Search failed');
                 setResults([]);
             } finally {
-                setIsSearching(false);
+                if (requestId === requestIdRef.current) setIsSearching(false);
             }
         }, 300);
     }, []);
 
     const clearResults = useCallback(() => {
+        requestIdRef.current++;
         setResults([]);
         setSearchError(null);
+        setIsSearching(false);
         if (debounceRef.current) clearTimeout(debounceRef.current);
     }, []);
 
@@ -113,6 +120,7 @@ export function useHellodataSearch() {
     useEffect(() => {
         return () => {
             if (debounceRef.current) clearTimeout(debounceRef.current);
+            requestIdRef.current++;
         };
     }, []);
 
@@ -127,7 +135,7 @@ export function useHellodataProperty(hellodataId: string | null) {
     return useQuery<{ property: HellodataProperty; source: 'cache' | 'api' }>({
         queryKey: hellodataKeys.property(hellodataId ?? ''),
         queryFn: async () => {
-            const response = await fetch(`/api/hellodata/property?hellodataId=${hellodataId}`);
+            const response = await fetch(`/api/hellodata/property?${new URLSearchParams({ hellodataId: hellodataId! }).toString()}`);
             if (!response.ok) {
                 const err = await response.json();
                 throw new Error(err.error || `Property fetch failed`);
@@ -158,11 +166,19 @@ export function useFetchHellodataProperty() {
             }
             return response.json();
         },
-        onSuccess: (data) => {
+        onSuccess: (data, { forceRefresh }) => {
             queryClient.setQueryData(
                 hellodataKeys.property(data.property.hellodata_id),
                 data
             );
+            if (forceRefresh) {
+                // Refreshed property data is also shown via these DB-backed views
+                queryClient.invalidateQueries({ queryKey: hellodataKeys.allProperties() });
+                if (data.property.id) {
+                    queryClient.invalidateQueries({ queryKey: hellodataKeys.propertyDetail(data.property.id) });
+                }
+                queryClient.invalidateQueries({ queryKey: ['pursuit-rent-comps'] });
+            }
         },
     });
 }
@@ -175,6 +191,7 @@ export function useFindComparables() {
     const [comparables, setComparables] = useState<HellodataComparable[]>([]);
     const [isFinding, setIsFinding] = useState(false);
     const [findError, setFindError] = useState<string | null>(null);
+    const requestIdRef = useRef(0);
 
     const findComparables = useCallback(async (
         hellodataId: string,
@@ -187,6 +204,7 @@ export function useFindComparables() {
             topN?: number;
         }
     ) => {
+        const requestId = ++requestIdRef.current;
         setIsFinding(true);
         setFindError(null);
         try {
@@ -196,20 +214,24 @@ export function useFindComparables() {
                 body: JSON.stringify({ hellodataId, ...filters }),
             });
             if (!response.ok) {
-                const err = await response.json();
+                const err = await response.json().catch(() => ({}));
                 throw new Error(err.error || 'Comparables search failed');
             }
             const data = await response.json();
+            if (requestId !== requestIdRef.current) return;
             setComparables(Array.isArray(data) ? data : []);
         } catch (err) {
+            if (requestId !== requestIdRef.current) return;
             setFindError(err instanceof Error ? err.message : 'Failed to find comparables');
             setComparables([]);
         } finally {
-            setIsFinding(false);
+            if (requestId === requestIdRef.current) setIsFinding(false);
         }
     }, []);
 
     const clearComparables = useCallback(() => {
+        requestIdRef.current++;
+        setIsFinding(false);
         setComparables([]);
         setFindError(null);
     }, []);
@@ -238,8 +260,9 @@ export function useLinkRentComp() {
     >({
         mutationFn: ({ pursuitId, propertyId, notes }) =>
             queries.linkRentCompToPursuit(pursuitId, propertyId, notes),
-        onSuccess: (_, { pursuitId }) => {
+        onSuccess: (_, { pursuitId, propertyId }) => {
             queryClient.invalidateQueries({ queryKey: hellodataKeys.rentComps(pursuitId) });
+            queryClient.invalidateQueries({ queryKey: hellodataKeys.linkedPursuits(propertyId) });
         },
     });
 }
@@ -253,8 +276,9 @@ export function useUnlinkRentComp() {
     >({
         mutationFn: ({ pursuitId, propertyId }) =>
             queries.unlinkRentCompFromPursuit(pursuitId, propertyId),
-        onSuccess: (_, { pursuitId }) => {
+        onSuccess: (_, { pursuitId, propertyId }) => {
             queryClient.invalidateQueries({ queryKey: hellodataKeys.rentComps(pursuitId) });
+            queryClient.invalidateQueries({ queryKey: hellodataKeys.linkedPursuits(propertyId) });
         },
     });
 }
@@ -300,9 +324,10 @@ export function useUpdateCompType() {
                 );
             }
         },
-        onSettled: (_, __, { pursuitId }) => {
+        onSettled: (_, __, { pursuitId, propertyId }) => {
             // Always refetch after mutation settles to ensure server state is in sync
             queryClient.invalidateQueries({ queryKey: hellodataKeys.rentComps(pursuitId) });
+            queryClient.invalidateQueries({ queryKey: hellodataKeys.linkedPursuits(propertyId) });
         },
     });
 }

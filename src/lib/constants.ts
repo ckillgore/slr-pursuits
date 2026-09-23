@@ -27,7 +27,12 @@ export const DEFAULT_HARD_COST_STEPS = [-15, -10, -5, 0, 5, 10, 15];
 export const DEFAULT_LAND_COST_STEPS = [-2_000_000, -1_000_000, -500_000, 0, 500_000, 1_000_000, 2_000_000];
 
 // --- Formatting Helpers ---
+// Divide-by-zero / missing inputs upstream produce NaN or Infinity; render a dash
+// instead of "$NaN" / "NaN%" / "$∞".
+const NON_FINITE = '—';
+
 export const formatCurrency = (value: number, decimals = 0): string => {
+    if (!Number.isFinite(value)) return NON_FINITE;
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
@@ -37,10 +42,12 @@ export const formatCurrency = (value: number, decimals = 0): string => {
 };
 
 export const formatPercent = (value: number, decimals = 2): string => {
+    if (!Number.isFinite(value)) return NON_FINITE;
     return `${(value * 100).toFixed(decimals)}%`;
 };
 
 export const formatNumber = (value: number, decimals = 0): string => {
+    if (!Number.isFinite(value)) return NON_FINITE;
     return new Intl.NumberFormat('en-US', {
         minimumFractionDigits: decimals,
         maximumFractionDigits: decimals,
@@ -48,11 +55,16 @@ export const formatNumber = (value: number, decimals = 0): string => {
 };
 
 export const formatCurrencyCompact = (value: number): string => {
-    if (Math.abs(value) >= 1_000_000) {
-        return `$${(value / 1_000_000).toFixed(1)}M`;
+    if (!Number.isFinite(value)) return NON_FINITE;
+    // Sign goes before the "$" ("-$1.5M", not "$-1.5M")
+    const sign = value < 0 ? '-' : '';
+    const abs = Math.abs(value);
+    // 999,600 would otherwise render as "$1000K"
+    if (abs >= 999_500) {
+        return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
     }
-    if (Math.abs(value) >= 1_000) {
-        return `$${(value / 1_000).toFixed(0)}K`;
+    if (abs >= 1_000) {
+        return `${sign}$${(abs / 1_000).toFixed(0)}K`;
     }
     return formatCurrency(value);
 };

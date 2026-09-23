@@ -30,16 +30,26 @@ function applyFilters(rows: ReportRow[], config: ReportConfig, stages?: PursuitS
 
             const rawValue = fieldDef.getValue(row, stages);
             const strValue = rawValue != null ? String(rawValue).toLowerCase() : '';
-            const filterVal = filter.value.toLowerCase();
+            const filterVal = (filter.value ?? '').toLowerCase();
+            // Numeric comparisons: empty/null values must not coerce to 0 and match
+            const isNumericOp = filter.operator === 'gt' || filter.operator === 'lt' || filter.operator === 'gte' || filter.operator === 'lte';
+            if (isNumericOp) {
+                if (rawValue == null || rawValue === '' || filter.value == null || filter.value.trim() === '') return false;
+                const a = Number(rawValue);
+                const b = Number(filter.value);
+                if (isNaN(a) || isNaN(b)) return false;
+                switch (filter.operator) {
+                    case 'gt': return a > b;
+                    case 'lt': return a < b;
+                    case 'gte': return a >= b;
+                    case 'lte': return a <= b;
+                }
+            }
 
             switch (filter.operator) {
                 case 'equals': return strValue === filterVal;
                 case 'not_equals': return strValue !== filterVal;
                 case 'contains': return strValue.includes(filterVal);
-                case 'gt': return Number(rawValue) > Number(filter.value);
-                case 'lt': return Number(rawValue) < Number(filter.value);
-                case 'gte': return Number(rawValue) >= Number(filter.value);
-                case 'lte': return Number(rawValue) <= Number(filter.value);
                 case 'in': {
                     const vals = (filter.values ?? []).map(v => v.toLowerCase());
                     return vals.length === 0 || vals.includes(strValue);
@@ -112,7 +122,7 @@ function computeAggregates(
             let count = 0;
             for (const row of rows) {
                 const v = fieldDef.getValue(row, stages);
-                if (v !== null && v !== '' && !isNaN(Number(v))) {
+                if (v != null && v !== '' && !isNaN(Number(v))) {
                     sum += Number(v);
                     count++;
                 }
@@ -135,9 +145,12 @@ function applySorting(rows: ReportRow[], config: ReportConfig, stages?: PursuitS
     return [...rows].sort((a, b) => {
         const va = fieldDef.getValue(a, stages);
         const vb = fieldDef.getValue(b, stages);
-        if (va === null && vb === null) return 0;
-        if (va === null) return 1;
-        if (vb === null) return -1;
+        // Nulls/empties always sort last regardless of direction
+        const aEmpty = va == null || va === '';
+        const bEmpty = vb == null || vb === '';
+        if (aEmpty && bEmpty) return 0;
+        if (aEmpty) return 1;
+        if (bEmpty) return -1;
         if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
         return String(va).localeCompare(String(vb)) * dir;
     });

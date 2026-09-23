@@ -46,6 +46,33 @@ import type {
 
 const supabase = createClient();
 
+/**
+ * PostgREST silently caps un-ranged selects at 1000 rows (db-max-rows).
+ * For portfolio-wide fetches that must return the full set, page through with
+ * .range() until an empty page comes back. `build` must return a fresh query
+ * each call, with a deterministic order (add a unique tie-breaker like `id`).
+ *
+ * Advances by rows actually received rather than PAGE_SIZE, so a server
+ * db-max-rows below PAGE_SIZE still pages correctly instead of truncating.
+ */
+const PAGE_SIZE = 1000;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchAllPages<T = any>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    build: () => { range: (from: number, to: number) => PromiseLike<{ data: any; error: any }> }
+): Promise<T[]> {
+    const all: T[] = [];
+    for (;;) {
+        const from = all.length;
+        const { data, error } = await build().range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        const rows = (data ?? []) as T[];
+        if (rows.length === 0) break;
+        all.push(...rows);
+    }
+    return all;
+}
+
 // ============================================================
 // Pursuit Stages
 // ============================================================
@@ -115,8 +142,10 @@ export async function deleteProductType(id: string) {
 
 export async function fetchPursuits(): Promise<Pursuit[]> {
     // Run both queries in parallel — no need to wait for pursuits before fetching one-pagers
-    const [pursuitsResult, onePagersResult] = await Promise.all([
-        supabase
+    // Both are paged — the 1000-row PostgREST cap would otherwise silently drop
+    // one-pagers and leave pursuits showing no YOC/units.
+    const [data, allOnePagers] = await Promise.all([
+        fetchAllPages(() => supabase
             .from('pursuits')
             // Only select columns the dashboard actually uses — skip large JSON blobs
             // (demographics, parcel_data, drive_time_data, income_heatmap_data,
@@ -129,17 +158,14 @@ export async function fetchPursuits(): Promise<Pursuit[]> {
                 pursuit_stages(*)
             `)
             .eq('is_archived', false)
-            .order('updated_at', { ascending: false }),
-        supabase
+            .order('updated_at', { ascending: false })
+            .order('id')),
+        fetchAllPages<{ id: string; pursuit_id: string; calc_yoc: number | null; total_units: number | null }>(() => supabase
             .from('one_pagers')
             .select('id, pursuit_id, calc_yoc, total_units')
-            .eq('is_archived', false),
+            .eq('is_archived', false)
+            .order('id')),
     ]);
-
-    const { data, error } = pursuitsResult;
-    if (error) throw error;
-    const { data: allOnePagers, error: opError } = onePagersResult;
-    if (opError) throw opError;
 
     // Index one-pagers by pursuit_id
     const opsByPursuit = new Map<string, typeof allOnePagers>();
@@ -326,10 +352,12 @@ export async function duplicateOnePager(sourceId: string, newName: string): Prom
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } = source as any;
 
-    // 3. Insert new one-pager
+    // 3. Insert new one-pager — owned by the current user and never archived,
+    // even when duplicating someone else's (or an archived) one-pager
+    const { data: { user } } = await supabase.auth.getUser();
     const { data: newOP, error: opError } = await supabase
         .from('one_pagers')
-        .insert({ ...assumptions, name: newName })
+        .insert({ ...assumptions, name: newName, created_by: user?.id ?? null, is_archived: false })
         .select()
         .single();
     if (opError) throw opError;
@@ -404,10 +432,10 @@ export async function archiveOnePager(id: string) {
  */
 export async function deleteOnePager(id: string) {
     // Delete children first (in case no cascade constraint)
-    await supabase.from('one_pager_unit_mix').delete().eq('one_pager_id', id);
-    await supabase.from('one_pager_payroll').delete().eq('one_pager_id', id);
-    await supabase.from('one_pager_soft_cost_detail').delete().eq('one_pager_id', id);
-    await supabase.from('unit_premiums').delete().eq('one_pager_id', id);
+    for (const table of ['one_pager_unit_mix', 'one_pager_payroll', 'one_pager_soft_cost_detail', 'unit_premiums']) {
+        const { error: childError } = await supabase.from(table).delete().eq('one_pager_id', id);
+        if (childError) throw childError;
+    }
     const { error } = await supabase.from('one_pagers').delete().eq('id', id);
     if (error) throw error;
 }
@@ -617,13 +645,16 @@ export async function fetchReportTemplates(): Promise<ReportTemplate[]> {
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id;
 
-    // Fetch templates visible to this user: their own OR shared companywide
-    const { data, error } = await supabase
+    // Fetch templates visible to this user: their own OR shared companywide.
+    // Without a user, `created_by.eq.undefined` is an invalid uuid and the whole query errors.
+    let query = supabase
         .from('report_templates')
         .select('*')
-        .eq('is_archived', false)
-        .or(`created_by.eq.${userId},is_shared.eq.true`)
-        .order('name');
+        .eq('is_archived', false);
+    query = userId
+        ? query.or(`created_by.eq.${userId},is_shared.eq.true`)
+        : query.eq('is_shared', true);
+    const { data, error } = await query.order('name');
     if (error) throw error;
     return data ?? [];
 }
@@ -710,20 +741,20 @@ export interface ReportRow {
 }
 
 export async function fetchReportData(): Promise<ReportRow[]> {
-    // Fetch all active pursuits with stage
-    const { data: pursuits, error: pError } = await supabase
-        .from('pursuits')
-        .select('*, pursuit_stages(*)')
-        .eq('is_archived', false)
-        .order('updated_at', { ascending: false });
-    if (pError) throw pError;
-
-    // Fetch all active one-pagers with product type
-    const { data: onePagers, error: opError } = await supabase
-        .from('one_pagers')
-        .select('*, product_types(name, density_low, density_high)')
-        .eq('is_archived', false);
-    if (opError) throw opError;
+    // Fetch all active pursuits with stage + all active one-pagers (paged past the 1000-row cap)
+    const [pursuits, onePagers] = await Promise.all([
+        fetchAllPages(() => supabase
+            .from('pursuits')
+            .select('*, pursuit_stages(*)')
+            .eq('is_archived', false)
+            .order('updated_at', { ascending: false })
+            .order('id')),
+        fetchAllPages(() => supabase
+            .from('one_pagers')
+            .select('*, product_types(name, density_low, density_high)')
+            .eq('is_archived', false)
+            .order('id')),
+    ]);
 
     // Index one-pagers by id and by pursuit_id
     const opById = new Map<string, OnePager>();
@@ -820,25 +851,26 @@ export interface AnalyticsData {
 
 export async function fetchAnalyticsData(): Promise<AnalyticsData> {
     // Fetch all pursuits with stages (including archived for historical analysis)
-    const { data: pursuits, error: pError } = await supabase
-        .from('pursuits')
-        .select('*, pursuit_stages(*)')
-        .order('created_at', { ascending: false });
-    if (pError) throw pError;
-
-    // Fetch all stage history
-    const { data: stageHistory, error: shError } = await supabase
-        .from('pursuit_stage_history')
-        .select('*')
-        .order('changed_at', { ascending: true });
-    if (shError) throw shError;
-
-    // Fetch one-pagers for product type association
-    const { data: onePagers, error: opError } = await supabase
-        .from('one_pagers')
-        .select('id, pursuit_id, product_type_id, product_types(name)')
-        .eq('is_archived', false);
-    if (opError) throw opError;
+    // All three are paged — stage history in particular easily exceeds the 1000-row cap
+    const [pursuits, stageHistory, onePagers] = await Promise.all([
+        fetchAllPages(() => supabase
+            .from('pursuits')
+            .select('*, pursuit_stages(*)')
+            .order('created_at', { ascending: false })
+            .order('id')),
+        // Fetch all stage history
+        fetchAllPages<import('@/types').PursuitStageHistory>(() => supabase
+            .from('pursuit_stage_history')
+            .select('*')
+            .order('changed_at', { ascending: true })
+            .order('id')),
+        // Fetch one-pagers for product type association
+        fetchAllPages(() => supabase
+            .from('one_pagers')
+            .select('id, pursuit_id, product_type_id, product_types(name)')
+            .eq('is_archived', false)
+            .order('id')),
+    ]);
 
     return {
         pursuits: (pursuits ?? []).map((p: any) => ({ ...p, stage: p.pursuit_stages } as Pursuit)),
@@ -852,12 +884,11 @@ export async function fetchAnalyticsData(): Promise<AnalyticsData> {
 // ============================================================
 
 export async function fetchLandComps(): Promise<LandComp[]> {
-    const { data, error } = await supabase
+    return fetchAllPages<LandComp>(() => supabase
         .from('land_comps')
         .select('*')
-        .order('updated_at', { ascending: false });
-    if (error) throw error;
-    return data ?? [];
+        .order('updated_at', { ascending: false })
+        .order('id'));
 }
 
 export async function fetchLandComp(id: string): Promise<LandComp> {
@@ -990,45 +1021,56 @@ export async function createPredevBudget(
         .single();
     if (error) throw error;
 
-    // Seed default line items
-    const { data: defaults, error: defaultsError } = await supabase
-        .from('default_predev_budget_line_items')
-        .select('*')
-        .order('sort_order');
-        
-    if (defaultsError) throw defaultsError;
+    // Seed default line items. If this fails, delete the budget header (line items
+    // cascade) so the pursuit isn't left with an empty budget that blocks re-creation
+    // (predev_budgets is UNIQUE on pursuit_id).
+    try {
+        const { data: defaults, error: defaultsError } = await supabase
+            .from('default_predev_budget_line_items')
+            .select('*')
+            .order('sort_order');
 
-    const lineItems = (defaults ?? []).map((li: any) => ({
-        budget_id: data.id,
-        category: li.category,
-        label: li.label,
-        sort_order: li.sort_order,
-        yardi_cost_groups: li.yardi_cost_groups,
-        is_custom: false,
-        monthly_values: {},
-    }));
+        if (defaultsError) throw defaultsError;
 
-    if (lineItems.length > 0) {
-        const { error: liError } = await supabase
-            .from('predev_budget_line_items')
-            .insert(lineItems);
-        if (liError) throw liError;
+        // Fall back to the built-in list if the admin defaults table is empty
+        const source = (defaults && defaults.length > 0) ? defaults : DEFAULT_LINE_ITEMS;
+        const lineItems = source.map((li: any) => ({
+            budget_id: data.id,
+            category: li.category,
+            label: li.label,
+            sort_order: li.sort_order,
+            yardi_cost_groups: li.yardi_cost_groups,
+            is_custom: false,
+            monthly_values: {},
+        }));
+
+        if (lineItems.length > 0) {
+            const { error: liError } = await supabase
+                .from('predev_budget_line_items')
+                .insert(lineItems);
+            if (liError) throw liError;
+        }
+    } catch (seedError) {
+        await supabase.from('predev_budgets').delete().eq('id', data.id);
+        throw seedError;
     }
 
     // Auto-create SLRH as default funding partner at 100%, ONLY if no partners exist
-    const { data: existingPartners } = await supabase
+    const { data: existingPartners, error: partnersError } = await supabase
         .from('pursuit_funding_partners')
         .select('id')
         .eq('pursuit_id', pursuitId)
         .limit(1);
+    if (partnersError) console.error('Failed to check funding partners', partnersError);
 
-    if (!existingPartners || existingPartners.length === 0) {
-        await supabase.from('pursuit_funding_partners').insert({
+    if (!partnersError && (!existingPartners || existingPartners.length === 0)) {
+        const { error: insertPartnerError } = await supabase.from('pursuit_funding_partners').insert({
             pursuit_id: pursuitId,
             name: 'SLRH',
             is_slrh: true,
             default_split_pct: 100,
         });
+        if (insertPartnerError) console.error('Failed to create default SLRH funding partner', insertPartnerError);
     }
 
     // Seed default schedule items
@@ -1144,12 +1186,13 @@ export async function addCustomLineItem(
     label: string,
 ): Promise<PredevBudgetLineItem> {
     // Get max sort_order
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
         .from('predev_budget_line_items')
         .select('sort_order')
         .eq('budget_id', budgetId)
         .order('sort_order', { ascending: false })
         .limit(1);
+    if (existingError) throw existingError;
     const maxSort = existing?.[0]?.sort_order ?? 16;
 
     const { data, error } = await supabase
@@ -1298,16 +1341,18 @@ export async function amendBudget(
     }
 
     // Determine revision number
-    const { data: amendments } = await supabase
+    const { data: amendments, error: revError } = await supabase
         .from('predev_budget_amendments')
         .select('revision_number')
         .eq('budget_id', budgetId)
         .order('revision_number', { ascending: false })
         .limit(1);
+    // Don't guess a revision number (and risk a duplicate "Rev 1") if the lookup failed
+    if (revError) throw revError;
     const nextRevision = (amendments?.[0]?.revision_number ?? 0) + 1;
 
     // Record the amendment
-    const { error: amendError } = await supabase
+    const { data: amendment, error: amendError } = await supabase
         .from('predev_budget_amendments')
         .insert({
             budget_id: budgetId,
@@ -1316,7 +1361,9 @@ export async function amendBudget(
             new_snapshot: newSnapshot,
             reason,
             amended_by: user?.id ?? null,
-        });
+        })
+        .select('id')
+        .single();
     if (amendError) throw amendError;
 
     // Update the budget with new snapshot
@@ -1327,7 +1374,11 @@ export async function amendBudget(
             snapshot_taken_at: new Date().toISOString(),
         })
         .eq('id', budgetId);
-    if (updateError) throw updateError;
+    if (updateError) {
+        // Roll back the amendment record so history doesn't claim a revision that never took effect
+        await supabase.from('predev_budget_amendments').delete().eq('id', amendment.id);
+        throw updateError;
+    }
 
     return (await fetchPredevBudget(pursuitId))!;
 }
@@ -1358,13 +1409,12 @@ export async function fetchFundingPartners(pursuitId: string): Promise<import('@
 }
 
 export async function fetchAllFundingPartners(): Promise<import('@/types').PursuitFundingPartner[]> {
-    const { data, error } = await supabase
+    return fetchAllPages<import('@/types').PursuitFundingPartner>(() => supabase
         .from('pursuit_funding_partners')
         .select('*')
         .order('is_slrh', { ascending: false })
-        .order('created_at');
-    if (error) throw error;
-    return data as import('@/types').PursuitFundingPartner[];
+        .order('created_at')
+        .order('id'));
 }
 
 export async function createFundingPartner(
@@ -1415,11 +1465,11 @@ export async function fetchFundingSplits(budgetId: string): Promise<import('@/ty
 }
 
 export async function fetchAllFundingSplits(): Promise<import('@/types').PursuitFundingSplit[]> {
-    const { data, error } = await supabase
+    // One row per budget × partner × month — routinely exceeds the 1000-row cap
+    return fetchAllPages<import('@/types').PursuitFundingSplit>(() => supabase
         .from('pursuit_funding_splits')
-        .select('*');
-    if (error) throw error;
-    return data as import('@/types').PursuitFundingSplit[];
+        .select('*')
+        .order('id'));
 }
 
 export async function upsertFundingSplit(
@@ -1546,7 +1596,7 @@ export interface KeyDateReportRow {
 
 export async function fetchKeyDateReportData(): Promise<KeyDateReportRow[]> {
     // Fetch all key dates with pursuit + stage
-    const { data, error } = await supabase
+    const data = await fetchAllPages(() => supabase
         .from('key_dates')
         .select(`
             *,
@@ -1554,8 +1604,8 @@ export async function fetchKeyDateReportData(): Promise<KeyDateReportRow[]> {
             pursuits!inner(id, name, region, stage_id, city, state, is_archived,
                 pursuit_stages(*))
         `)
-        .order('date_value');
-    if (error) throw error;
+        .order('date_value')
+        .order('id'));
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -1595,16 +1645,23 @@ export async function fetchKeyDateReportData(): Promise<KeyDateReportRow[]> {
             return d?.date_value ?? null;
         };
 
-        // Find next upcoming date
+        // Find next upcoming date.
+        // date_value is a plain 'YYYY-MM-DD'; `new Date('YYYY-MM-DD')` parses it as UTC
+        // midnight, which in US timezones is the previous local evening — so today's date
+        // was dropped from "upcoming" and daysUntil was off by one. Parse as a local date.
+        const localDate = (v: string) => {
+            const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
+            return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(v);
+        };
         const upcoming = dates
-            .filter(d => d.status === 'upcoming' && new Date(d.date_value) >= today)
-            .sort((a, b) => new Date(a.date_value).getTime() - new Date(b.date_value).getTime());
+            .filter(d => d.status === 'upcoming' && localDate(d.date_value) >= today)
+            .sort((a, b) => localDate(a.date_value).getTime() - localDate(b.date_value).getTime());
         const next = upcoming.length > 0 ? upcoming[0] : null;
         const nextLabel = next
             ? (next.key_date_type?.name ?? next.custom_label ?? 'Custom')
             : null;
         const nextDaysUntil = next
-            ? Math.ceil((new Date(next.date_value).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+            ? Math.round((localDate(next.date_value).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
             : 0;
 
         return {
@@ -1954,13 +2011,28 @@ export async function createTaskNote(taskId: string, content: string): Promise<T
 import type { TaskAttachment } from '@/types';
 
 export async function fetchTaskAttachments(taskId: string): Promise<TaskAttachment[]> {
+    // uploaded_by references auth.users, which PostgREST can't embed (auth schema isn't
+    // exposed) — so the old `uploader:auth.users!uploaded_by(...)` select errored and the
+    // panel never loaded. Resolve internal uploaders from user_profiles (same ids) instead.
     const { data, error } = await supabase
         .from('task_attachments')
-        .select('*, uploader:auth.users!uploaded_by(id, full_name, email), uploader_external:external_task_parties!uploaded_by_external_party_id(id, name, company)')
+        .select('*, uploader_external:external_task_parties!uploaded_by_external_party_id(id, name, company)')
         .eq('task_id', taskId)
         .order('created_at', { ascending: false });
     if (error) throw error;
-    return (data ?? []) as any[];
+    const rows = (data ?? []) as any[];
+    const uploaderIds = Array.from(new Set(rows.map(r => r.uploaded_by).filter(Boolean)));
+    if (uploaderIds.length === 0) return rows;
+    const { data: profiles, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, email')
+        .in('id', uploaderIds);
+    if (profileError) {
+        console.warn('Failed to resolve attachment uploaders:', profileError);
+        return rows;
+    }
+    const byId = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+    return rows.map(r => ({ ...r, uploader: r.uploaded_by ? byId.get(r.uploaded_by) : undefined }));
 }
 
 export async function createTaskAttachmentRecord(attachment: Partial<TaskAttachment>): Promise<TaskAttachment> {
@@ -2001,7 +2073,7 @@ import type { PursuitRentComp, HellodataProperty } from '@/types';
 
 /** Fetch ALL rent comps across all pursuits — for reports */
 export async function fetchAllRentComps(): Promise<ReportRow[]> {
-    const { data, error } = await supabase
+    const data = await fetchAllPages(() => supabase
         .from('pursuit_rent_comps')
         .select(`
             *,
@@ -2015,8 +2087,8 @@ export async function fetchAllRentComps(): Promise<ReportRow[]> {
                 concessions:hellodata_concessions(id, concession_text)
             )
         `)
-        .order('pursuit_id');
-    if (error) throw error;
+        .order('pursuit_id')
+        .order('id'));
 
     return (data ?? []).map((row: any) => ({
         pursuit: row.pursuit as Pursuit,
@@ -2122,7 +2194,8 @@ export async function fetchHellodataPropertyByHdId(hellodataId: string): Promise
 
 /** Fetch ALL Hellodata properties — lightweight for list/grid/map views */
 export async function fetchAllHellodataProperties(): Promise<HellodataProperty[]> {
-    const { data, error } = await supabase
+    // The property cache grows with every search/link — page past the 1000-row cap
+    const data = await fetchAllPages(() => supabase
         .from('hellodata_properties')
         .select(`
             id, hellodata_id, building_name, street_address, city, state, zip_code,
@@ -2131,9 +2204,9 @@ export async function fetchAllHellodataProperties(): Promise<HellodataProperty[]
             is_lease_up, is_senior, is_student, is_affordable, is_build_to_rent,
             occupancy_over_time, fetched_at, created_at
         `)
-        .order('building_name', { ascending: true });
-    if (error) throw error;
-    return (data ?? []) as unknown as HellodataProperty[];
+        .order('building_name', { ascending: true })
+        .order('id'));
+    return data as unknown as HellodataProperty[];
 }
 
 /** Fetch a single Hellodata property by DB id — full detail with units + concessions */
@@ -2329,12 +2402,12 @@ export async function fetchAllUsers(): Promise<UserProfile[]> {
 // ============================================================
 
 export async function fetchSaleComps(): Promise<SaleComp[]> {
-    const { data, error } = await supabase
+    const data = await fetchAllPages(() => supabase
         .from('sale_comps')
         .select('*, sale_transactions(*)')
-        .order('updated_at', { ascending: false });
-    if (error) throw error;
-    return (data ?? []) as unknown as SaleComp[];
+        .order('updated_at', { ascending: false })
+        .order('id'));
+    return data as unknown as SaleComp[];
 }
 
 export async function fetchSaleComp(id: string): Promise<SaleComp> {
@@ -2522,18 +2595,22 @@ export async function fetchMyTasks(userId: string): Promise<(import('@/types').P
 // ============================================================
 
 export async function fetchPursuitAccountingEntities(): Promise<import('@/types').PursuitAccountingEntity[]> {
-    const { data, error } = await supabase
+    return fetchAllPages<import('@/types').PursuitAccountingEntity>(() => supabase
         .from('pursuit_accounting_entities')
-        .select('*');
-    if (error) throw error;
-    return data as import('@/types').PursuitAccountingEntity[];
+        .select('*')
+        .order('id'));
 }
 
 export async function fetchPursuitAccountingEntity(pursuitId: string): Promise<import('@/types').PursuitAccountingEntity | null> {
+    // A pursuit can map to several property codes (UNIQUE is on pursuit_id+property_code),
+    // so a bare maybeSingle() errors with "multiple rows". Prefer the primary mapping.
     const { data, error } = await supabase
         .from('pursuit_accounting_entities')
         .select('*')
         .eq('pursuit_id', pursuitId)
+        .order('is_primary', { ascending: false })
+        .order('created_at')
+        .limit(1)
         .maybeSingle();
     if (error) throw error;
     return data as import('@/types').PursuitAccountingEntity | null;

@@ -57,7 +57,12 @@ export function useUpsertStage() {
     return useMutation({
         mutationFn: (stage: Partial<PursuitStage> & { id?: string }) =>
             queries.upsertStage(stage),
-        onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.stages }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: queryKeys.stages });
+            // Stage rows are joined into pursuits, and counts_toward_forecast filters the predev rollup
+            qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
+        },
     });
 }
 
@@ -65,7 +70,11 @@ export function useDeleteStage() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (id: string) => queries.deleteStage(id),
-        onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.stages }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: queryKeys.stages });
+            qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
+        },
     });
 }
 
@@ -131,7 +140,10 @@ export function useCreatePursuit() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: queries.createPursuit,
-        onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.pursuits }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+            qc.invalidateQueries({ queryKey: queryKeys.reportData });
+        },
     });
 }
 
@@ -173,6 +185,9 @@ export function useUpdatePursuit() {
                 qc.invalidateQueries({ queryKey: queryKeys.pursuit(queryId), refetchType: 'none' });
             }
             qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+            // Name/region/stage feed the report + portfolio budget views
+            qc.invalidateQueries({ queryKey: queryKeys.reportData });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
         },
     });
 }
@@ -181,7 +196,11 @@ export function useDeletePursuit() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (id: string) => queries.deletePursuit(id),
-        onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.pursuits }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+            qc.invalidateQueries({ queryKey: queryKeys.reportData });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
+        },
     });
 }
 
@@ -220,6 +239,8 @@ export function useCreateOnePager() {
         mutationFn: queries.createOnePager,
         onSuccess: (data) => {
             qc.invalidateQueries({ queryKey: queryKeys.onePagers(data.pursuit_id) });
+            // one_pager_count / primary YOC on the dashboard
+            qc.invalidateQueries({ queryKey: queryKeys.pursuits });
         },
     });
 }
@@ -274,6 +295,7 @@ export function useUpdateOnePager() {
                 qc.invalidateQueries({ queryKey: queryKeys.pursuit(pursuitId) });
                 qc.invalidateQueries({ queryKey: queryKeys.pursuits });
             }
+            qc.invalidateQueries({ queryKey: queryKeys.reportData });
         },
     });
 }
@@ -285,6 +307,8 @@ export function useDeleteOnePager() {
             queries.deleteOnePager(id),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.onePagers(pursuitId) });
+            qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+            qc.invalidateQueries({ queryKey: queryKeys.reportData });
         },
     });
 }
@@ -492,6 +516,7 @@ export function useArchiveOnePager() {
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.onePagers(pursuitId) });
             qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+            qc.invalidateQueries({ queryKey: queryKeys.reportData });
         },
     });
 }
@@ -502,6 +527,8 @@ export function useArchivePursuit() {
         mutationFn: (id: string) => queries.archivePursuit(id),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+            qc.invalidateQueries({ queryKey: queryKeys.reportData });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
         },
     });
 }
@@ -690,7 +717,10 @@ export function useCreateLandComp() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: queries.createLandComp,
-        onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.landComps }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: queryKeys.landComps });
+            qc.invalidateQueries({ queryKey: ['land-comp-report-data'] });
+        },
     });
 }
 
@@ -705,6 +735,9 @@ export function useUpdateLandComp() {
                 qc.invalidateQueries({ queryKey: queryKeys.landComp(queryId) });
             }
             qc.invalidateQueries({ queryKey: queryKeys.landComps });
+            qc.invalidateQueries({ queryKey: ['land-comp-report-data'] });
+            // Linked-comp lists on pursuit pages embed the full land comp row
+            qc.invalidateQueries({ queryKey: ['pursuit-land-comps'] });
         },
     });
 }
@@ -713,7 +746,11 @@ export function useDeleteLandComp() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (id: string) => queries.deleteLandComp(id),
-        onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.landComps }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: queryKeys.landComps });
+            qc.invalidateQueries({ queryKey: ['land-comp-report-data'] });
+            qc.invalidateQueries({ queryKey: ['pursuit-land-comps'] });
+        },
     });
 }
 
@@ -737,6 +774,10 @@ export function useCreatePredevBudget() {
         }) => queries.createPredevBudget(pursuitId, startDate, durationMonths),
         onSuccess: (data) => {
             qc.invalidateQueries({ queryKey: ['predev-budget', data.pursuit_id] });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
+            // createPredevBudget may seed a default SLRH funding partner
+            qc.invalidateQueries({ queryKey: ['funding-partners', data.pursuit_id] });
+            qc.invalidateQueries({ queryKey: ['all-funding-partners'] });
         },
     });
 }
@@ -751,6 +792,7 @@ export function useUpdatePredevBudget() {
         }) => queries.updatePredevBudget(id, updates),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId] });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
         },
     });
 }
@@ -763,6 +805,7 @@ export function useUpsertScheduleItem() {
         }) => queries.upsertPredevScheduleItem(itemId, budgetId, updates),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId] });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
         },
     });
 }
@@ -774,6 +817,7 @@ export function useSeedDefaultScheduleItems() {
             queries.seedDefaultScheduleItems(budgetId),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId] });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
         },
     });
 }
@@ -785,6 +829,7 @@ export function useDeleteScheduleItem() {
             queries.deletePredevScheduleItem(itemId),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId] });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
         },
     });
 }
@@ -817,6 +862,7 @@ export function useUpsertLineItemValues() {
         },
         onSettled: (_, __, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId], refetchType: 'none' });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
         },
     });
 }
@@ -829,6 +875,7 @@ export function useAddCustomLineItem() {
         }) => queries.addCustomLineItem(budgetId, label),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId] });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
         },
     });
 }
@@ -840,6 +887,7 @@ export function useDeleteLineItem() {
             queries.deleteLineItem(id),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId] });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
         },
     });
 }
@@ -851,6 +899,7 @@ export function useUpdateLineItemLabel() {
             queries.updateLineItemLabel(id, label),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId] });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
         },
     });
 }
@@ -883,6 +932,7 @@ export function useSnapshotBudget() {
             queries.snapshotBudget(budgetId, pursuitId),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId] });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
         },
     });
 }
@@ -893,8 +943,10 @@ export function useAmendBudget() {
         mutationFn: ({ budgetId, pursuitId, reason }: {
             budgetId: string; pursuitId: string; reason: string | null;
         }) => queries.amendBudget(budgetId, pursuitId, reason),
-        onSuccess: (_, { pursuitId }) => {
+        onSuccess: (_, { budgetId, pursuitId }) => {
+            qc.invalidateQueries({ queryKey: ['budget-amendments', budgetId] });
             qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId] });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
         },
     });
 }
@@ -933,6 +985,7 @@ export function useCreateFundingPartner() {
             queries.createFundingPartner(partner),
         onSuccess: (data) => {
             qc.invalidateQueries({ queryKey: ['funding-partners', data.pursuit_id] });
+            qc.invalidateQueries({ queryKey: ['all-funding-partners'] });
         },
     });
 }
@@ -946,6 +999,7 @@ export function useUpdateFundingPartner() {
         }) => queries.updateFundingPartner(id, updates),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: ['funding-partners', pursuitId] });
+            qc.invalidateQueries({ queryKey: ['all-funding-partners'] });
         },
     });
 }
@@ -957,6 +1011,7 @@ export function useDeleteFundingPartner() {
             queries.deleteFundingPartner(id),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: ['funding-partners', pursuitId] });
+            qc.invalidateQueries({ queryKey: ['all-funding-partners'] });
         },
     });
 }
@@ -989,6 +1044,7 @@ export function useUpsertFundingSplit() {
         }) => queries.upsertFundingSplit(split),
         onSuccess: (_, { budgetId }) => {
             qc.invalidateQueries({ queryKey: ['funding-splits', budgetId] });
+            qc.invalidateQueries({ queryKey: ['all-funding-splits'] });
         },
     });
 }
@@ -1005,6 +1061,7 @@ export function useUpdateLineItemCostGroups() {
         }) => queries.updateLineItemCostGroups(lineItemId, yardiCostGroups),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: ['predev-budget', pursuitId] });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
         },
     });
 }
@@ -1026,7 +1083,12 @@ export function useUpsertKeyDateType() {
     return useMutation({
         mutationFn: (type: Partial<import('@/types').KeyDateType> & { id?: string }) =>
             queries.upsertKeyDateType(type),
-        onSuccess: () => qc.invalidateQueries({ queryKey: ['key-date-types'] }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['key-date-types'] });
+            // Key dates embed their type (name/color) — refresh the per-pursuit + report views
+            qc.invalidateQueries({ queryKey: ['key-dates'] });
+            qc.invalidateQueries({ queryKey: ['key-date-report-data'] });
+        },
     });
 }
 
@@ -1034,7 +1096,12 @@ export function useDeleteKeyDateType() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (id: string) => queries.deleteKeyDateType(id),
-        onSuccess: () => qc.invalidateQueries({ queryKey: ['key-date-types'] }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['key-date-types'] });
+            // Key dates embed their type (name/color) — refresh the per-pursuit + report views
+            qc.invalidateQueries({ queryKey: ['key-dates'] });
+            qc.invalidateQueries({ queryKey: ['key-date-report-data'] });
+        },
     });
 }
 
@@ -1057,6 +1124,7 @@ export function useUpsertKeyDate() {
             queries.upsertKeyDate(keyDate),
         onSuccess: (data) => {
             qc.invalidateQueries({ queryKey: ['key-dates', data.pursuit_id] });
+            qc.invalidateQueries({ queryKey: ['key-date-report-data'] });
         },
     });
 }
@@ -1068,6 +1136,7 @@ export function useDeleteKeyDate() {
             queries.deleteKeyDate(id),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: ['key-dates', pursuitId] });
+            qc.invalidateQueries({ queryKey: ['key-date-report-data'] });
         },
     });
 }
@@ -1267,6 +1336,7 @@ export function useAddChecklistTask() {
             qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
             qc.invalidateQueries({ queryKey: ['my-tasks'] });
             qc.invalidateQueries({ queryKey: ['my-mention-count'] });
+            qc.invalidateQueries({ queryKey: ['my-incomplete-tasks-count'] });
         },
     });
 }
@@ -1280,6 +1350,7 @@ export function useDeleteChecklistTask() {
             qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
             qc.invalidateQueries({ queryKey: ['my-tasks'] });
             qc.invalidateQueries({ queryKey: ['my-mention-count'] });
+            qc.invalidateQueries({ queryKey: ['my-incomplete-tasks-count'] });
         },
     });
 }
@@ -1314,6 +1385,9 @@ export function useDeleteChecklistPhase() {
             queries.deleteChecklistPhase(id),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
+            // Phase delete cascades its tasks
+            qc.invalidateQueries({ queryKey: ['my-tasks'] });
+            qc.invalidateQueries({ queryKey: ['my-incomplete-tasks-count'] });
         },
     });
 }
@@ -1326,6 +1400,8 @@ export function useDeleteChecklistInstance() {
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.pursuitChecklist(pursuitId) });
             qc.invalidateQueries({ queryKey: queryKeys.pursuitMilestones(pursuitId) });
+            qc.invalidateQueries({ queryKey: ['my-tasks'] });
+            qc.invalidateQueries({ queryKey: ['my-incomplete-tasks-count'] });
         },
     });
 }
@@ -1505,7 +1581,10 @@ export function useCreateSaleComp() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: queries.createSaleComp,
-        onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.saleComps }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: queryKeys.saleComps });
+            qc.invalidateQueries({ queryKey: ['sale-comp-report-data'] });
+        },
     });
 }
 
@@ -1520,6 +1599,8 @@ export function useUpdateSaleComp() {
                 qc.invalidateQueries({ queryKey: queryKeys.saleComp(queryId) });
             }
             qc.invalidateQueries({ queryKey: queryKeys.saleComps });
+            qc.invalidateQueries({ queryKey: ['sale-comp-report-data'] });
+            qc.invalidateQueries({ queryKey: ['pursuit-sale-comps'] });
         },
     });
 }
@@ -1528,7 +1609,11 @@ export function useDeleteSaleComp() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (id: string) => queries.deleteSaleComp(id),
-        onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.saleComps }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: queryKeys.saleComps });
+            qc.invalidateQueries({ queryKey: ['sale-comp-report-data'] });
+            qc.invalidateQueries({ queryKey: ['pursuit-sale-comps'] });
+        },
     });
 }
 
@@ -1540,6 +1625,8 @@ export function useUpsertSaleTransaction() {
         onSuccess: (data) => {
             qc.invalidateQueries({ queryKey: queryKeys.saleComp(data.sale_comp_id) });
             qc.invalidateQueries({ queryKey: queryKeys.saleComps });
+            qc.invalidateQueries({ queryKey: ['sale-comp-report-data'] });
+            qc.invalidateQueries({ queryKey: ['pursuit-sale-comps'] });
         },
     });
 }
@@ -1552,6 +1639,8 @@ export function useDeleteSaleTransaction() {
         onSuccess: (_, { saleCompId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.saleComp(saleCompId) });
             qc.invalidateQueries({ queryKey: queryKeys.saleComps });
+            qc.invalidateQueries({ queryKey: ['sale-comp-report-data'] });
+            qc.invalidateQueries({ queryKey: ['pursuit-sale-comps'] });
         },
     });
 }
@@ -1564,6 +1653,7 @@ export function useUpdateSaleTransaction() {
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: queryKeys.saleComps });
             qc.invalidateQueries({ queryKey: ['sale-comp-report-data'] });
+            qc.invalidateQueries({ queryKey: ['pursuit-sale-comps'] });
         },
     });
 }
@@ -1707,6 +1797,7 @@ export function useUpsertPursuitAccountingEntity() {
             queries.upsertPursuitAccountingEntity(entity),
         onSuccess: (data) => {
             qc.invalidateQueries({ queryKey: ['pursuit-accounting-entities'] });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
             qc.invalidateQueries({ queryKey: ['pursuit-accounting-entity', data.pursuit_id] });
         },
     });
@@ -1718,6 +1809,7 @@ export function useDeletePursuitAccountingEntity() {
         mutationFn: ({ id, pursuit_id }: { id: string, pursuit_id: string }) => queries.deletePursuitAccountingEntity(id),
         onSuccess: (_, { pursuit_id }) => {
             qc.invalidateQueries({ queryKey: ['pursuit-accounting-entities'] });
+            qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
             qc.invalidateQueries({ queryKey: ['pursuit-accounting-entity', pursuit_id] });
         },
     });

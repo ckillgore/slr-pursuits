@@ -67,7 +67,7 @@ export function useUndoRedo(
 
         const action = stack[stack.length - 1];
         redoStackRef.current = stack.slice(0, -1);
-        undoStackRef.current = [...undoStackRef.current, action];
+        undoStackRef.current = [...undoStackRef.current.slice(-MAX_STACK_DEPTH + 1), action];
         applyFn(action, 'redo');
         setVersion((v) => v + 1);
     }, [applyFn]);
@@ -79,22 +79,27 @@ export function useUndoRedo(
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             // Don't intercept when user is typing in a regular text input
-            const tag = (e.target as HTMLElement)?.tagName;
+            const target = e.target as HTMLElement | null;
+            // Rich-text editors (contentEditable) keep their own history — don't hijack it
+            if (target?.isContentEditable) return;
+            const tag = target?.tagName;
             if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
                 // Allow undo/redo in inputs only with Ctrl key
                 if (!e.ctrlKey && !e.metaKey) return;
             }
 
-            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+            // With Shift held, browsers report e.key as uppercase 'Z'
+            const key = e.key?.toLowerCase();
+            if ((e.ctrlKey || e.metaKey) && key === 'z' && !e.shiftKey) {
                 e.preventDefault();
                 undo();
             }
-            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+            if ((e.ctrlKey || e.metaKey) && key === 'z' && e.shiftKey) {
                 e.preventDefault();
                 redo();
             }
             // Also support Ctrl+Y for redo (Windows convention)
-            if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+            if ((e.ctrlKey || e.metaKey) && key === 'y') {
                 e.preventDefault();
                 redo();
             }

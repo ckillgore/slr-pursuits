@@ -113,13 +113,22 @@ export async function refreshHellodataProperty(
 
         // 3. Insert/Upsert units and concessions in parallel
         const insertPromises: Promise<void>[] = [];
-        let validUnitIds: string[] = [];
-        let validConcessionIds: string[] = [];
+        const childErrors: string[] = [];
+        let unitUpsertFailed = false;
+        let concessionUpsertFailed = false;
 
-        if (raw.building_availability && raw.building_availability.length > 0) {
-            const unitRows = raw.building_availability.map((unit: Record<string, unknown>) => {
+        // Dedupe by source id: a single upsert statement that touches the same
+        // (property_id, hellodata_unit_id) twice fails with
+        // "ON CONFLICT DO UPDATE command cannot affect row a second time".
+        const dedupeBy = <T extends Record<string, unknown>>(rows: T[], key: keyof T): T[] => {
+            const map = new Map<unknown, T>();
+            for (const r of rows) map.set(r[key], r);
+            return Array.from(map.values());
+        };
+
+        const unitRows = dedupeBy(
+            ((raw.building_availability ?? []) as Record<string, unknown>[]).map((unit) => {
                 const uid = unit.id ? String(unit.id) : `NO_ID_${Math.random().toString(36).slice(2)}`;
-                validUnitIds.push(uid);
                 return {
                     property_id: propertyId,
                     hellodata_unit_id: uid,
@@ -150,24 +159,29 @@ export async function refreshHellodataProperty(
                     availability_periods: unit.availability_periods || null,
                     price_plans: unit.price_plans || null,
                 };
-            });
+            }),
+            'hellodata_unit_id',
+        );
+        const validUnitIds = new Set(unitRows.map(r => r.hellodata_unit_id));
 
-            for (let i = 0; i < unitRows.length; i += 50) {
-                const batch = unitRows.slice(i, i + 50);
-                insertPromises.push(
-                    (async () => {
-                        const { error } = await supabase.from('hellodata_units')
-                            .upsert(batch, { onConflict: 'property_id,hellodata_unit_id' });
-                        if (error) console.error(`[hellodata] Unit upsert error (batch ${i}):`, error.message);
-                    })()
-                );
-            }
+        for (let i = 0; i < unitRows.length; i += 50) {
+            const batch = unitRows.slice(i, i + 50);
+            insertPromises.push(
+                (async () => {
+                    const { error } = await supabase.from('hellodata_units')
+                        .upsert(batch, { onConflict: 'property_id,hellodata_unit_id' });
+                    if (error) {
+                        unitUpsertFailed = true;
+                        childErrors.push(`units: ${error.message}`);
+                        console.error(`[hellodata] Unit upsert error (batch ${i}):`, error.message);
+                    }
+                })()
+            );
         }
 
-        if (raw.concessions_history && raw.concessions_history.length > 0) {
-            const concessionRows = raw.concessions_history.map((c: Record<string, unknown>) => {
+        const concessionRows = dedupeBy(
+            ((raw.concessions_history ?? []) as Record<string, unknown>[]).map((c) => {
                 const cid = c.id ? String(c.id) : `NO_ID_${Math.random().toString(36).slice(2)}`;
-                validConcessionIds.push(cid);
                 return {
                     property_id: propertyId,
                     hellodata_concession_id: cid,
@@ -176,13 +190,21 @@ export async function refreshHellodataProperty(
                     to_date: c.to_date || null,
                     items: c.items || null,
                 };
-            });
+            }),
+            'hellodata_concession_id',
+        );
+        const validConcessionIds = new Set(concessionRows.map(r => r.hellodata_concession_id));
 
+        if (concessionRows.length > 0) {
             insertPromises.push(
                 (async () => {
                     const { error } = await supabase.from('hellodata_concessions')
                         .upsert(concessionRows, { onConflict: 'property_id,hellodata_concession_id' });
-                    if (error) console.error('[hellodata] Concession upsert error:', error.message);
+                    if (error) {
+                        concessionUpsertFailed = true;
+                        childErrors.push(`concessions: ${error.message}`);
+                        console.error('[hellodata] Concession upsert error:', error.message);
+                    }
                 })()
             );
         }
@@ -190,35 +212,60 @@ export async function refreshHellodataProperty(
         await Promise.all(insertPromises);
         time('insert_children');
 
-        // 4. Delete orphaned units and concessions
-        const cleanupPromises: any[] = [];
-        
-        if (validUnitIds.length > 0) {
-            cleanupPromises.push(
-                supabase.from('hellodata_units')
-                    .delete()
+        // 4. Delete orphaned units and concessions.
+        // Diff against the existing ids in JS and delete by primary key in batches,
+        // rather than a `not.in.(...)` filter: that filter embeds every source id in
+        // the URL (too long for large properties) and breaks on ids containing
+        // commas/parens. Skipped for a table whose upsert failed, so we never delete
+        // rows we couldn't replace. Errors are now surfaced instead of ignored.
+        const deleteOrphans = async (
+            table: 'hellodata_units' | 'hellodata_concessions',
+            idColumn: 'hellodata_unit_id' | 'hellodata_concession_id',
+            keep: Set<string>,
+        ) => {
+            const orphanIds: string[] = [];
+            const pageSize = 1000;
+            for (let from = 0; ; from += pageSize) {
+                const { data, error } = await supabase
+                    .from(table)
+                    .select(`id, ${idColumn}`)
                     .eq('property_id', propertyId)
-                    .not('hellodata_unit_id', 'in', `(${validUnitIds.join(',')})`)
-                    .then()
-            );
-        } else {
-            cleanupPromises.push(supabase.from('hellodata_units').delete().eq('property_id', propertyId).then());
-        }
+                    .order('id')
+                    .range(from, from + pageSize - 1);
+                if (error) {
+                    childErrors.push(`${table} orphan scan: ${error.message}`);
+                    return;
+                }
+                const rows = (data ?? []) as unknown as Record<string, string>[];
+                for (const row of rows) {
+                    if (!keep.has(row[idColumn])) orphanIds.push(row.id);
+                }
+                if (rows.length < pageSize) break;
+            }
+            for (let i = 0; i < orphanIds.length; i += 100) {
+                const { error } = await supabase.from(table).delete().in('id', orphanIds.slice(i, i + 100));
+                if (error) {
+                    childErrors.push(`${table} orphan delete: ${error.message}`);
+                    console.error(`[hellodata] Orphan delete error (${table}):`, error.message);
+                    return;
+                }
+            }
+        };
 
-        if (validConcessionIds.length > 0) {
-            cleanupPromises.push(
-                supabase.from('hellodata_concessions')
-                    .delete()
-                    .eq('property_id', propertyId)
-                    .not('hellodata_concession_id', 'in', `(${validConcessionIds.join(',')})`)
-                    .then()
-            );
-        } else {
-            cleanupPromises.push(supabase.from('hellodata_concessions').delete().eq('property_id', propertyId).then());
-        }
-
-        await Promise.all(cleanupPromises);
+        await Promise.all([
+            unitUpsertFailed ? Promise.resolve() : deleteOrphans('hellodata_units', 'hellodata_unit_id', validUnitIds),
+            concessionUpsertFailed ? Promise.resolve() : deleteOrphans('hellodata_concessions', 'hellodata_concession_id', validConcessionIds),
+        ]);
         time('delete_orphans');
+
+        if (childErrors.length > 0) {
+            return {
+                success: false,
+                property: upserted,
+                error: `Property saved but units/concessions failed to sync (${childErrors.join('; ')})`,
+                timings,
+            };
+        }
 
         const totalMs = Date.now() - startTotal;
         console.log(

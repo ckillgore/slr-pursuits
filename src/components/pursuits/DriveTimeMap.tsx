@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Clock, Loader2, MapPin, BarChart3, AlertCircle, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
+import { useMapStyle } from './mapTheme';
+import { isCacheForOtherLocation, type LngLat } from './locationCache';
+import { StaleLocationNotice } from './StaleLocationNotice';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -21,6 +24,8 @@ interface DriveTimeCacheEntry {
     totalPopulation: number | null;
     totalHouseholds: number | null;
     generatedAt: string;
+    /** Site the isochrone was generated from — absent on entries saved before location tracking */
+    center?: LngLat;
 }
 
 interface DriveTimeMapProps {
@@ -45,6 +50,8 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
     const [totalPop, setTotalPop] = useState<number | null>(null);
     const [totalHH, setTotalHH] = useState<number | null>(null);
     const [cachedAt, setCachedAt] = useState<string | null>(null);
+    const [cachedCenter, setCachedCenter] = useState<LngLat | null>(null);
+    const { mapStyle } = useMapStyle();
 
     // Local ref to always hold the latest merged cache (avoids stale closure issues)
     const localCacheRef = useRef<Record<string, DriveTimeCacheEntry>>(
@@ -74,6 +81,7 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
             setTotalPop(cached.totalPopulation ?? null);
             setTotalHH(cached.totalHouseholds ?? null);
             setCachedAt(cached.generatedAt || null);
+            setCachedCenter(cached.center ?? null);
             setError(null);
         } else {
             // No cached data for this break time — reset
@@ -82,6 +90,7 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
             setTotalPop(null);
             setTotalHH(null);
             setCachedAt(null);
+            setCachedCenter(null);
         }
     }, [breakMinutes, savedDriveTimeData]);
 
@@ -103,7 +112,7 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
 
             map = new mbgl.Map({
                 container: mapContainerRef.current,
-                style: 'mapbox://styles/mapbox/light-v11',
+                style: mapStyle,
                 center,
                 zoom: 12,
                 interactive: true,
@@ -128,7 +137,7 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
             setMapReady(false);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hasLocation]);
+    }, [hasLocation, mapStyle]);
 
     // Update map center + marker when lat/lng changes
     useEffect(() => {
@@ -217,18 +226,20 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
                 body: JSON.stringify({ latitude, longitude, breakMinutes }),
             });
 
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
 
             if (!res.ok) {
-                throw new Error(data.error || 'Failed to generate isochrone');
+                throw new Error(data.error || `Failed to generate drive-time area (HTTP ${res.status})`);
             }
 
             const now = new Date().toISOString();
+            const generatedFrom: LngLat = [longitude!, latitude!];
             setPolygon(data.polygon);
             setTapestry(data.tapestry || []);
             setTotalPop(data.totalPopulation ?? null);
             setTotalHH(data.totalHouseholds ?? null);
             setCachedAt(now);
+            setCachedCenter(generatedFrom);
 
             // Save to Supabase via parent callback
             if (onSaveDriveTimeData) {
@@ -239,6 +250,7 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
                     totalPopulation: data.totalPopulation ?? null,
                     totalHouseholds: data.totalHouseholds ?? null,
                     generatedAt: now,
+                    center: generatedFrom,
                 };
                 // Merge with local ref (always current) instead of stale prop
                 const merged = {
@@ -272,6 +284,13 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
         );
     }
 
+    // Cache is per pursuit, not per location: flag results generated for a previous site
+    const isStale = !!polygon && !loading && isCacheForOtherLocation({
+        current: [longitude!, latitude!],
+        savedCenter: cachedCenter,
+        geometry: polygon,
+    });
+
     const formattedCacheDate = cachedAt
         ? new Date(cachedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
         : null;
@@ -283,7 +302,7 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
                 <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-[#007cbf]" />
                     <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Drive-Time Analysis</h3>
-                    {cachedAt && !loading && (
+                    {cachedAt && !loading && !isStale && (
                         <span className="flex items-center gap-1 text-[10px] text-[var(--success)] bg-[var(--success)]/10 px-1.5 py-0.5 rounded-full font-medium">
                             <CheckCircle2 className="w-2.5 h-2.5" />
                             Cached
@@ -295,6 +314,7 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
                     <select
                         value={breakMinutes}
                         onChange={(e) => setBreakMinutes(Number(e.target.value))}
+                        aria-label="Drive time"
                         className="text-xs px-2 py-1 rounded-md border border-[var(--border)] text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none bg-[var(--bg-card)]"
                         disabled={loading}
                     >
@@ -321,6 +341,10 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
             {/* Cached timestamp */}
             {formattedCacheDate && !loading && (
                 <p className="text-[10px] text-[var(--text-faint)] mb-2">Last generated: {formattedCacheDate}</p>
+            )}
+
+            {isStale && (
+                <StaleLocationNotice what="drive-time area" generatedAt={cachedAt} onRegenerate={fetchIsochrone} disabled={loading} />
             )}
 
             {/* Error */}
@@ -358,6 +382,7 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
                         <div className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg p-3">
                             <button
                                 onClick={() => setShowDetails(!showDetails)}
+                                aria-expanded={showDetails}
                                 className="flex items-center justify-between w-full mb-2"
                             >
                                 <div className="flex items-center gap-1.5">

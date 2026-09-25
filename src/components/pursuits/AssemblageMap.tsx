@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useMapStyle, siteInkColor } from './mapTheme';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -36,6 +37,24 @@ interface AssemblageMapProps {
     onToggleParcel: (parcel: NearbyParcel) => void;
 }
 
+/**
+ * Stable identity for a parcel. Regrid ID first, then APN. Parcels with neither
+ * used to share the key '' — selecting one selected (and removing one removed)
+ * every unidentified parcel. Fall back to address + first boundary vertex.
+ */
+export function parcelKey(p: { regridId?: string | null; parcelNumber?: string | null; address?: string | null; lotSizeSF?: number | null; geometry?: { coordinates?: unknown } | null }): string {
+    if (p.regridId) return `rg:${p.regridId}`;
+    if (p.parcelNumber) return `apn:${p.parcelNumber}`;
+    let vertex = '';
+    const find = (c: unknown): boolean => {
+        if (!Array.isArray(c)) return false;
+        if (typeof c[0] === 'number' && typeof c[1] === 'number') { vertex = `${c[0].toFixed(6)},${c[1].toFixed(6)}`; return true; }
+        return c.some(find);
+    };
+    find(p.geometry?.coordinates);
+    return `anon:${p.address ?? ''}|${vertex}|${p.lotSizeSF ?? ''}`;
+}
+
 function fmtCurrency(v: number | null): string {
     if (v == null) return 'N/A';
     return '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -68,6 +87,7 @@ export function AssemblageMap({
     onToggleRef.current = onToggleParcel;
     const nearbyRef = useRef(nearbyParcels);
     nearbyRef.current = nearbyParcels;
+    const { mapStyle, isDark } = useMapStyle();
 
     // Build GeoJSON for nearby parcels (only those with geometry)
     useEffect(() => {
@@ -86,7 +106,7 @@ export function AssemblageMap({
 
             map = new mbgl.Map({
                 container: containerRef.current!,
-                style: 'mapbox://styles/mapbox/light-v11',
+                style: mapStyle,
                 center: [longitude, latitude],
                 zoom: 16,
                 interactive: true,
@@ -95,7 +115,7 @@ export function AssemblageMap({
             map.addControl(new mbgl.NavigationControl({ showCompass: false }), 'top-right');
 
             // Site marker
-            new mbgl.Marker({ color: '#1A1F2B' })
+            new mbgl.Marker({ color: siteInkColor(isDark) })
                 .setLngLat([longitude, latitude])
                 .addTo(map);
 
@@ -108,7 +128,7 @@ export function AssemblageMap({
                 const getSelectedIds = () => {
                     const set = new Set<string>();
                     for (const a of assemblageRef.current) {
-                        set.add(a.regridId || a.parcelNumber || '');
+                        set.add(parcelKey(a));
                     }
                     return set;
                 };
@@ -128,7 +148,7 @@ export function AssemblageMap({
                         type: 'fill',
                         source: 'primary-parcel',
                         paint: {
-                            'fill-color': '#1A1F2B',
+                            'fill-color': siteInkColor(isDark),
                             'fill-opacity': 0.25,
                         },
                     });
@@ -137,7 +157,7 @@ export function AssemblageMap({
                         type: 'line',
                         source: 'primary-parcel',
                         paint: {
-                            'line-color': '#1A1F2B',
+                            'line-color': siteInkColor(isDark),
                             'line-width': 2.5,
                         },
                     });
@@ -151,7 +171,7 @@ export function AssemblageMap({
                         type: 'Feature' as const,
                         geometry: p.geometry,
                         properties: {
-                            id: p.regridId || p.parcelNumber || '',
+                            id: parcelKey(p),
                             address: p.address || 'Unknown',
                             parcelNumber: p.parcelNumber || '',
                             ownerName: p.ownerName || '',
@@ -160,7 +180,7 @@ export function AssemblageMap({
                             totalAssessedValue: p.totalAssessedValue || 0,
                             zoningCode: p.zoningCode || '',
                             landUse: p.landUse || '',
-                            selected: selectedIds.has(p.regridId || p.parcelNumber || '') ? 1 : 0,
+                            selected: selectedIds.has(parcelKey(p)) ? 1 : 0,
                         },
                     }));
 
@@ -179,7 +199,7 @@ export function AssemblageMap({
                                 'case',
                                 ['==', ['get', 'selected'], 1],
                                 '#7C3AED',   // purple for selected
-                                '#E2E5EA',   // light gray for unselected
+                                isDark ? '#3D4359' : '#E2E5EA',   // neutral gray for unselected
                             ],
                             'fill-opacity': [
                                 'case',
@@ -199,7 +219,7 @@ export function AssemblageMap({
                                 'case',
                                 ['==', ['get', 'selected'], 1],
                                 '#7C3AED',
-                                '#A0AABB',
+                                isDark ? '#8891A5' : '#A0AABB',
                             ],
                             'line-width': [
                                 'case',
@@ -216,7 +236,7 @@ export function AssemblageMap({
                         const clickedId = e.features[0].properties?.id;
                         if (!clickedId) return;
                         const parcelData = nearbyRef.current.find(
-                            p => (p.regridId || p.parcelNumber || '') === clickedId
+                            p => parcelKey(p) === clickedId
                         );
                         if (parcelData) {
                             onToggleRef.current(parcelData);
@@ -246,7 +266,7 @@ export function AssemblageMap({
                                     ${props.lotSizeSF > 0 ? `<div style="color: var(--text-secondary);">📐 ${fmtNumber(props.lotSizeSF)} SF (${Number(props.lotSizeAcres).toFixed(2)} ac)</div>` : ''}
                                     ${props.totalAssessedValue > 0 ? `<div style="color: var(--text-secondary);">💰 ${fmtCurrency(props.totalAssessedValue)}</div>` : ''}
                                     ${props.zoningCode ? `<div style="color: var(--text-secondary);">🏗️ ${escapeHtml(props.zoningCode)}</div>` : ''}
-                                    <div style="margin-top: 4px; padding-top: 3px; border-top: 1px solid var(--border); font-size: 10px; color: ${isSelected ? '#7C3AED' : '#A0AABB'}; font-weight: 600;">
+                                    <div style="margin-top: 4px; padding-top: 3px; border-top: 1px solid var(--border); font-size: 10px; color: ${isSelected ? '#7C3AED' : 'var(--text-faint)'}; font-weight: 600;">
                                         ${isSelected ? '✓ Selected — click to remove' : 'Click to add to assemblage'}
                                     </div>
                                 </div>
@@ -294,7 +314,7 @@ export function AssemblageMap({
             mapInstanceRef.current = null;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [latitude, longitude, nearbyParcels, primaryGeometry]);
+    }, [latitude, longitude, nearbyParcels, primaryGeometry, mapStyle]);
 
     // Update the GeoJSON source when assemblage selection changes (without recreating the map)
     useEffect(() => {
@@ -305,7 +325,7 @@ export function AssemblageMap({
 
         const selectedIds = new Set<string>();
         for (const a of assemblage) {
-            selectedIds.add(a.regridId || a.parcelNumber || '');
+            selectedIds.add(parcelKey(a));
         }
 
         const nearbyWithGeom = nearbyRef.current.filter(p => p.geometry);
@@ -313,7 +333,7 @@ export function AssemblageMap({
             type: 'Feature' as const,
             geometry: p.geometry,
             properties: {
-                id: p.regridId || p.parcelNumber || '',
+                id: parcelKey(p),
                 address: p.address || 'Unknown',
                 parcelNumber: p.parcelNumber || '',
                 ownerName: p.ownerName || '',
@@ -322,7 +342,7 @@ export function AssemblageMap({
                 totalAssessedValue: p.totalAssessedValue || 0,
                 zoningCode: p.zoningCode || '',
                 landUse: p.landUse || '',
-                selected: selectedIds.has(p.regridId || p.parcelNumber || '') ? 1 : 0,
+                selected: selectedIds.has(parcelKey(p)) ? 1 : 0,
             },
         }));
 
@@ -341,6 +361,8 @@ export function AssemblageMap({
         <div
             ref={containerRef}
             className="w-full h-[300px] sm:h-[400px] rounded-lg overflow-hidden border border-[var(--border)]"
+            role="region"
+            aria-label="Nearby parcels map. Click a parcel to add or remove it; the list alongside offers the same actions."
         />
     );
 }

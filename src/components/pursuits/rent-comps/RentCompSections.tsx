@@ -5,6 +5,7 @@ import SVGChart, { ChartSeries } from './SVGChart';
 import type { HellodataUnit, HellodataConcession } from '@/types';
 import type { PropertyMetrics } from './types';
 import { getAverageAskingRent, getAverageEffectiveRent } from '@/lib/calculations/hellodataCalculations';
+import { useMapStyle } from '../mapTheme';
 
 const COMP_COLORS = ['#2563EB', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
 
@@ -73,7 +74,7 @@ export function RentTrendsSection({ comps }: { comps: PropertyMetrics[] }) {
                 </div>
             </div>
             <div className="border border-[var(--border)] rounded-xl bg-[var(--bg-card)] p-2 sm:p-4">
-                <SVGChart series={series} yLabel={metric === 'asking' ? 'Asking Rent' : 'Effective Rent'} />
+                <SVGChart series={series} yLabel={metric === 'asking' ? 'Asking Rent ($/mo)' : 'Effective Rent ($/mo)'} />
             </div>
         </div>
     );
@@ -190,17 +191,26 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
             <div className="border border-[var(--border)] rounded-xl bg-[var(--bg-card)] p-2 sm:p-4 overflow-x-auto">
                 {bubbles.length === 0 ? <p className="text-sm text-center text-[var(--text-muted)] py-8">No data</p> : (
                     <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[750px]" style={{ minWidth: 280 }}
+                        role="group" aria-label="Rent versus unit size bubble chart"
                         onMouseLeave={() => setHoveredBubble(null)}>
                         {/* Grid */}
-                        {[0, 1, 2, 3, 4].map(i => { const y = pad.top + ch * (1 - i / 4); const val = (maxRent * i) / 4; return (<g key={i}><line x1={pad.left} x2={W - pad.right} y1={y} y2={y} stroke="var(--bg-elevated)" /><text x={pad.left - 8} y={y + 4} textAnchor="end" fill="var(--text-muted)" fontSize={10}>{yAxis === 'psf' ? `$${val.toFixed(2)}` : `$${Math.round(val).toLocaleString()}`}</text></g>); })}
+                        {/* Gridlines use the same 5%-inset mapping as getBubblePos, so labels line up with the bubbles */}
+                        {[0, 1, 2, 3, 4].map(i => { const val = (maxRent * i) / 4; const y = pad.top + (1 - val / maxRent) * ch * 0.9 + ch * 0.05; return (<g key={i}><line x1={pad.left} x2={W - pad.right} y1={y} y2={y} stroke="var(--bg-elevated)" /><text x={pad.left - 8} y={y + 4} textAnchor="end" fill="var(--text-muted)" fontSize={10}>{yAxis === 'psf' ? `$${val.toFixed(2)}` : `$${Math.round(val).toLocaleString()}`}</text></g>); })}
+                        {[0, 1, 2, 3, 4].map(i => { const val = (maxSqft * i) / 4; const x = pad.left + (val / maxSqft) * cw * 0.9 + cw * 0.05; return (<text key={`x${i}`} x={x} y={H - pad.bottom + 16} textAnchor="middle" fill="var(--text-muted)" fontSize={10}>{Math.round(val).toLocaleString()}</text>); })}
+                        <text x={12} y={pad.top + ch / 2} textAnchor="middle" fill="var(--text-muted)" fontSize={10} transform={`rotate(-90, 12, ${pad.top + ch / 2})`}>{rentType === 'asking' ? 'Asking' : 'Effective'} rent{yAxis === 'psf' ? ' ($/SF)' : ' ($/mo)'}</text>
                         {/* Bubbles */}
                         {bubbles.map((b, i) => {
                             const { cx, cy, r } = getBubblePos(b);
                             const isHovered = hoveredBubble === i;
                             const isSelected = selectedBubble === i;
                             const isDimmed = (hoveredBubble !== null || selectedBubble !== null) && !isHovered && !isSelected;
-                            return (<g key={i} style={{ cursor: 'pointer' }}
+                            return (<g key={i} style={{ cursor: 'pointer', outline: 'none' }}
+                                role="button" tabIndex={0} aria-pressed={isSelected}
+                                aria-label={`${b.label}: ${b.sqft.toLocaleString()} SF, ${yAxis === 'psf' ? `$${b.rent.toFixed(2)}/SF` : `$${Math.round(b.rent).toLocaleString()}`}. Show units`}
                                 onMouseEnter={() => setHoveredBubble(i)}
+                                onFocus={() => setHoveredBubble(i)}
+                                onBlur={() => setHoveredBubble(null)}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedBubble(selectedBubble === i ? null : i); } }}
                                 onClick={() => setSelectedBubble(selectedBubble === i ? null : i)}>
                                 <circle cx={cx} cy={cy} r={r} fill={b.color} fillOpacity={isDimmed ? 0.15 : 0.6} stroke={b.color}
                                     strokeWidth={isSelected ? 3 : isHovered ? 2.5 : 1.5} style={{ transition: 'all 0.15s ease' }} />
@@ -232,7 +242,7 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
                             );
                         })()}
                         {/* X label */}
-                        <text x={W / 2} y={H - 4} textAnchor="middle" fill="var(--text-muted)" fontSize={10}>Avg Sqft</text>
+                        <text x={W / 2} y={H - 4} textAnchor="middle" fill="var(--text-muted)" fontSize={10}>Avg unit size (SF)</text>
                     </svg>
                 )}
             </div>
@@ -399,7 +409,7 @@ export function OccupancySection({ comps }: { comps: PropertyMetrics[] }) {
                 {series.every(s => s.data.length === 0) ? (
                     <p className="text-sm text-[var(--text-muted)] text-center py-8">No availability period data to derive occupancy trends.</p>
                 ) : (
-                    <SVGChart series={series} yLabel="Leased %" formatY={(v: number) => `${v.toFixed(0)}%`} />
+                    <SVGChart series={series} yLabel="Leased %" formatY={(v: number) => `${v.toFixed(1)}%`} />
                 )}
             </div>
         </div>
@@ -739,9 +749,9 @@ export function QualitySection({ comps }: { comps: PropertyMetrics[] }) {
                                         const neg = (c.property.review_analysis?.negative_counts as Record<string, number> | undefined)?.[key] ?? 0;
                                         return (
                                             <td key={ci} className="py-2 px-3 text-center">
-                                                <span className="text-[#22C55E] font-medium">+{pos}</span>
+                                                <span className="text-[var(--success)] font-medium">+{pos}</span>
                                                 <span className="text-[var(--text-faint)] mx-1">/</span>
-                                                <span className="text-[#EF4444] font-medium">-{neg}</span>
+                                                <span className="text-[var(--danger)] font-medium">-{neg}</span>
                                             </td>
                                         );
                                     })}
@@ -1000,7 +1010,7 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                 </div>
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-2.5">
                     <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Vacant</div>
-                    <div className="text-base font-semibold text-[#EF4444]">{totalVacant}</div>
+                    <div className="text-base font-semibold text-[var(--danger)]">{totalVacant}</div>
                 </div>
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-2.5">
                     <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Avg Rent</div>
@@ -1016,7 +1026,7 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                                 <th className="text-left py-2.5 px-3 font-semibold text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10">{viewMode === 'summary' ? 'Unit Type' : 'Floorplan'}</th>
                                 <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]"># Units</th>
                                 <th className="text-center py-2.5 px-2 font-semibold text-[var(--success)]">Occupied</th>
-                                <th className="text-center py-2.5 px-2 font-semibold text-[#EF4444]">Vacant</th>
+                                <th className="text-center py-2.5 px-2 font-semibold text-[var(--danger)]">Vacant</th>
                                 <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">Occ %</th>
                                 <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">Avg SF</th>
                                 <th className="text-center py-2.5 px-2 font-semibold text-[var(--text-secondary)]">Market Rent</th>
@@ -1032,9 +1042,9 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                                     <td className="py-2 px-3 font-medium text-[var(--text-secondary)] sticky left-0 bg-inherit z-10">{row.label}</td>
                                     <td className="py-2 px-2 text-center font-medium">{row.count}</td>
                                     <td className="py-2 px-2 text-center text-[var(--success)] font-medium">{row.occupied}</td>
-                                    <td className="py-2 px-2 text-center text-[#EF4444] font-medium">{row.vacant}{row.notice > 0 ? <span className="text-[#F59E0B]"> +{row.notice}</span> : ''}</td>
+                                    <td className="py-2 px-2 text-center text-[var(--danger)] font-medium">{row.vacant}{row.notice > 0 ? <span className="text-[var(--warning)]"> +{row.notice}</span> : ''}</td>
                                     <td className="py-2 px-2 text-center">
-                                        <span className={`font-medium ${row.occupancyPct >= 95 ? 'text-[var(--success)]' : row.occupancyPct >= 90 ? 'text-[#F59E0B]' : 'text-[#EF4444]'}`}>
+                                        <span className={`font-medium ${row.occupancyPct >= 95 ? 'text-[var(--success)]' : row.occupancyPct >= 90 ? 'text-[var(--warning)]' : 'text-[var(--danger)]'}`}>
                                             {row.occupancyPct.toFixed(1)}%
                                         </span>
                                     </td>
@@ -1051,7 +1061,7 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                                 <td className="py-2.5 px-3 text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10">Total / Avg</td>
                                 <td className="py-2.5 px-2 text-center">{totalCount}</td>
                                 <td className="py-2.5 px-2 text-center text-[var(--success)]">{totalOccupied}</td>
-                                <td className="py-2.5 px-2 text-center text-[#EF4444]">{totalVacant}</td>
+                                <td className="py-2.5 px-2 text-center text-[var(--danger)]">{totalVacant}</td>
                                 <td className="py-2.5 px-2 text-center">{totalCount > 0 ? `${((totalOccupied / totalCount) * 100).toFixed(1)}%` : '—'}</td>
                                 <td className="py-2.5 px-2 text-center">{comp.avgSqft ? `${Math.round(comp.avgSqft)} ft²` : '—'}</td>
                                 <td className="py-2.5 px-2 text-center">{fmt(comp.askingRent)}</td>
@@ -1089,7 +1099,7 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                                     <td className="py-1.5 px-2 text-center">
                                         <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ${row.status === 'occupied' ? 'bg-[var(--success-bg)] text-[var(--success)]' :
                                             row.status === 'notice' ? 'bg-[var(--warning-bg)] text-[var(--warning)]' :
-                                                'bg-[var(--danger-bg)] text-[#EF4444]'
+                                                'bg-[var(--danger-bg)] text-[var(--danger)]'
                                             }`}>
                                             {row.status === 'occupied' ? 'Leased' : row.status === 'notice' ? 'Notice' : 'Vacant'}
                                         </span>
@@ -1125,6 +1135,7 @@ export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
     const mapInstanceRef = useRef<unknown>(null);
     const markersRef = useRef<unknown[]>([]);
     const [hoveredComp, setHoveredComp] = useState<number | null>(null);
+    const { mapStyle } = useMapStyle();
 
     // Comps with valid coordinates
     const mappableComps = useMemo(() => comps.filter(c => c.property.lat && c.property.lon), [comps]);
@@ -1152,7 +1163,7 @@ export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
 
             const map = new mbgl.Map({
                 container: containerRef.current!,
-                style: 'mapbox://styles/mapbox/light-v11',
+                style: mapStyle,
                 center,
                 zoom: 12,
                 attributionControl: false,
@@ -1223,7 +1234,7 @@ export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
                 mapInstanceRef.current = null;
             }
         };
-    }, [mappableComps]);
+    }, [mappableComps, mapStyle]);
 
     useEffect(() => {
         const cleanup = initMap();
@@ -1462,14 +1473,14 @@ export function OccupancyForecastSectionFull({ comps }: { comps: PropertyMetrics
                             <tr className="border-b-[3px] border-[var(--border)] bg-[var(--bg-elevated)]">
                                 <td className="py-3 px-4 font-bold text-[13px] text-[var(--text-primary)] truncate max-w-[200px] sticky left-0 bg-inherit z-10">{avgSummary.name}</td>
                                 <td className="py-3 px-3 text-center text-[13px] font-bold text-[var(--text-primary)] tabular-nums">{avgSummary.currentOcc}%</td>
-                                <td className="py-3 px-3 text-center text-[13px] text-[#EF4444] font-bold tabular-nums">{avgSummary.wkSupply}</td>
-                                <td className="py-3 px-3 text-center text-[13px] text-[#22C55E] font-bold tabular-nums">{avgSummary.wkLeases}</td>
+                                <td className="py-3 px-3 text-center text-[13px] text-[var(--danger)] font-bold tabular-nums">{avgSummary.wkSupply}</td>
+                                <td className="py-3 px-3 text-center text-[13px] text-[var(--success)] font-bold tabular-nums">{avgSummary.wkLeases}</td>
                                 <td className="py-3 px-3 text-center font-bold text-[13px] border-l border-[var(--border)] tabular-nums text-[var(--text-primary)]">{Number(avgSummary.netAbs) > 0 ? '+' : ''}{avgSummary.netAbs}</td>
                                 <td className="py-3 px-3 text-center font-bold text-[13px] text-blue-600 dark:text-blue-400 tabular-nums">{avgSummary.forecast12Wk}%</td>
                                 <td className="py-3 px-4 text-center">
                                     <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] uppercase tracking-widest font-bold ${
-                                        avgSummary.trend === 'Tightening' ? 'bg-[#22C55E]/10 text-[#22C55E]' :
-                                        avgSummary.trend === 'Softening' ? 'bg-[#EF4444]/10 text-[#EF4444]' :
+                                        avgSummary.trend === 'Tightening' ? 'bg-[var(--success)]/10 text-[var(--success)]' :
+                                        avgSummary.trend === 'Softening' ? 'bg-[var(--danger)]/10 text-[var(--danger)]' :
                                         'bg-[var(--bg-card)] text-[var(--text-secondary)] border border-[var(--border)]'
                                     }`}>{avgSummary.trend}</span>
                                 </td>
@@ -1479,14 +1490,14 @@ export function OccupancyForecastSectionFull({ comps }: { comps: PropertyMetrics
                             <tr key={ri} className={`border-b border-[var(--bg-elevated)] last:border-0 ${ri % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]'}`}>
                                 <td className="py-2.5 px-4 font-semibold text-[13px] text-[var(--text-primary)] truncate max-w-[200px] sticky left-0 bg-inherit z-10">{row.name}</td>
                                 <td className="py-2.5 px-3 text-center text-[13px] text-[var(--text-secondary)] tabular-nums">{row.currentOcc}%</td>
-                                <td className="py-2.5 px-3 text-center text-[13px] text-[#EF4444] font-medium tabular-nums">{row.wkSupply}</td>
-                                <td className="py-2.5 px-3 text-center text-[13px] text-[#22C55E] font-medium tabular-nums">{row.wkLeases}</td>
+                                <td className="py-2.5 px-3 text-center text-[13px] text-[var(--danger)] font-medium tabular-nums">{row.wkSupply}</td>
+                                <td className="py-2.5 px-3 text-center text-[13px] text-[var(--success)] font-medium tabular-nums">{row.wkLeases}</td>
                                 <td className="py-2.5 px-3 text-center font-bold text-[13px] border-l border-[var(--border)] tabular-nums text-[var(--text-primary)]">{Number(row.netAbs) > 0 ? '+' : ''}{row.netAbs}</td>
                                 <td className="py-2.5 px-3 text-center font-bold text-[13px] text-blue-600 dark:text-blue-400 tabular-nums">{row.forecast12Wk}%</td>
                                 <td className="py-2.5 px-4 text-center">
                                     <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] uppercase tracking-widest font-bold ${
-                                        row.trend === 'Tightening' ? 'bg-[#22C55E]/10 text-[#22C55E]' :
-                                        row.trend === 'Softening' ? 'bg-[#EF4444]/10 text-[#EF4444]' :
+                                        row.trend === 'Tightening' ? 'bg-[var(--success)]/10 text-[var(--success)]' :
+                                        row.trend === 'Softening' ? 'bg-[var(--danger)]/10 text-[var(--danger)]' :
                                         'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
                                     }`}>{row.trend}</span>
                                 </td>

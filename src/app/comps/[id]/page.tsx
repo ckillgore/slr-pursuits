@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { LandComp } from '@/types';
 import CommentTrigger from '@/components/shared/CommentTrigger';
+import { landPricePerSf } from '@/components/pursuits/compDerived';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 const SF_PER_ACRE = 43560;
@@ -28,10 +29,12 @@ function formatNumber(val: number | null, decimals = 0) {
 }
 
 // Inline editable field
-function EditableField({ label, value, onSave, format = 'text', icon: Icon }: {
+function EditableField({ label, value, onSave, format = 'text', icon: Icon, fallback }: {
     label: string;
     value: string | number | null;
     onSave: (val: string | number | null) => void;
+    /** Shown (labelled as calculated) when no value has been entered */
+    fallback?: { value: number | null; hint: string };
     format?: 'text' | 'currency' | 'number' | 'date';
     icon?: any;
 }) {
@@ -66,6 +69,8 @@ function EditableField({ label, value, onSave, format = 'text', icon: Icon }: {
         return String(value);
     })();
 
+    const showFallback = (value === null || value === undefined || value === '') && fallback?.value != null;
+
     return (
         <div className="flex items-start gap-3 py-2.5 border-b border-[var(--bg-elevated)] last:border-0 group">
             {Icon && <Icon className="w-3.5 h-3.5 mt-1 flex-shrink-0 text-[var(--text-faint)]" />}
@@ -77,21 +82,28 @@ function EditableField({ label, value, onSave, format = 'text', icon: Icon }: {
                             type={format === 'date' ? 'date' : 'text'}
                             value={draft}
                             onChange={(e) => setDraft(e.target.value)}
-                            className="flex-1 px-2 py-1 text-sm rounded border border-[#0D9488] focus:outline-none"
+                            className="flex-1 px-2 py-1 text-sm rounded border border-[#0D9488] bg-[var(--bg-card)] text-[var(--text-primary)] focus:outline-none"
                             autoFocus
                             onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
                         />
-                        <button onClick={save} className="p-1 rounded hover:bg-[var(--success-bg)] text-[#0D9488]"><Check className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => setEditing(false)} className="p-1 rounded hover:bg-red-50 text-[var(--text-faint)]"><X className="w-3.5 h-3.5" /></button>
+                        <button onClick={save} aria-label={`Save ${label}`} className="p-1 rounded hover:bg-[var(--success-bg)] text-[#0D9488]"><Check className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => setEditing(false)} aria-label="Cancel" className="p-1 rounded hover:bg-[var(--danger-bg)] text-[var(--text-faint)]"><X className="w-3.5 h-3.5" /></button>
                     </div>
                 ) : (
-                    <div
-                        className="text-sm text-[var(--text-secondary)] cursor-pointer hover:text-[#0D9488] transition-colors mt-0.5"
+                    <button
+                        type="button"
+                        className="block w-full text-left text-sm text-[var(--text-secondary)] cursor-pointer hover:text-[#0D9488] transition-colors mt-0.5"
                         onClick={startEdit}
+                        aria-label={`Edit ${label}`}
                     >
-                        {displayValue}
-                        <Pencil className="w-2.5 h-2.5 inline ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
+                        {showFallback ? (
+                            <>
+                                {format === 'currency' ? formatCurrency(fallback!.value) : formatNumber(fallback!.value)}
+                                <span className="ml-1.5 text-[10px] text-[var(--text-faint)]" title={fallback!.hint}>calc.</span>
+                            </>
+                        ) : displayValue}
+                        <Pencil className="w-2.5 h-2.5 inline ml-1.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity" />
+                    </button>
                 )}
             </div>
         </div>
@@ -223,7 +235,7 @@ export default function CompDetailPage() {
         return (
             <AppShell>
                 <div className="max-w-3xl mx-auto px-6 py-20 text-center">
-                    <p className="text-sm text-red-500">Failed to load comp</p>
+                    <p className="text-sm text-[var(--danger)]">{error ? 'Failed to load comp' : 'Comp not found'}</p>
                     <Link href="/comps" className="text-sm text-[#0D9488] hover:underline mt-2 block">← Back to Comps</Link>
                 </div>
             </AppShell>
@@ -252,8 +264,8 @@ export default function CompDetailPage() {
                                             if (e.key === 'Escape') setIsEditingName(false);
                                         }}
                                     />
-                                    <button onClick={() => { if (editName.trim()) updateField('name', editName.trim()); setIsEditingName(false); }} className="p-1 rounded hover:bg-[var(--success-bg)] text-[#0D9488]"><Check className="w-4 h-4" /></button>
-                                    <button onClick={() => setIsEditingName(false)} className="p-1 rounded hover:bg-red-50 text-[var(--text-faint)]"><X className="w-4 h-4" /></button>
+                                    <button onClick={() => { if (editName.trim()) updateField('name', editName.trim()); setIsEditingName(false); }} aria-label="Save name" className="p-1 rounded hover:bg-[var(--success-bg)] text-[#0D9488]"><Check className="w-4 h-4" /></button>
+                                    <button onClick={() => setIsEditingName(false)} aria-label="Cancel" className="p-1 rounded hover:bg-[var(--danger-bg)] text-[var(--text-faint)]"><X className="w-4 h-4" /></button>
                                 </div>
                             ) : (
                                 <h1
@@ -343,7 +355,26 @@ export default function CompDetailPage() {
                             <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Sale Information</h3>
                             <div>
                                 <EditableField label="Sale Price" value={comp.sale_price} onSave={(v) => updateField('sale_price', v)} format="currency" icon={DollarSign} />
-                                <EditableField label="Price per SF" value={comp.sale_price_psf} onSave={(v) => updateField('sale_price_psf', v)} format="currency" icon={Ruler} />
+                                <EditableField
+                                    label="Price per SF"
+                                    value={comp.sale_price_psf}
+                                    onSave={(v) => updateField('sale_price_psf', v)}
+                                    format="currency"
+                                    icon={Ruler}
+                                    fallback={{ value: landPricePerSf(comp).derived ? landPricePerSf(comp).value : null, hint: 'Calculated from sale price ÷ site area' }}
+                                />
+                                {(() => {
+                                    const psf = landPricePerSf(comp).value;
+                                    return psf != null ? (
+                                        <div className="flex items-start gap-3 py-2.5 border-b border-[var(--bg-elevated)]">
+                                            <Ruler className="w-3.5 h-3.5 mt-1 flex-shrink-0 text-[var(--text-faint)]" />
+                                            <div>
+                                                <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Price per Acre</div>
+                                                <div className="text-sm text-[var(--text-secondary)] mt-0.5">{formatCurrency(psf * SF_PER_ACRE)}</div>
+                                            </div>
+                                        </div>
+                                    ) : null;
+                                })()}
                                 <EditableField label="Sale Date" value={comp.sale_date} onSave={(v) => updateField('sale_date', v)} format="date" icon={Calendar} />
                                 <EditableField label="Buyer" value={comp.buyer} onSave={(v) => updateField('buyer', v)} icon={User} />
                                 <EditableField label="Seller" value={comp.seller} onSave={(v) => updateField('seller', v)} icon={User} />

@@ -17,6 +17,7 @@ import {
     User, Pencil, Check, X, Plus, Trash2, TrendingUp, Hash, MapPin, Navigation, Search,
 } from 'lucide-react';
 import type { SaleComp, SaleTransaction } from '@/types';
+import { salePricePerUnit, salePricePerSf } from '@/components/pursuits/compDerived';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -35,10 +36,12 @@ function formatNumber(val: number | null, decimals = 0) {
 }
 
 // Inline editable field
-function EditableField({ label, value, onSave, format = 'text', icon: Icon }: {
+function EditableField({ label, value, onSave, format = 'text', icon: Icon, fallback }: {
     label: string;
     value: string | number | null;
     onSave: (val: string | number | null) => void;
+    /** Shown (labelled as calculated) when no value has been entered */
+    fallback?: { value: number | null; hint: string };
     format?: 'text' | 'currency' | 'number' | 'date' | 'percent' | 'year';
     icon?: any;
 }) {
@@ -83,6 +86,8 @@ function EditableField({ label, value, onSave, format = 'text', icon: Icon }: {
         return String(value);
     })();
 
+    const showFallback = (value === null || value === undefined || value === '') && fallback?.value != null;
+
     return (
         <div className="flex items-start gap-3 py-2.5 border-b border-[var(--bg-elevated)] last:border-0 group">
             {Icon && <Icon className="w-3.5 h-3.5 mt-1 flex-shrink-0 text-[var(--text-faint)]" />}
@@ -94,21 +99,28 @@ function EditableField({ label, value, onSave, format = 'text', icon: Icon }: {
                             type={format === 'date' ? 'date' : 'text'}
                             value={draft}
                             onChange={(e) => setDraft(e.target.value)}
-                            className="flex-1 px-2 py-1 text-sm rounded border border-[#6366F1] focus:outline-none"
+                            className="flex-1 px-2 py-1 text-sm rounded border border-[#6366F1] bg-[var(--bg-card)] text-[var(--text-primary)] focus:outline-none"
                             autoFocus
                             onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
                         />
-                        <button onClick={save} className="p-1 rounded hover:bg-[#EEF2FF] text-[var(--accent)]"><Check className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => setEditing(false)} className="p-1 rounded hover:bg-red-50 text-[var(--text-faint)]"><X className="w-3.5 h-3.5" /></button>
+                        <button onClick={save} aria-label={`Save ${label}`} className="p-1 rounded hover:bg-[var(--accent-subtle)] text-[var(--accent)]"><Check className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => setEditing(false)} aria-label="Cancel" className="p-1 rounded hover:bg-[var(--danger-bg)] text-[var(--text-faint)]"><X className="w-3.5 h-3.5" /></button>
                     </div>
                 ) : (
-                    <div
-                        className="text-sm text-[var(--text-secondary)] cursor-pointer hover:text-[var(--accent)] transition-colors mt-0.5"
+                    <button
+                        type="button"
+                        className="block w-full text-left text-sm text-[var(--text-secondary)] cursor-pointer hover:text-[var(--accent)] transition-colors mt-0.5"
                         onClick={startEdit}
+                        aria-label={`Edit ${label}`}
                     >
-                        {displayValue}
-                        <Pencil className="w-2.5 h-2.5 inline ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
+                        {showFallback ? (
+                            <>
+                                {format === 'currency' ? formatCurrency(fallback!.value) : formatNumber(fallback!.value)}
+                                <span className="ml-1.5 text-[10px] text-[var(--text-faint)]" title={fallback!.hint}>calc.</span>
+                            </>
+                        ) : displayValue}
+                        <Pencil className="w-2.5 h-2.5 inline ml-1.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity" />
+                    </button>
                 )}
             </div>
         </div>
@@ -116,8 +128,10 @@ function EditableField({ label, value, onSave, format = 'text', icon: Icon }: {
 }
 
 // Transaction row component
-function TransactionRow({ tx, onUpdate, onDelete }: {
+function TransactionRow({ tx, comp, onUpdate, onDelete }: {
     tx: SaleTransaction;
+    /** Property totals used to derive $/unit and $/SF when they weren't entered */
+    comp: Pick<SaleComp, 'total_units' | 'total_sf'>;
     onUpdate: (field: keyof SaleTransaction, value: unknown) => void;
     onDelete: () => void;
 }) {
@@ -125,7 +139,7 @@ function TransactionRow({ tx, onUpdate, onDelete }: {
         <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 group">
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-[#EEF2FF] flex items-center justify-center">
+                    <div className="w-6 h-6 rounded-full bg-[var(--accent-subtle)] flex items-center justify-center">
                         <DollarSign className="w-3 h-3 text-[var(--accent)]" />
                     </div>
                     <span className="text-xs font-semibold text-[var(--text-muted)] uppercase">
@@ -134,8 +148,9 @@ function TransactionRow({ tx, onUpdate, onDelete }: {
                 </div>
                 <button
                     onClick={onDelete}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-red-50 text-[var(--text-faint)] hover:text-red-500 transition-all"
+                    className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-1.5 rounded-md hover:bg-[var(--danger-bg)] text-[var(--text-faint)] hover:text-[var(--danger)] transition-all"
                     title="Delete transaction"
+                    aria-label="Delete transaction"
                 >
                     <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -144,8 +159,22 @@ function TransactionRow({ tx, onUpdate, onDelete }: {
                 <EditableField label="Sale Date" value={tx.sale_date} onSave={(v) => onUpdate('sale_date', v)} format="date" icon={Calendar} />
                 <EditableField label="Sale Price" value={tx.sale_price} onSave={(v) => onUpdate('sale_price', v)} format="currency" icon={DollarSign} />
                 <EditableField label="Cap Rate" value={tx.cap_rate} onSave={(v) => onUpdate('cap_rate', v)} format="percent" icon={TrendingUp} />
-                <EditableField label="Price per Unit" value={tx.price_per_unit} onSave={(v) => onUpdate('price_per_unit', v)} format="currency" icon={Hash} />
-                <EditableField label="Price per SF" value={tx.price_per_sf} onSave={(v) => onUpdate('price_per_sf', v)} format="currency" icon={Ruler} />
+                <EditableField
+                    label="Price per Unit"
+                    value={tx.price_per_unit}
+                    onSave={(v) => onUpdate('price_per_unit', v)}
+                    format="currency"
+                    icon={Hash}
+                    fallback={{ value: salePricePerUnit(tx, comp).derived ? salePricePerUnit(tx, comp).value : null, hint: 'Calculated from sale price ÷ total units' }}
+                />
+                <EditableField
+                    label="Price per SF"
+                    value={tx.price_per_sf}
+                    onSave={(v) => onUpdate('price_per_sf', v)}
+                    format="currency"
+                    icon={Ruler}
+                    fallback={{ value: salePricePerSf(tx, comp).derived ? salePricePerSf(tx, comp).value : null, hint: 'Calculated from sale price ÷ total SF' }}
+                />
                 <EditableField label="Buyer" value={tx.buyer} onSave={(v) => onUpdate('buyer', v)} icon={User} />
                 <EditableField label="Seller" value={tx.seller} onSave={(v) => onUpdate('seller', v)} icon={User} />
             </div>
@@ -304,7 +333,7 @@ export default function SaleCompDetailPage() {
         return (
             <AppShell>
                 <div className="max-w-3xl mx-auto px-6 py-20 text-center">
-                    <p className="text-sm text-red-500">Failed to load sale comp</p>
+                    <p className="text-sm text-[var(--danger)]">{error ? 'Failed to load sale comp' : 'Sale comp not found'}</p>
                     <Link href="/comps" className="text-sm text-[var(--accent)] hover:underline mt-2 block">← Back to Comps</Link>
                 </div>
             </AppShell>
@@ -333,8 +362,8 @@ export default function SaleCompDetailPage() {
                                             if (e.key === 'Escape') setIsEditingName(false);
                                         }}
                                     />
-                                    <button onClick={() => { if (editName.trim()) updateField('name', editName.trim()); setIsEditingName(false); }} className="p-1 rounded hover:bg-[#EEF2FF] text-[var(--accent)]"><Check className="w-4 h-4" /></button>
-                                    <button onClick={() => setIsEditingName(false)} className="p-1 rounded hover:bg-red-50 text-[var(--text-faint)]"><X className="w-4 h-4" /></button>
+                                    <button onClick={() => { if (editName.trim()) updateField('name', editName.trim()); setIsEditingName(false); }} aria-label="Save name" className="p-1 rounded hover:bg-[var(--accent-subtle)] text-[var(--accent)]"><Check className="w-4 h-4" /></button>
+                                    <button onClick={() => setIsEditingName(false)} aria-label="Cancel" className="p-1 rounded hover:bg-[var(--danger-bg)] text-[var(--text-faint)]"><X className="w-4 h-4" /></button>
                                 </div>
                             ) : (
                                 <h1
@@ -351,7 +380,7 @@ export default function SaleCompDetailPage() {
                                     <span className="text-[10px] text-[var(--text-faint)] ml-2">({comp.latitude.toFixed(4)}, {comp.longitude.toFixed(4)})</span>
                                 )}
                                 {comp.property_type && (
-                                    <span className="ml-2 text-[10px] bg-[#EEF2FF] text-[var(--accent)] px-1.5 py-0.5 rounded-full font-medium">
+                                    <span className="ml-2 text-[10px] bg-[var(--accent-subtle)] text-[var(--accent)] px-1.5 py-0.5 rounded-full font-medium">
                                         {comp.property_type}
                                     </span>
                                 )}
@@ -373,10 +402,10 @@ export default function SaleCompDetailPage() {
                     {editingLocation && (
                         <div className="mt-3 p-3 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg space-y-2">
                             <div className="flex gap-2">
-                                <button onClick={() => setLocMode('search')} className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium ${locMode === 'search' ? 'bg-[#EEF2FF] text-[var(--accent)] border border-[var(--accent)]/30' : 'text-[var(--text-muted)] border border-[var(--border)]'}`}>
+                                <button onClick={() => setLocMode('search')} className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium ${locMode === 'search' ? 'bg-[var(--accent-subtle)] text-[var(--accent)] border border-[var(--accent)]/30' : 'text-[var(--text-muted)] border border-[var(--border)]'}`}>
                                     <MapPin className="w-3 h-3" /> Address
                                 </button>
-                                <button onClick={() => setLocMode('coords')} className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium ${locMode === 'coords' ? 'bg-[#EEF2FF] text-[var(--accent)] border border-[var(--accent)]/30' : 'text-[var(--text-muted)] border border-[var(--border)]'}`}>
+                                <button onClick={() => setLocMode('coords')} className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium ${locMode === 'coords' ? 'bg-[var(--accent-subtle)] text-[var(--accent)] border border-[var(--accent)]/30' : 'text-[var(--text-muted)] border border-[var(--border)]'}`}>
                                     <Navigation className="w-3 h-3" /> Coords
                                 </button>
                             </div>
@@ -509,6 +538,7 @@ export default function SaleCompDetailPage() {
                                 <TransactionRow
                                     key={tx.id}
                                     tx={tx}
+                                    comp={comp}
                                     onUpdate={(field, value) => handleUpdateTx(tx.id, field, value)}
                                     onDelete={() => handleDeleteTx(tx.id)}
                                 />

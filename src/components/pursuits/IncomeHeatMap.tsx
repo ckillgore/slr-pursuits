@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Map as MapIcon, Loader2, MapPin, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useMapStyle, siteInkColor } from './mapTheme';
+import { isCacheForOtherLocation, type LngLat } from './locationCache';
+import { StaleLocationNotice } from './StaleLocationNotice';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -17,6 +20,9 @@ const INCOME_COLORS = [
     '#a50f15', // 120k-150k
     '#67000d', // > 150k — darkest
 ];
+// Block groups with no ACS estimate (null, or Census sentinels like -666666666) —
+// previously coalesced to 0 and painted as the lowest income band.
+const NO_DATA_COLOR = '#9CA3AF';
 
 function escapeHtml(str: string): string {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -37,6 +43,8 @@ interface IncomeCacheEntry {
     geojson: any;
     blockGroupCount: number;
     generatedAt: string;
+    /** Site the map was generated for — absent on entries saved before location tracking */
+    center?: LngLat;
 }
 
 interface IncomeHeatMapProps {
@@ -65,6 +73,8 @@ export function IncomeHeatMap({
     const [blockGroupCount, setBlockGroupCount] = useState<number>(0);
     const [cachedAt, setCachedAt] = useState<string | null>(null);
     const [radiusMiles, setRadiusMiles] = useState(5);
+    const [cachedCenter, setCachedCenter] = useState<LngLat | null>(null);
+    const { mapStyle, isDark } = useMapStyle();
 
     // Per-radius cache ref (avoids stale closure issues)
     const localCacheRef = useRef<Record<string, IncomeCacheEntry>>(
@@ -91,12 +101,14 @@ export function IncomeHeatMap({
             setGeojson(cached.geojson);
             setBlockGroupCount(cached.blockGroupCount || 0);
             setCachedAt(cached.generatedAt || null);
+            setCachedCenter(cached.center ?? null);
             setError(null);
         } else {
             // No cached data for this radius — clear display
             setGeojson(null);
             setBlockGroupCount(0);
             setCachedAt(null);
+            setCachedCenter(null);
         }
     }, [radiusMiles, savedIncomeData]);
 
@@ -118,7 +130,7 @@ export function IncomeHeatMap({
 
             map = new mbgl.Map({
                 container: mapContainerRef.current,
-                style: 'mapbox://styles/mapbox/light-v11',
+                style: mapStyle,
                 center,
                 zoom: 11,
                 interactive: true,
@@ -127,7 +139,7 @@ export function IncomeHeatMap({
             map.addControl(new mbgl.NavigationControl({ showCompass: false }), 'top-right');
 
             // Site marker
-            markerRef.current = new mbgl.Marker({ color: '#1A1F2B' })
+            markerRef.current = new mbgl.Marker({ color: siteInkColor(isDark) })
                 .setLngLat(center)
                 .addTo(map);
 
@@ -144,7 +156,7 @@ export function IncomeHeatMap({
                     .setHTML(`
                         <div style="font-family: system-ui, sans-serif; font-size: 12px; line-height: 1.5; min-width: 140px;">
                             <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">${escapeHtml(String(props.name || props.geoId || ''))}</div>
-                            <div style="color: var(--text-secondary);">Median Income: <strong style="color: var(--text-primary);">${income != null && income !== '' && Number.isFinite(Number(income)) ? '$' + Number(income).toLocaleString() : 'N/A'}</strong></div>
+                            <div style="color: var(--text-secondary);">Median Income: <strong style="color: var(--text-primary);">${income != null && income !== '' && Number(income) > 0 ? '$' + Number(income).toLocaleString() : 'No data'}</strong></div>
                         </div>
                     `)
                     .addTo(map);
@@ -169,7 +181,7 @@ export function IncomeHeatMap({
             setMapReady(false);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hasLocation]);
+    }, [hasLocation, mapStyle]);
 
     // Update map center + marker
     useEffect(() => {
@@ -203,15 +215,13 @@ export function IncomeHeatMap({
             data: geojson,
         });
 
-        // Build the step expression for color mapping
-        const colorExpr: any[] = [
-            'step',
-            ['coalesce', ['get', 'medianIncome'], 0],
-            INCOME_COLORS[0],
-        ];
+        // Build the step expression for color mapping (null → 0 via to-number, then "no data")
+        const incomeValue = ['to-number', ['get', 'medianIncome'], 0];
+        const stepExpr: any[] = ['step', incomeValue, INCOME_COLORS[0]];
         for (let i = 0; i < INCOME_BREAKS.length; i++) {
-            colorExpr.push(INCOME_BREAKS[i], INCOME_COLORS[i + 1]);
+            stepExpr.push(INCOME_BREAKS[i], INCOME_COLORS[i + 1]);
         }
+        const colorExpr = ['case', ['<=', incomeValue, 0], NO_DATA_COLOR, stepExpr];
 
         map.addLayer({
             id: 'income-fill',
@@ -265,13 +275,15 @@ export function IncomeHeatMap({
                 body: JSON.stringify({ latitude, longitude, radiusMiles }),
             });
 
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to fetch income data');
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || `Failed to fetch income data (HTTP ${res.status})`);
 
             const now = new Date().toISOString();
+            const generatedFrom: LngLat = [longitude!, latitude!];
             setGeojson(data.geojson);
             setBlockGroupCount(data.blockGroupCount || 0);
             setCachedAt(now);
+            setCachedCenter(generatedFrom);
 
             // Save to per-radius cache + persist to Supabase
             if (onSaveIncomeData) {
@@ -280,6 +292,7 @@ export function IncomeHeatMap({
                     geojson: data.geojson,
                     blockGroupCount: data.blockGroupCount,
                     generatedAt: now,
+                    center: generatedFrom,
                 };
                 const merged = { ...localCacheRef.current, [key]: entry };
                 localCacheRef.current = merged;
@@ -321,6 +334,13 @@ export function IncomeHeatMap({
         );
     }
 
+    // Cache is per pursuit, not per location: flag a heat map generated for a previous site
+    const isStale = !!geojson && !loading && isCacheForOtherLocation({
+        current: [longitude!, latitude!],
+        savedCenter: cachedCenter,
+        geometry: geojson,
+    });
+
     const formattedCacheDate = cachedAt
         ? new Date(cachedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
         : null;
@@ -343,6 +363,7 @@ export function IncomeHeatMap({
                     <select
                         value={radiusMiles}
                         onChange={(e) => setRadiusMiles(Number(e.target.value))}
+                        aria-label="Radius"
                         className="text-xs px-2 py-1 rounded-md border border-[var(--border)] text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none bg-[var(--bg-card)]"
                         disabled={loading}
                     >
@@ -353,7 +374,7 @@ export function IncomeHeatMap({
                     <button
                         onClick={fetchIncome}
                         disabled={loading}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#D97706] hover:bg-[var(--warning)] disabled:opacity-50 text-white text-xs font-medium transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#D97706] hover:bg-[#B45309] disabled:opacity-50 text-white text-xs font-medium transition-colors"
                     >
                         {loading ? (
                             <><Loader2 className="w-3 h-3 animate-spin" /> Generating...</>
@@ -367,6 +388,10 @@ export function IncomeHeatMap({
             {/* Cache timestamp */}
             {formattedCacheDate && !loading && (
                 <p className="text-[10px] text-[var(--text-faint)] mb-2">Last generated: {formattedCacheDate}</p>
+            )}
+
+            {isStale && (
+                <StaleLocationNotice what="income heat map" generatedAt={cachedAt} onRegenerate={fetchIncome} disabled={loading} />
             )}
 
             {/* Error */}
@@ -404,6 +429,10 @@ export function IncomeHeatMap({
                                     <span className="text-[10px] text-[var(--text-secondary)] tabular-nums">{label}</span>
                                 </div>
                             ))}
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: NO_DATA_COLOR }} />
+                                <span className="text-[10px] text-[var(--text-secondary)]">No data</span>
+                            </div>
                         </div>
                     </div>
                 )}

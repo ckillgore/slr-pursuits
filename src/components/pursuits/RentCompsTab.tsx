@@ -38,6 +38,7 @@ import type { HellodataProperty, HellodataUnit, HellodataConcession, PursuitRent
 import type { PropertyMetrics as SharedPropertyMetrics } from './rent-comps/types';
 import { RentTrendsSection, BubbleChartSection, OccupancySection, LeasingActivitySection, ConcessionsSection, FeesSection, QualitySection, MarketContextSection, RentRollSection, CompMapSection, OccupancyForecastSectionFull } from './rent-comps/RentCompSections';
 import MarketStudyTab from './MarketStudyTab';
+import { toast } from '@/lib/toast';
 
 interface RentCompsTabProps {
     pursuitId: string;
@@ -290,6 +291,7 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
             clearResults();
             setSearchQuery('');
             setShowSearch(false);
+            toast.success(`Added ${result.property.building_name || result.property.street_address || 'property'} to rent comps`);
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Unknown error';
             console.error('[AddComp] FAILED:', message, err);
@@ -302,9 +304,9 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
     const handleUnlink = useCallback(async (propertyId: string) => {
         try {
             await unlinkComp.mutateAsync({ pursuitId, propertyId });
+            toast.success('Comp removed from this pursuit');
         } catch (err) {
-            const message = err instanceof Error ? err.message : 'Unknown error';
-            setAddError(`Failed to remove comp: ${message}`);
+            toast.error('Failed to remove comp', err);
         } finally {
             setUnlinkConfirmId(null);
         }
@@ -338,6 +340,7 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
                         <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
                             {(['all', 'primary'] as const).map(f => (
                                 <button key={f} onClick={() => setCompFilter(f)}
+                                    aria-pressed={compFilter === f}
                                     className={`px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-medium ${compFilter === f ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]'}`}>
                                     {f === 'all' ? `All (${allCompMetrics.length})` : `Primary (${primaryCount})`}
                                 </button>
@@ -346,7 +349,7 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
                     )}
                     <button
                         onClick={() => setShowSearch(true)}
-                        className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[#1D4ED8] text-white text-xs sm:text-sm font-medium transition-colors shadow-sm"
+                        className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs sm:text-sm font-medium transition-colors shadow-sm"
                     >
                         <Plus className="w-4 h-4" />
                         <span className="hidden sm:inline">Add Comp</span>
@@ -391,7 +394,7 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
                     </p>
                     <button
                         onClick={() => setShowSearch(true)}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[#1D4ED8] text-white text-sm font-medium transition-colors shadow-sm"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors shadow-sm"
                     >
                         <Search className="w-4 h-4" /> Search Properties
                     </button>
@@ -424,6 +427,7 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
                             <button
                                 key={tab.key}
                                 onClick={() => setActiveSection(tab.key)}
+                                aria-current={activeSection === tab.key ? 'page' : undefined}
                                 className={`px-2 sm:px-3 py-2 sm:py-2.5 text-[11px] sm:text-xs font-medium transition-colors relative whitespace-nowrap shrink-0 ${activeSection === tab.key
                                     ? 'text-[var(--accent)]'
                                     : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
@@ -485,14 +489,18 @@ export default function RentCompsTab({ pursuitId }: RentCompsTabProps) {
 
             {/* Unlink Confirmation */}
             {unlinkConfirmId && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
-                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in mx-4">
-                        <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Remove Comp</h2>
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm"
+                    onClick={() => setUnlinkConfirmId(null)}
+                    onKeyDown={(e) => { if (e.key === 'Escape') setUnlinkConfirmId(null); }}
+                >
+                    <div role="alertdialog" aria-modal="true" aria-labelledby="remove-comp-title" className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in mx-4" onClick={(e) => e.stopPropagation()}>
+                        <h2 id="remove-comp-title" className="text-lg font-semibold text-[var(--text-primary)] mb-2">Remove Comp</h2>
                         <p className="text-sm text-[var(--text-muted)] mb-6">
                             Remove this property from this pursuit&apos;s comp set?
                         </p>
                         <div className="flex justify-end gap-3">
-                            <button onClick={() => setUnlinkConfirmId(null)} className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]">Cancel</button>
+                            <button onClick={() => setUnlinkConfirmId(null)} autoFocus className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]">Cancel</button>
                             <button
                                 onClick={() => handleUnlink(unlinkConfirmId)}
                                 disabled={unlinkComp.isPending}
@@ -528,7 +536,7 @@ function SearchPanel({
         <div className="border border-[var(--border)] rounded-xl bg-[var(--bg-card)] p-4 shadow-sm animate-fade-in">
             <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">Search HelloData Properties</h3>
-                <button onClick={onClose} className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-muted)]"><X className="w-4 h-4" /></button>
+                <button onClick={onClose} aria-label="Close search" className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-muted)]"><X className="w-4 h-4" /></button>
             </div>
             <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
@@ -537,6 +545,7 @@ function SearchPanel({
                     value={searchQuery}
                     onChange={e => onSearch(e.target.value)}
                     placeholder="Search by property name, address, city, or zip..."
+                    aria-label="Search HelloData properties"
                     className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-subtle)] focus:outline-none"
                     autoFocus
                 />
@@ -583,7 +592,7 @@ function SearchPanel({
 // ============================================================
 
 function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMetrics[]; onRemove: (id: string) => void; onToggleType: (propertyId: string, currentType: 'primary' | 'secondary') => void }) {
-    // Comp average row
+    // Comp average column — simple mean of property-level values (each property counts once)
     const compAvg = useMemo(() => {
         const avg = (vals: (number | null | undefined)[]) => {
             const valid = vals.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
@@ -607,33 +616,70 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
         };
     }, [comps]);
 
+    // Unit-weighted column — each property weighted by its total unit count, so a 400-unit comp moves
+    // the average more than a 40-unit one. Properties without a unit count are left out of this column.
+    const compWtd = useMemo(() => {
+        const wavg = (pick: (c: PropertyMetrics) => number | null | undefined) => {
+            let sum = 0, weight = 0;
+            for (const c of comps) {
+                const v = pick(c);
+                const w = c.property.number_units;
+                if (typeof v === 'number' && Number.isFinite(v) && typeof w === 'number' && w > 0) {
+                    sum += v * w;
+                    weight += w;
+                }
+            }
+            return weight > 0 ? sum / weight : null;
+        };
+        const weighted = comps.filter(c => (c.property.number_units ?? 0) > 0);
+        return {
+            count: weighted.length,
+            totalUnits: weighted.reduce((s, c) => s + (c.property.number_units ?? 0), 0),
+            avgEffRent: wavg(c => c.avgEffRent),
+            avgAskRent: wavg(c => c.avgAskRent),
+            avgSqft: wavg(c => c.avgSqft),
+            avgEffPsf: wavg(c => c.avgEffPsf),
+            avgAskPsf: wavg(c => c.avgAskPsf),
+            leasedPct: wavg(c => c.leasedPct),
+            avgConcession: wavg(c => c.avgConcession),
+            concessionPct: wavg(c => c.concessionPct),
+            avgDaysOnMarket: wavg(c => c.avgDaysOnMarket),
+            avgDaysVacant: wavg(c => c.avgDaysVacant),
+            yearBuilt: wavg(c => c.property.year_built),
+        };
+    }, [comps]);
+    const days = (v: number | null) => v !== null ? `${Math.round(v)} days` : '—';
+
     type Row = {
         label: string;
+        /** Simple average across properties */
         avgValue: string;
+        /** Unit-weighted average ('—' where weighting isn't meaningful) */
+        wtdValue: string;
         values: (compIndex: number) => string;
         bold?: boolean;
         multiline?: boolean;
     };
 
     const rows: Row[] = [
-        { label: 'Management Company', avgValue: '—', values: (i) => comps[i].property.management_company || '—' },
-        { label: 'Year Built', avgValue: compAvg.yearBuilt ? Math.round(compAvg.yearBuilt).toString() : '—', values: (i) => comps[i].property.year_built?.toString() || '—' },
-        { label: '# Units', avgValue: fmtNum(compAvg.avgUnits), values: (i) => fmtNum(comps[i].property.number_units) },
-        { label: 'Leased %', avgValue: fmtPct(compAvg.leasedPct), values: (i) => fmtPct(comps[i].leasedPct) },
-        { label: 'Quality', avgValue: '—', values: (i) => comps[i].qualityLabel },
-        { label: 'Reviews', avgValue: '—', values: (i) => comps[i].reviewScore },
-        { label: 'Pricing Strategy', avgValue: '—', values: (i) => comps[i].pricingStrategy, multiline: true },
-        { label: '# Vacancies', avgValue: `${compAvg.vacancies} vacancies`, values: (i) => `${comps[i].vacancies} vacancies` },
-        { label: 'Days on Market', avgValue: compAvg.avgDaysOnMarket !== null ? `${Math.round(compAvg.avgDaysOnMarket)} days` : '—', values: (i) => comps[i].avgDaysOnMarket !== null ? `${Math.round(comps[i].avgDaysOnMarket!)} days` : '—' },
-        { label: 'Days Vacant', avgValue: compAvg.avgDaysVacant !== null ? `${Math.round(compAvg.avgDaysVacant)} days` : '—', values: (i) => comps[i].avgDaysVacant !== null ? `${Math.round(comps[i].avgDaysVacant!)} days` : '—' },
-        { label: 'Rent', avgValue: fmtCur(compAvg.avgAskRent), values: (i) => fmtCur(comps[i].avgAskRent), bold: true },
-        { label: 'Average Sqft', avgValue: fmtNum(compAvg.avgSqft, 0), values: (i) => `${fmtNum(comps[i].avgSqft, 0)} ft²` },
-        { label: 'NER', avgValue: `${fmtCur(compAvg.avgEffRent)} NER`, values: (i) => `${fmtCur(comps[i].avgEffRent)} NER`, bold: true },
-        { label: 'Rent/ft²', avgValue: fmtCur(compAvg.avgAskPsf, 2), values: (i) => `${fmtCur(comps[i].avgAskPsf, 2)}/ft²` },
-        { label: 'NER/ft²', avgValue: fmtCur(compAvg.avgEffPsf, 2), values: (i) => `${fmtCur(comps[i].avgEffPsf, 2)}/ft²`, bold: true },
-        { label: 'Concession %', avgValue: compAvg.concessionPct !== null ? `${compAvg.concessionPct.toFixed(1)}%` : '—', values: (i) => comps[i].concessionPct !== null ? `${comps[i].concessionPct!.toFixed(1)}%` : '0.0%' },
-        { label: 'Concession Amount', avgValue: fmtCur(compAvg.avgConcession), values: (i) => fmtCur(comps[i].avgConcession) },
-        { label: 'Concessions', avgValue: '—', values: (i) => comps[i].concessionText, multiline: true },
+        { label: 'Management Company', avgValue: '—', wtdValue: '—', values: (i) => comps[i].property.management_company || '—' },
+        { label: 'Year Built', avgValue: compAvg.yearBuilt ? Math.round(compAvg.yearBuilt).toString() : '—', wtdValue: compWtd.yearBuilt ? Math.round(compWtd.yearBuilt).toString() : '—', values: (i) => comps[i].property.year_built?.toString() || '—' },
+        { label: '# Units', avgValue: fmtNum(compAvg.avgUnits), wtdValue: compWtd.totalUnits > 0 ? `${fmtNum(compWtd.totalUnits)} total` : '—', values: (i) => fmtNum(comps[i].property.number_units) },
+        { label: 'Leased %', avgValue: fmtPct(compAvg.leasedPct), wtdValue: fmtPct(compWtd.leasedPct), values: (i) => fmtPct(comps[i].leasedPct) },
+        { label: 'Quality', avgValue: '—', wtdValue: '—', values: (i) => comps[i].qualityLabel },
+        { label: 'Reviews', avgValue: '—', wtdValue: '—', values: (i) => comps[i].reviewScore },
+        { label: 'Pricing Strategy', avgValue: '—', wtdValue: '—', values: (i) => comps[i].pricingStrategy, multiline: true },
+        { label: '# Vacancies', avgValue: `${compAvg.vacancies} vacancies`, wtdValue: '—', values: (i) => `${comps[i].vacancies} vacancies` },
+        { label: 'Days on Market', avgValue: days(compAvg.avgDaysOnMarket), wtdValue: days(compWtd.avgDaysOnMarket), values: (i) => days(comps[i].avgDaysOnMarket) },
+        { label: 'Days Vacant', avgValue: days(compAvg.avgDaysVacant), wtdValue: days(compWtd.avgDaysVacant), values: (i) => days(comps[i].avgDaysVacant) },
+        { label: 'Rent', avgValue: fmtCur(compAvg.avgAskRent), wtdValue: fmtCur(compWtd.avgAskRent), values: (i) => fmtCur(comps[i].avgAskRent), bold: true },
+        { label: 'Average Sqft', avgValue: `${fmtNum(compAvg.avgSqft, 0)} ft²`, wtdValue: `${fmtNum(compWtd.avgSqft, 0)} ft²`, values: (i) => `${fmtNum(comps[i].avgSqft, 0)} ft²` },
+        { label: 'NER', avgValue: `${fmtCur(compAvg.avgEffRent)} NER`, wtdValue: `${fmtCur(compWtd.avgEffRent)} NER`, values: (i) => `${fmtCur(comps[i].avgEffRent)} NER`, bold: true },
+        { label: 'Rent/ft²', avgValue: `${fmtCur(compAvg.avgAskPsf, 2)}/ft²`, wtdValue: `${fmtCur(compWtd.avgAskPsf, 2)}/ft²`, values: (i) => `${fmtCur(comps[i].avgAskPsf, 2)}/ft²` },
+        { label: 'NER/ft²', avgValue: `${fmtCur(compAvg.avgEffPsf, 2)}/ft²`, wtdValue: `${fmtCur(compWtd.avgEffPsf, 2)}/ft²`, values: (i) => `${fmtCur(comps[i].avgEffPsf, 2)}/ft²`, bold: true },
+        { label: 'Concession %', avgValue: fmtPct(compAvg.concessionPct), wtdValue: fmtPct(compWtd.concessionPct), values: (i) => comps[i].concessionPct !== null ? `${comps[i].concessionPct!.toFixed(1)}%` : '0.0%' },
+        { label: 'Concession Amount', avgValue: fmtCur(compAvg.avgConcession), wtdValue: fmtCur(compWtd.avgConcession), values: (i) => fmtCur(comps[i].avgConcession) },
+        { label: 'Concessions', avgValue: '—', wtdValue: '—', values: (i) => comps[i].concessionText, multiline: true },
     ];
 
     return (
@@ -642,9 +688,13 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
                 <thead className="hidden md:table-header-group">
                     <tr className="border-b-2 border-[var(--border)] bg-[var(--bg-primary)]">
                         <th className="text-left py-3 px-4 font-semibold text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10 min-w-[140px]"></th>
-                        <th className="text-center py-3 px-3 font-semibold text-[var(--text-muted)] min-w-[100px]">
+                        <th className="text-center py-3 px-3 font-semibold text-[var(--text-muted)] min-w-[100px]" title="Simple average: every property counts equally, regardless of size">
                             <div className="text-[10px] uppercase tracking-wider">Comp Avg</div>
-                            <div className="text-[10px] text-[var(--text-faint)]">{comps.length} Properties</div>
+                            <div className="text-[10px] text-[var(--text-faint)]">Simple · {comps.length} properties</div>
+                        </th>
+                        <th className="text-center py-3 px-3 font-semibold text-[var(--text-muted)] min-w-[100px]" title="Weighted by each property's total unit count; properties without a unit count are excluded">
+                            <div className="text-[10px] uppercase tracking-wider">Unit-Wtd Avg</div>
+                            <div className="text-[10px] text-[var(--text-faint)]">{compWtd.count} properties · {fmtNum(compWtd.totalUnits)} units</div>
                         </th>
                         {comps.map((c) => (
                             <th key={c.propertyId} className="text-center py-3 px-3 min-w-[140px]">
@@ -653,8 +703,9 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
                                 <div className="flex items-center justify-center gap-2 mt-1">
                                     <button
                                         onClick={() => onToggleType(c.propertyId, c.compType)}
+                                        aria-label={`${c.name}: ${c.compType} comp — switch to ${c.compType === 'primary' ? 'secondary' : 'primary'}`}
                                         className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${c.compType === 'primary'
-                                            ? 'bg-[var(--warning-bg)] text-[var(--warning)] hover:bg-[#FDE68A]'
+                                            ? 'bg-[var(--warning-bg)] text-[var(--warning)] hover:bg-[var(--warning)]/20'
                                             : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:bg-[var(--border)]'
                                             }`}
                                         title={`Click to switch to ${c.compType === 'primary' ? 'secondary' : 'primary'}`}
@@ -664,6 +715,7 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
                                     </button>
                                     <button
                                         onClick={() => onRemove(c.property.id)}
+                                        aria-label={`Remove ${c.name} from comps`}
                                         className="text-[10px] text-[var(--danger)] hover:underline"
                                     >
                                         remove
@@ -685,10 +737,14 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
                             <td className="hidden md:table-cell py-2.5 px-4 font-medium text-[var(--text-secondary)] sticky left-0 bg-inherit z-10">{row.label}</td>
                             
                             <td className="flex justify-between items-center md:table-cell py-2.5 px-4 md:px-3 text-left md:text-center text-[var(--text-muted)] border-b border-[var(--border)] md:border-0">
-                                <span className="md:hidden font-medium text-[var(--text-faint)]">Comp Avg</span>
+                                <span className="md:hidden font-medium text-[var(--text-faint)]">Comp Avg (simple)</span>
                                 <span className={`${row.bold ? 'font-semibold' : ''} ${row.multiline ? 'text-right md:text-left max-w-[180px]' : ''}`}>
                                     {row.multiline ? <span className="line-clamp-3 text-[11px]">{row.avgValue}</span> : row.avgValue}
                                 </span>
+                            </td>
+                            <td className="flex justify-between items-center md:table-cell py-2.5 px-4 md:px-3 text-left md:text-center text-[var(--text-muted)] border-b border-[var(--border)] md:border-0">
+                                <span className="md:hidden font-medium text-[var(--text-faint)]">Unit-weighted avg</span>
+                                <span className={row.bold ? 'font-semibold' : ''}>{row.wtdValue}</span>
                             </td>
                             {comps.map((_, ci) => (
                                 <td key={ci} className="flex flex-col sm:flex-row sm:justify-between sm:items-center md:table-cell py-2.5 px-4 md:px-3 text-left md:text-center text-[var(--text-primary)] border-b border-[var(--table-row-border)] md:border-0 last:border-0">
@@ -995,7 +1051,7 @@ function AmenitiesGrid({ comps }: { comps: PropertyMetrics[] }) {
                                         {allAmenities.map(a => (
                                             <td key={a} className="py-2 px-2 text-center">
                                                 {amenities.includes(a) ? (
-                                                    <Check className="w-4 h-4 text-[#22C55E] mx-auto" />
+                                                    <Check className="w-4 h-4 text-[var(--success)] mx-auto" aria-label="Yes" />
                                                 ) : null}
                                             </td>
                                         ))}

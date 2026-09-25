@@ -12,6 +12,8 @@ import {
     usePursuitSaleComps, useLinkSaleCompToPursuit, useUnlinkSaleCompFromPursuit,
 } from '@/hooks/useSupabaseQueries';
 import type { LandComp, SaleComp, SaleTransaction } from '@/types';
+import { toast } from '@/lib/toast';
+import { landPricePerSf, salePricePerUnit } from './compDerived';
 
 // ============================================================
 // Helpers
@@ -33,9 +35,7 @@ function fmtDate(d: string | null | undefined): string {
 }
 /** Land $/SF: use stored value, else derive from price / site area */
 function landPsf(c: LandComp): number | null {
-    if (c.sale_price_psf && c.sale_price_psf > 0) return c.sale_price_psf;
-    if (c.sale_price && c.sale_price > 0 && c.site_area_sf && c.site_area_sf > 0) return c.sale_price / c.site_area_sf;
-    return null;
+    return landPricePerSf(c).value;
 }
 function parseNum(v: string): number | null {
     const n = parseFloat(v.replace(/[$,\s]/g, ''));
@@ -130,7 +130,7 @@ function LandCompsSection({ pursuitId }: { pursuitId: string }) {
             await linkMut.mutateAsync({ pursuitId, landCompId: compId });
         } catch (err) {
             console.error('Failed to link land comp:', err);
-            window.alert('Failed to link land comp.');
+            toast.error('Failed to link land comp', err);
         }
     };
 
@@ -140,7 +140,7 @@ function LandCompsSection({ pursuitId }: { pursuitId: string }) {
             await unlinkMut.mutateAsync({ pursuitId, landCompId: compId });
         } catch (err) {
             console.error('Failed to unlink land comp:', err);
-            window.alert('Failed to unlink land comp.');
+            toast.error('Failed to unlink land comp', err);
         }
     };
 
@@ -175,9 +175,10 @@ function LandCompsSection({ pursuitId }: { pursuitId: string }) {
             await linkMut.mutateAsync({ pursuitId, landCompId: comp.id });
         } catch (err) {
             console.error('Failed to create/link land comp:', err);
-            window.alert(comp ? 'Land comp was created but could not be linked to this pursuit.' : 'Failed to create land comp.');
+            toast.error(comp ? 'Land comp was created but could not be linked to this pursuit' : 'Failed to create land comp', err);
             return;
         }
+        toast.success(`Created and linked ${comp.name}`);
         setNewName(''); setNewAddress(''); setNewCity(''); setNewState('');
         setNewSiteArea(''); setNewSalePrice('');
         setShowCreate(false);
@@ -221,11 +222,11 @@ function LandCompsSection({ pursuitId }: { pursuitId: string }) {
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search land comps by name, address, or city..."
-                            className="w-full pl-8 pr-8 py-2 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                            className="w-full pl-8 pr-8 py-2 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                             autoFocus
                         />
                         {searchQuery && (
-                            <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                            <button onClick={() => setSearchQuery('')} aria-label="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2">
                                 <X className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                             </button>
                         )}
@@ -258,12 +259,12 @@ function LandCompsSection({ pursuitId }: { pursuitId: string }) {
                 <div className="border border-[var(--border)] rounded-xl p-3 bg-[var(--bg-primary)] space-y-3">
                     <h4 className="text-xs font-semibold text-[var(--text-primary)]">Quick Create Land Comp</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name *" className="col-span-2 sm:col-span-1 px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
-                        <input value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="Address" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
-                        <input value={newCity} onChange={e => setNewCity(e.target.value)} placeholder="City" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
-                        <input value={newState} onChange={e => setNewState(e.target.value)} placeholder="State" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
-                        <input value={newSiteArea} onChange={e => setNewSiteArea(e.target.value)} placeholder="Site Area (acres)" type="number" step="0.01" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
-                        <input value={newSalePrice} onChange={e => setNewSalePrice(e.target.value)} placeholder="Sale Price ($)" type="number" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
+                        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name *" className="col-span-2 sm:col-span-1 px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
+                        <input value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="Address" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
+                        <input value={newCity} onChange={e => setNewCity(e.target.value)} placeholder="City" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
+                        <input value={newState} onChange={e => setNewState(e.target.value)} placeholder="State" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
+                        <input value={newSiteArea} onChange={e => setNewSiteArea(e.target.value)} placeholder="Site Area (acres)" type="number" step="0.01" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
+                        <input value={newSalePrice} onChange={e => setNewSalePrice(e.target.value)} placeholder="Sale Price ($)" type="number" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
                     </div>
                     <div className="flex items-center gap-2">
                         <button onClick={handleCreate} disabled={!newName.trim() || createMut.isPending}
@@ -319,7 +320,10 @@ function LandCompsSection({ pursuitId }: { pursuitId: string }) {
                                     </td>
                                     <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
                                         <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">$/SF</span>
-                                        <span>{fmtCur(landPsf(c), 2)}</span>
+                                        {(() => {
+                                            const psf = landPricePerSf(c);
+                                            return <span title={psf.derived ? 'Calculated: sale price ÷ site area' : undefined}>{fmtCur(psf.value, 2)}{psf.derived ? '*' : ''}</span>;
+                                        })()}
                                     </td>
                                     <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-center text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
                                         <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Sale Date</span>
@@ -334,7 +338,7 @@ function LandCompsSection({ pursuitId }: { pursuitId: string }) {
                                         <span>{c.zoning || '—'}</span>
                                     </td>
                                     <td className="py-1.5 px-2 text-right md:text-center block md:table-cell">
-                                        <button onClick={() => handleUnlink(c.id)} title="Unlink" className="text-[var(--text-muted)] hover:text-red-500 transition-colors inline-block md:block md:mx-auto">
+                                        <button onClick={() => handleUnlink(c.id)} title="Unlink" aria-label={`Unlink ${c.name}`} className="text-[var(--text-muted)] hover:text-[var(--danger)] transition-colors inline-block md:block md:mx-auto">
                                             <span className="md:hidden mr-1 text-xs">Unlink</span>
                                             <X className="w-3.5 h-3.5 inline-block md:block" />
                                         </button>
@@ -375,6 +379,9 @@ function LandCompsSection({ pursuitId }: { pursuitId: string }) {
                             })()}
                         </tbody>
                     </table>
+                    {linkedComps.some((c: LandComp) => landPricePerSf(c).derived) && (
+                        <p className="px-2 py-1.5 text-[10px] text-[var(--text-faint)]">* Calculated from sale price ÷ site area (no $/SF entered)</p>
+                    )}
                 </div>
             )}
         </div>
@@ -421,7 +428,7 @@ function SaleCompsSection({ pursuitId }: { pursuitId: string }) {
             await linkMut.mutateAsync({ pursuitId, saleCompId: compId });
         } catch (err) {
             console.error('Failed to link sale comp:', err);
-            window.alert('Failed to link sale comp.');
+            toast.error('Failed to link sale comp', err);
         }
     };
 
@@ -431,7 +438,7 @@ function SaleCompsSection({ pursuitId }: { pursuitId: string }) {
             await unlinkMut.mutateAsync({ pursuitId, saleCompId: compId });
         } catch (err) {
             console.error('Failed to unlink sale comp:', err);
-            window.alert('Failed to unlink sale comp.');
+            toast.error('Failed to unlink sale comp', err);
         }
     };
 
@@ -462,9 +469,10 @@ function SaleCompsSection({ pursuitId }: { pursuitId: string }) {
             await linkMut.mutateAsync({ pursuitId, saleCompId: comp.id });
         } catch (err) {
             console.error('Failed to create/link sale comp:', err);
-            window.alert(comp ? 'Sale comp was created but could not be linked to this pursuit.' : 'Failed to create sale comp.');
+            toast.error(comp ? 'Sale comp was created but could not be linked to this pursuit' : 'Failed to create sale comp', err);
             return;
         }
+        toast.success(`Created and linked ${comp.name}`);
         setNewName(''); setNewAddress(''); setNewCity(''); setNewState('');
         setNewUnits(''); setNewYearBuilt('');
         setShowCreate(false);
@@ -515,11 +523,11 @@ function SaleCompsSection({ pursuitId }: { pursuitId: string }) {
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search sale comps by name, address, or city..."
-                            className="w-full pl-8 pr-8 py-2 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                            className="w-full pl-8 pr-8 py-2 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                             autoFocus
                         />
                         {searchQuery && (
-                            <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                            <button onClick={() => setSearchQuery('')} aria-label="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2">
                                 <X className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                             </button>
                         )}
@@ -558,12 +566,12 @@ function SaleCompsSection({ pursuitId }: { pursuitId: string }) {
                 <div className="border border-[var(--border)] rounded-xl p-3 bg-[var(--bg-primary)] space-y-3">
                     <h4 className="text-xs font-semibold text-[var(--text-primary)]">Quick Create Sale Comp</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name *" className="col-span-2 sm:col-span-1 px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
-                        <input value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="Address" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
-                        <input value={newCity} onChange={e => setNewCity(e.target.value)} placeholder="City" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
-                        <input value={newState} onChange={e => setNewState(e.target.value)} placeholder="State" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
-                        <input value={newUnits} onChange={e => setNewUnits(e.target.value)} placeholder="Total Units" type="number" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
-                        <input value={newYearBuilt} onChange={e => setNewYearBuilt(e.target.value)} placeholder="Year Built" type="number" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
+                        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name *" className="col-span-2 sm:col-span-1 px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
+                        <input value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="Address" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
+                        <input value={newCity} onChange={e => setNewCity(e.target.value)} placeholder="City" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
+                        <input value={newState} onChange={e => setNewState(e.target.value)} placeholder="State" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
+                        <input value={newUnits} onChange={e => setNewUnits(e.target.value)} placeholder="Total Units" type="number" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
+                        <input value={newYearBuilt} onChange={e => setNewYearBuilt(e.target.value)} placeholder="Year Built" type="number" className="px-2.5 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
                     </div>
                     <div className="flex items-center gap-2">
                         <button onClick={handleCreate} disabled={!newName.trim() || createMut.isPending}
@@ -639,14 +647,17 @@ function SaleCompsSection({ pursuitId }: { pursuitId: string }) {
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
                                             <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">$/Unit</span>
-                                            <span>{fmtCur(tx?.price_per_unit)}</span>
+                                            {(() => {
+                                                const ppu = tx ? salePricePerUnit(tx, c) : null;
+                                                return <span title={ppu?.derived ? 'Calculated: sale price ÷ total units' : undefined}>{fmtCur(ppu?.value)}{ppu?.derived ? '*' : ''}</span>;
+                                            })()}
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
                                             <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Cap Rate</span>
                                             <span>{tx?.cap_rate ? `${(tx.cap_rate * 100).toFixed(2)}%` : '—'}</span>
                                         </td>
                                         <td className="py-1.5 px-2 text-right md:text-center block md:table-cell">
-                                            <button onClick={() => handleUnlink(c.id)} title="Unlink" className="text-[var(--text-muted)] hover:text-red-500 transition-colors inline-block md:block md:mx-auto">
+                                            <button onClick={() => handleUnlink(c.id)} title="Unlink" aria-label={`Unlink ${c.name}`} className="text-[var(--text-muted)] hover:text-[var(--danger)] transition-colors inline-block md:block md:mx-auto">
                                                 <span className="md:hidden mr-1 text-xs">Unlink</span>
                                                 <X className="w-3.5 h-3.5 inline-block md:block" />
                                             </button>
@@ -660,8 +671,10 @@ function SaleCompsSection({ pursuitId }: { pursuitId: string }) {
                                 const txData = linkedComps.map((c: SaleComp) => getLatestTx(c)).filter(Boolean) as SaleTransaction[];
                                 const pricedTx = txData.filter(t => t.sale_price && t.sale_price > 0);
                                 const avgPrice = pricedTx.length > 0 ? pricedTx.reduce((s, t) => s + (t.sale_price ?? 0), 0) / pricedTx.length : null;
-                                const ppuTx = txData.filter(t => t.price_per_unit && t.price_per_unit > 0);
-                                const avgPpu = ppuTx.length > 0 ? ppuTx.reduce((s, t) => s + (t.price_per_unit ?? 0), 0) / ppuTx.length : null;
+                                const ppuVals = linkedComps
+                                    .map((c: SaleComp) => { const t = getLatestTx(c); return t ? salePricePerUnit(t, c).value : null; })
+                                    .filter((v: number | null): v is number => v !== null);
+                                const avgPpu = ppuVals.length > 0 ? ppuVals.reduce((s: number, v: number) => s + v, 0) / ppuVals.length : null;
                                 const capTx = txData.filter(t => t.cap_rate && t.cap_rate > 0);
                                 const avgCap = capTx.length > 0 ? capTx.reduce((s, t) => s + (t.cap_rate ?? 0), 0) / capTx.length : null;
                                 const builtComps = linkedComps.filter((c: SaleComp) => c.year_built && c.year_built > 0);
@@ -705,6 +718,9 @@ function SaleCompsSection({ pursuitId }: { pursuitId: string }) {
                             })()}
                         </tbody>
                     </table>
+                    {linkedComps.some((c: SaleComp) => { const t = getLatestTx(c); return !!t && salePricePerUnit(t, c).derived; }) && (
+                        <p className="px-2 py-1.5 text-[10px] text-[var(--text-faint)]">* Calculated from sale price ÷ total units (no $/unit entered)</p>
+                    )}
                 </div>
             )}
         </div>

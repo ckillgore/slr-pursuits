@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
+import { toast } from '@/lib/toast';
+import { useMapStyle } from '@/components/pursuits/mapTheme';
 import { useCreatePursuit, useStages, useCreateLandComp } from '@/hooks/useSupabaseQueries';
 import {
     Search, MapPin, Loader2, X, Building2, User, DollarSign, Layers,
@@ -138,14 +141,27 @@ function formatNumber(val: number | null, decimals = 0): string {
     return new Intl.NumberFormat('en-US', { maximumFractionDigits: decimals }).format(val);
 }
 
+/** Theme-token badge classes for a FEMA NRI rating (fixed Tailwind palettes washed out in dark mode) */
 function getRiskColor(rating: string): string {
     const r = rating.toLowerCase();
-    if (r.includes('very low')) return 'bg-green-50 text-green-700 border border-green-200';
-    if (r.includes('relatively low')) return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
-    if (r.includes('relatively moderate') || r.includes('moderate')) return 'bg-yellow-50 text-yellow-700 border border-yellow-200';
-    if (r.includes('relatively high')) return 'bg-orange-50 text-orange-700 border border-orange-200';
-    if (r.includes('very high')) return 'bg-red-50 text-red-700 border border-red-200';
-    return 'bg-gray-50 text-gray-700 border border-gray-200';
+    if (r.includes('very low') || r.includes('relatively low')) return 'bg-[var(--success-bg)] text-[var(--success)] border border-[var(--success)]/30';
+    if (r.includes('moderate')) return 'bg-[var(--warning-bg)] text-[var(--warning)] border border-[var(--warning)]/30';
+    if (r.includes('high')) return 'bg-[var(--danger-bg)] text-[var(--danger)] border border-[var(--danger)]/30';
+    return 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border)]';
+}
+
+/** Regrid growth fields are CAGR percentages already (1.25 = 1.25%/yr) — same convention as GrowthTrendsCard */
+function fmtCagr(val: number | null): string | null {
+    if (val == null || !Number.isFinite(val)) return null;
+    return `${val >= 0 ? '+' : ''}${val.toFixed(2)}%/yr`;
+}
+
+/** Full /api/regrid response, kept so a pursuit/comp created from it starts with a warm parcel cache */
+interface RegridLookup {
+    parcel: ParcelData;
+    associatedRecords?: unknown[];
+    taxSummary?: unknown;
+    buildings?: unknown[];
 }
 
 // ======================== Info Row ========================
@@ -173,6 +189,8 @@ function InfoRow({ label, value, icon: Icon, highlight }: {
 // ======================== Component ========================
 
 export default function ExplorePage() {
+    const router = useRouter();
+    const { mapStyle } = useMapStyle();
     // Map refs
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<any>(null);
@@ -191,7 +209,7 @@ export default function ExplorePage() {
     type MapStyleId = 'light' | 'satellite';
     const [activeStyle, setActiveStyle] = useState<MapStyleId>('light');
     const STYLES: Record<MapStyleId, { url: string; label: string }> = {
-        light: { url: 'mapbox://styles/mapbox/light-v11', label: 'Map' },
+        light: { url: mapStyle, label: 'Map' }, // follows the app's light/dark theme
         satellite: { url: 'mapbox://styles/mapbox/satellite-streets-v12', label: 'Satellite' },
     };
 
@@ -202,6 +220,11 @@ export default function ExplorePage() {
     const [panelOpen, setPanelOpen] = useState(false);
     const [panelLoading, setPanelLoading] = useState(false);
     const [panelParcel, setPanelParcel] = useState<ParcelData | null>(null);
+    const [panelLookup, setPanelLookup] = useState<RegridLookup | null>(null);
+    // Session cache of parcel lookups — /api/regrid is a paid call, and users often re-click the same parcel
+    const regridCacheRef = useRef(new Map<string, RegridLookup | null>());
+    // Coalesce hover-tooltip updates to one per animation frame (mousemove fires far faster than paint)
+    const tooltipFrameRef = useRef<number | null>(null);
     const [panelError, setPanelError] = useState<string | null>(null);
     const [clickedLngLat, setClickedLngLat] = useState<[number, number] | null>(null);
 
@@ -221,13 +244,26 @@ export default function ExplorePage() {
     // ── Parcel detail loader (shared by desktop click + mobile "View Full Details") ──
     // A sequence number guards against an older, slower response overwriting the parcel the user clicked last.
     const parcelReqSeqRef = useRef(0);
-    const loadParcelDetail = useCallback((lngLat: [number, number], address?: string) => {
+    const loadParcelDetail = useCallback((lngLat: [number, number], address?: string, parcelId?: string | null) => {
         const seq = ++parcelReqSeqRef.current;
         setClickedLngLat(lngLat);
         setPanelOpen(true);
-        setPanelLoading(true);
         setPanelError(null);
         setPanelParcel(null);
+        setPanelLookup(null);
+
+        // APNs are only unique within a county, so qualify them with a coarse (~1 km) location
+        const cacheKey = parcelId
+            ? `apn:${parcelId}@${lngLat[0].toFixed(2)},${lngLat[1].toFixed(2)}`
+            : `pt:${lngLat[0].toFixed(5)},${lngLat[1].toFixed(5)}`;
+        if (regridCacheRef.current.has(cacheKey)) {
+            const cached = regridCacheRef.current.get(cacheKey);
+            setPanelLoading(false);
+            if (cached) { setPanelParcel(cached.parcel); setPanelLookup(cached); }
+            else setPanelError('No parcel data found at this location.');
+            return;
+        }
+        setPanelLoading(true);
 
         fetch('/api/regrid', {
             method: 'POST',
@@ -246,8 +282,17 @@ export default function ExplorePage() {
             .then((data) => {
                 if (seq !== parcelReqSeqRef.current) return;
                 if (data.parcel) {
+                    const lookup: RegridLookup = {
+                        parcel: data.parcel,
+                        associatedRecords: data.associatedRecords || [],
+                        taxSummary: data.taxSummary || null,
+                        buildings: data.buildings || [],
+                    };
+                    regridCacheRef.current.set(cacheKey, lookup);
                     setPanelParcel(data.parcel);
+                    setPanelLookup(lookup);
                 } else {
+                    regridCacheRef.current.set(cacheKey, null);
                     setPanelError('No parcel data found at this location.');
                 }
             })
@@ -338,7 +383,7 @@ export default function ExplorePage() {
 
             map = new mbgl.Map({
                 container: mapContainerRef.current!,
-                style: STYLES.light.url,
+                style: STYLES[activeStyle].url,
                 center: [-96.7970, 32.7767], // Default: DFW area
                 zoom: 4,
                 interactive: true,
@@ -409,7 +454,12 @@ export default function ExplorePage() {
                     parcelNumber: props.parcelnumb || null,
                 };
 
-                setTooltip({ x: e.point.x, y: e.point.y, data });
+                const point = { x: e.point.x, y: e.point.y };
+                if (tooltipFrameRef.current !== null) cancelAnimationFrame(tooltipFrameRef.current);
+                tooltipFrameRef.current = requestAnimationFrame(() => {
+                    tooltipFrameRef.current = null;
+                    setTooltip({ ...point, data });
+                });
             });
 
             map.on('mouseleave', 'parcels-fill', () => {
@@ -421,6 +471,7 @@ export default function ExplorePage() {
                     );
                     hoveredParcelIdRef.current = null;
                 }
+                if (tooltipFrameRef.current !== null) { cancelAnimationFrame(tooltipFrameRef.current); tooltipFrameRef.current = null; }
                 setTooltip(null);
             });
 
@@ -460,7 +511,7 @@ export default function ExplorePage() {
 
                 // Desktop: immediately load full details
                 setTooltip(null);
-                loadParcelDetail([lngLat.lng, lngLat.lat], props.address);
+                loadParcelDetail([lngLat.lng, lngLat.lat], props.address, props.parcelnumb);
             });
 
             mapRef.current = map;
@@ -468,6 +519,7 @@ export default function ExplorePage() {
 
         return () => {
             cancelled = true;
+            if (tooltipFrameRef.current !== null) cancelAnimationFrame(tooltipFrameRef.current);
             if (map) map.remove();
             mapRef.current = null;
         };
@@ -485,7 +537,18 @@ export default function ExplorePage() {
             addRegridSource(map);
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeStyle]);
+    }, [activeStyle, mapStyle]);
+
+    // Escape closes the parcel panel / mobile popup
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape' || showCreateDialog) return;
+            setMobilePopup(null);
+            if (panelOpen) { parcelReqSeqRef.current++; setPanelOpen(false); setPanelLoading(false); setPanelParcel(null); setPanelError(null); }
+        };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [panelOpen, showCreateDialog]);
 
     // ── Search autocomplete ──
     const handleSearch = useCallback((query: string) => {
@@ -531,9 +594,21 @@ export default function ExplorePage() {
         return () => document.removeEventListener('click', handleClick);
     }, []);
 
+    /** parcel_data payload in the shape PublicInfoTab caches (so it renders without a new Regrid call) */
+    const parcelCacheFromLookup = (): Record<string, unknown> | null => {
+        if (!panelLookup) return null;
+        return {
+            parcel: panelLookup.parcel,
+            associatedRecords: panelLookup.associatedRecords ?? [],
+            taxSummary: panelLookup.taxSummary ?? null,
+            buildings: panelLookup.buildings ?? [],
+            queriedAt: clickedLngLat,
+        };
+    };
+
     // ── Create Pursuit from parcel ──
     const handleCreatePursuit = useCallback(async () => {
-        if (!panelParcel || !createName.trim()) return;
+        if (!panelParcel || !createName.trim() || createPursuit.isPending) return;
         const d = panelParcel.details;
         const defaultStage = stages[0];
         try {
@@ -554,8 +629,9 @@ export default function ExplorePage() {
                 region: '',
                 demographics: null,
                 demographics_updated_at: null,
-                parcel_data: null,
-                parcel_data_updated_at: null,
+                // Seed the parcel cache with the lookup we already paid for, so the pursuit's Public Info tab doesn't re-query Regrid
+                parcel_data: parcelCacheFromLookup(),
+                parcel_data_updated_at: panelLookup ? new Date().toISOString() : null,
                 drive_time_data: null,
                 income_heatmap_data: null,
                 parcel_assemblage: null,
@@ -565,15 +641,17 @@ export default function ExplorePage() {
             });
             setShowCreateDialog(null);
             setCreateName('');
-            window.location.href = `/pursuits/${newPursuit.id}`;
+            router.push(`/pursuits/${newPursuit.short_id || newPursuit.id}`);
         } catch (err) {
             console.error('Failed to create pursuit:', err);
+            toast.error('Failed to create pursuit', err);
         }
-    }, [panelParcel, createName, clickedLngLat, stages, createPursuit]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [panelParcel, panelLookup, createName, clickedLngLat, stages, createPursuit, router]);
 
     // ── Create Comp from parcel ──
     const handleCreateComp = useCallback(async () => {
-        if (!panelParcel || !createName.trim()) return;
+        if (!panelParcel || !createName.trim() || createComp.isPending) return;
         const d = panelParcel.details;
         try {
             const newComp = await createComp.mutateAsync({
@@ -594,16 +672,18 @@ export default function ExplorePage() {
                 zoning: panelParcel.zoning.code || panelParcel.zoning.type || null,
                 land_use: d.useCodeDescription || d.landUse || null,
                 notes: null,
-                parcel_data: null,
-                parcel_data_updated_at: null,
+                parcel_data: parcelCacheFromLookup(),
+                parcel_data_updated_at: panelLookup ? new Date().toISOString() : null,
             });
             setShowCreateDialog(null);
             setCreateName('');
-            window.location.href = `/comps/${newComp.id}`;
+            router.push(`/comps/${newComp.short_id || newComp.id}`);
         } catch (err) {
             console.error('Failed to create comp:', err);
+            toast.error('Failed to create land comp', err);
         }
-    }, [panelParcel, createName, clickedLngLat, createComp]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [panelParcel, panelLookup, createName, clickedLngLat, createComp, router]);
 
     return (
         <AppShell>
@@ -625,10 +705,11 @@ export default function ExplorePage() {
                                 value={searchQuery}
                                 onChange={(e) => handleSearch(e.target.value)}
                                 placeholder="Search address, city, or zip code..."
+                                aria-label="Search address, city, or zip code"
                                 className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-faint)]"
                             />
                             {searchQuery && (
-                                <button onClick={() => { setSearchQuery(''); setSuggestions([]); }} className="text-[var(--text-faint)] hover:text-[var(--text-secondary)]">
+                                <button onClick={() => { setSearchQuery(''); setSuggestions([]); }} aria-label="Clear search" className="text-[var(--text-faint)] hover:text-[var(--text-secondary)]">
                                     <X className="w-4 h-4" />
                                 </button>
                             )}
@@ -661,6 +742,7 @@ export default function ExplorePage() {
                         <button
                             key={key}
                             onClick={() => setActiveStyle(key)}
+                            aria-pressed={activeStyle === key}
                             className={`px-3 py-1.5 text-[11px] font-medium transition-colors ${activeStyle === key
                                 ? 'bg-[var(--accent)] text-white'
                                 : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
@@ -752,6 +834,7 @@ export default function ExplorePage() {
                             {/* Close button */}
                             <button
                                 onClick={() => setMobilePopup(null)}
+                                aria-label="Close parcel summary"
                                 className="absolute top-2 right-3 p-1 rounded-md text-[var(--text-faint)] hover:text-[var(--text-secondary)]"
                             >
                                 <X className="w-4 h-4" />
@@ -798,7 +881,7 @@ export default function ExplorePage() {
                                     const lngLat = mobilePopup.lngLat;
                                     const props = mobilePopup.props;
                                     setMobilePopup(null);
-                                    loadParcelDetail(lngLat, props.address);
+                                    loadParcelDetail(lngLat, props.address, props.parcelnumb);
                                 }}
                                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors"
                             >
@@ -814,6 +897,10 @@ export default function ExplorePage() {
                     className={`absolute top-0 right-0 h-full z-30 transition-transform duration-300 ease-in-out ${panelOpen ? 'translate-x-0' : 'translate-x-full'
                         }`}
                     style={{ width: 'min(380px, 100vw)' }}
+                    aria-hidden={!panelOpen}
+                    inert={!panelOpen}
+                    role="region"
+                    aria-label="Parcel detail"
                 >
                     <div className="h-full bg-[var(--bg-card)] border-l border-[var(--border)] shadow-2xl flex flex-col">
                         {/* Panel Header */}
@@ -824,6 +911,7 @@ export default function ExplorePage() {
                             </div>
                             <button
                                 onClick={() => { parcelReqSeqRef.current++; setPanelOpen(false); setPanelLoading(false); setPanelParcel(null); setPanelError(null); }}
+                                aria-label="Close parcel detail"
                                 className="p-1 rounded-md text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
                             >
                                 <X className="w-4 h-4" />
@@ -1004,11 +1092,11 @@ export default function ExplorePage() {
                                             </div>
                                             <InfoRow label="Median HH Income" value={formatCurrency(panelParcel.details.medianHouseholdIncome)} highlight />
                                             <InfoRow label="Pop. Density" value={panelParcel.details.populationDensity ? `${formatNumber(panelParcel.details.populationDensity)} / sq mi` : null} />
-                                            <InfoRow label="Pop. Growth (5yr)" value={panelParcel.details.populationGrowthNext5 ? `${(panelParcel.details.populationGrowthNext5 * 100).toFixed(2)}%` : null} />
-                                            <InfoRow label="Housing Growth (5yr)" value={panelParcel.details.housingGrowthNext5 ? `${(panelParcel.details.housingGrowthNext5 * 100).toFixed(2)}%` : null} />
+                                            <InfoRow label="Pop. Growth Forecast (5yr CAGR)" value={fmtCagr(panelParcel.details.populationGrowthNext5)} />
+                                            <InfoRow label="Housing Growth Forecast (5yr CAGR)" value={fmtCagr(panelParcel.details.housingGrowthNext5)} />
                                             {panelParcel.details.qualifiedOpportunityZone === 'Yes' && (
                                                 <div className="mt-1">
-                                                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-[var(--success-bg)] text-[var(--success)] border border-[var(--success)]/30">
                                                         Qualified Opportunity Zone
                                                     </span>
                                                 </div>
@@ -1058,8 +1146,8 @@ export default function ExplorePage() {
 
                 {/* Create Dialog */}
                 {showCreateDialog && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
-                        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm" onKeyDown={(e) => { if (e.key === 'Escape') { setShowCreateDialog(null); setCreateName(''); } }}>
+                        <div role="dialog" aria-modal="true" aria-label={showCreateDialog === 'pursuit' ? 'Create pursuit' : 'Create comp'} className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm mx-4 shadow-xl animate-fade-in">
                             <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-1">
                                 {showCreateDialog === 'pursuit' ? 'Create Pursuit' : 'Create Comp'}
                             </h2>

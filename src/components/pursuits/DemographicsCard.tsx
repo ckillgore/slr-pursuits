@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { RefreshCw, Users, DollarSign, Home, Loader2, AlertCircle } from 'lucide-react';
 import type { Pursuit } from '@/types';
+import { isCacheForOtherLocation } from './locationCache';
+import { StaleLocationNotice } from './StaleLocationNotice';
 
 interface DemographicsCardProps {
     pursuit: Pursuit;
@@ -38,6 +40,12 @@ export function DemographicsCard({ pursuit, onUpdate }: DemographicsCardProps) {
     const hasRings = rings && Object.keys(rings).length > 0;
     const hasBg = bg && Object.keys(bg).some((k: string) => !k.startsWith('_') && bg[k] != null);
     const hasData = hasRings || hasBg;
+    // Demographics are cached on the pursuit; `_query` (written since location tracking) records the site used
+    const isStale = !!hasData && !isLoading && hasLocation && isCacheForOtherLocation({
+        current: [pursuit.longitude!, pursuit.latitude!],
+        savedCenter: d?._query,
+        toleranceMeters: 100,
+    });
 
     // Auto-select the tab that has data
     const effectiveTab = activeTab === 'rings' && !hasRings && hasBg ? 'block_group' : activeTab;
@@ -66,13 +74,15 @@ export function DemographicsCard({ pursuit, onUpdate }: DemographicsCardProps) {
                 body: JSON.stringify(body),
             });
 
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
             if (!res.ok) {
-                throw new Error(data.error || 'Failed to fetch demographics');
+                throw new Error(data.error || `Failed to fetch demographics (HTTP ${res.status})`);
             }
 
             onUpdate({
-                demographics: data.demographics,
+                demographics: hasLocation && data.demographics && typeof data.demographics === 'object'
+                    ? { ...data.demographics, _query: [pursuit.longitude, pursuit.latitude] }
+                    : data.demographics,
                 demographics_updated_at: new Date().toISOString(),
             });
         } catch (err) {
@@ -106,8 +116,12 @@ export function DemographicsCard({ pursuit, onUpdate }: DemographicsCardProps) {
                 </div>
             </div>
 
+            {isStale && (
+                <StaleLocationNotice what="demographic profile" generatedAt={pursuit.demographics_updated_at} onRegenerate={handleRefresh} disabled={isLoading} actionLabel="Refresh" />
+            )}
+
             {error && (
-                <div className="flex items-center gap-2 text-xs text-[var(--danger)] mb-3 px-2 py-1.5 rounded-md bg-[var(--danger-bg)]">
+                <div role="alert" className="flex items-center gap-2 text-xs text-[var(--danger)] mb-3 px-2 py-1.5 rounded-md bg-[var(--danger-bg)]">
                     <AlertCircle className="w-3 h-3 flex-shrink-0" />
                     {error}
                 </div>
@@ -187,8 +201,8 @@ function RingTable({ rings }: { rings: Record<string, any> }) {
     ];
 
     return (
-        <div>
-            <table className="w-full text-xs">
+        <div className="overflow-x-auto">
+            <table className="w-full text-xs min-w-[320px]">
                 <thead>
                     <tr className="border-b border-[var(--border)]">
                         <th className="text-left text-[10px] font-semibold text-[var(--text-faint)] uppercase tracking-wider py-2 pr-3">Metric</th>
@@ -246,7 +260,7 @@ function BlockGroupView({ data }: { data: Record<string, any> }) {
             {/* Race/Ethnicity */}
             <div className="mt-2 pt-2 border-t border-[var(--border)]">
                 <div className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-1">Race & Ethnicity</div>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
                         { label: 'White', value: fmtPct(data.race_white_pct) },
                         { label: 'Black', value: fmtPct(data.race_black_pct) },
@@ -272,7 +286,7 @@ function BlockGroupView({ data }: { data: Record<string, any> }) {
 
 function MetricRow({ icon: Icon, label, value, highlight }: { icon: React.ElementType; label: string; value: string; highlight?: boolean }) {
     return (
-        <div className={`flex items-center justify-between py-2 border-b border-[var(--table-row-border)] last:border-b-0 ${highlight ? 'bg-[#FAFBFE]' : ''}`}>
+        <div className={`flex items-center justify-between py-2 border-b border-[var(--table-row-border)] last:border-b-0 ${highlight ? 'bg-[var(--bg-primary)]' : ''}`}>
             <div className="flex items-center gap-2">
                 <Icon className={`w-3.5 h-3.5 ${highlight ? 'text-[var(--accent)]' : 'text-[var(--text-faint)]'}`} />
                 <span className="text-xs text-[var(--text-secondary)]">{label}</span>

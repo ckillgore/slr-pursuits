@@ -21,7 +21,7 @@ interface Props {
     highlightDate?: string;
 }
 
-export default function SVGChart({ series, width = 700, height = 260, yLabel, formatY = v => `$${v.toLocaleString()}`, highlightDate }: Props) {
+export default function SVGChart({ series, width = 700, height = 260, yLabel, formatY = v => `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`, highlightDate }: Props) {
     const padding = { top: 20, right: 20, bottom: 40, left: 65 };
     const w = width - padding.left - padding.right;
     const h = height - padding.top - padding.bottom;
@@ -123,6 +123,7 @@ export default function SVGChart({ series, width = 700, height = 260, yLabel, fo
     return (
         <div className="overflow-x-auto">
             <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} className="w-full max-w-[750px]" style={{ minWidth: 280 }}
+                role="img" aria-label={`${yLabel ? `${yLabel} over time` : 'Trend chart'}: ${series.filter(s => s.data.length > 0).map(s => s.label).join(', ')}`}
                 onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
                 {/* Grid lines */}
                 {computed.yTicks.map((tick, i) => {
@@ -176,12 +177,12 @@ export default function SVGChart({ series, width = 700, height = 260, yLabel, fo
                         <line
                             x1={padding.left + hoverX} x2={padding.left + hoverX}
                             y1={padding.top} y2={padding.top + h}
-                            stroke="#CBD2DC" strokeWidth={1} strokeDasharray="3,3"
+                            stroke="var(--border-strong)" strokeWidth={1} strokeDasharray="3,3"
                         />
                         {/* Dots on each series */}
                         {hoverData.points.map((pt, i) => pt && (
                             <circle key={i} cx={padding.left + pt.x} cy={padding.top + pt.y} r={4}
-                                fill={series[pt.seriesIndex].color} stroke="white" strokeWidth={2} />
+                                fill={series[pt.seriesIndex].color} stroke="var(--bg-card)" strokeWidth={2} />
                         ))}
                         {/* Tooltip box */}
                         {(() => {
@@ -202,7 +203,7 @@ export default function SVGChart({ series, width = 700, height = 260, yLabel, fo
                                         <g key={i}>
                                             <circle cx={tooltipX + 12} cy={tooltipY + 28 + i * 16} r={3} fill={series[pt!.seriesIndex].color} />
                                             <text x={tooltipX + 20} y={tooltipY + 32 + i * 16} fill="var(--text-secondary)" fontSize={10}>
-                                                <tspan>{series[pt!.seriesIndex].label.slice(0, 12)}</tspan>
+                                                <tspan>{series[pt!.seriesIndex].label.length > 12 ? `${series[pt!.seriesIndex].label.slice(0, 11)}…` : series[pt!.seriesIndex].label}</tspan>
                                                 <tspan fontWeight={600} dx={4}>{formatY(pt!.value)}</tspan>
                                             </text>
                                         </g>
@@ -221,7 +222,7 @@ export default function SVGChart({ series, width = 700, height = 260, yLabel, fo
                 {series.filter(s => s.data.length > 0).map((s, i) => (
                     <div key={i} className="flex items-center gap-1 text-[11px] sm:text-xs text-[var(--text-secondary)]">
                         <div className="w-3 h-0.5 rounded-full" style={{ backgroundColor: s.color }} />
-                        <span className="truncate max-w-[80px] sm:max-none">{s.label}</span>
+                        <span className="truncate max-w-[80px] sm:max-w-none" title={s.label}>{s.label}</span>
                     </div>
                 ))}
             </div>

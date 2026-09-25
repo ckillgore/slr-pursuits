@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, useDeferredValue } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/components/AuthProvider';
@@ -11,12 +11,20 @@ import {
     Calendar, Ruler, LayoutGrid, List, Map, Building2, TrendingUp, AlertTriangle, Home, ExternalLink,
 } from 'lucide-react';
 import type { LandComp, SaleComp, HellodataProperty } from '@/types';
+import { toast } from '@/lib/toast';
+import { useMapStyle } from '@/components/pursuits/mapTheme';
+import { landPricePerSf } from '@/components/pursuits/compDerived';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
 function formatCurrency(val: number | null) {
     if (!val) return '—';
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+}
+/** $/SF keeps cents ($2.15/SF), unlike whole-dollar prices */
+function fmtPsf(val: number | null) {
+    if (val == null || !Number.isFinite(val) || val <= 0) return '—';
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
 }
 function formatNumber(val: number | null, decimals = 0) {
     if (!val) return '—';
@@ -25,6 +33,52 @@ function formatNumber(val: number | null, decimals = 0) {
 
 function escapeHtml(v: unknown): string {
     return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/** Cards/rows rendered per "Show more" step — the all-properties rent list can reach thousands of rows */
+const PAGE_SIZE = 60;
+
+/** Latest occupancy snapshot by as_of date (HelloData doesn't guarantee array order) */
+function getOccupancy(p: HellodataProperty): number | null {
+    const occ = p.occupancy_over_time;
+    if (!occ || !Array.isArray(occ) || occ.length === 0) return null;
+    const latest = occ.reduce((a, o) => ((o?.as_of || '') > (a?.as_of || '') ? o : a), occ[0]);
+    return latest?.leased != null ? Math.round(latest.leased * 100) : null;
+}
+
+/** Make a DOM map marker behave like a link: client-side navigation, keyboard focus + Enter */
+function bindMarkerLink(el: HTMLElement, label: string, go: () => void) {
+    el.setAttribute('role', 'link');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-label', label);
+    el.addEventListener('click', go);
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+}
+
+/** Keyboard/screen-reader props for a clickable card or table row that navigates */
+function linkProps(label: string, go: () => void) {
+    return {
+        role: 'link' as const,
+        tabIndex: 0,
+        'aria-label': label,
+        onClick: go,
+        onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' && e.target === e.currentTarget) { e.preventDefault(); go(); } },
+    };
+}
+
+function ShowMore({ shown, total, onMore }: { shown: number; total: number; onMore: () => void }) {
+    if (shown >= total) return null;
+    return (
+        <div className="flex flex-col items-center gap-1 mt-4">
+            <button
+                onClick={onMore}
+                className="px-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
+            >
+                Show {Math.min(PAGE_SIZE, total - shown)} more
+            </button>
+            <span className="text-[11px] text-[var(--text-faint)]">Showing {shown.toLocaleString()} of {total.toLocaleString()}</span>
+        </div>
+    );
 }
 
 /** Date-only strings ("2024-03-01") are parsed as local dates so they don't shift a day in US timezones */
@@ -38,6 +92,10 @@ function CompsMap({ comps }: { comps: LandComp[] }) {
     const containerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<any>(null);
     const markersRef = useRef<any[]>([]);
+    const router = useRouter();
+    const routerRef = useRef(router);
+    routerRef.current = router;
+    const { mapStyle } = useMapStyle();
 
     const locatedComps = useMemo(
         () => comps.filter((c) => c.latitude != null && c.longitude != null),
@@ -70,7 +128,7 @@ function CompsMap({ comps }: { comps: LandComp[] }) {
 
             map = new mbgl.Map({
                 container: containerRef.current!,
-                style: 'mapbox://styles/mapbox/light-v11',
+                style: mapStyle,
                 center,
                 zoom,
                 interactive: true,
@@ -102,7 +160,7 @@ function CompsMap({ comps }: { comps: LandComp[] }) {
                     const marker = new mbgl.Marker({ element: el })
                         .setLngLat([c.longitude!, c.latitude!])
                         .addTo(map);
-                    el.addEventListener('click', () => { window.location.href = `/comps/${c.id}`; });
+                    bindMarkerLink(el, `Open ${c.name}`, () => routerRef.current.push(`/comps/${c.short_id || c.id}`));
                     markersRef.current.push(marker);
                 });
             });
@@ -115,7 +173,7 @@ function CompsMap({ comps }: { comps: LandComp[] }) {
             if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [locatedComps]);
+    }, [locatedComps, mapStyle]);
 
     if (locatedComps.length === 0) {
         return (
@@ -141,6 +199,10 @@ function SaleCompsMap({ comps }: { comps: SaleComp[] }) {
     const containerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<any>(null);
     const markersRef = useRef<any[]>([]);
+    const router = useRouter();
+    const routerRef = useRef(router);
+    routerRef.current = router;
+    const { mapStyle } = useMapStyle();
 
     const locatedComps = useMemo(
         () => comps.filter((c) => c.latitude != null && c.longitude != null),
@@ -173,7 +235,7 @@ function SaleCompsMap({ comps }: { comps: SaleComp[] }) {
 
             map = new mbgl.Map({
                 container: containerRef.current!,
-                style: 'mapbox://styles/mapbox/light-v11',
+                style: mapStyle,
                 center,
                 zoom,
                 interactive: true,
@@ -208,7 +270,7 @@ function SaleCompsMap({ comps }: { comps: SaleComp[] }) {
                     const marker = new mbgl.Marker({ element: el })
                         .setLngLat([c.longitude!, c.latitude!])
                         .addTo(map);
-                    el.addEventListener('click', () => { window.location.href = `/comps/sales/${c.short_id || c.id}`; });
+                    bindMarkerLink(el, `Open ${c.name}`, () => routerRef.current.push(`/comps/sales/${c.short_id || c.id}`));
                     markersRef.current.push(marker);
                 });
             });
@@ -221,7 +283,7 @@ function SaleCompsMap({ comps }: { comps: SaleComp[] }) {
             if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [locatedComps]);
+    }, [locatedComps, mapStyle]);
 
     if (locatedComps.length === 0) {
         return (
@@ -247,6 +309,10 @@ function RentCompsMap({ comps }: { comps: HellodataProperty[] }) {
     const containerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<any>(null);
     const markersRef = useRef<any[]>([]);
+    const router = useRouter();
+    const routerRef = useRef(router);
+    routerRef.current = router;
+    const { mapStyle } = useMapStyle();
 
     const locatedComps = useMemo(
         () => comps.filter((c) => c.lat != null && c.lon != null),
@@ -279,7 +345,7 @@ function RentCompsMap({ comps }: { comps: HellodataProperty[] }) {
 
             map = new mbgl.Map({
                 container: containerRef.current!,
-                style: 'mapbox://styles/mapbox/light-v11',
+                style: mapStyle,
                 center,
                 zoom,
                 interactive: true,
@@ -310,7 +376,7 @@ function RentCompsMap({ comps }: { comps: HellodataProperty[] }) {
                     const marker = new mbgl.Marker({ element: el })
                         .setLngLat([c.lon!, c.lat!])
                         .addTo(map);
-                    el.addEventListener('click', () => { window.location.href = `/comps/rent/${c.id}`; });
+                    bindMarkerLink(el, `Open ${c.building_name || c.street_address || 'property'}`, () => routerRef.current.push(`/comps/rent/${c.id}`));
                     markersRef.current.push(marker);
                 });
             });
@@ -323,7 +389,7 @@ function RentCompsMap({ comps }: { comps: HellodataProperty[] }) {
             if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [locatedComps]);
+    }, [locatedComps, mapStyle]);
 
     if (locatedComps.length === 0) {
         return (
@@ -416,13 +482,39 @@ export default function CompsPage() {
     // Product types from DB
     const { data: productTypes = [] } = useProductTypes();
 
+    // Filter on deferred copies of the search text so typing stays responsive on long lists
+    const deferredSearch = useDeferredValue(searchQuery);
+    const deferredSaleSearch = useDeferredValue(saleSearchQuery);
+    const deferredRentSearch = useDeferredValue(rentSearchQuery);
+
+    // Memoized so the map view isn't torn down and rebuilt on every unrelated re-render
+    const filteredRent = useMemo(() => {
+        const q = deferredRentSearch.toLowerCase();
+        return rentComps.filter((c) => {
+            if (rentFilterState && c.state !== rentFilterState) return false;
+            if (rentFilterCity && c.city !== rentFilterCity) return false;
+            if (!q) return true;
+            return (
+                c.building_name?.toLowerCase().includes(q) ||
+                c.street_address?.toLowerCase().includes(q) ||
+                c.city?.toLowerCase().includes(q) ||
+                c.management_company?.toLowerCase().includes(q)
+            );
+        });
+    }, [rentComps, rentFilterState, rentFilterCity, deferredRentSearch]);
+    const rentStates = useMemo(() => [...new Set(rentComps.map(c => c.state).filter(Boolean))].sort() as string[], [rentComps]);
+    const rentCities = useMemo(
+        () => [...new Set(rentComps.filter(c => c.state === rentFilterState).map(c => c.city).filter(Boolean))].sort() as string[],
+        [rentComps, rentFilterState]
+    );
+
     const filteredSaleComps = useMemo(() => {
         const list = saleComps.filter((c) => {
             if (filterState && c.state !== filterState) return false;
             if (filterCity && c.city !== filterCity) return false;
             if (saleFilterPropertyType && c.property_type !== saleFilterPropertyType) return false;
-            if (!saleSearchQuery) return true;
-            const q = saleSearchQuery.toLowerCase();
+            if (!deferredSaleSearch) return true;
+            const q = deferredSaleSearch.toLowerCase();
             return (
                 c.name.toLowerCase().includes(q) ||
                 c.address?.toLowerCase().includes(q) ||
@@ -435,7 +527,7 @@ export default function CompsPage() {
             default: list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         }
         return list;
-    }, [saleComps, saleSearchQuery, saleSortBy, filterState, filterCity, saleFilterPropertyType]);
+    }, [saleComps, deferredSaleSearch, saleSortBy, filterState, filterCity, saleFilterPropertyType]);
 
     // Sale comp address autocomplete
     const handleSaleAddressSearch = useCallback((query: string) => {
@@ -505,6 +597,7 @@ export default function CompsPage() {
             router.push(`/comps/sales/${created.short_id}`);
         } catch (err) {
             console.error('Failed to create sale comp:', err);
+            toast.error('Failed to create sale comp', err);
         }
     };
 
@@ -572,8 +665,8 @@ export default function CompsPage() {
         const list = comps.filter((c) => {
             if (filterState && c.state !== filterState) return false;
             if (filterCity && c.city !== filterCity) return false;
-            if (!searchQuery) return true;
-            const q = searchQuery.toLowerCase();
+            if (!deferredSearch) return true;
+            const q = deferredSearch.toLowerCase();
             return (
                 c.name.toLowerCase().includes(q) ||
                 c.address?.toLowerCase().includes(q) ||
@@ -588,7 +681,14 @@ export default function CompsPage() {
             default: list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         }
         return list;
-    }, [comps, searchQuery, sortBy, filterState, filterCity]);
+    }, [comps, deferredSearch, sortBy, filterState, filterCity]);
+
+    // Incremental rendering: the visible count resets whenever the list identity (tab / view / filters) changes
+    const listKey = [activeSection, viewMode, deferredSearch, deferredSaleSearch, deferredRentSearch, sortBy, saleSortBy,
+        filterState, filterCity, saleFilterPropertyType, rentFilterState, rentFilterCity].join('|');
+    const [shown, setShown] = useState({ key: '', count: PAGE_SIZE });
+    const visibleCount = shown.key === listKey ? shown.count : PAGE_SIZE;
+    const showMore = () => setShown({ key: listKey, count: visibleCount + PAGE_SIZE });
 
     // Address autocomplete
     const handleAddressSearch = useCallback((query: string) => {
@@ -688,6 +788,7 @@ export default function CompsPage() {
             router.push(`/comps/${created.short_id}`);
         } catch (err) {
             console.error('Failed to create comp:', err);
+            toast.error('Failed to create land comp', err);
         }
     };
 
@@ -711,18 +812,21 @@ export default function CompsPage() {
                         <div className="flex items-center rounded-lg bg-[var(--bg-elevated)] p-0.5">
                             <button
                                 onClick={() => setViewMode('grid')}
+                                aria-pressed={viewMode === 'grid'}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'grid' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
                             >
                                 <LayoutGrid className="w-4 h-4" /> Grid
                             </button>
                             <button
                                 onClick={() => setViewMode('list')}
+                                aria-pressed={viewMode === 'list'}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'list' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
                             >
                                 <List className="w-4 h-4" /> List
                             </button>
                             <button
                                 onClick={() => setViewMode('map')}
+                                aria-pressed={viewMode === 'map'}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'map' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
                             >
                                 <Map className="w-4 h-4" /> Map
@@ -773,6 +877,7 @@ export default function CompsPage() {
                                 value={rentSearchQuery}
                                 onChange={(e) => setRentSearchQuery(e.target.value)}
                                 placeholder="Search rent comps..."
+                                aria-label="Search rent comps"
                                 className="w-full pl-10 pr-4 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 focus:outline-none transition-all"
                             />
                         </div>
@@ -784,7 +889,7 @@ export default function CompsPage() {
                                     className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[#2563EB] focus:outline-none"
                                 >
                                     <option value="">All States</option>
-                                    {[...new Set(rentComps.map(c => c.state).filter(Boolean))].sort().map(s => <option key={s!} value={s!}>{s}</option>)}
+                                    {rentStates.map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
                                 {rentFilterState && (
                                     <select
@@ -793,7 +898,7 @@ export default function CompsPage() {
                                         className="px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] focus:border-[#2563EB] focus:outline-none"
                                     >
                                         <option value="">All Cities</option>
-                                        {[...new Set(rentComps.filter(c => c.state === rentFilterState).map(c => c.city).filter(Boolean))].sort().map(c => <option key={c!} value={c!}>{c}</option>)}
+                                        {rentCities.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
                                 )}
                             </>
@@ -807,37 +912,17 @@ export default function CompsPage() {
                         </div>
                     )}
 
-                    {(() => {
-                        const filteredRent = rentComps.filter((c) => {
-                            if (rentFilterState && c.state !== rentFilterState) return false;
-                            if (rentFilterCity && c.city !== rentFilterCity) return false;
-                            if (!rentSearchQuery) return true;
-                            const q = rentSearchQuery.toLowerCase();
-                            return (
-                                c.building_name?.toLowerCase().includes(q) ||
-                                c.street_address?.toLowerCase().includes(q) ||
-                                c.city?.toLowerCase().includes(q) ||
-                                c.management_company?.toLowerCase().includes(q)
-                            );
-                        });
-
-                        const getOccupancy = (p: HellodataProperty) => {
-                            if (!p.occupancy_over_time || !Array.isArray(p.occupancy_over_time) || p.occupancy_over_time.length === 0) return null;
-                            const latest = p.occupancy_over_time[p.occupancy_over_time.length - 1];
-                            return latest?.leased != null ? Math.round(latest.leased * 100) : null;
-                        };
-
-                        return (<>
+                    <>
                             {/* Grid View */}
                             {!loadingRentComps && viewMode === 'grid' && filteredRent.length > 0 && (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {filteredRent.map((c) => {
+                                    {filteredRent.slice(0, visibleCount).map((c) => {
                                         const occ = getOccupancy(c);
                                         return (
                                             <div
                                                 key={c.id}
-                                                className="group relative bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 hover:border-[#2563EB]/40 hover:shadow-md transition-all cursor-pointer"
-                                                onClick={() => router.push(`/comps/rent/${c.id}`)}
+                                                className="group relative bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 hover:border-[#2563EB]/40 hover:shadow-md transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+                                                {...linkProps(`Open ${c.building_name || c.street_address || 'property'}`, () => router.push(`/comps/rent/${c.id}`))}
                                             >
                                                 <div className="mb-3">
                                                     <h3 className="text-sm font-semibold text-[var(--text-primary)] truncate pr-4">{c.building_name || c.street_address || 'Unknown Property'}</h3>
@@ -867,10 +952,10 @@ export default function CompsPage() {
                                                     )}
                                                     {occ != null && (
                                                         <div className="flex items-center gap-1.5">
-                                                            <TrendingUp className="w-3 h-3 text-emerald-500" />
+                                                            <TrendingUp className="w-3 h-3 text-[var(--success)]" />
                                                             <div>
                                                                 <div className="text-[10px] text-[var(--text-faint)] uppercase">Occupancy</div>
-                                                                <div className={`text-xs font-semibold ${occ >= 95 ? 'text-emerald-500' : occ >= 90 ? 'text-amber-500' : 'text-red-500'}`}>{occ}%</div>
+                                                                <div className={`text-xs font-semibold ${occ >= 95 ? 'text-[var(--success)]' : occ >= 90 ? 'text-[var(--warning)]' : 'text-[var(--danger)]'}`}>{occ}%</div>
                                                             </div>
                                                         </div>
                                                     )}
@@ -887,7 +972,7 @@ export default function CompsPage() {
 
                                                 <div className="mt-3 pt-2 border-t border-[var(--table-row-border)] flex items-center justify-between">
                                                     <span className="text-[10px] text-[var(--text-faint)]">
-                                                        {c.is_lease_up && <span className="inline-block px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 font-medium mr-1">Lease-Up</span>}
+                                                        {c.is_lease_up && <span className="inline-block px-1.5 py-0.5 rounded bg-[var(--warning)]/10 text-[var(--warning)] font-medium mr-1">Lease-Up</span>}
                                                         {c.number_stories ? `${c.number_stories} stories` : ''}
                                                     </span>
                                                     {c.building_website && (
@@ -902,7 +987,7 @@ export default function CompsPage() {
 
                             {/* List View */}
                             {!loadingRentComps && viewMode === 'list' && filteredRent.length > 0 && (
-                                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden">
+                                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-x-auto">
                                     <table className="w-full text-sm">
                                         <thead>
                                             <tr className="border-b border-[var(--border)] bg-[var(--bg-primary)]">
@@ -915,13 +1000,13 @@ export default function CompsPage() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {filteredRent.map((c) => {
+                                            {filteredRent.slice(0, visibleCount).map((c) => {
                                                 const occ = getOccupancy(c);
                                                 return (
                                                     <tr
                                                         key={c.id}
-                                                        className="group border-b border-[var(--table-row-border)] last:border-b-0 hover:bg-[var(--bg-primary)] cursor-pointer transition-colors"
-                                                        onClick={() => router.push(`/comps/rent/${c.id}`)}
+                                                        className="group border-b border-[var(--table-row-border)] last:border-b-0 hover:bg-[var(--bg-primary)] cursor-pointer transition-colors focus:outline-none focus-visible:bg-[var(--bg-elevated)]"
+                                                        {...linkProps(`Open ${c.building_name || c.street_address || 'property'}`, () => router.push(`/comps/rent/${c.id}`))}
                                                     >
                                                         <td className="px-4 py-3">
                                                             <span className="font-semibold text-[var(--text-primary)] hover:text-[#2563EB] transition-colors">{c.building_name || c.street_address || 'Unknown'}</span>
@@ -937,7 +1022,7 @@ export default function CompsPage() {
                                                         </td>
                                                         <td className="px-4 py-3 text-right hidden md:table-cell">
                                                             {occ != null ? (
-                                                                <span className={`font-semibold ${occ >= 95 ? 'text-emerald-500' : occ >= 90 ? 'text-amber-500' : 'text-red-500'}`}>{occ}%</span>
+                                                                <span className={`font-semibold ${occ >= 95 ? 'text-[var(--success)]' : occ >= 90 ? 'text-[var(--warning)]' : 'text-[var(--danger)]'}`}>{occ}%</span>
                                                             ) : '—'}
                                                         </td>
                                                         <td className="px-4 py-3 text-[var(--text-muted)] hidden lg:table-cell truncate max-w-[150px]">
@@ -949,6 +1034,10 @@ export default function CompsPage() {
                                         </tbody>
                                     </table>
                                 </div>
+                            )}
+
+                            {!loadingRentComps && viewMode !== 'map' && (
+                                <ShowMore shown={Math.min(visibleCount, filteredRent.length)} total={filteredRent.length} onMore={showMore} />
                             )}
 
                             {/* Map View */}
@@ -968,8 +1057,7 @@ export default function CompsPage() {
                                     </p>
                                 </div>
                             )}
-                        </>);
-                    })()}
+                        </>
                 </>)}
 
                 {/* ═══ LAND COMPS SECTION ═══ */}
@@ -984,6 +1072,7 @@ export default function CompsPage() {
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Search comps..."
+                                aria-label="Search land comps"
                                 className="w-full pl-10 pr-4 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D9488]/10 focus:outline-none transition-all"
                             />
                         </div>
@@ -1030,17 +1119,19 @@ export default function CompsPage() {
                     {/* === GRID VIEW === */}
                     {!isLoading && viewMode === 'grid' && filtered.length > 0 && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {filtered.map((comp) => (
+                            {filtered.slice(0, visibleCount).map((comp) => (
                                 <div
                                     key={comp.id}
-                                    className="group relative bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 hover:border-[#0D9488]/40 hover:shadow-md transition-all cursor-pointer"
-                                    onClick={() => router.push(`/comps/${comp.short_id}`)}
+                                    className="group relative bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 hover:border-[#0D9488]/40 hover:shadow-md transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0D9488]"
+                                    {...linkProps(`Open ${comp.name}`, () => router.push(`/comps/${comp.short_id}`))}
                                 >
                                     {/* Delete button — admin/owner only */}
                                     {isAdminOrOwner && (
                                         <button
                                             onClick={(e) => { e.stopPropagation(); setDeleteCompId(comp.id); }}
-                                            className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-red-50 text-[var(--text-faint)] hover:text-red-500 transition-all"
+                                            onKeyDown={(e) => e.stopPropagation()}
+                                            aria-label={`Delete ${comp.name}`}
+                                            className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 focus:opacity-100 p-1.5 rounded-md hover:bg-[var(--danger-bg)] text-[var(--text-faint)] hover:text-[var(--danger)] transition-all"
                                         >
                                             <Trash2 className="w-3.5 h-3.5" />
                                         </button>
@@ -1063,12 +1154,12 @@ export default function CompsPage() {
                                                 </div>
                                             </div>
                                         )}
-                                        {comp.sale_price_psf != null && comp.sale_price_psf > 0 && (
+                                        {landPricePerSf(comp).value != null && (
                                             <div className="flex items-center gap-1.5">
                                                 <Ruler className="w-3 h-3 text-[#0D9488]" />
                                                 <div>
-                                                    <div className="text-[10px] text-[var(--text-faint)] uppercase">Price/SF</div>
-                                                    <div className="text-xs font-semibold text-[var(--text-primary)]">{formatCurrency(comp.sale_price_psf)}</div>
+                                                    <div className="text-[10px] text-[var(--text-faint)] uppercase">Price/SF{landPricePerSf(comp).derived ? ' (calc.)' : ''}</div>
+                                                    <div className="text-xs font-semibold text-[var(--text-primary)]">{fmtPsf(landPricePerSf(comp).value)}</div>
                                                 </div>
                                             </div>
                                         )}
@@ -1102,7 +1193,7 @@ export default function CompsPage() {
 
                     {/* === LIST VIEW === */}
                     {!isLoading && viewMode === 'list' && filtered.length > 0 && (
-                        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden">
+                        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="border-b border-[var(--border)] bg-[var(--bg-primary)]">
@@ -1116,11 +1207,11 @@ export default function CompsPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filtered.map((c) => (
+                                    {filtered.slice(0, visibleCount).map((c) => (
                                         <tr
                                             key={c.id}
-                                            className="group border-b border-[var(--table-row-border)] last:border-b-0 hover:bg-[var(--bg-primary)] cursor-pointer transition-colors"
-                                            onClick={() => router.push(`/comps/${c.short_id}`)}
+                                            className="group border-b border-[var(--table-row-border)] last:border-b-0 hover:bg-[var(--bg-primary)] cursor-pointer transition-colors focus:outline-none focus-visible:bg-[var(--bg-elevated)]"
+                                            {...linkProps(`Open ${c.name}`, () => router.push(`/comps/${c.short_id}`))}
                                         >
                                             <td className="px-4 py-3">
                                                 <span className="font-semibold text-[var(--text-primary)] hover:text-[#0D9488] transition-colors">{c.name}</span>
@@ -1131,8 +1222,8 @@ export default function CompsPage() {
                                             <td className="px-4 py-3 text-right font-semibold text-[var(--text-primary)]">
                                                 {c.sale_price ? formatCurrency(c.sale_price) : '—'}
                                             </td>
-                                            <td className="px-4 py-3 text-right text-[var(--text-secondary)] hidden md:table-cell">
-                                                {c.sale_price_psf ? formatCurrency(c.sale_price_psf) : '—'}
+                                            <td className="px-4 py-3 text-right text-[var(--text-secondary)] hidden md:table-cell" title={landPricePerSf(c).derived ? 'Calculated from sale price ÷ site area' : undefined}>
+                                                {fmtPsf(landPricePerSf(c).value)}{landPricePerSf(c).derived ? '*' : ''}
                                             </td>
                                             <td className="px-4 py-3 text-right text-[var(--text-secondary)] hidden md:table-cell">
                                                 {c.site_area_sf > 0 ? formatNumber(c.site_area_sf) : '—'}
@@ -1144,8 +1235,10 @@ export default function CompsPage() {
                                                 <td className="px-4 py-1 text-right">
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); setDeleteCompId(c.id); }}
-                                                        className="p-1.5 rounded-md text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-all opacity-0 group-hover:opacity-100"
+                                                        onKeyDown={(e) => e.stopPropagation()}
+                                                        className="p-1.5 rounded-md text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
                                                         title="Delete comp"
+                                                        aria-label={`Delete ${c.name}`}
                                                     >
                                                         <Trash2 className="w-3.5 h-3.5" />
                                                     </button>
@@ -1156,6 +1249,10 @@ export default function CompsPage() {
                                 </tbody>
                             </table>
                         </div>
+                    )}
+
+                    {!isLoading && viewMode !== 'map' && (
+                        <ShowMore shown={Math.min(visibleCount, filtered.length)} total={filtered.length} onMore={showMore} />
                     )}
 
                     {/* === MAP VIEW === */}
@@ -1201,6 +1298,7 @@ export default function CompsPage() {
                                     value={saleSearchQuery}
                                     onChange={(e) => setSaleSearchQuery(e.target.value)}
                                     placeholder="Search sale comps..."
+                                    aria-label="Search sale comps"
                                     className="w-full pl-10 pr-4 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:border-[#6366F1] focus:ring-2 focus:ring-[#6366F1]/10 focus:outline-none transition-all"
                                 />
                             </div>
@@ -1248,9 +1346,9 @@ export default function CompsPage() {
                             </div>
                         )}
 
-                        {!loadingSaleComps && filteredSaleComps.length > 0 && (viewMode === 'grid' || viewMode === 'map') && viewMode === 'grid' && (
+                        {!loadingSaleComps && filteredSaleComps.length > 0 && viewMode === 'grid' && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {filteredSaleComps.map((sc) => {
+                                {filteredSaleComps.slice(0, visibleCount).map((sc) => {
                                     const txs = [...(sc.sale_transactions ?? [])].sort(
                                         (a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime()
                                     );
@@ -1258,13 +1356,15 @@ export default function CompsPage() {
                                     return (
                                         <div
                                             key={sc.id}
-                                            className="group relative bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 hover:border-[#6366F1]/40 hover:shadow-md transition-all cursor-pointer"
-                                            onClick={() => router.push(`/comps/sales/${sc.short_id}`)}
+                                            className="group relative bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 hover:border-[#6366F1]/40 hover:shadow-md transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6366F1]"
+                                            {...linkProps(`Open ${sc.name}`, () => router.push(`/comps/sales/${sc.short_id}`))}
                                         >
                                             {isAdminOrOwner && (
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); setDeleteSaleCompId(sc.id); }}
-                                                    className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-red-50 text-[var(--text-faint)] hover:text-red-500 transition-all"
+                                                    onKeyDown={(e) => e.stopPropagation()}
+                                                    aria-label={`Delete ${sc.name}`}
+                                                    className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 focus:opacity-100 p-1.5 rounded-md hover:bg-[var(--danger-bg)] text-[var(--text-faint)] hover:text-[var(--danger)] transition-all"
                                                 >
                                                     <Trash2 className="w-3.5 h-3.5" />
                                                 </button>
@@ -1316,7 +1416,7 @@ export default function CompsPage() {
                                             <div className="mt-3 pt-2 border-t border-[var(--table-row-border)] flex items-center justify-between">
                                                 <span className="text-[10px] text-[var(--text-faint)]">Added {new Date(sc.created_at).toLocaleDateString()}</span>
                                                 {txs.length > 0 && (
-                                                    <span className="text-[10px] bg-[#EEF2FF] text-[var(--accent)] px-1.5 py-0.5 rounded-full font-medium">
+                                                    <span className="text-[10px] bg-[var(--accent-subtle)] text-[var(--accent)] px-1.5 py-0.5 rounded-full font-medium">
                                                         {txs.length} sale{txs.length > 1 ? 's' : ''}
                                                     </span>
                                                 )}
@@ -1329,7 +1429,7 @@ export default function CompsPage() {
 
                         {/* Sale Comps List View */}
                         {!loadingSaleComps && viewMode === 'list' && filteredSaleComps.length > 0 && (
-                            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden">
+                            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-x-auto">
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="border-b border-[var(--border)] bg-[var(--bg-primary)]">
@@ -1344,7 +1444,7 @@ export default function CompsPage() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {filteredSaleComps.map((sc) => {
+                                        {filteredSaleComps.slice(0, visibleCount).map((sc) => {
                                             const txs = [...(sc.sale_transactions ?? [])].sort(
                                                 (a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime()
                                             );
@@ -1352,8 +1452,8 @@ export default function CompsPage() {
                                             return (
                                                 <tr
                                                     key={sc.id}
-                                                    className="group border-b border-[var(--table-row-border)] last:border-b-0 hover:bg-[var(--bg-primary)] cursor-pointer transition-colors"
-                                                    onClick={() => router.push(`/comps/sales/${sc.short_id}`)}
+                                                    className="group border-b border-[var(--table-row-border)] last:border-b-0 hover:bg-[var(--bg-primary)] cursor-pointer transition-colors focus:outline-none focus-visible:bg-[var(--bg-elevated)]"
+                                                    {...linkProps(`Open ${sc.name}`, () => router.push(`/comps/sales/${sc.short_id}`))}
                                                 >
                                                     <td className="px-4 py-3">
                                                         <span className="font-semibold text-[var(--text-primary)] hover:text-[var(--accent)] transition-colors">{sc.name}</span>
@@ -1380,8 +1480,10 @@ export default function CompsPage() {
                                                         <td className="px-4 py-1 text-right">
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); setDeleteSaleCompId(sc.id); }}
-                                                                className="p-1.5 rounded-md text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-all opacity-0 group-hover:opacity-100"
+                                                                onKeyDown={(e) => e.stopPropagation()}
+                                                                className="p-1.5 rounded-md text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
                                                                 title="Delete sale comp"
+                                                                aria-label={`Delete ${sc.name}`}
                                                             >
                                                                 <Trash2 className="w-3.5 h-3.5" />
                                                             </button>
@@ -1393,6 +1495,10 @@ export default function CompsPage() {
                                     </tbody>
                                 </table>
                             </div>
+                        )}
+
+                        {!loadingSaleComps && viewMode !== 'map' && (
+                            <ShowMore shown={Math.min(visibleCount, filteredSaleComps.length)} total={filteredSaleComps.length} onMore={showMore} />
                         )}
 
                         {/* Sale Comps Map View */}
@@ -1429,7 +1535,7 @@ export default function CompsPage() {
 
             {/* ═══ Create Comp Dialog ═══ */}
             {showNewDialog && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setShowNewDialog(false); resetForm(); }}>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm" onClick={() => { setShowNewDialog(false); resetForm(); }}>
                     <div className="bg-[var(--bg-card)] rounded-2xl shadow-2xl w-full max-w-md p-6 mx-4" onClick={(e) => e.stopPropagation()}>
                         <h2 className="text-lg font-bold text-[var(--text-primary)] mb-4">New Land Comp</h2>
                         <div className="space-y-3">
@@ -1445,7 +1551,7 @@ export default function CompsPage() {
                             </div>
 
                             {landDuplicates.length > 0 && (
-                                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
+                                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-[var(--warning-bg)] border border-[var(--warning)]/30 text-[var(--warning)]">
                                     <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                                     <div className="text-xs">
                                         <span className="font-semibold">Possible duplicate{landDuplicates.length > 1 ? 's' : ''}:</span>{' '}
@@ -1524,7 +1630,7 @@ export default function CompsPage() {
 
             {/* ═══ Delete Confirm (admin/owner only) ═══ */}
             {deleteCompId && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setDeleteCompId(null)}>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm" onClick={() => setDeleteCompId(null)}>
                     <div className="bg-[var(--bg-card)] rounded-2xl shadow-2xl w-full max-w-sm p-6 mx-4" onClick={(e) => e.stopPropagation()}>
                         <h3 className="text-base font-bold text-[var(--text-primary)] mb-2">Delete Comp?</h3>
                         <p className="text-sm text-[var(--text-muted)] mb-4">This will permanently delete this comp and its data. This action cannot be undone.</p>
@@ -1537,11 +1643,11 @@ export default function CompsPage() {
                                         setDeleteCompId(null);
                                     } catch (err) {
                                         console.error('Failed to delete comp:', err);
-                                        window.alert('Failed to delete comp.');
+                                        toast.error('Failed to delete comp', err);
                                     }
                                 }}
                                 disabled={deleteCompMutation.isPending}
-                                className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 disabled:opacity-50 transition-colors"
+                                className="px-4 py-2 rounded-lg bg-[var(--danger)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
                             >
                                 Delete
                             </button>
@@ -1552,7 +1658,7 @@ export default function CompsPage() {
 
             {/* ═══ Create Sale Comp Dialog ═══ */}
             {showNewSaleDialog && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowNewSaleDialog(false)}>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm" onClick={() => setShowNewSaleDialog(false)}>
                     <div className="bg-[var(--bg-card)] rounded-2xl shadow-2xl w-full max-w-md p-6 mx-4" onClick={(e) => e.stopPropagation()}>
                         <h2 className="text-lg font-bold text-[var(--text-primary)] mb-4">New Sale Comp</h2>
                         <div className="space-y-3">
@@ -1568,7 +1674,7 @@ export default function CompsPage() {
                             </div>
 
                             {saleDuplicates.length > 0 && (
-                                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
+                                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-[var(--warning-bg)] border border-[var(--warning)]/30 text-[var(--warning)]">
                                     <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                                     <div className="text-xs">
                                         <span className="font-semibold">Possible duplicate{saleDuplicates.length > 1 ? 's' : ''}:</span>{' '}
@@ -1658,7 +1764,7 @@ export default function CompsPage() {
 
             {/* ═══ Delete Sale Comp Confirm ═══ */}
             {deleteSaleCompId && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setDeleteSaleCompId(null)}>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm" onClick={() => setDeleteSaleCompId(null)}>
                     <div className="bg-[var(--bg-card)] rounded-2xl shadow-2xl w-full max-w-sm p-6 mx-4" onClick={(e) => e.stopPropagation()}>
                         <h3 className="text-base font-bold text-[var(--text-primary)] mb-2">Delete Sale Comp?</h3>
                         <p className="text-sm text-[var(--text-muted)] mb-4">This will permanently delete this sale comp and all its transactions. This action cannot be undone.</p>
@@ -1671,11 +1777,11 @@ export default function CompsPage() {
                                         setDeleteSaleCompId(null);
                                     } catch (err) {
                                         console.error('Failed to delete sale comp:', err);
-                                        window.alert('Failed to delete sale comp.');
+                                        toast.error('Failed to delete sale comp', err);
                                     }
                                 }}
                                 disabled={deleteSaleCompMutation.isPending}
-                                className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 disabled:opacity-50 transition-colors"
+                                className="px-4 py-2 rounded-lg bg-[var(--danger)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
                             >
                                 Delete
                             </button>

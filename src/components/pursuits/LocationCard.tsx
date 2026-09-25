@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MapPin, Pencil, Check, X, Search } from 'lucide-react';
 import type { Pursuit } from '@/types';
+import { toast } from '@/lib/toast';
+import { useMapStyle } from './mapTheme';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -33,6 +35,10 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
     const suggestionsRef = useRef<HTMLDivElement>(null);
 
     const hasLocation = pursuit.latitude !== null && pursuit.longitude !== null;
+    const { mapStyle } = useMapStyle();
+    // Rebuild the map only when the drawn geometry changes — parcel_data also holds FMR / AI summary
+    // caches, and re-creating the map for those (a new WebGL context each time) was wasted work.
+    const primaryGeometry = (pursuit.parcel_data as any)?.parcel?.geometry ?? null;
 
     // Initialize map
     useEffect(() => {
@@ -52,7 +58,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
 
             map = new mbgl.Map({
                 container: mapContainerRef.current!,
-                style: 'mapbox://styles/mapbox/light-v11',
+                style: mapStyle,
                 center: hasLocation ? [pursuit.longitude!, pursuit.latitude!] : [-97.7431, 30.2672],
                 zoom: hasLocation ? 14 : 4,
                 interactive: true,
@@ -84,7 +90,6 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                 };
 
                 // Primary parcel geometry
-                const primaryGeometry = (pursuit.parcel_data as any)?.parcel?.geometry;
                 if (primaryGeometry) {
                     map.addSource('primary-parcel', {
                         type: 'geojson',
@@ -162,7 +167,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
             markerRef.current = null;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [MAPBOX_TOKEN, pursuit.parcel_data, pursuit.parcel_assemblage]);
+    }, [primaryGeometry, pursuit.parcel_assemblage, mapStyle]);
 
     // Update marker when lat/lng changes externally
     useEffect(() => {
@@ -297,10 +302,12 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                 onUpdate(updates);
             } else {
                 onUpdate({ address, city, state, zip });
+                toast.info('Address saved, but it could not be located — the map pin was not moved. Pick a suggestion or enter coordinates.');
             }
         } catch (err) {
             console.error('Geocode failed:', err);
             onUpdate({ address, city, state, zip });
+            toast.error('Address saved, but geocoding failed — the map pin was not moved', err);
         }
     }, [onUpdate, pursuit.county]);
 
@@ -388,6 +395,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                         onClick={startEditing}
                         className="p-1 rounded text-[var(--text-faint)] hover:text-[var(--accent)] hover:bg-[var(--accent-subtle)] transition-colors"
                         title="Edit address"
+                        aria-label="Edit location"
                     >
                         <Pencil className="w-3.5 h-3.5" />
                     </button>
@@ -406,7 +414,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                                 value={editAddress}
                                 onChange={(e) => handleAddressChange(e.target.value)}
                                 placeholder="Start typing an address..."
-                                className="w-full pl-7 pr-2 py-1.5 rounded-md border border-[var(--border)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+                                className="w-full pl-7 pr-2 py-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-card)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                                 autoFocus
                                 onKeyDown={(e) => { if (e.key === 'Enter') { saveEdits(); } if (e.key === 'Escape') cancelEdits(); }}
                             />
@@ -435,7 +443,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                                 value={editCity}
                                 onChange={(e) => setEditCity(e.target.value)}
                                 placeholder="City"
-                                className="w-full px-2 py-1.5 rounded-md border border-[var(--border)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+                                className="w-full px-2 py-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-card)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                                 onKeyDown={(e) => { if (e.key === 'Enter') saveEdits(); if (e.key === 'Escape') cancelEdits(); }}
                             />
                         </div>
@@ -446,7 +454,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                                 value={editState}
                                 onChange={(e) => setEditState(e.target.value)}
                                 placeholder="TX"
-                                className="w-full px-2 py-1.5 rounded-md border border-[var(--border)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+                                className="w-full px-2 py-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-card)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                                 onKeyDown={(e) => { if (e.key === 'Enter') saveEdits(); if (e.key === 'Escape') cancelEdits(); }}
                             />
                         </div>
@@ -457,7 +465,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                                 value={editZip}
                                 onChange={(e) => setEditZip(e.target.value)}
                                 placeholder="75201"
-                                className="w-full px-2 py-1.5 rounded-md border border-[var(--border)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+                                className="w-full px-2 py-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-card)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                                 onKeyDown={(e) => { if (e.key === 'Enter') saveEdits(); if (e.key === 'Escape') cancelEdits(); }}
                             />
                         </div>
@@ -471,7 +479,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                                 value={editLat}
                                 onChange={(e) => setEditLat(e.target.value)}
                                 placeholder="e.g., 30.267"
-                                className="w-full px-2 py-1.5 rounded-md border border-[var(--border)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+                                className="w-full px-2 py-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-card)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                                 onKeyDown={(e) => { if (e.key === 'Enter') saveEdits(); if (e.key === 'Escape') cancelEdits(); }}
                             />
                         </div>
@@ -483,7 +491,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                                 value={editLng}
                                 onChange={(e) => setEditLng(e.target.value)}
                                 placeholder="e.g., -97.743"
-                                className="w-full px-2 py-1.5 rounded-md border border-[var(--border)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+                                className="w-full px-2 py-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-card)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                                 onKeyDown={(e) => { if (e.key === 'Enter') saveEdits(); if (e.key === 'Escape') cancelEdits(); }}
                             />
                         </div>

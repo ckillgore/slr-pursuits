@@ -42,7 +42,7 @@ function CagrIcon({ val }: { val: unknown }) {
 function haiColor(val: unknown): string {
     if (val == null || typeof val !== 'number') return 'text-[var(--text-faint)]';
     if (val >= 100) return 'text-[var(--success)]';
-    if (val >= 80) return 'text-[#D97706]';
+    if (val >= 80) return 'text-[var(--warning)]';
     return 'text-[var(--danger)]';
 }
 
@@ -71,7 +71,7 @@ export function GrowthTrendsCard({ pursuit }: GrowthTrendsCardProps) {
 
     return (
         <div className="card">
-            <div className="flex items-center gap-1.5 mb-3">
+            <div className="flex flex-wrap items-center gap-1.5 mb-3">
                 <Activity className="w-3.5 h-3.5 text-[var(--success)]" />
                 <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Growth Trends & Market Indicators</h3>
                 <span className="text-[9px] text-[var(--text-faint)] ml-auto">Census Block Group · ESRI via Regrid</span>
@@ -176,7 +176,7 @@ export function GrowthTrendsCard({ pursuit }: GrowthTrendsCardProps) {
 
             {/* Contextual row: Pop density + median income from Regrid block group */}
             {(d.populationDensity != null || d.medianHouseholdIncome != null) && (
-                <div className="flex items-center gap-6 px-1">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-1 px-1">
                     {d.populationDensity != null && (
                         <div className="text-xs text-[var(--text-secondary)]">
                             <span className="text-[var(--text-faint)]">Pop. Density:</span>{' '}

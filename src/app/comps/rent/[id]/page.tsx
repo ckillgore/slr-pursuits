@@ -13,7 +13,9 @@ import {
     ChevronDown, DollarSign, Clock, Filter,
 } from 'lucide-react';
 import { RentTrendsSection, BubbleChartSection, LeasingActivitySection, OccupancySection } from '@/components/pursuits/rent-comps/RentCompSections';
-import { getAverageAskingRent, getAverageEffectiveRent, filterValidUnits } from '@/lib/calculations/hellodataCalculations';
+import { getAverageAskingRent, getAverageEffectiveRent, filterValidUnits, HELLODATA_CACHE_TTL_DAYS } from '@/lib/calculations/hellodataCalculations';
+import { toast } from '@/lib/toast';
+import { useMapStyle } from '@/components/pursuits/mapTheme';
 import type { PropertyMetrics } from '@/components/pursuits/rent-comps/types';
 import type { HellodataUnit, HellodataProperty } from '@/types';
 
@@ -24,6 +26,13 @@ const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 function fmtDateOnly(d: string): string {
     const dt = /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + 'T00:00:00') : new Date(d);
     return isNaN(dt.getTime()) ? d : dt.toLocaleDateString();
+}
+
+/** Most recent occupancy snapshot by as_of date (HelloData doesn't guarantee array order) */
+function latestLeased(occ: HellodataProperty['occupancy_over_time']): number | null {
+    if (!occ || !Array.isArray(occ) || occ.length === 0) return null;
+    const latest = occ.reduce((a, o) => ((o?.as_of || '') > (a?.as_of || '') ? o : a), occ[0]);
+    return typeof latest?.leased === 'number' ? latest.leased : null;
 }
 
 function fmtCurrency(val: number | null | undefined) {
@@ -38,6 +47,7 @@ function fmtCurrency(val: number | null | undefined) {
 function PropertyMap({ lat, lon, name }: { lat: number; lon: number; name: string }) {
     const containerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<any>(null);
+    const { mapStyle } = useMapStyle();
 
     useEffect(() => {
         if (!MAPBOX_TOKEN || !containerRef.current) return;
@@ -50,7 +60,7 @@ function PropertyMap({ lat, lon, name }: { lat: number; lon: number; name: strin
             if (containerRef.current) containerRef.current.innerHTML = '';
             const map = new mbgl.Map({
                 container: containerRef.current!,
-                style: 'mapbox://styles/mapbox/light-v11',
+                style: mapStyle,
                 center: [lon, lat],
                 zoom: 14,
                 interactive: true,
@@ -61,11 +71,11 @@ function PropertyMap({ lat, lon, name }: { lat: number; lon: number; name: strin
         });
         return () => { cancelled = true; if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [lat, lon]);
+    }, [lat, lon, mapStyle]);
 
     return (
         <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden" style={{ height: 280 }}>
-            <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+            <div ref={containerRef} style={{ width: '100%', height: '100%' }} role="img" aria-label={`Map showing ${name || 'property'} location`} />
         </div>
     );
 }
@@ -76,9 +86,8 @@ function PropertyMap({ lat, lon, name }: { lat: number; lon: number; name: strin
 
 function OverviewTab({ property }: { property: HellodataProperty }) {
     const occupancy = useMemo(() => {
-        if (!property.occupancy_over_time || !Array.isArray(property.occupancy_over_time) || property.occupancy_over_time.length === 0) return null;
-        const latest = property.occupancy_over_time[property.occupancy_over_time.length - 1];
-        return latest?.leased != null ? Math.round(latest.leased * 100) : null;
+        const leased = latestLeased(property.occupancy_over_time);
+        return leased != null ? Math.round(leased * 100) : null;
     }, [property.occupancy_over_time]);
 
     const buildingFlags = useMemo(() => {
@@ -121,7 +130,7 @@ function OverviewTab({ property }: { property: HellodataProperty }) {
                     <div className="mt-4 pt-3 border-t border-[var(--table-row-border)]">
                         <div className="flex flex-wrap gap-1.5">
                             {buildingFlags.map(f => (
-                                <span key={f} className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-blue-500/10 text-blue-600">{f}</span>
+                                <span key={f} className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-[var(--accent)]/10 text-[var(--accent)]">{f}</span>
                             ))}
                         </div>
                     </div>
@@ -137,7 +146,7 @@ function OverviewTab({ property }: { property: HellodataProperty }) {
                             <div key={key} className="flex items-center gap-3">
                                 <span className="text-xs text-[var(--text-muted)] w-24 capitalize">{key.replace(/_/g, ' ')}</span>
                                 <div className="flex-1 bg-[var(--bg-primary)] rounded-full h-2 overflow-hidden">
-                                    <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${Math.min(100, Math.max(0, ((val as number) || 0) * 100))}%` }} />
+                                    <div className="h-full rounded-full bg-[var(--accent)] transition-all" style={{ width: `${Math.min(100, Math.max(0, ((val as number) || 0) * 100))}%` }} />
                                 </div>
                                 <span className="text-xs font-semibold text-[var(--text-primary)] w-10 text-right">{Math.round(((val as number) || 0) * 100)}%</span>
                             </div>
@@ -159,20 +168,20 @@ function OverviewTab({ property }: { property: HellodataProperty }) {
                     </div>
                     {property.review_analysis.positive_counts && Object.keys(property.review_analysis.positive_counts).length > 0 && (
                         <div className="mb-3">
-                            <p className="text-[10px] font-semibold text-emerald-600 uppercase mb-1.5">Top Positive</p>
+                            <p className="text-[10px] font-semibold text-[var(--success)] uppercase mb-1.5">Top Positive</p>
                             <div className="flex flex-wrap gap-1">
                                 {Object.entries(property.review_analysis.positive_counts).sort(([, a], [, b]) => b - a).slice(0, 6).map(([k, v]) => (
-                                    <span key={k} className="px-2 py-0.5 text-[10px] rounded bg-emerald-500/10 text-emerald-600">{k} ({v})</span>
+                                    <span key={k} className="px-2 py-0.5 text-[10px] rounded bg-[var(--success)]/10 text-[var(--success)]">{k} ({v})</span>
                                 ))}
                             </div>
                         </div>
                     )}
                     {property.review_analysis.negative_counts && Object.keys(property.review_analysis.negative_counts).length > 0 && (
                         <div>
-                            <p className="text-[10px] font-semibold text-red-500 uppercase mb-1.5">Top Negative</p>
+                            <p className="text-[10px] font-semibold text-[var(--danger)] uppercase mb-1.5">Top Negative</p>
                             <div className="flex flex-wrap gap-1">
                                 {Object.entries(property.review_analysis.negative_counts).sort(([, a], [, b]) => b - a).slice(0, 6).map(([k, v]) => (
-                                    <span key={k} className="px-2 py-0.5 text-[10px] rounded bg-red-500/10 text-red-500">{k} ({v})</span>
+                                    <span key={k} className="px-2 py-0.5 text-[10px] rounded bg-[var(--danger)]/10 text-[var(--danger)]">{k} ({v})</span>
                                 ))}
                             </div>
                         </div>
@@ -203,7 +212,7 @@ function OverviewTab({ property }: { property: HellodataProperty }) {
                         {property.pricing_strategy.is_using_rev_management != null && (
                             <div className="flex justify-between">
                                 <span className="text-[var(--text-muted)]">Revenue Management</span>
-                                <span className={`font-medium ${property.pricing_strategy.is_using_rev_management ? 'text-emerald-500' : 'text-[var(--text-secondary)]'}`}>
+                                <span className={`font-medium ${property.pricing_strategy.is_using_rev_management ? 'text-[var(--success)]' : 'text-[var(--text-secondary)]'}`}>
                                     {property.pricing_strategy.is_using_rev_management ? 'Yes' : 'No'}
                                 </span>
                             </div>
@@ -342,10 +351,10 @@ function UnitDetailsTab({ units }: { units: HellodataUnit[] }) {
                                         <td className="py-2 px-3 text-right text-[var(--text-secondary)]">{g.count}</td>
                                         <td className="py-2 px-3 text-right tabular-nums text-[var(--text-secondary)]">{g.avgSqft ? Math.round(g.avgSqft).toLocaleString() : '—'}</td>
                                         <td className="py-2 px-3 text-right tabular-nums font-medium text-[var(--text-primary)]">{g.avgPrice ? fmtCurrency(Math.round(g.avgPrice)) : '—'}</td>
-                                        <td className="py-2 px-3 text-right tabular-nums text-emerald-600">{g.avgEff ? fmtCurrency(Math.round(g.avgEff)) : '—'}</td>
+                                        <td className="py-2 px-3 text-right tabular-nums text-[var(--success)]">{g.avgEff ? fmtCurrency(Math.round(g.avgEff)) : '—'}</td>
                                         <td className="py-2 px-3 text-right tabular-nums text-[var(--text-secondary)]">{g.avgPsf ? `$${g.avgPsf.toFixed(2)}` : '—'}</td>
                                         <td className="py-2 px-3 text-right tabular-nums text-[var(--text-muted)]">{g.avgDom != null ? Math.round(g.avgDom) : '—'}</td>
-                                        <td className="py-2 px-3 text-right">{g.availCount > 0 ? <span className="text-emerald-600 font-medium">{g.availCount}</span> : '—'}</td>
+                                        <td className="py-2 px-3 text-right">{g.availCount > 0 ? <span className="text-[var(--success)] font-medium">{g.availCount}</span> : '—'}</td>
                                     </tr>
                                 ))}
                                 <tr className="bg-[var(--bg-primary)] font-semibold">
@@ -353,7 +362,7 @@ function UnitDetailsTab({ units }: { units: HellodataUnit[] }) {
                                     <td className="py-2 px-3 text-right text-[var(--text-primary)]">{totalUnits}</td>
                                     <td className="py-2 px-3 text-right tabular-nums text-[var(--text-primary)]">{totalAvgSqft ? Math.round(totalAvgSqft).toLocaleString() : '—'}</td>
                                     <td className="py-2 px-3 text-right tabular-nums text-[var(--text-primary)]">{totalAvgPrice ? fmtCurrency(Math.round(totalAvgPrice)) : '—'}</td>
-                                    <td className="py-2 px-3 text-right tabular-nums text-emerald-600">{totalAvgEff ? fmtCurrency(Math.round(totalAvgEff)) : '—'}</td>
+                                    <td className="py-2 px-3 text-right tabular-nums text-[var(--success)]">{totalAvgEff ? fmtCurrency(Math.round(totalAvgEff)) : '—'}</td>
                                     <td className="py-2 px-3 text-right tabular-nums text-[var(--text-primary)]">{totalAvgPsf ? `$${totalAvgPsf.toFixed(2)}` : '—'}</td>
                                     <td className="py-2 px-3 text-right tabular-nums text-[var(--text-primary)]">{totalAvgDom != null ? Math.round(totalAvgDom) : '—'}</td>
                                     <td className="py-2 px-3 text-right text-[var(--text-primary)]">{totalAvail > 0 ? totalAvail : '—'}</td>
@@ -422,13 +431,13 @@ function UnitDetailsTab({ units }: { units: HellodataUnit[] }) {
                                     <td className="py-2 px-3 text-center text-[var(--text-secondary)]">{u.bath ?? '—'}</td>
                                     <td className="py-2 px-3 text-right tabular-nums text-[var(--text-secondary)]">{u.sqft ? u.sqft.toLocaleString() : '—'}</td>
                                     <td className="py-2 px-3 text-right tabular-nums font-medium text-[var(--text-primary)]">{u.price ? fmtCurrency(u.price) : '—'}</td>
-                                    <td className="py-2 px-3 text-right tabular-nums text-emerald-600">{u.effective_price ? fmtCurrency(u.effective_price) : '—'}</td>
+                                    <td className="py-2 px-3 text-right tabular-nums text-[var(--success)]">{u.effective_price ? fmtCurrency(u.effective_price) : '—'}</td>
                                     <td className="py-2 px-3 text-right tabular-nums text-[var(--text-secondary)]">${rentPerSf}</td>
                                     <td className="py-2 px-3 text-right tabular-nums text-[var(--text-muted)]">{u.days_on_market ?? '—'}</td>
                                     <td className="py-2 px-3 text-center text-[var(--text-muted)]">{u.lease_term ? `${u.lease_term}mo` : '—'}</td>
                                     <td className="py-2 px-3 text-center">
                                         {u.availability ? (
-                                            <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${u.availability === 'available' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)]'}`}>
+                                            <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${u.availability === 'available' ? 'bg-[var(--success)]/10 text-[var(--success)]' : 'bg-[var(--bg-elevated)] text-[var(--text-muted)]'}`}>
                                                 {u.availability}
                                             </span>
                                         ) : '—'}
@@ -476,10 +485,10 @@ function ConcessionsTab({ property }: { property: HellodataProperty }) {
                         <div className="space-y-2 mt-3 pt-3 border-t border-[var(--table-row-border)]">
                             {c.items.map((item, j) => (
                                 <div key={j} className="text-xs text-[var(--text-secondary)] space-y-1">
-                                    {!!item.free_months_count && item.free_months_count > 0 && <p className="text-emerald-600 font-medium">🎉 {item.free_months_count} month{item.free_months_count > 1 ? 's' : ''} free</p>}
-                                    {!!item.free_weeks_count && item.free_weeks_count > 0 && <p className="text-emerald-600 font-medium">🎉 {item.free_weeks_count} week{item.free_weeks_count > 1 ? 's' : ''} free</p>}
-                                    {!!item.recurring_dollars_off_amount && <p className="text-emerald-600 font-medium">${item.recurring_dollars_off_amount}/mo off</p>}
-                                    {!!item.one_time_dollars_off_amount && <p className="text-blue-600">${item.one_time_dollars_off_amount} one-time discount</p>}
+                                    {!!item.free_months_count && item.free_months_count > 0 && <p className="text-[var(--success)] font-medium">🎉 {item.free_months_count} month{item.free_months_count > 1 ? 's' : ''} free</p>}
+                                    {!!item.free_weeks_count && item.free_weeks_count > 0 && <p className="text-[var(--success)] font-medium">🎉 {item.free_weeks_count} week{item.free_weeks_count > 1 ? 's' : ''} free</p>}
+                                    {!!item.recurring_dollars_off_amount && <p className="text-[var(--success)] font-medium">${item.recurring_dollars_off_amount}/mo off</p>}
+                                    {!!item.one_time_dollars_off_amount && <p className="text-[var(--accent)]">${item.one_time_dollars_off_amount} one-time discount</p>}
                                     {item.waived_application_fee && <p>✓ Application fee waived</p>}
                                     {item.waived_security_deposit && <p>✓ Security deposit waived</p>}
                                     {item.waived_administrative_fee && <p>✓ Admin fee waived</p>}
@@ -522,19 +531,26 @@ export default function RentCompDetailPage() {
     }, [allPursuits, linkedPursuits]);
 
     const handleRefresh = useCallback(async () => {
-        if (!property) return;
+        if (!property || isRefreshing) return;
+        // A forced refresh is a paid HelloData call — confirm when the cached copy is still within its TTL
+        const ageDays = property.fetched_at ? (Date.now() - new Date(property.fetched_at).getTime()) / 86_400_000 : Infinity;
+        if (ageDays < HELLODATA_CACHE_TTL_DAYS) {
+            const ago = ageDays < 1 ? 'today' : `${Math.floor(ageDays)} day${Math.floor(ageDays) === 1 ? '' : 's'} ago`;
+            if (!window.confirm(`This property was refreshed ${ago} (cache window: ${HELLODATA_CACHE_TTL_DAYS} days). Refreshing now makes a paid HelloData request. Continue?`)) return;
+        }
         setIsRefreshing(true);
         try {
             const res = await fetch(`/api/hellodata/property?hellodataId=${encodeURIComponent(property.hellodata_id)}&forceRefresh=true`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            queryClient.invalidateQueries({ queryKey: hellodataKeys.propertyDetail(id) });
+            await queryClient.invalidateQueries({ queryKey: hellodataKeys.propertyDetail(id) });
+            toast.success('Property data refreshed from HelloData');
         } catch (err) {
             console.error('Refresh failed', err);
-            window.alert('Failed to refresh property data from HelloData.');
+            toast.error('Failed to refresh property data from HelloData', err);
         } finally {
             setIsRefreshing(false);
         }
-    }, [property, id, queryClient]);
+    }, [property, id, queryClient, isRefreshing]);
 
     const handleLinkPursuit = useCallback(async (pursuitId: string) => {
         if (!property) return;
@@ -542,10 +558,13 @@ export default function RentCompDetailPage() {
             await linkMutation.mutateAsync({ pursuitId, propertyId: property.id });
             queryClient.invalidateQueries({ queryKey: hellodataKeys.linkedPursuits(id) });
             setShowLinkDropdown(false);
+            const name = allPursuits.find(p => p.id === pursuitId)?.name;
+            toast.success(name ? `Added to ${name}` : 'Added to pursuit');
         } catch (err) {
             console.error('Link failed', err);
+            toast.error('Failed to add this property to the pursuit', err);
         }
-    }, [property, id, linkMutation, queryClient]);
+    }, [property, id, linkMutation, queryClient, allPursuits]);
 
     const compMetrics: PropertyMetrics[] = useMemo(() => {
         if (!property) return [];
@@ -560,9 +579,8 @@ export default function RentCompDetailPage() {
         const avail = units.filter(u => u.availability === 'available').length;
         const domsArr = units.filter(u => u.days_on_market != null).map(u => u.days_on_market!);
         const avgDom = domsArr.length > 0 ? domsArr.reduce((a, b) => a + b, 0) / domsArr.length : null;
-        const occ = property.occupancy_over_time;
-        const latestLeased = occ && Array.isArray(occ) && occ.length > 0 ? occ[occ.length - 1]?.leased : null;
-        const leasedPct = typeof latestLeased === 'number' ? Math.round(latestLeased * 100) : null;
+        const leased = latestLeased(property.occupancy_over_time);
+        const leasedPct = leased != null ? Math.round(leased * 100) : null;
         return [{
             name: property.building_name || property.street_address || 'Property',
             address: [property.street_address, property.city, property.state].filter(Boolean).join(', '),
@@ -680,7 +698,7 @@ export default function RentCompDetailPage() {
                                         <Link
                                             key={lp.pursuit_id}
                                             href={`/pursuits/${lp.pursuit_short_id}`}
-                                            className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 transition-colors"
+                                            className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-[var(--accent)]/10 text-[var(--accent)] hover:bg-[var(--accent)]/20 transition-colors"
                                         >
                                             {lp.pursuit_name}
                                         </Link>
@@ -689,11 +707,13 @@ export default function RentCompDetailPage() {
                             )}
 
                             {/* Actions */}
-                            <div className="flex items-center gap-3 mt-4">
+                            <div className="flex flex-wrap items-center gap-3 mt-4">
                                 {/* Add to Pursuit */}
                                 <div className="relative">
                                     <button
                                         onClick={() => setShowLinkDropdown(!showLinkDropdown)}
+                                        aria-expanded={showLinkDropdown}
+                                        aria-haspopup="menu"
                                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
                                     >
                                         <Link2 className="w-3.5 h-3.5" /> Add to Pursuit <ChevronDown className="w-3 h-3" />
@@ -707,6 +727,7 @@ export default function RentCompDetailPage() {
                                                     <button
                                                         key={p.id}
                                                         onClick={() => handleLinkPursuit(p.id)}
+                                                        disabled={linkMutation.isPending}
                                                         className="w-full text-left px-3 py-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-primary)] transition-colors"
                                                     >
                                                         {p.name}

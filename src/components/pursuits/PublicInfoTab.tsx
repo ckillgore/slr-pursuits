@@ -1,7 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AssemblageMap } from './AssemblageMap';
+import { AssemblageMap, parcelKey } from './AssemblageMap';
+import { useMapStyle } from './mapTheme';
+import { isParcelForOtherLocation, type LngLat } from './locationCache';
+import { StaleLocationNotice } from './StaleLocationNotice';
 import {
     Building2,
     MapPin,
@@ -219,14 +222,13 @@ function formatDateStr(d: string): string {
     return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+/** Theme-token badge classes for a FEMA NRI rating (fixed Tailwind palettes washed out in dark mode) */
 function getRiskColor(rating: string): string {
     const r = rating.toLowerCase();
-    if (r.includes('very low')) return 'bg-green-50 text-green-700 border border-green-200';
-    if (r.includes('relatively low')) return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
-    if (r.includes('relatively moderate') || r.includes('moderate')) return 'bg-yellow-50 text-yellow-700 border border-yellow-200';
-    if (r.includes('relatively high')) return 'bg-orange-50 text-orange-700 border border-orange-200';
-    if (r.includes('very high')) return 'bg-red-50 text-red-700 border border-red-200';
-    return 'bg-gray-50 text-gray-700 border border-gray-200';
+    if (r.includes('very low') || r.includes('relatively low')) return 'bg-[var(--success-bg)] text-[var(--success)] border border-[var(--success)]/30';
+    if (r.includes('moderate')) return 'bg-[var(--warning-bg)] text-[var(--warning)] border border-[var(--warning)]/30';
+    if (r.includes('high')) return 'bg-[var(--danger-bg)] text-[var(--danger)] border border-[var(--danger)]/30';
+    return 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border)]';
 }
 
 // ======================== Info Row ========================
@@ -303,6 +305,11 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
     );
     const [nearbyRadius, setNearbyRadius] = useState(200); // meters
     const [nearbySearchedRadius, setNearbySearchedRadius] = useState(200); // radius used for the displayed results
+    // Session cache of nearby-parcel searches (paid Regrid calls) keyed by site + radius
+    const nearbyCacheRef = useRef(new Map<string, NearbyParcel[]>());
+    const { mapStyle } = useMapStyle();
+    // Where the cached parcel was looked up (absent on caches saved before location tracking)
+    const [parcelQueriedAt, setParcelQueriedAt] = useState<unknown>(savedParcelData?.queriedAt ?? null);
     // Latest assemblage for the map's initial load handler (map is NOT recreated when the selection changes)
     const assemblageRef = useRef(assemblage);
     assemblageRef.current = assemblage;
@@ -348,7 +355,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
 
             map = new mbgl.Map({
                 container: mapContainerRef.current,
-                style: 'mapbox://styles/mapbox/light-v11',
+                style: mapStyle,
                 center: hasLocation ? [longitude!, latitude!] : [-96.7970, 32.7767],
                 zoom: hasLocation ? 16 : 10,
                 interactive: true,
@@ -494,7 +501,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
             mapRef.current = null;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [parcel, buildings]);
+    }, [parcel, buildings, mapStyle]);
 
     // Update assemblage parcels on the main map without recreating it
     useEffect(() => {
@@ -581,10 +588,10 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                 body: JSON.stringify({ latitude, longitude, address: pursuitAddress }),
             });
 
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
 
             if (!res.ok) {
-                throw new Error(data.error || 'Failed to fetch parcel data');
+                throw new Error(data.error || `Failed to fetch parcel data (HTTP ${res.status})`);
             }
 
             if (!data.parcel) {
@@ -597,16 +604,20 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
             } else {
                 setFmrData(null); // Reset so FMR re-fetches
                 fmrFetchedRef.current = false;
+                const queriedAt: LngLat | null = hasLocation ? [longitude!, latitude!] : null;
                 setParcel(data.parcel);
                 setAssociatedRecords(data.associatedRecords || []);
                 setTaxSummary(data.taxSummary || null);
                 setBuildings(data.buildings || []);
-                // Save full response to Supabase for caching
+                setParcelQueriedAt(queriedAt);
+                // Save full response to Supabase for caching (fmr: null so the new ZIP's FMR replaces the old one)
                 saveToCache({
                     parcel: data.parcel,
                     associatedRecords: data.associatedRecords || [],
                     taxSummary: data.taxSummary || null,
                     buildings: data.buildings || [],
+                    fmr: null,
+                    queriedAt,
                 });
             }
             setHasFetched(true);
@@ -665,6 +676,60 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
         ? `https://www.walkscore.com/score/${encodeURIComponent((parcel.details.address || '') + (parcel.details.city ? ', ' + parcel.details.city : '') + (parcel.details.state ? ', ' + parcel.details.state : ''))}`
         : null;
 
+    // Parcel cache is per record, not per location: flag a parcel looked up for a previous site
+    const isParcelStale = !!parcel && !loading && isParcelForOtherLocation({
+        current: hasLocation ? [longitude!, latitude!] : null,
+        queriedAt: parcelQueriedAt,
+        geometry: parcel.geometry,
+    });
+
+    const toggleAssemblage = (np: NearbyParcel) => {
+        const key = parcelKey(np);
+        const updated = assemblage.some(a => parcelKey(a) === key)
+            ? assemblage.filter(a => parcelKey(a) !== key)
+            : [...assemblage, np];
+        setAssemblage(updated);
+        if (onSaveAssemblage) onSaveAssemblage(updated as any);
+    };
+
+    const discoverNearby = async () => {
+        if (!latitude || !longitude) return;
+        const cacheKey = `${latitude.toFixed(6)},${longitude.toFixed(6)}|${nearbyRadius}`;
+        const cached = nearbyCacheRef.current.get(cacheKey);
+        if (cached) {
+            setNearbyParcels(cached);
+            setNearbySearchedRadius(nearbyRadius);
+            setNearbyError(null);
+            setShowNearby(true);
+            return;
+        }
+        setNearbyLoading(true);
+        setNearbyError(null);
+        try {
+            const res = await fetch('/api/regrid/nearby', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    latitude,
+                    longitude,
+                    radiusMeters: nearbyRadius,
+                    excludeRegridIds: parcel?.regridId ? [parcel.regridId] : [],
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || `Failed to discover nearby parcels (HTTP ${res.status})`);
+            const parcels: NearbyParcel[] = data.parcels || [];
+            nearbyCacheRef.current.set(cacheKey, parcels);
+            setNearbyParcels(parcels);
+            setNearbySearchedRadius(nearbyRadius);
+            setShowNearby(true);
+        } catch (err: any) {
+            setNearbyError(err.message);
+        } finally {
+            setNearbyLoading(false);
+        }
+    };
+
     if (!hasLocation) {
         return (
             <div className="card">
@@ -703,9 +768,18 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                 </button>
             </div>
 
+            {isParcelStale && (
+                <StaleLocationNotice
+                    what="parcel record"
+                    onRegenerate={fetchParcel}
+                    disabled={loading}
+                    actionLabel="Refresh parcel"
+                />
+            )}
+
             {/* Error */}
             {error && (
-                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-[var(--danger-bg)] border border-[var(--danger)]">
+                <div role="alert" className="flex items-start gap-2 p-2.5 rounded-lg bg-[var(--danger-bg)] border border-[var(--danger)]">
                     <AlertCircle className="w-3.5 h-3.5 mt-0.5 text-[var(--danger)] flex-shrink-0" />
                     <p className="text-xs text-[var(--danger)]">{error}</p>
                 </div>
@@ -956,8 +1030,12 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
 
                         {/* ===== Zoning Detail Modal ===== */}
                         {showZoningModal && (
-                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm" onClick={() => setShowZoningModal(false)}>
-                                <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-lg shadow-xl animate-fade-in max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                            <div
+                                className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm"
+                                onClick={() => setShowZoningModal(false)}
+                                onKeyDown={(e) => { if (e.key === 'Escape') setShowZoningModal(false); }}
+                            >
+                                <div role="dialog" aria-modal="true" aria-label="Zoning details" className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-lg mx-4 shadow-xl animate-fade-in max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                                     {/* Header */}
                                     <div className="flex items-center justify-between mb-4">
                                         <div className="flex items-center gap-2">
@@ -967,7 +1045,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                                 <span className="text-sm font-bold text-[#8B5CF6] bg-[#8B5CF6]/10 px-2 py-0.5 rounded-md">{parcel.zoning.code}</span>
                                             )}
                                         </div>
-                                        <button onClick={() => setShowZoningModal(false)} className="p-1 rounded-md hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+                                        <button onClick={() => setShowZoningModal(false)} aria-label="Close zoning details" autoFocus className="p-1 rounded-md hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
                                             <X className="w-4 h-4" />
                                         </button>
                                     </div>
@@ -1171,6 +1249,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                 <div className="mt-3 pt-3 border-t border-[var(--table-row-border)]">
                                     <button
                                         onClick={() => setShowAssociated(!showAssociated)}
+                                        aria-expanded={showAssociated}
                                         className="flex items-center gap-1 text-[10px] text-[var(--accent)] hover:text-[#1D4ED8] font-medium uppercase tracking-wider"
                                     >
                                         {showAssociated ? '▾' : '▸'} {associatedRecords.length} Associated Record{associatedRecords.length !== 1 ? 's' : ''}
@@ -1181,8 +1260,8 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                                 <div key={i} className="p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--table-row-border)]">
                                                     <div className="flex items-center justify-between mb-1">
                                                         <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${rec.recordType === 'personal_property'
-                                                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                                            : 'bg-blue-50 text-blue-700 border border-blue-200'
+                                                            ? 'bg-[var(--warning-bg)] text-[var(--warning)] border border-[var(--warning)]/30'
+                                                            : 'bg-[var(--accent-subtle)] text-[var(--accent)] border border-[var(--accent)]/30'
                                                             }`}>
                                                             {rec.recordType === 'personal_property' ? 'BPP' : 'Real Property'}
                                                         </span>
@@ -1359,12 +1438,12 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                             {/* QOZ Status Badge */}
                             <div className="flex items-center gap-2 mb-3">
                                 {parcel.details.qualifiedOpportunityZone?.toLowerCase() === 'yes' ? (
-                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold bg-green-50 text-green-700 border border-green-200">
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold bg-[var(--success-bg)] text-[var(--success)] border border-[var(--success)]/30">
                                         <BadgeDollarSign className="w-4 h-4" />
                                         Qualified Opportunity Zone
                                     </span>
                                 ) : (
-                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold bg-gray-50 text-gray-600 border border-gray-200">
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border)]">
                                         <BadgeDollarSign className="w-4 h-4" />
                                         Not in Opportunity Zone
                                     </span>
@@ -1421,10 +1500,10 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     </div>
 
                                     {/* Rent comparison table */}
-                                    <div className="overflow-hidden rounded-lg border border-[var(--border)]">
+                                    <div className="overflow-x-auto rounded-lg border border-[var(--border)]">
                                         <table className="w-full text-[11px]">
                                             <thead>
-                                                <tr className="bg-[#F7F8FA] text-[var(--text-muted)]">
+                                                <tr className="bg-[var(--bg-elevated)] text-[var(--text-muted)]">
                                                     <th className="text-left px-2 py-1.5 font-semibold">Unit Type</th>
                                                     {fmrData.msaRents && <th className="text-right px-2 py-1.5 font-semibold">MSA</th>}
                                                     {fmrData.zipRents && <th className="text-right px-2 py-1.5 font-semibold">ZIP {fmrData.zip}</th>}
@@ -1475,7 +1554,9 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     <div>
                                         <Home className="w-5 h-5 text-[var(--border-strong)] mx-auto mb-2" />
                                         <p className="text-xs text-[var(--text-faint)]">No FMR data available</p>
-                                        <p className="text-[10px] text-[var(--border-strong)] mt-1">Check HUD API key</p>
+                                        <p className="text-[10px] text-[var(--text-faint)] mt-1">
+                                            {parcel.details.zip ? `HUD returned no rents for ZIP ${parcel.details.zip}` : 'Parcel has no ZIP code to look up'}
+                                        </p>
                                     </div>
                                 </div>
                             )}
@@ -1534,6 +1615,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     <select
                                         value={nearbyRadius}
                                         onChange={(e) => setNearbyRadius(Number(e.target.value))}
+                                        aria-label="Search radius"
                                         className="text-xs px-2 py-1 rounded-md border border-[var(--border)] text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none bg-[var(--bg-card)]"
                                         disabled={nearbyLoading}
                                     >
@@ -1543,32 +1625,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                         <option value={1000}>1km radius</option>
                                     </select>
                                     <button
-                                        onClick={async () => {
-                                            if (!latitude || !longitude) return;
-                                            setNearbyLoading(true);
-                                            setNearbyError(null);
-                                            try {
-                                                const res = await fetch('/api/regrid/nearby', {
-                                                    method: 'POST',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({
-                                                        latitude,
-                                                        longitude,
-                                                        radiusMeters: nearbyRadius,
-                                                        excludeRegridIds: parcel?.regridId ? [parcel.regridId] : [],
-                                                    }),
-                                                });
-                                                const data = await res.json();
-                                                if (!res.ok) throw new Error(data.error || 'Failed to discover nearby parcels');
-                                                setNearbyParcels(data.parcels || []);
-                                                setNearbySearchedRadius(nearbyRadius);
-                                                setShowNearby(true);
-                                            } catch (err: any) {
-                                                setNearbyError(err.message);
-                                            } finally {
-                                                setNearbyLoading(false);
-                                            }
-                                        }}
+                                        onClick={discoverNearby}
                                         disabled={nearbyLoading || !latitude || !longitude}
                                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#7C3AED] hover:bg-[#6D28D9] disabled:opacity-50 text-white text-xs font-medium transition-colors"
                                     >
@@ -1602,13 +1659,13 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                             <div className="text-[10px] text-[var(--text-muted)]">Combined Site Area</div>
                                             <div className="text-sm font-bold text-[var(--text-primary)]">
                                                 {formatNumber(
-                                                    (parcel?.details?.lotSizeSF || siteAreaSF || 0) +
+                                                    (sfOf(parcel?.details?.lotSizeSF, parcel?.details?.lotSizeAcres) || siteAreaSF || 0) +
                                                     assemblage.reduce((s, p) => s + sfOf(p.lotSizeSF, p.lotSizeAcres), 0)
                                                 )} SF
                                             </div>
                                             <div className="text-[9px] text-[var(--text-faint)]">
                                                 {((
-                                                    (parcel?.details?.lotSizeSF || siteAreaSF || 0) +
+                                                    (sfOf(parcel?.details?.lotSizeSF, parcel?.details?.lotSizeAcres) || siteAreaSF || 0) +
                                                     assemblage.reduce((s, p) => s + sfOf(p.lotSizeSF, p.lotSizeAcres), 0)
                                                 ) / 43560).toFixed(2)} acres
                                             </div>
@@ -1635,16 +1692,13 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
 
                                     {/* Selected parcel chips */}
                                     <div className="flex flex-wrap gap-1.5 mt-3 pt-2 border-t border-[#7C3AED]/10">
-                                        <div className="text-[10px] px-2 py-1 rounded-md bg-[var(--text-primary)] text-white font-medium">Primary: {parcel?.details?.address || 'Current site'}</div>
+                                        <div className="text-[10px] px-2 py-1 rounded-md bg-[var(--text-primary)] text-[var(--bg-card)] font-medium">Primary: {parcel?.details?.address || 'Current site'}</div>
                                         {assemblage.map((ap) => (
-                                            <div key={ap.regridId || ap.parcelNumber} className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-[#7C3AED]/10 text-[#7C3AED] font-medium">
+                                            <div key={parcelKey(ap)} className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-[#7C3AED]/10 text-[#7C3AED] font-medium">
                                                 {ap.address || ap.parcelNumber || 'Unknown'}
                                                 <button
-                                                    onClick={() => {
-                                                        const updated = assemblage.filter(x => (x.regridId || x.parcelNumber) !== (ap.regridId || ap.parcelNumber));
-                                                        setAssemblage(updated);
-                                                        if (onSaveAssemblage) onSaveAssemblage(updated as any);
-                                                    }}
+                                                    onClick={() => toggleAssemblage(ap)}
+                                                    aria-label={`Remove ${ap.address || ap.parcelNumber || 'parcel'} from assemblage`}
                                                     className="hover:text-[var(--danger)] transition-colors"
                                                 >
                                                     <X className="w-3 h-3" />
@@ -1667,38 +1721,27 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                             primaryGeometry={parcel?.geometry}
                                             nearbyParcels={nearbyParcels}
                                             assemblage={assemblage}
-                                            onToggleParcel={(np) => {
-                                                const isSelected = assemblage.some(a => (a.regridId || a.parcelNumber) === (np.regridId || np.parcelNumber));
-                                                const updated = isSelected
-                                                    ? assemblage.filter(a => (a.regridId || a.parcelNumber) !== (np.regridId || np.parcelNumber))
-                                                    : [...assemblage, np];
-                                                setAssemblage(updated);
-                                                if (onSaveAssemblage) onSaveAssemblage(updated as any);
-                                            }}
+                                            onToggleParcel={toggleAssemblage}
                                         />
 
                                         {/* Scrollable list */}
                                         <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
                                             {nearbyParcels.map((np) => {
-                                                const isSelected = assemblage.some(a => (a.regridId || a.parcelNumber) === (np.regridId || np.parcelNumber));
+                                                const key = parcelKey(np);
+                                                const isSelected = assemblage.some(a => parcelKey(a) === key);
                                                 return (
                                                     <div
-                                                        key={np.regridId || np.parcelNumber || np.address}
-                                                        className={`flex items-start justify-between p-3 rounded-lg border transition-colors cursor-pointer ${isSelected
+                                                        key={key}
+                                                        role="button"
+                                                        tabIndex={0}
+                                                        aria-pressed={isSelected}
+                                                        aria-label={`${isSelected ? 'Remove' : 'Add'} ${np.address || np.parcelNumber || 'parcel'} ${isSelected ? 'from' : 'to'} assemblage`}
+                                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAssemblage(np); } }}
+                                                        className={`flex items-start justify-between p-3 rounded-lg border transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7C3AED] ${isSelected
                                                             ? 'bg-[#7C3AED]/5 border-[#7C3AED]/30'
                                                             : 'bg-[var(--bg-card)] border-[var(--border)] hover:border-[#7C3AED]/30 hover:bg-[var(--bg-primary)]'
                                                             }`}
-                                                        onClick={() => {
-                                                            if (isSelected) {
-                                                                const updated = assemblage.filter(a => (a.regridId || a.parcelNumber) !== (np.regridId || np.parcelNumber));
-                                                                setAssemblage(updated);
-                                                                if (onSaveAssemblage) onSaveAssemblage(updated as any);
-                                                            } else {
-                                                                const updated = [...assemblage, np];
-                                                                setAssemblage(updated);
-                                                                if (onSaveAssemblage) onSaveAssemblage(updated as any);
-                                                            }
-                                                        }}
+                                                        onClick={() => toggleAssemblage(np)}
                                                     >
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex flex-col sm:flex-row sm:items-center gap-1">

@@ -12,6 +12,8 @@ import {
     filterValidUnits,
 } from '@/lib/calculations/hellodataCalculations';
 import type { HellodataUnit, PursuitRentComp } from '@/types';
+import { toast } from '@/lib/toast';
+import { useMapStyle } from './mapTheme';
 
 // ============================================================
 // Constants
@@ -256,8 +258,8 @@ export default function MarketStudyTab({ pursuitId, pursuitName, compFilter = 'a
     return (
         <div className="space-y-5">
             {/* Header */}
-            <div className="flex items-start justify-between gap-4">
-                <div>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0">
                     <h2 className="text-lg font-semibold text-[var(--text-primary)]">
                         {pursuitName ? `${pursuitName} — ` : ''}Rent Comps — {monthLabel}
                     </h2>
@@ -273,6 +275,7 @@ export default function MarketStudyTab({ pursuitId, pursuitName, compFilter = 'a
                                 await exportMarketStudyToExcel({ pursuitName, compSummaries, summaryTotals, stockRows });
                             } catch (err) {
                                 console.error('Excel export failed:', err);
+                                toast.error('Excel export failed', err);
                             }
                             setIsExportingXlsx(false);
                         }}
@@ -302,6 +305,7 @@ export default function MarketStudyTab({ pursuitId, pursuitName, compFilter = 'a
                                 setTimeout(() => URL.revokeObjectURL(url), 1000);
                             } catch (err) {
                                 console.error('PDF export failed:', err);
+                                toast.error('PDF export failed', err);
                             }
                             setIsExportingPdf(false);
                         }}
@@ -318,8 +322,8 @@ export default function MarketStudyTab({ pursuitId, pursuitName, compFilter = 'a
             {/* ── Market Summary Table (full width) ── */}
             <div className="space-y-1.5">
                 <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Market Summary</h3>
-                <div className="border border-[var(--border)] rounded-xl overflow-hidden">
-                    <table className="w-full text-[11px]">
+                <div className="border border-[var(--border)] rounded-xl overflow-x-auto">
+                    <table className="w-full text-[11px] min-w-[640px]">
                         <thead>
                             <tr className="bg-[var(--accent)] text-white">
                                 <th className="py-1.5 px-1.5 text-left font-semibold">Property</th>
@@ -353,7 +357,7 @@ export default function MarketStudyTab({ pursuitId, pursuitName, compFilter = 'a
                             ))}
                             {summaryTotals && (
                                 <tr className="bg-[var(--bg-elevated)] font-bold border-t-2 border-[var(--border)]">
-                                    <td className="py-1.5 px-1.5 text-[var(--text-primary)]">Grand Total</td>
+                                    <td className="py-1.5 px-1.5 text-[var(--text-primary)]" title="Units are summed; rents and sizes are a simple average of the properties above">Grand Total</td>
                                     <td></td><td></td><td></td>
                                     <td className="py-1.5 px-1.5 text-right tabular-nums text-[var(--text-primary)]">{fmtNum(summaryTotals.unitCount)}</td>
                                     <td className="py-1.5 px-1.5 text-right tabular-nums text-[var(--text-secondary)]">{fmtNum(summaryTotals.avgUnitSize)}</td>
@@ -374,8 +378,8 @@ export default function MarketStudyTab({ pursuitId, pursuitName, compFilter = 'a
                 <div className="space-y-1.5">
                     <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Market Stock by Unit Type</h3>
                     <div className="border border-[var(--border)] rounded-xl overflow-hidden">
-                        <div className="overflow-y-auto" style={{ maxHeight: '520px' }}>
-                            <table className="w-full text-[11px]">
+                        <div className="overflow-auto" style={{ maxHeight: '520px' }}>
+                            <table className="w-full text-[11px] min-w-[480px]">
                                 <thead className="sticky top-0 z-10">
                                     <tr className="bg-[var(--accent)] text-white">
                                         <th className="py-1.5 px-1.5 text-left font-semibold">Unit Mix Analysis</th>
@@ -432,6 +436,7 @@ export default function MarketStudyTab({ pursuitId, pursuitName, compFilter = 'a
 function StudyMap({ comps }: { comps: CompSummary[] }) {
     const containerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<unknown>(null);
+    const { mapStyle } = useMapStyle('streets');
 
     const mappable = useMemo(() => comps.filter(c => c.lat && c.lon), [comps]);
 
@@ -452,7 +457,7 @@ function StudyMap({ comps }: { comps: CompSummary[] }) {
 
             const map = new mbgl.Map({
                 container: containerRef.current!,
-                style: 'mapbox://styles/mapbox/streets-v12',
+                style: mapStyle,
                 center,
                 zoom: 12,
                 attributionControl: false,
@@ -485,7 +490,7 @@ function StudyMap({ comps }: { comps: CompSummary[] }) {
                         .setHTML(`
                             <div style="font-family: system-ui; padding: 4px;">
                                 <div style="font-weight: 600; font-size: 12px; margin-bottom: 2px;">${escapeHtml(c.name)}</div>
-                                <div style="font-size: 11px; color: #64748B; display: grid; grid-template-columns: 1fr 1fr; gap: 1px 10px;">
+                                <div style="font-size: 11px; color: var(--text-muted); display: grid; grid-template-columns: 1fr 1fr; gap: 1px 10px;">
                                     <span>Units:</span><span style="font-weight: 500;">${c.unitCount}</span>
                                     <span>Rent:</span><span style="font-weight: 500;">${fmtCur(c.marketRent)}</span>
                                     <span>Eff:</span><span style="font-weight: 500;">${fmtCur(c.effectiveRent)}</span>
@@ -510,7 +515,7 @@ function StudyMap({ comps }: { comps: CompSummary[] }) {
                 mapRef.current = null;
             }
         };
-    }, [mappable]);
+    }, [mappable, mapStyle]);
 
     useEffect(() => {
         const cleanup = initMap();
@@ -537,7 +542,7 @@ function StudyMap({ comps }: { comps: CompSummary[] }) {
         <div className="space-y-2">
             <h3 className="text-sm font-semibold text-[var(--text-primary)]">Comp Map</h3>
             <div className="border border-[var(--border)] rounded-xl overflow-hidden" style={{ height: '400px' }}>
-                <div ref={containerRef} className="w-full h-full" />
+                <div ref={containerRef} className="w-full h-full" role="img" aria-label={`Map of ${mappable.length} comp properties, numbered to match the Market Summary table`} />
             </div>
             <div className="flex flex-wrap gap-3 px-1">
                 {mappable.map((c, i) => (

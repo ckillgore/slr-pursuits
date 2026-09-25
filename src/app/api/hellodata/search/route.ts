@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/app/api/_lib/auth';
+import { upstreamErrorResponse, UPSTREAM_TIMEOUT_MS } from '@/app/api/_lib/upstream';
 
 /**
  * GET /api/hellodata/search?q=...&state=...&zip_code=...&lat=...&lon=...&max_distance=...
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest) {
             `https://api.hellodata.ai/property/search?${params.toString()}`,
             {
                 headers: { 'x-api-key': apiKey },
+                signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
             }
         );
 
@@ -53,9 +55,12 @@ export async function GET(req: NextRequest) {
         }
 
         const data = await response.json();
-        return NextResponse.json(data);
+        return NextResponse.json(data, {
+            // Same query → same results for a while; let the browser reuse them
+            // (private: the response is behind auth).
+            headers: { 'Cache-Control': 'private, max-age=300' },
+        });
     } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        return NextResponse.json({ error: message }, { status: 500 });
+        return upstreamErrorResponse(err, 'hellodata/search', 'Search failed');
     }
 }

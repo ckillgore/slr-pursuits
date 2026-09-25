@@ -59,8 +59,16 @@ export interface Pursuit {
   demographics_updated_at: string | null;
   parcel_data: Record<string, unknown> | null;
   parcel_data_updated_at: string | null;
-  drive_time_data: Record<string, unknown> | null;
-  income_heatmap_data: Record<string, unknown> | null;
+  /**
+   * Not returned by fetchPursuit / list queries (MBs of map geometry). Load it
+   * with usePursuitDriveTime(pursuitId) where the drive-time map is shown.
+   */
+  drive_time_data?: Record<string, unknown> | null;
+  /**
+   * Not returned by fetchPursuit / list queries (MBs of map geometry). Load it
+   * with usePursuitIncomeHeatmap(pursuitId) where the income map is shown.
+   */
+  income_heatmap_data?: Record<string, unknown> | null;
   parcel_assemblage: Record<string, unknown>[] | null;
   created_by: string | null;
   created_at: string;
@@ -79,6 +87,18 @@ export interface Pursuit {
   primary_units?: number | null;
   one_pager_count?: number;
 }
+
+/**
+ * The columns list/portfolio queries actually return (PURSUIT_LIST_COLUMNS in
+ * queries.ts) plus the joined/aggregate fields. usePursuits / report / analytics
+ * rows are this shape at runtime even where they are typed as Pursuit.
+ */
+export type PursuitSummary = Pick<Pursuit,
+  | 'id' | 'short_id' | 'name' | 'address' | 'city' | 'state' | 'county' | 'zip'
+  | 'latitude' | 'longitude' | 'site_area_sf' | 'stage_id' | 'stage_changed_at'
+  | 'region' | 'created_by' | 'created_at' | 'updated_at' | 'is_archived'
+  | 'primary_one_pager_id' | 'stage' | 'best_yoc' | 'primary_units' | 'one_pager_count'
+>;
 
 // --- Land Comps ---
 

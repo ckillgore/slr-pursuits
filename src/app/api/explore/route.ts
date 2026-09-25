@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/app/api/_lib/auth';
+import { upstreamErrorResponse } from '@/app/api/_lib/upstream';
 
 const REGRID_API_KEY = process.env.REGRID_API_KEY || '';
 
@@ -64,15 +65,17 @@ export async function GET(request: Request) {
             signal: AbortSignal.timeout(15_000),
         });
 
-        // Diagnostic logging to debug market coverage issues
-        console.log(`[Explore Tile] z=${z} x=${x} y=${y} → Regrid status=${res.status} content-type=${res.headers.get('content-type')} content-length=${res.headers.get('content-length')}`);
-
         if (!res.ok) {
             // Return empty tile for 404 (no data at this tile) — common for ocean/sparse areas
             if (res.status === 404) {
                 return new NextResponse(null, {
                     status: 204,
-                    headers: { 'Content-Type': 'application/vnd.mapbox-vector-tile' },
+                    headers: {
+                        'Content-Type': 'application/vnd.mapbox-vector-tile',
+                        // Empty tiles are just as cacheable; avoids re-requesting
+                        // every ocean/sparse tile on each pan.
+                        'Cache-Control': 'private, max-age=3600, stale-while-revalidate=86400',
+                    },
                 });
             }
             const errBody = await res.text().catch(() => '');
@@ -94,11 +97,7 @@ export async function GET(request: Request) {
                 'Cache-Control': 'private, max-age=3600, stale-while-revalidate=86400',
             },
         });
-    } catch (err: any) {
-        console.error('Explore tile proxy error:', err);
-        return NextResponse.json(
-            { error: err.message || 'Internal server error' },
-            { status: 500 }
-        );
+    } catch (err: unknown) {
+        return upstreamErrorResponse(err, 'Explore tile', 'Tile request failed');
     }
 }

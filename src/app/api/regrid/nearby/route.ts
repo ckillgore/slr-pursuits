@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/app/api/_lib/auth';
+import { upstreamErrorResponse } from '@/app/api/_lib/upstream';
 import { z } from 'zod';
 
 const BodySchema = z.object({
@@ -112,8 +113,6 @@ export async function POST(request: Request) {
         url.searchParams.set('token', REGRID_API_KEY);
         url.searchParams.set('return_field_labels', 'true');
 
-        console.log(`Regrid nearby search: ${latitude},${longitude} r=${radiusMeters}m`);
-
         const res = await fetch(url.toString(), {
             headers: { 'Accept': 'application/json' },
             signal: AbortSignal.timeout(30_000),
@@ -122,9 +121,11 @@ export async function POST(request: Request) {
         if (!res.ok) {
             const errText = await res.text().catch(() => '');
             console.error(`Regrid nearby error: HTTP ${res.status}`, errText.slice(0, 200));
+            // Always 502: forwarding Regrid's 401/403 would look like our own
+            // session expiring to the client.
             return NextResponse.json(
                 { error: `Regrid API error: ${res.status}` },
-                { status: res.status }
+                { status: 502 }
             );
         }
 
@@ -142,17 +143,11 @@ export async function POST(request: Request) {
                 return true;
             });
 
-        console.log(`  → ${features.length} raw features, ${parcels.length} after exclusions`);
-
         return NextResponse.json({
             parcels,
             totalFound: features.length,
         });
-    } catch (err: any) {
-        console.error('Regrid nearby error:', err);
-        return NextResponse.json(
-            { error: err.message || 'Internal error' },
-            { status: 500 }
-        );
+    } catch (err: unknown) {
+        return upstreamErrorResponse(err, 'Regrid nearby', 'Nearby parcel search failed');
     }
 }

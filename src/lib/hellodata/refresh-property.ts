@@ -30,13 +30,11 @@ export async function refreshHellodataProperty(
 
     try {
         // 1. Fetch from Hellodata API
-        const apiStart = Date.now();
         const hdResponse = await fetch(
             `https://api.hellodata.ai/property/${hellodataId}`,
             { headers: { 'x-api-key': apiKey }, signal: AbortSignal.timeout(30_000) }
         );
         time('api_fetch');
-        console.log(`[hellodata] API call for ${hellodataId}: ${hdResponse.status} in ${Date.now() - apiStart}ms`);
 
         // Log the API call (fire and forget)
         supabase.from('hellodata_fetch_log').insert({
@@ -54,10 +52,6 @@ export async function refreshHellodataProperty(
 
         const raw = await hdResponse.json();
         time('api_parse');
-
-        const unitCount = raw.building_availability?.length ?? 0;
-        const concessionCount = raw.concessions_history?.length ?? 0;
-        console.log(`[hellodata] Parsed ${hellodataId}: ${unitCount} units, ${concessionCount} concessions`);
 
         // 2. Build property data and upsert
         const propertyData = {
@@ -266,16 +260,6 @@ export async function refreshHellodataProperty(
                 timings,
             };
         }
-
-        const totalMs = Date.now() - startTotal;
-        console.log(
-            `[hellodata] Complete for ${hellodataId} in ${totalMs}ms ` +
-            `| api: ${timings.api_fetch ?? '-'}ms ` +
-            `| parse: ${timings.api_parse ?? '-'}ms ` +
-            `| upsert: ${timings.property_upsert ?? '-'}ms ` +
-            `| upsert_children(${unitCount}u/${concessionCount}c): ${timings.insert_children ? timings.insert_children - (timings.property_upsert ?? 0) : '-'}ms ` +
-            `| orphans: ${totalMs - (timings.insert_children ?? 0)}ms`
-        );
 
         return { success: true, property: upserted, timings };
     } catch (err: unknown) {

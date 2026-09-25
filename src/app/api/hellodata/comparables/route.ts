@@ -1,5 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/app/api/_lib/auth';
+import { createTtlCache, upstreamErrorResponse } from '@/app/api/_lib/upstream';
+
+const HELLODATA_TIMEOUT_MS = 30_000;
+
+// The subject-property lookup is a PAID HelloData call. Users typically tweak
+// comp filters several times for the same subject, so keep it for an hour.
+const subjectCache = createTtlCache<unknown>(60 * 60 * 1000, 100);
+
+class UpstreamStatusError extends Error {
+    constructor(public status: number) {
+        super(`HelloData responded ${status}`);
+    }
+}
 
 /**
  * POST /api/hellodata/comparables
@@ -45,18 +58,26 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ error: 'Invalid hellodataId' }, { status: 400 });
             }
             // Option 1: Use full property details from Hellodata as subject
-            // First fetch the property (this is a paid call, but usually already cached)
-            const propResponse = await fetch(
-                `https://api.hellodata.ai/property/${encodeURIComponent(hellodataId)}`,
-                { headers: { 'x-api-key': apiKey } }
-            );
-            if (!propResponse.ok) {
-                return NextResponse.json(
-                    { error: `Failed to fetch subject property: ${propResponse.status}` },
-                    { status: 502 }
-                );
+            // First fetch the property (a paid call — cached in memory per instance)
+            let subject: unknown;
+            try {
+                subject = await subjectCache.getOrLoad(hellodataId, async () => {
+                    const propResponse = await fetch(
+                        `https://api.hellodata.ai/property/${encodeURIComponent(hellodataId)}`,
+                        { headers: { 'x-api-key': apiKey }, signal: AbortSignal.timeout(HELLODATA_TIMEOUT_MS) }
+                    );
+                    if (!propResponse.ok) throw new UpstreamStatusError(propResponse.status);
+                    return propResponse.json();
+                });
+            } catch (err) {
+                if (err instanceof UpstreamStatusError) {
+                    return NextResponse.json(
+                        { error: `Failed to fetch subject property: ${err.status}` },
+                        { status: 502 }
+                    );
+                }
+                throw err;
             }
-            const subject = await propResponse.json();
             payload = { subject };
         } else if (simple_subject) {
             // Option 2: Use simplified subject
@@ -93,6 +114,7 @@ export async function POST(req: NextRequest) {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(HELLODATA_TIMEOUT_MS),
         });
 
         if (!response.ok) {
@@ -107,7 +129,6 @@ export async function POST(req: NextRequest) {
         const data = await response.json();
         return NextResponse.json(data);
     } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        return NextResponse.json({ error: message }, { status: 500 });
+        return upstreamErrorResponse(err, 'hellodata/comparables', 'Comparables lookup failed');
     }
 }

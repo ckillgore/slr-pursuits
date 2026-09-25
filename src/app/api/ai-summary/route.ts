@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { requireAuth } from '@/app/api/_lib/auth';
+import { upstreamErrorResponse } from '@/app/api/_lib/upstream';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = 'gemini-3-flash-preview';
+
+// Two sequential Gemini passes.
+export const maxDuration = 120;
+const PASS_TIMEOUT_MS = 55_000;
 
 // ────────────────────────── Prompts ──────────────────────────
 
@@ -86,13 +91,6 @@ export async function POST(request: Request) {
         }
 
         const { parcelData, demographics, onePagers, rentComps } = await request.json();
-
-        // Diagnostic: log data availability
-        console.log('[AI Summary] Data: parcel=%s, zoning=%s, demographics=%s (%s rings), fmr=%s, scenarios=%d, rentComps=%d',
-            !!parcelData?.parcel, !!parcelData?.parcel?.zoning,
-            !!demographics?.rings, demographics?.rings ? Object.keys(demographics.rings).join(',') : 'none',
-            !!parcelData?.fmr, onePagers?.length || 0, rentComps?.length || 0
-        );
 
         const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
@@ -300,8 +298,6 @@ export async function POST(request: Request) {
 
         // ─── Pass 1: Summarize demographic & public data ───
 
-        console.log('[AI Summary] Pass 1: %d chars context → generating summary...', JSON.stringify(pass1Context).length);
-
         const pass1UserMessage = `${SUMMARIZE_PROMPT}
 
 ---
@@ -325,11 +321,11 @@ Now write the 300-500 word summary covering ALL the categories listed above. Be 
             config: {
                 temperature: 0.3,
                 maxOutputTokens: 4000,
+                abortSignal: AbortSignal.timeout(PASS_TIMEOUT_MS),
             },
         });
 
         const contextSummary = pass1Response.text || '';
-        console.log('[AI Summary] Pass 1 complete: %d chars', contextSummary.length);
 
         // ─── Build Pass 2 context ───
 
@@ -377,8 +373,6 @@ Now write the 300-500 word summary covering ALL the categories listed above. Be 
 
         // ─── Pass 2: Full site assessment ───
 
-        console.log('[AI Summary] Pass 2: Generating site assessment...');
-
         const pass2Response = await ai.models.generateContent({
             model: MODEL,
             contents: [
@@ -391,18 +385,17 @@ Now write the 300-500 word summary covering ALL the categories listed above. Be 
                 systemInstruction: ASSESSMENT_PROMPT,
                 temperature: 0.3,
                 maxOutputTokens: 5000,
+                abortSignal: AbortSignal.timeout(PASS_TIMEOUT_MS),
             },
         });
 
         const text = pass2Response.text || '';
-        console.log(`[AI Summary] Pass 2 complete (${text.length} chars)`);
+        if (!text) {
+            return NextResponse.json({ error: 'Summary generation returned no content' }, { status: 502 });
+        }
 
         return NextResponse.json({ summary: text });
-    } catch (err: any) {
-        console.error('[AI Summary] Error:', err);
-        return NextResponse.json(
-            { error: err.message || 'Failed to generate summary' },
-            { status: 500 }
-        );
+    } catch (err: unknown) {
+        return upstreamErrorResponse(err, 'AI Summary', 'Failed to generate summary');
     }
 }

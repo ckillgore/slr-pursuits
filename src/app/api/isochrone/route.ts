@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/app/api/_lib/auth';
+import { createTtlCache, upstreamErrorResponse } from '@/app/api/_lib/upstream';
 import { z } from 'zod';
+
+// Service area solve + GeoEnrichment can each take several seconds.
+export const maxDuration = 60;
+const ARCGIS_TIMEOUT_MS = 25_000;
 
 const BodySchema = z.object({
     latitude: z.number().min(-90).max(90),
@@ -40,6 +45,7 @@ async function getArcGISToken(): Promise<string> {
             grant_type: 'client_credentials',
             expiration: '60', // 60 minutes
         }),
+        signal: AbortSignal.timeout(ARCGIS_TIMEOUT_MS),
     });
 
     const data = await res.json();
@@ -121,7 +127,7 @@ async function generateServiceArea(
 
     const res = await fetch(
         'https://route-api.arcgis.com/arcgis/rest/services/World/ServiceAreas/NAServer/ServiceArea_World/solveServiceArea',
-        { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params }
+        { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params, signal: AbortSignal.timeout(ARCGIS_TIMEOUT_MS) }
     );
 
     const data = await res.json();
@@ -202,7 +208,7 @@ async function enrichWithTapestry(
 
     const res = await fetch(
         'https://geoenrich.arcgis.com/arcgis/rest/services/World/geoenrichmentserver/Geoenrichment/Enrich',
-        { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params }
+        { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params, signal: AbortSignal.timeout(ARCGIS_TIMEOUT_MS) }
     );
 
     const data = await res.json();
@@ -275,6 +281,17 @@ function ringsToGeoJSON(rings: number[][][]): GeoJSON.Feature {
 
 // ======================== Route Handler ========================
 
+// Both ArcGIS calls consume paid credits and the result for a given site is
+// stable, so cache per (rounded) point + break for a few hours. Rounding to 5
+// decimals (~1 m) keeps re-renders of the same pursuit on one key.
+type IsochroneResult = {
+    polygon: GeoJSON.Feature;
+    tapestry: TapestrySegment[];
+    totalPopulation: number | null;
+    totalHouseholds: number | null;
+};
+const isochroneCache = createTtlCache<IsochroneResult>(6 * 60 * 60 * 1000, 200);
+
 export async function POST(request: Request) {
     const { response: authError } = await requireAuth();
     if (authError) return authError;
@@ -294,31 +311,37 @@ export async function POST(request: Request) {
             );
         }
 
-        // Step 1: Get token
-        const token = await getArcGISToken();
+        const cacheKey = `${latitude.toFixed(5)},${longitude.toFixed(5)},${breakMinutes}`;
+        const result = await isochroneCache.getOrLoad(cacheKey, async () => {
+            // Step 1: Get token
+            const token = await getArcGISToken();
 
-        // Step 2: Generate drive-time polygon
-        const serviceArea = await generateServiceArea(latitude, longitude, breakMinutes, token);
+            // Step 2: Generate drive-time polygon
+            const serviceArea = await generateServiceArea(latitude, longitude, breakMinutes, token);
 
-        // Step 3: Enrich with Tapestry (polygon-based for full drive-time area)
-        const tapestryResult = await enrichWithTapestry(serviceArea.rings, token);
+            // Step 3: Enrich with Tapestry (polygon-based for full drive-time area)
+            const tapestryResult = await enrichWithTapestry(serviceArea.rings, token);
 
-        // Convert to GeoJSON
-        const polygon = ringsToGeoJSON(serviceArea.rings);
+            return {
+                polygon: ringsToGeoJSON(serviceArea.rings),
+                tapestry: tapestryResult.segments,
+                totalPopulation: tapestryResult.totalPopulation,
+                totalHouseholds: tapestryResult.totalHouseholds,
+            };
+        });
+
+        // Tapestry failures degrade to an empty result rather than throwing;
+        // don't pin a degraded result in the cache.
+        if (result.tapestry.length === 0 && result.totalPopulation == null) {
+            isochroneCache.delete(cacheKey);
+        }
 
         return NextResponse.json({
-            polygon,
-            tapestry: tapestryResult.segments,
-            totalPopulation: tapestryResult.totalPopulation,
-            totalHouseholds: tapestryResult.totalHouseholds,
+            ...result,
             center: [longitude, latitude],
             breakMinutes,
         });
-    } catch (err: any) {
-        console.error('Isochrone API error:', err);
-        return NextResponse.json(
-            { error: err.message || 'Internal server error' },
-            { status: 500 }
-        );
+    } catch (err: unknown) {
+        return upstreamErrorResponse(err, 'Isochrone', 'Failed to generate drive-time area');
     }
 }

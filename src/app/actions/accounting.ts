@@ -375,26 +375,26 @@ export async function fetchPursuitJobCosts(jobIds: string[]): Promise<YardiJobCo
     if (!jobIds.length) return [];
     const client = createYardiClient();
 
-    // Fetch the jobs array separately to map codes
-    const { data: jobMapData } = await client
-        .from('jobs')
-        .select('job_id, job_code')
-        .in('job_id', jobIds);
-        
+    // jobcost_transactions.job_id holds the numeric jobs.job_id (verified
+    // against the live data: no rows carry a job_code), so query by id only.
+    // The job codes are only needed for display, so fetch them in parallel.
+    const [{ data: jobMapData }, { data: rows, error }] = await Promise.all([
+        client
+            .from('jobs')
+            .select('job_id, job_code')
+            .in('job_id', jobIds),
+        fetchAllRows(() => client
+            .from('jobcost_transactions')
+            .select('*')
+            .in('job_id', jobIds)
+            .order('post_date', { ascending: false })
+            .order('id')),
+    ]);
+
     const jobCodeMap = (jobMapData || []).reduce((acc, j) => {
         acc[String(j.job_id)] = j.job_code;
         return acc;
     }, {} as Record<string, string>);
-
-    const jobCodes = Object.values(jobCodeMap).filter(Boolean);
-    const queryIds = Array.from(new Set([...jobIds, ...jobCodes]));
-
-    const { data: rows, error } = await fetchAllRows(() => client
-        .from('jobcost_transactions')
-        .select('*')
-        .in('job_id', queryIds)
-        .order('post_date', { ascending: false })
-        .order('id'));
 
     if (error) {
         console.error('Failed to fetch Job Costs from Yardi:', error);
@@ -524,23 +524,23 @@ export async function fetchMonthlyJobCostAggregates(
     if (!jobIds.length) return [];
     const client = createYardiClient();
 
-    // Fetch all transactions for these jobs
-    const { data: txRows, error: txError } = await fetchAllRows(() => client
-        .from('jobcost_transactions')
-        .select('cost_category_code, post_date, amount')
-        .in('job_id', jobIds)
-        .order('id'));
+    // Fetch all transactions for these jobs, plus category mappings, in parallel
+    const [{ data: txRows, error: txError }, { data: mappings }] = await Promise.all([
+        fetchAllRows(() => client
+            .from('jobcost_transactions')
+            .select('cost_category_code, post_date, amount')
+            .in('job_id', jobIds)
+            .order('id')),
+        fetchAllRows(() => client
+            .from('jobcost_category_mapping')
+            .select('category_code, category_name, cost_group')
+            .order('category_code')),
+    ]);
 
     if (txError) {
         console.error('Failed to fetch job cost transactions for aggregation:', txError);
         throw new Error('Failed to fetch job cost data for budget integration');
     }
-
-    // Fetch category mappings for name resolution
-    const { data: mappings } = await fetchAllRows(() => client
-        .from('jobcost_category_mapping')
-        .select('category_code, category_name, cost_group')
-        .order('category_code'));
 
     const mappingLookup = new Map<string, { name: string; group: string }>();
     for (const m of (mappings || [])) {
@@ -605,133 +605,164 @@ export async function fetchMonthlyJobCostAggregates(
     return Array.from(aggregateMap.values());
 }
 
+/** Split a long `.in()` list so the PostgREST request URL stays bounded. */
+function chunk<T>(items: T[], size: number): T[][] {
+    const out: T[][] = [];
+    for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+    return out;
+}
+const IN_CHUNK = 200;
+
 /**
  * Enterprise-level fetch: Retrieves all property mappings from the core database,
- * cross-references them against Yardi jobs, and pulls all cost aggregates for the 
+ * cross-references them against Yardi jobs, and pulls all cost aggregates for the
  * entire portfolio in a single optimized pass.
+ *
+ * Attribution rule (same as the per-pursuit Costs tab): an accounting entity
+ * with a pinned `job_id` contributes only that job; an entity without one
+ * contributes every job on its `property_code`. A pursuit gets the union of
+ * its entities' jobs, and each transaction is counted at most once per pursuit.
+ * Everything is keyed by String(job_id): jobcost_transactions.job_id holds the
+ * numeric jobs.job_id (no rows carry a job_code).
  */
 export async function fetchAllPortfolioJobCostAggregates(): Promise<Record<string, YardiMonthlyCostAggregate[]>> {
     // 1. Fetch all accounting entities from SLR Supabase
     const { supabase: slrClient } = await requireUser();
-    const { data: accEntities } = await slrClient
+    const { data: accEntities, error: entErr } = await slrClient
         .from('pursuit_accounting_entities')
-        .select('pursuit_id, property_code');
-    
+        .select('pursuit_id, property_code, job_id');
+
+    if (entErr) {
+        console.error('Failed to fetch pursuit accounting entities:', entErr);
+        throw new Error('Failed to fetch accounting mappings');
+    }
     if (!accEntities?.length) return {};
 
-    const pursuitPropertyMapping: Record<string, string[]> = {};
+    // Only entities without a pinned job need their property's job list.
+    const propertyWideCodes = new Set<string>();
     for (const e of accEntities) {
-        if (!pursuitPropertyMapping[e.pursuit_id]) pursuitPropertyMapping[e.pursuit_id] = [];
-        if (e.property_code) pursuitPropertyMapping[e.pursuit_id].push(e.property_code);
+        if (e.job_id == null && e.property_code) propertyWideCodes.add(e.property_code);
     }
 
-    // Flatten requested target codes
-    const allTargetCodes = new Set<string>();
-    for (const codes of Object.values(pursuitPropertyMapping)) {
-        for (const code of codes) allTargetCodes.add(code);
-    }
-    const uniqueCodes = Array.from(allTargetCodes);
-    if (!uniqueCodes.length) return {};
-
-    // 2. Query Yardi Supabase for Properties matching those codes to get internal property_ids
     const client = createYardiClient();
-    const { data: propRows } = await client
-        .from('properties')
-        .select('property_id, property_code')
-        .in('property_code', uniqueCodes);
 
-    const propIdToCode = new Map<string, string>();
-    const uniquePropIds = new Set<string>();
-    for (const pr of (propRows || [])) {
-        propIdToCode.set(String(pr.property_id), pr.property_code);
-        uniquePropIds.add(String(pr.property_id));
-    }
+    // 2. Resolve jobs for property-wide entities: property_code → property_id → jobs
+    const jobsByPropertyCode = new Map<string, string[]>();
+    if (propertyWideCodes.size) {
+        const { data: propRows, error: propErr } = await client
+            .from('properties')
+            .select('property_id, property_code')
+            .in('property_code', [...propertyWideCodes]);
+        if (propErr) {
+            console.error('Failed to fetch Yardi properties for portfolio:', propErr);
+            throw new Error('Failed to fetch job cost data');
+        }
+        const propIdToCode = new Map<string, string>();
+        for (const pr of propRows || []) propIdToCode.set(String(pr.property_id), pr.property_code);
 
-    if (uniquePropIds.size === 0) return {};
-
-    // 3. Query Jobs for those property_ids
-    const { data: jobRows } = await client
-        .from('jobs')
-        .select('job_id, job_code, property_id')
-        .in('property_id', Array.from(uniquePropIds));
-
-    const propertyToJobs = new Map<string, string[]>();
-    for (const jr of (jobRows || [])) {
-        const code = propIdToCode.get(String(jr.property_id));
-        if (code) {
-            if (!propertyToJobs.has(code)) propertyToJobs.set(code, []);
-            propertyToJobs.get(code)!.push(String(jr.job_id));
-            if (jr.job_code) propertyToJobs.get(code)!.push(jr.job_code);
+        if (propIdToCode.size) {
+            const { data: jobRows, error: jobErr } = await client
+                .from('jobs')
+                .select('job_id, property_id')
+                .in('property_id', [...propIdToCode.keys()]);
+            if (jobErr) {
+                console.error('Failed to fetch Yardi jobs for properties:', jobErr);
+                throw new Error('Failed to fetch job cost data');
+            }
+            for (const jr of jobRows || []) {
+                const code = propIdToCode.get(String(jr.property_id));
+                if (!code) continue;
+                const list = jobsByPropertyCode.get(code) ?? [];
+                list.push(String(jr.job_id));
+                jobsByPropertyCode.set(code, list);
+            }
         }
     }
 
-    // 4. Map Job IDs back to Pursuit IDs
-    const pursuitToJobs = new Map<string, string[]>();
-    const allJobIds = new Set<string>();
-    for (const [pursuitId, codes] of Object.entries(pursuitPropertyMapping)) {
-        const jobsForPursuit: string[] = [];
-        for (const code of codes) {
-            const jobs = propertyToJobs.get(code) || [];
-            jobsForPursuit.push(...jobs);
-            for (const j of jobs) allJobIds.add(j);
-        }
-        pursuitToJobs.set(pursuitId, jobsForPursuit);
+    // 3. job id → pursuits that own it (a Set, so a job reached through two
+    //    entities of the same pursuit is still counted once)
+    const jobToPursuits = new Map<string, Set<string>>();
+    const result: Record<string, YardiMonthlyCostAggregate[]> = {};
+    const assign = (jobId: string, pursuitId: string) => {
+        let set = jobToPursuits.get(jobId);
+        if (!set) jobToPursuits.set(jobId, (set = new Set()));
+        set.add(pursuitId);
+    };
+    for (const e of accEntities) {
+        result[e.pursuit_id] ??= [];
+        if (e.job_id != null) assign(String(e.job_id), e.pursuit_id);
+        else for (const jobId of jobsByPropertyCode.get(e.property_code) ?? []) assign(jobId, e.pursuit_id);
+    }
+    if (!jobToPursuits.size) return result;
+
+    // 4. Fetch transactions (chunked by job id) and code mappings in parallel
+    const [txChunks, { data: mappings }] = await Promise.all([
+        Promise.all(chunk([...jobToPursuits.keys()], IN_CHUNK).map((ids) => fetchAllRows(() => client
+            .from('jobcost_transactions')
+            .select('job_id, cost_category_code, post_date, amount')
+            .in('job_id', ids)
+            .order('id')))),
+        fetchAllRows(() => client
+            .from('jobcost_category_mapping')
+            .select('category_code, category_name, cost_group')
+            .order('category_code')),
+    ]);
+    const txErr = txChunks.find((c) => c.error)?.error;
+    if (txErr) {
+        console.error('Failed to fetch portfolio job cost transactions:', txErr);
+        throw new Error('Failed to fetch job cost data');
     }
 
-    if (!allJobIds.size) return {};
-
-    // 4. Fetch all transactions for those combined job IDs
-    const { data: txRows } = await fetchAllRows(() => client
-        .from('jobcost_transactions')
-        .select('job_id, cost_category_code, post_date, amount')
-        .in('job_id', Array.from(allJobIds))
-        .order('id'));
-
-    // 5. Fetch code mappings
-    const { data: mappings } = await fetchAllRows(() => client
-        .from('jobcost_category_mapping')
-        .select('category_code, category_name, cost_group')
-        .order('category_code'));
     const mappingLookup = new Map<string, { name: string; group: string }>();
     for (const m of (mappings || [])) {
         mappingLookup.set(m.category_code, { name: m.category_name, group: m.cost_group });
     }
 
-    // 6. Distribute transactions to pursuit maps
-    const result: Record<string, YardiMonthlyCostAggregate[]> = {};
-    for (const [pursuitId, jobs] of pursuitToJobs.entries()) {
-        const pursuitTx = (txRows || []).filter(tx => jobs.includes(String(tx.job_id)));
-        const aggregateMap = new Map<string, YardiMonthlyCostAggregate>();
-
-        for (const tx of pursuitTx) {
+    // 5. Distribute each transaction to its pursuits via the job → pursuits
+    //    map: O(transactions) instead of O(pursuits × transactions). Chunks
+    //    partition the job ids, so no transaction appears in two chunks.
+    const aggregateMaps = new Map<string, Map<string, YardiMonthlyCostAggregate>>();
+    for (const { data: txRows } of txChunks) {
+        for (const tx of txRows) {
             if (!tx.post_date || !tx.cost_category_code) continue;
 
             const amount = Number(tx.amount || 0);
             if (amount === 0) continue;
 
+            const pursuitIds = jobToPursuits.get(String(tx.job_id));
+            if (!pursuitIds) continue;
+
             let code = tx.cost_category_code.trim();
             if (code.length === 7 && !code.includes('-')) {
                 code = `${code.substring(0, 2)}-${code.substring(2)}`;
             }
-
             const costGroup = code.substring(0, 2);
             const month = tx.post_date.substring(0, 7);
             const detailKey = `${code}|${month}`;
-            if (!aggregateMap.has(detailKey)) {
-                const mapping = mappingLookup.get(code); // Might be undefined for detail codes missing from mapping table
-                aggregateMap.set(detailKey, {
-                    cost_group: costGroup,
-                    category_code: code,
-                    category_name: mapping?.name || code,
-                    month,
-                    total_amount: 0,
-                });
+
+            for (const pursuitId of pursuitIds) {
+                let aggregateMap = aggregateMaps.get(pursuitId);
+                if (!aggregateMap) aggregateMaps.set(pursuitId, (aggregateMap = new Map()));
+                let agg = aggregateMap.get(detailKey);
+                if (!agg) {
+                    const mapping = mappingLookup.get(code); // Might be undefined for detail codes missing from mapping table
+                    agg = {
+                        cost_group: costGroup,
+                        category_code: code,
+                        category_name: mapping?.name || code,
+                        month,
+                        total_amount: 0,
+                    };
+                    aggregateMap.set(detailKey, agg);
+                }
+                agg.total_amount += amount;
             }
-            aggregateMap.get(detailKey)!.total_amount += amount;
         }
-        result[pursuitId] = Array.from(aggregateMap.values());
     }
 
+    for (const [pursuitId, aggregateMap] of aggregateMaps) {
+        result[pursuitId] = Array.from(aggregateMap.values());
+    }
     return result;
 }
 

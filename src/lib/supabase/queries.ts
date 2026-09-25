@@ -140,6 +140,33 @@ export async function deleteProductType(id: string) {
 // Pursuits
 // ============================================================
 
+/**
+ * Column list for portfolio/list pursuit queries (dashboard, reports,
+ * analytics, compare). Excludes the large jsonb blobs — income_heatmap_data
+ * and drive_time_data run to MBs per pursuit, plus parcel_data, demographics,
+ * parcel_assemblage, exec_summary, arch_notes and executive_memo — which are
+ * only needed on the pursuit detail pages. `select('*')` on the portfolio
+ * downloaded >100 MB for 76 pursuits.
+ */
+export const PURSUIT_LIST_COLUMNS = `
+    id, short_id, name, address, city, state, county, zip,
+    latitude, longitude, site_area_sf, stage_id,
+    stage_changed_at, region, created_by, created_at,
+    updated_at, is_archived, primary_one_pager_id
+`;
+
+/**
+ * Column list for the single-pursuit fetch: everything except the map blobs
+ * (drive_time_data / income_heatmap_data), which are loaded on demand by
+ * fetchPursuitDriveTimeData / fetchPursuitIncomeHeatmapData when the map
+ * sections are shown.
+ */
+export const PURSUIT_DETAIL_COLUMNS = `
+    ${PURSUIT_LIST_COLUMNS.trim()},
+    exec_summary, arch_notes, demographics, demographics_updated_at,
+    parcel_data, parcel_data_updated_at, parcel_assemblage, executive_memo
+`;
+
 export async function fetchPursuits(): Promise<Pursuit[]> {
     // Run both queries in parallel — no need to wait for pursuits before fetching one-pagers
     // Both are paged — the 1000-row PostgREST cap would otherwise silently drop
@@ -147,16 +174,8 @@ export async function fetchPursuits(): Promise<Pursuit[]> {
     const [data, allOnePagers] = await Promise.all([
         fetchAllPages(() => supabase
             .from('pursuits')
-            // Only select columns the dashboard actually uses — skip large JSON blobs
-            // (demographics, parcel_data, drive_time_data, income_heatmap_data,
-            //  parcel_assemblage, exec_summary, arch_notes) that are only needed on detail pages
-            .select(`
-                id, short_id, name, address, city, state, county, zip,
-                latitude, longitude, site_area_sf, stage_id,
-                stage_changed_at, region, created_by, created_at,
-                updated_at, is_archived, primary_one_pager_id,
-                pursuit_stages(*)
-            `)
+            // Only the columns the dashboard uses — see PURSUIT_LIST_COLUMNS
+            .select(`${PURSUIT_LIST_COLUMNS}, pursuit_stages(*)`)
             .eq('is_archived', false)
             .order('updated_at', { ascending: false })
             .order('id')),
@@ -198,10 +217,15 @@ export async function fetchPursuits(): Promise<Pursuit[]> {
     });
 }
 
+/**
+ * Single pursuit, without drive_time_data / income_heatmap_data (see
+ * PURSUIT_DETAIL_COLUMNS). Use usePursuitDriveTime / usePursuitIncomeHeatmap
+ * for those.
+ */
 export async function fetchPursuit(id: string): Promise<Pursuit> {
     const { data, error } = await supabase
         .from('pursuits')
-        .select('*, pursuit_stages(*)')
+        .select(`${PURSUIT_DETAIL_COLUMNS}, pursuit_stages(*)`)
         .eq('id', id)
         .single();
     if (error) throw error;
@@ -211,11 +235,33 @@ export async function fetchPursuit(id: string): Promise<Pursuit> {
 export async function fetchPursuitByShortId(shortId: string): Promise<Pursuit> {
     const { data, error } = await supabase
         .from('pursuits')
-        .select('*, pursuit_stages(*)')
+        .select(`${PURSUIT_DETAIL_COLUMNS}, pursuit_stages(*)`)
         .eq('short_id', shortId)
         .single();
     if (error) throw error;
     return { ...data, stage: data.pursuit_stages };
+}
+
+/** Saved drive-time isochrones for one pursuit (keyed by break minutes). */
+export async function fetchPursuitDriveTimeData(pursuitId: string): Promise<Record<string, unknown> | null> {
+    const { data, error } = await supabase
+        .from('pursuits')
+        .select('drive_time_data')
+        .eq('id', pursuitId)
+        .single();
+    if (error) throw error;
+    return (data?.drive_time_data as Record<string, unknown> | null) ?? null;
+}
+
+/** Saved income heat-map data for one pursuit (keyed by radius). */
+export async function fetchPursuitIncomeHeatmapData(pursuitId: string): Promise<Record<string, unknown> | null> {
+    const { data, error } = await supabase
+        .from('pursuits')
+        .select('income_heatmap_data')
+        .eq('id', pursuitId)
+        .single();
+    if (error) throw error;
+    return (data?.income_heatmap_data as Record<string, unknown> | null) ?? null;
 }
 
 export async function createPursuit(
@@ -225,7 +271,7 @@ export async function createPursuit(
     const { data, error } = await supabase
         .from('pursuits')
         .insert({ ...pursuit, created_by: user?.id ?? null })
-        .select('*, pursuit_stages(*)')
+        .select(`${PURSUIT_DETAIL_COLUMNS}, pursuit_stages(*)`)
         .single();
     if (error) throw error;
     return { ...data, stage: data.pursuit_stages };
@@ -234,14 +280,29 @@ export async function createPursuit(
 export async function updatePursuit(id: string, updates: Partial<Pursuit>) {
     // Strip virtual/joined fields
     const { stage, one_pagers, primary_one_pager, site_area_acres, best_yoc, primary_units, one_pager_count, ...payload } = updates as Pursuit;
+    // Return only the detail columns: `.select()` with no list echoed the full
+    // row — including MBs of map blobs — back on every field autosave.
     const { data, error } = await supabase
         .from('pursuits')
         .update(payload)
         .eq('id', id)
-        .select()
+        .select(PURSUIT_DETAIL_COLUMNS)
         .single();
     if (error) throw error;
-    return data;
+    return data as Pursuit;
+}
+
+/**
+ * Patch pursuit columns without echoing the row back. Use for large jsonb
+ * writes (drive_time_data, income_heatmap_data) where returning the row would
+ * download the blob we just uploaded.
+ */
+export async function updatePursuitColumns(
+    id: string,
+    patch: Pick<Partial<Pursuit>, 'drive_time_data' | 'income_heatmap_data' | 'parcel_data' | 'parcel_data_updated_at' | 'demographics' | 'demographics_updated_at'>
+): Promise<void> {
+    const { error } = await supabase.from('pursuits').update(patch).eq('id', id);
+    if (error) throw error;
 }
 
 export async function deletePursuit(id: string) {
@@ -310,6 +371,31 @@ export async function createOnePager(
     return data;
 }
 
+/**
+ * Atomically set (string) or clear (null) one key of one_pagers.field_notes via
+ * the set_one_pager_field_note RPC, so concurrent editors of different notes
+ * can't overwrite each other. Returns the merged notes object, or null when the
+ * RPC isn't deployed yet (migration 20260925000001) — callers then fall back to
+ * saving the whole object.
+ */
+export async function setOnePagerFieldNote(
+    onePagerId: string,
+    key: string,
+    value: string | null
+): Promise<Record<string, string> | null> {
+    const { data, error } = await supabase.rpc('set_one_pager_field_note', {
+        p_one_pager_id: onePagerId,
+        p_key: key,
+        p_value: value,
+    });
+    if (error) {
+        // PGRST202: function not found in the schema cache
+        if (error.code === 'PGRST202' || error.message?.includes('set_one_pager_field_note')) return null;
+        throw error;
+    }
+    return (data ?? {}) as Record<string, string>;
+}
+
 export async function updateOnePager(id: string, updates: Partial<OnePager>, expectedUpdatedAt?: string) {
     // Strip joined/virtual fields
     const { unit_mix, payroll, soft_cost_details, unit_premiums, product_type, sub_product_type, ...payload } = updates as OnePager;
@@ -331,14 +417,23 @@ export async function updateOnePager(id: string, updates: Partial<OnePager>, exp
     return data;
 }
 
+/** Tables holding per-one-pager child rows (keyed by one_pager_id). */
+const ONE_PAGER_CHILD_TABLES = ['one_pager_unit_mix', 'one_pager_payroll', 'one_pager_soft_cost_detail', 'unit_premiums'] as const;
+
 /**
  * Duplicate a one-pager: deep copies the one-pager record
  * plus all child rows (unit mix, payroll, soft cost details).
  * Returns the new one-pager.
  */
 export async function duplicateOnePager(sourceId: string, newName: string): Promise<OnePager> {
-    // 1. Fetch the source one-pager
-    const source = await fetchOnePager(sourceId);
+    // 1. Fetch the source one-pager and its child rows in parallel
+    const [source, unitMix, payrollRows, softCosts, premiums] = await Promise.all([
+        fetchOnePager(sourceId),
+        fetchUnitMix(sourceId),
+        fetchPayroll(sourceId),
+        fetchSoftCostDetails(sourceId),
+        fetchUnitPremiums(sourceId),
+    ]);
 
     // 2. Strip IDs, timestamps, computed, and joined fields — keep assumptions only
     const {
@@ -364,7 +459,6 @@ export async function duplicateOnePager(sourceId: string, newName: string): Prom
 
     // 4. Copy child rows — rollback the new one-pager on any failure
     try {
-        const unitMix = await fetchUnitMix(sourceId);
         if (unitMix.length > 0) {
             const umPayload = unitMix.map(({ id: _rowId, one_pager_id: _opId, total_sf, effective_monthly_rent, effective_rent_per_sf, annual_rental_revenue, ...row }) => ({
                 ...row,
@@ -374,7 +468,6 @@ export async function duplicateOnePager(sourceId: string, newName: string): Prom
             if (umError) throw umError;
         }
 
-        const payrollRows = await fetchPayroll(sourceId);
         if (payrollRows.length > 0) {
             const prPayload = payrollRows.map(({ id: _rowId, one_pager_id: _opId, total_comp_burdened, ...row }) => ({
                 ...row,
@@ -384,7 +477,6 @@ export async function duplicateOnePager(sourceId: string, newName: string): Prom
             if (prError) throw prError;
         }
 
-        const softCosts = await fetchSoftCostDetails(sourceId);
         if (softCosts.length > 0) {
             const scPayload = softCosts.map(({ id: _rowId, one_pager_id: _opId, ...row }) => ({
                 ...row,
@@ -394,7 +486,6 @@ export async function duplicateOnePager(sourceId: string, newName: string): Prom
             if (scError) throw scError;
         }
 
-        const premiums = await fetchUnitPremiums(sourceId);
         if (premiums.length > 0) {
             const upPayload = premiums.map(({ id: _rowId, one_pager_id: _opId, created_at: _ca, updated_at: _ua, ...row }) => ({
                 ...row,
@@ -405,10 +496,8 @@ export async function duplicateOnePager(sourceId: string, newName: string): Prom
         }
     } catch (childError) {
         // Rollback: delete the partially-created one-pager and any children
-        await supabase.from('one_pager_unit_mix').delete().eq('one_pager_id', newOP.id);
-        await supabase.from('one_pager_payroll').delete().eq('one_pager_id', newOP.id);
-        await supabase.from('one_pager_soft_cost_detail').delete().eq('one_pager_id', newOP.id);
-        await supabase.from('unit_premiums').delete().eq('one_pager_id', newOP.id);
+        await Promise.all(ONE_PAGER_CHILD_TABLES.map((table) =>
+            supabase.from(table).delete().eq('one_pager_id', newOP.id)));
         await supabase.from('one_pagers').delete().eq('id', newOP.id);
         throw childError;
     }
@@ -431,11 +520,11 @@ export async function archiveOnePager(id: string) {
  * Hard-delete a one-pager and all its child rows (cascade).
  */
 export async function deleteOnePager(id: string) {
-    // Delete children first (in case no cascade constraint)
-    for (const table of ['one_pager_unit_mix', 'one_pager_payroll', 'one_pager_soft_cost_detail', 'unit_premiums']) {
-        const { error: childError } = await supabase.from(table).delete().eq('one_pager_id', id);
-        if (childError) throw childError;
-    }
+    // Delete children first (in case no cascade constraint) — independent tables, so in parallel
+    const results = await Promise.all(ONE_PAGER_CHILD_TABLES.map((table) =>
+        supabase.from(table).delete().eq('one_pager_id', id)));
+    const childError = results.find((r) => r.error)?.error;
+    if (childError) throw childError;
     const { error } = await supabase.from('one_pagers').delete().eq('id', id);
     if (error) throw error;
 }
@@ -745,7 +834,8 @@ export async function fetchReportData(): Promise<ReportRow[]> {
     const [pursuits, onePagers] = await Promise.all([
         fetchAllPages(() => supabase
             .from('pursuits')
-            .select('*, pursuit_stages(*)')
+            // Report fields only read the light columns (see reportFields.ts)
+            .select(`${PURSUIT_LIST_COLUMNS}, pursuit_stages(*)`)
             .eq('is_archived', false)
             .order('updated_at', { ascending: false })
             .order('id')),
@@ -855,7 +945,7 @@ export async function fetchAnalyticsData(): Promise<AnalyticsData> {
     const [pursuits, stageHistory, onePagers] = await Promise.all([
         fetchAllPages(() => supabase
             .from('pursuits')
-            .select('*, pursuit_stages(*)')
+            .select(`${PURSUIT_LIST_COLUMNS}, pursuit_stages(*)`)
             .order('created_at', { ascending: false })
             .order('id')),
         // Fetch all stage history
@@ -1248,18 +1338,22 @@ export interface PredevBudgetReportRow {
 }
 
 export async function fetchAllPredevBudgets(): Promise<PredevBudgetReportRow[]> {
-    const { data, error } = await supabase
+    // Paged past the 1000-row cap, with a unique tie-breaker for stable pages
+    const data = await fetchAllPages(() => supabase
         .from('predev_budgets')
         .select(`
             *,
             predev_budget_line_items(*),
+            predev_schedule_items(*),
             pursuits!inner(id, short_id, name, region, stage_id, city, state, is_archived,
                 pursuit_stages(*),
                 pursuit_accounting_entities(*)
             )
         `)
-        .order('created_at', { ascending: false });
-    if (error) throw error;
+        // Drop archived pursuits server-side (!inner makes this filter the budget row)
+        .eq('pursuits.is_archived', false)
+        .order('created_at', { ascending: false })
+        .order('id'));
 
     return (data ?? [])
         // A pursuit with no stage is still in play — only drop the ones whose
@@ -1272,7 +1366,13 @@ export async function fetchAllPredevBudgets(): Promise<PredevBudgetReportRow[]> 
                 line_items: (d.predev_budget_line_items ?? []).sort(
                     (a: PredevBudgetLineItem, b: PredevBudgetLineItem) => a.sort_order - b.sort_order
                 ),
+                // Same shape/order as fetchPredevBudget, so the portfolio report
+                // can include schedule-item months like the pursuit tab does.
+                schedule_items: (d.predev_schedule_items ?? []).sort(
+                    (a: import('@/types').PredevScheduleItem, b: import('@/types').PredevScheduleItem) => a.sort_order - b.sort_order
+                ),
                 predev_budget_line_items: undefined,
+                predev_schedule_items: undefined,
                 pursuits: undefined,
             } as PredevBudget,
             pursuit: {
@@ -1573,6 +1673,32 @@ export async function upsertKeyDate(keyDate: Partial<KeyDate> & { pursuit_id: st
     } as KeyDate;
 }
 
+/** Columns a key-date patch may change (never id / pursuit_id / audit columns). */
+export type KeyDatePatch = Partial<Pick<KeyDate,
+    'key_date_type_id' | 'custom_label' | 'date_value' | 'status' | 'notes'
+    | 'contract_reference' | 'ai_extracted' | 'ai_confidence' | 'sort_order'
+>>;
+
+/**
+ * Partial update of an existing key date. Use this for status toggles and
+ * single-field edits: upsertKeyDate sends an INSERT … ON CONFLICT, so a row
+ * with only id + status fails the NOT NULL date_value check.
+ */
+export async function updateKeyDate(id: string, patch: KeyDatePatch): Promise<KeyDate> {
+    const { data, error } = await supabase
+        .from('key_dates')
+        .update(patch)
+        .eq('id', id)
+        .select('*, key_date_types(*)')
+        .single();
+    if (error) throw error;
+    return {
+        ...data,
+        key_date_type: data.key_date_types ?? undefined,
+        key_date_types: undefined,
+    } as KeyDate;
+}
+
 export async function deleteKeyDate(id: string) {
     const { error } = await supabase.from('key_dates').delete().eq('id', id);
     if (error) throw error;
@@ -1604,6 +1730,9 @@ export async function fetchKeyDateReportData(): Promise<KeyDateReportRow[]> {
             pursuits!inner(id, name, region, stage_id, city, state, is_archived,
                 pursuit_stages(*))
         `)
+        // Filter archived pursuits in the query (the !inner join makes this
+        // drop the key-date row) instead of downloading and discarding them.
+        .eq('pursuits.is_archived', false)
         .order('date_value')
         .order('id'));
 
@@ -2071,6 +2200,22 @@ export async function fetchTaskActivity(taskId: string): Promise<TaskActivityLog
 
 import type { PursuitRentComp, HellodataProperty } from '@/types';
 
+/**
+ * Every hellodata_properties column except raw_response (the full HelloData
+ * API payload, which older rows still carry and nothing in the app reads).
+ */
+const HELLODATA_PROPERTY_COLUMNS = `
+    id, hellodata_id, building_name, street_address, city, state, zip_code,
+    lat, lon, year_built, number_units, number_stories, msa,
+    management_company, building_website, building_phone,
+    is_single_family, is_apartment, is_condo, is_senior, is_student,
+    is_build_to_rent, is_affordable, is_lease_up,
+    building_quality, pricing_strategy, review_analysis,
+    demographics, fees, occupancy_over_time,
+    building_amenities, unit_amenities,
+    fetched_at, data_as_of, created_at, updated_at
+`;
+
 /** Fetch ALL rent comps across all pursuits — for reports */
 export async function fetchAllRentComps(): Promise<ReportRow[]> {
     const data = await fetchAllPages(() => supabase
@@ -2111,15 +2256,7 @@ export async function fetchPursuitRentComps(pursuitId: string): Promise<PursuitR
         .select(`
             *,
             property:hellodata_properties(
-                id, hellodata_id, building_name, street_address, city, state, zip_code,
-                lat, lon, year_built, number_units, number_stories, msa,
-                management_company, building_website, building_phone,
-                is_single_family, is_apartment, is_condo, is_senior, is_student,
-                is_build_to_rent, is_affordable, is_lease_up,
-                building_quality, pricing_strategy, review_analysis,
-                demographics, fees, occupancy_over_time,
-                building_amenities, unit_amenities,
-                fetched_at, data_as_of, created_at, updated_at,
+                ${HELLODATA_PROPERTY_COLUMNS},
                 units:hellodata_units(*),
                 concessions:hellodata_concessions(*)
             )
@@ -2141,8 +2278,8 @@ export async function linkRentCompToPursuit(
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id ?? null;
 
-    console.log('[linkRentComp] Step A: got session, userId:', userId);
-
+    // ON CONFLICT DO NOTHING: re-linking an already-linked comp must not
+    // overwrite its notes, added_by, comp_type or sort_order.
     const { error } = await supabase
         .from('pursuit_rent_comps')
         .upsert({
@@ -2150,12 +2287,20 @@ export async function linkRentCompToPursuit(
             property_id: propertyId,
             added_by: userId,
             notes: notes ?? null,
-        }, { onConflict: 'pursuit_id, property_id' });
-
-    console.log('[linkRentComp] Step B: upsert complete, error:', error?.message ?? 'none');
+        }, { onConflict: 'pursuit_id, property_id', ignoreDuplicates: true });
 
     if (error) {
         throw error;
+    }
+
+    // Explicitly supplied notes still apply to an existing link.
+    if (notes !== undefined) {
+        const { error: notesError } = await supabase
+            .from('pursuit_rent_comps')
+            .update({ notes })
+            .eq('pursuit_id', pursuitId)
+            .eq('property_id', propertyId);
+        if (notesError) throw notesError;
     }
 
     // Return a minimal object — the full data is refetched by query invalidation
@@ -2185,7 +2330,7 @@ export async function unlinkRentCompFromPursuit(pursuitId: string, propertyId: s
 export async function fetchHellodataPropertyByHdId(hellodataId: string): Promise<HellodataProperty | null> {
     const { data, error } = await supabase
         .from('hellodata_properties')
-        .select('*, hellodata_units(*), hellodata_concessions(*)')
+        .select(`${HELLODATA_PROPERTY_COLUMNS}, hellodata_units(*), hellodata_concessions(*)`)
         .eq('hellodata_id', hellodataId)
         .maybeSingle();
     if (error) throw error;
@@ -2213,7 +2358,7 @@ export async function fetchAllHellodataProperties(): Promise<HellodataProperty[]
 export async function fetchHellodataPropertyDetail(id: string): Promise<HellodataProperty | null> {
     const { data, error } = await supabase
         .from('hellodata_properties')
-        .select('*, units:hellodata_units(*), concessions:hellodata_concessions(*)')
+        .select(`${HELLODATA_PROPERTY_COLUMNS}, units:hellodata_units(*), concessions:hellodata_concessions(*)`)
         .eq('id', id)
         .maybeSingle();
     if (error) throw error;
@@ -2271,7 +2416,8 @@ export async function linkLandCompToPursuit(pursuitId: string, landCompId: strin
     const { error } = await supabase
         .from('pursuit_land_comps')
         .upsert({ pursuit_id: pursuitId, land_comp_id: landCompId, added_by: session?.user?.id ?? null },
-            { onConflict: 'pursuit_id, land_comp_id' });
+            // Re-linking keeps the original added_by / sort_order
+            { onConflict: 'pursuit_id, land_comp_id', ignoreDuplicates: true });
     if (error) throw error;
 }
 
@@ -2307,7 +2453,8 @@ export async function linkSaleCompToPursuit(pursuitId: string, saleCompId: strin
     const { error } = await supabase
         .from('pursuit_sale_comps')
         .upsert({ pursuit_id: pursuitId, sale_comp_id: saleCompId, added_by: session?.user?.id ?? null },
-            { onConflict: 'pursuit_id, sale_comp_id' });
+            // Re-linking keeps the original added_by / sort_order
+            { onConflict: 'pursuit_id, sale_comp_id', ignoreDuplicates: true });
     if (error) throw error;
 }
 

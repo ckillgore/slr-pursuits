@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/app/api/_lib/auth';
+import { createTtlCache, upstreamErrorResponse } from '@/app/api/_lib/upstream';
 import { z } from 'zod';
 
 const BodySchema = z.object({
@@ -23,6 +24,26 @@ function cacheZip(zip: string, entityId: string) {
     }
     zipToMetroCache.set(zip, entityId);
 }
+
+// FMRs are published once a year, so the metro list and per-metro data can be
+// cached for hours. This turns a cold ZIP lookup (list + N metro fetches) into
+// in-memory hits on repeat.
+const HUD_TIMEOUT_MS = 15_000;
+const HUD_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+type HudMetro = { cbsa_code: string; area_name: string };
+type HudFmrEntry = Record<string, string | number | null | undefined> & { zip_code?: string };
+type HudFmrData = { data?: { basicdata?: HudFmrEntry[] | HudFmrEntry; area_name?: string; metro_name?: string; year?: string | number } };
+const metroListCache = createTtlCache<HudMetro[]>(HUD_CACHE_TTL_MS, 1);
+const metroDataCache = createTtlCache<HudFmrData>(HUD_CACHE_TTL_MS, 300);
+
+async function hudGet<T>(path: string, headers: Record<string, string>): Promise<T> {
+    const res = await fetch(`${HUD_BASE}${path}`, { headers, signal: AbortSignal.timeout(HUD_TIMEOUT_MS) });
+    if (!res.ok) throw new Error(`HUD ${path} failed (${res.status})`);
+    return res.json() as Promise<T>;
+}
+
+/** How many state metros to probe in parallel when searching for a ZIP. */
+const METRO_SEARCH_CONCURRENCY = 6;
 
 export async function POST(request: Request) {
     const { response: authError } = await requireAuth();
@@ -50,12 +71,13 @@ export async function POST(request: Request) {
 
         if (!entityId) {
             // Get all metro areas
-            const metroRes = await fetch(`${HUD_BASE}/listMetroAreas`, { headers });
-            if (!metroRes.ok) {
-                console.error('[HUD] Failed to list metro areas:', metroRes.status);
+            let metros: HudMetro[];
+            try {
+                metros = await metroListCache.getOrLoad('all', () => hudGet<HudMetro[]>('/listMetroAreas', headers));
+            } catch (err) {
+                console.error('[HUD] Failed to list metro areas:', err);
                 return NextResponse.json({ fmr: null, message: 'Failed to list metro areas' });
             }
-            const metros: Array<{ cbsa_code: string; area_name: string }> = await metroRes.json();
 
             // Filter to metros in this state
             const stateMetros = metros.filter(m =>
@@ -64,41 +86,36 @@ export async function POST(request: Request) {
                 m.area_name.includes(` ${stateAbbr} `)
             );
 
-            console.log(`[HUD] Found ${stateMetros.length} metros for state ${stateAbbr}, searching for ZIP ${zip}...`);
-
-            // Search state metros for one containing our ZIP
-            for (const metro of stateMetros) {
-                try {
-                    const dataRes = await fetch(`${HUD_BASE}/data/${metro.cbsa_code}`, { headers });
-                    if (!dataRes.ok) continue;
-                    const data = await dataRes.json();
-                    const basicdata = data.data?.basicdata;
-                    if (!Array.isArray(basicdata)) continue;
-
-                    if (basicdata.some((e: any) => e.zip_code === zip)) {
-                        entityId = metro.cbsa_code;
+            // Search state metros for one containing our ZIP, a few at a time
+            // (sequential probing of a large state took 20+ round trips).
+            const loadMetro = (code: string) => metroDataCache.getOrLoad(code, () => hudGet<HudFmrData>(`/data/${code}`, headers));
+            for (let i = 0; i < stateMetros.length && !entityId; i += METRO_SEARCH_CONCURRENCY) {
+                const batch = stateMetros.slice(i, i + METRO_SEARCH_CONCURRENCY);
+                const results = await Promise.allSettled(batch.map((m) => loadMetro(m.cbsa_code)));
+                for (let j = 0; j < batch.length; j++) {
+                    const r = results[j];
+                    if (r.status !== 'fulfilled') continue; // Skip failed requests
+                    const basicdata = r.value?.data?.basicdata;
+                    if (Array.isArray(basicdata) && basicdata.some((e) => e.zip_code === zip)) {
+                        entityId = batch[j].cbsa_code;
                         cacheZip(zip, entityId);
-                        console.log(`[HUD] Found ZIP ${zip} in metro: ${metro.area_name} (${metro.cbsa_code})`);
                         break;
                     }
-                } catch {
-                    // Skip failed requests
                 }
             }
         }
 
         if (!entityId) {
-            console.log(`[HUD] ZIP ${zip} not found in any ${stateAbbr} metro area`);
             return NextResponse.json({ fmr: null, message: 'No FMR data found for this location' });
         }
 
-        // Get the FMR data
-        const fmrRes = await fetch(`${HUD_BASE}/data/${entityId}`, { headers });
-        if (!fmrRes.ok) {
+        // Get the FMR data (usually already cached by the search above)
+        let fmrData: HudFmrData;
+        try {
+            fmrData = await metroDataCache.getOrLoad(entityId, () => hudGet<HudFmrData>(`/data/${entityId}`, headers));
+        } catch {
             return NextResponse.json({ fmr: null, message: 'Failed to fetch FMR data' });
         }
-
-        const fmrData = await fmrRes.json();
         const d = fmrData.data;
         const basicdata = d?.basicdata;
 
@@ -127,11 +144,7 @@ export async function POST(request: Request) {
                 zip: zipEntry ? zip : null,
             },
         });
-    } catch (err: any) {
-        console.error('[HUD] FMR route error:', err);
-        return NextResponse.json(
-            { error: err.message || 'Internal server error' },
-            { status: 500 }
-        );
+    } catch (err: unknown) {
+        return upstreamErrorResponse(err, 'HUD', 'Failed to load HUD FMR data');
     }
 }

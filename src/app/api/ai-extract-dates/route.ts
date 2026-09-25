@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { requireAuth } from '@/app/api/_lib/auth';
+import { upstreamErrorResponse } from '@/app/api/_lib/upstream';
+
+// A long PSA PDF can take Gemini a minute or more to read.
+export const maxDuration = 120;
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -59,7 +63,7 @@ export async function POST(request: Request) {
         const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-preview',
+            model: 'gemini-2.5-flash',
             contents: [
                 {
                     role: 'user',
@@ -79,6 +83,7 @@ export async function POST(request: Request) {
             config: {
                 maxOutputTokens: 8000,
                 temperature: 0.1,
+                abortSignal: AbortSignal.timeout(110_000),
             },
         });
 
@@ -119,11 +124,7 @@ export async function POST(request: Request) {
             }));
 
         return NextResponse.json({ dates: normalized });
-    } catch (err: any) {
-        console.error('AI extract dates error:', err);
-        return NextResponse.json(
-            { error: err.message || 'Failed to extract dates' },
-            { status: 500 }
-        );
+    } catch (err: unknown) {
+        return upstreamErrorResponse(err, 'AI Extract Dates', 'Failed to extract dates');
     }
 }

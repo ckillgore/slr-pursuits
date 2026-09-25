@@ -3,6 +3,11 @@ import { createClient } from '@/lib/supabase/server';
 import { requireAuth } from '@/app/api/_lib/auth';
 import { HELLODATA_CACHE_TTL_DAYS } from '@/lib/calculations/hellodataCalculations';
 import { refreshHellodataProperty } from '@/lib/hellodata/refresh-property';
+import { mapWithConcurrency } from '@/app/api/_lib/upstream';
+
+// Batch refresh can touch dozens of properties; see the time budget below.
+export const maxDuration = 300;
+const TIME_BUDGET_MS = (maxDuration - 30) * 1000;
 
 /**
  * POST /api/hellodata/refresh
@@ -36,6 +41,7 @@ export async function POST() {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    const startTime = Date.now();
     try {
         // 1. Find all properties linked to pursuits with active stages
         const cutoffDate = new Date();
@@ -62,7 +68,7 @@ export async function POST() {
 
         if (queryError) {
             console.error('Refresh query error:', queryError);
-            return NextResponse.json({ error: queryError.message }, { status: 500 });
+            return NextResponse.json({ error: 'Failed to load properties to refresh' }, { status: 500 });
         }
 
         // De-duplicate by hellodata_id
@@ -74,32 +80,35 @@ export async function POST() {
             }
         }
 
-        const results: { hellodataId: string; status: 'success' | 'error'; error?: string }[] = [];
+        type RefreshResult = { hellodataId: string; status: 'success' | 'error'; error?: string };
 
-        // 2. Refresh each property via the cache endpoint
-        for (const [hellodataId] of uniqueIds) {
-            try {
-                // Call the shared refresh utility directly. (Previously this
-                // self-fetched /api/hellodata/property with no auth cookies,
-                // so every call 401'd.)
-                const result = await refreshHellodataProperty(supabase, hellodataId, apiKey, user?.id);
-
-                if (result.success) {
-                    results.push({ hellodataId, status: 'success' });
-                } else {
-                    results.push({ hellodataId, status: 'error', error: result.error });
+        // 2. Refresh properties, a few at a time, within the time budget.
+        // Calls the shared refresh utility directly. (Previously this
+        // self-fetched /api/hellodata/property with no auth cookies, so every
+        // call 401'd.)
+        const settled = await mapWithConcurrency(
+            [...uniqueIds.keys()],
+            3,
+            async (hellodataId): Promise<RefreshResult> => {
+                try {
+                    const result = await refreshHellodataProperty(supabase, hellodataId, apiKey, user?.id);
+                    // Respectful rate limiting — small delay per worker
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    return result.success
+                        ? { hellodataId, status: 'success' }
+                        : { hellodataId, status: 'error', error: result.error };
+                } catch (err) {
+                    return {
+                        hellodataId,
+                        status: 'error',
+                        error: err instanceof Error ? err.message : 'Unknown error',
+                    };
                 }
-
-                // Respectful rate limiting — small delay between calls
-                await new Promise(resolve => setTimeout(resolve, 200));
-            } catch (err) {
-                results.push({
-                    hellodataId,
-                    status: 'error',
-                    error: err instanceof Error ? err.message : 'Unknown error',
-                });
-            }
-        }
+            },
+            () => Date.now() - startTime < TIME_BUDGET_MS,
+        );
+        const results = settled.filter((r): r is RefreshResult => r !== undefined);
+        const skipped = uniqueIds.size - results.length;
 
         // Log the batch refresh
         await supabase.from('hellodata_fetch_log').insert({
@@ -112,12 +121,12 @@ export async function POST() {
         return NextResponse.json({
             message: `Refreshed ${results.filter(r => r.status === 'success').length}/${uniqueIds.size} properties`,
             total: uniqueIds.size,
+            skipped,
             success: results.filter(r => r.status === 'success').length,
             errors: results.filter(r => r.status === 'error'),
         });
     } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
         console.error('Batch refresh error:', err);
-        return NextResponse.json({ error: message }, { status: 500 });
+        return NextResponse.json({ error: 'Batch refresh failed' }, { status: 500 });
     }
 }

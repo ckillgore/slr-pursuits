@@ -115,6 +115,7 @@ export async function GET() {
         const res = await fetch(`https://api.smartsheet.com/2.0/sheets/${sheetId}`, {
             headers: { 'Authorization': `Bearer ${apiKey}` },
             next: { revalidate: 3600 }, // Next.js fetch cache
+            signal: AbortSignal.timeout(20_000),
         });
 
         if (!res.ok) {

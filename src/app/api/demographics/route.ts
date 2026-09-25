@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/app/api/_lib/auth';
+import { createTtlCache, upstreamErrorResponse, UPSTREAM_TIMEOUT_MS } from '@/app/api/_lib/upstream';
 import { z } from 'zod';
 
 const BodySchema = z.object({
@@ -19,6 +20,11 @@ const BodySchema = z.object({
 
 const GEOCODIO_KEY = process.env.GEOCODIO_API_KEY || '';
 const ARCGIS_API_KEY = process.env.ARCGIS_API_KEY || '';
+
+// GeoEnrichment consumes paid ArcGIS credits and ACS/ESRI estimates change at
+// most annually, so cache complete results per (rounded) point for a few hours.
+type DemographicsPair = { blockGroup: Awaited<ReturnType<typeof fetchGeocodio>>; rings: Awaited<ReturnType<typeof fetchEsriRings>> };
+const demographicsCache = createTtlCache<DemographicsPair>(6 * 60 * 60 * 1000, 200);
 
 // ===================== Geocodio (block group) =====================
 
@@ -208,7 +214,8 @@ export async function POST(request: Request) {
             }
             if (GEOCODIO_KEY) {
                 const geoRes = await fetch(
-                    `https://api.geocod.io/v1.7/geocode?q=${encodeURIComponent(address)}&api_key=${GEOCODIO_KEY}`
+                    `https://api.geocod.io/v1.7/geocode?q=${encodeURIComponent(address)}&api_key=${GEOCODIO_KEY}`,
+                    { signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) }
                 );
                 const geoData = await geoRes.json();
                 const loc = geoData.results?.[0]?.location;
@@ -222,11 +229,21 @@ export async function POST(request: Request) {
             }
         }
 
-        // Run both in parallel
-        const [blockGroup, rings] = await Promise.all([
-            fetchGeocodio(latitude, longitude),
-            fetchEsriRings(latitude, longitude),
-        ]);
+        const cacheKey = `${latitude.toFixed(5)},${longitude.toFixed(5)}`;
+        let cached = demographicsCache.get(cacheKey);
+        if (!cached) {
+            // Run both in parallel
+            const [blockGroup, rings] = await Promise.all([
+                fetchGeocodio(latitude, longitude),
+                fetchEsriRings(latitude, longitude),
+            ]);
+            cached = { blockGroup, rings };
+            // Each source degrades to null on failure; only cache complete results
+            // (a source whose key isn't configured is never going to fill in).
+            const complete = (blockGroup || !GEOCODIO_KEY) && (rings || !ARCGIS_API_KEY);
+            if (complete) demographicsCache.set(cacheKey, cached);
+        }
+        const { blockGroup, rings } = cached;
 
         const demographics = {
             block_group: blockGroup,
@@ -240,8 +257,6 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ demographics });
     } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Unknown error';
-        console.error('Demographics API error:', msg);
-        return NextResponse.json({ error: msg }, { status: 500 });
+        return upstreamErrorResponse(err, 'Demographics', 'Failed to load demographics');
     }
 }

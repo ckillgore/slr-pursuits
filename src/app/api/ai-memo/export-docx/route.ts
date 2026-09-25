@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/app/api/_lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { buildMemoDocx, type MemoDocxData } from '@/lib/docx/docxBuilder';
+import { upstreamErrorResponse } from '@/app/api/_lib/upstream';
+
+// Columns the DOCX actually uses (pursuits/one_pagers carry large jsonb blobs
+// such as parcel_data and drive_time_data that we don't want to pull here).
+const PURSUIT_COLUMNS = 'id, name, address, city, state, zip, county, latitude, longitude, executive_memo, primary_one_pager_id';
+// (A single string literal, so supabase-js can still infer the row type.)
+const ONE_PAGER_COLUMNS = 'id, name, created_at, total_units, efficiency_ratio, vacancy_rate, other_income_per_unit_month, hard_cost_per_nrsf, land_cost, soft_cost_pct, mgmt_fee_pct, calc_total_nrsf, calc_total_gbsf, calc_gpr, calc_net_revenue, calc_total_budget, calc_hard_cost, calc_soft_cost, calc_total_opex, calc_noi, calc_yoc, calc_cost_per_unit, calc_noi_per_unit';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -17,34 +24,46 @@ export async function POST(request: Request) {
 
         const supabase = await createClient();
 
-        // ──── 1. Fetch pursuit ────
-        const { data: pursuit, error: pursuitErr } = await supabase
-            .from('pursuits')
-            .select('*')
-            .eq('id', pursuitId)
-            .single();
+        // ──── 1-5. Fetch pursuit, one-pagers and comps in parallel ────
+        // (all keyed on pursuitId, so there's no reason to run them serially)
+        const [
+            { data: pursuit, error: pursuitErr },
+            { data: onePagers = [] },
+            { data: rentCompLinks = [] },
+            { data: landCompLinks = [] },
+            { data: saleCompLinks = [] },
+        ] = await Promise.all([
+            supabase.from('pursuits').select(PURSUIT_COLUMNS).eq('id', pursuitId).single(),
+            supabase
+                .from('one_pagers')
+                .select(ONE_PAGER_COLUMNS)
+                .eq('pursuit_id', pursuitId)
+                .eq('is_archived', false)
+                .order('created_at', { ascending: false }),
+            // Units live in hellodata_units (there is no units/vacancies column on
+            // hellodata_properties), so embed just the price columns we average.
+            supabase
+                .from('pursuit_rent_comps')
+                .select('id, property:hellodata_properties(building_name, street_address, number_units, year_built, occupancy_over_time, units:hellodata_units(price, effective_price))')
+                .eq('pursuit_id', pursuitId),
+            supabase
+                .from('pursuit_land_comps')
+                .select('id, land_comp:land_comps(name, address, site_area_sf, sale_price, sale_price_psf, sale_date, buyer)')
+                .eq('pursuit_id', pursuitId),
+            // Sale price / cap rate live on sale_transactions, not sale_comps.
+            supabase
+                .from('pursuit_sale_comps')
+                .select('id, sale_comp:sale_comps(name, address, year_built, total_units, transactions:sale_transactions(sale_date, sale_price, cap_rate, price_per_unit))')
+                .eq('pursuit_id', pursuitId),
+        ]);
 
         if (pursuitErr || !pursuit) {
             return NextResponse.json({ error: 'Pursuit not found' }, { status: 404 });
         }
 
-        // ──── 2. Fetch one-pagers ────
-        const { data: onePagers = [] } = await supabase
-            .from('one_pagers')
-            .select('*')
-            .eq('pursuit_id', pursuitId)
-            .eq('is_archived', false)
-            .order('created_at', { ascending: false });
-
         // Find primary or first active one-pager
         const primaryOnePager = onePagers?.find((op: any) => op.id === pursuit.primary_one_pager_id)
             || (onePagers && onePagers.length > 0 ? onePagers[0] : null);
-
-        // ──── 3. Fetch rent comps (linked properties) ────
-        const { data: rentCompLinks = [] } = await supabase
-            .from('pursuit_rent_comps')
-            .select('*, property:hellodata_properties(*)')
-            .eq('pursuit_id', pursuitId);
 
         const rentComps: MemoDocxData['rentComps'] = (rentCompLinks || [])
             .filter((rc: any) => rc.property)
@@ -59,7 +78,11 @@ export async function POST(request: Request) {
                 const effectiveRent = validEff.length > 0
                     ? validEff.reduce((s: number, u: any) => s + (u.effective_price || 0), 0) / validEff.length
                     : null;
-                const occupancy = p.number_units ? ((p.number_units - (p.vacancies ?? 0)) / p.number_units) * 100 : null;
+                // Latest leased fraction from the occupancy series (same source the
+                // pursuit page uses).
+                const occSeries = Array.isArray(p.occupancy_over_time) ? p.occupancy_over_time : [];
+                const latestLeased = occSeries.length > 0 ? occSeries[occSeries.length - 1]?.leased : null;
+                const occupancy = typeof latestLeased === 'number' ? latestLeased * 100 : null;
 
                 return {
                     name: p.building_name || p.street_address || 'Unknown',
@@ -70,12 +93,6 @@ export async function POST(request: Request) {
                     occupancy,
                 };
             });
-
-        // ──── 4. Fetch land comps ────
-        const { data: landCompLinks = [] } = await supabase
-            .from('pursuit_land_comps')
-            .select('*, land_comp:land_comps(*)')
-            .eq('pursuit_id', pursuitId);
 
         const landComps: MemoDocxData['landComps'] = (landCompLinks || [])
             .filter((lc: any) => lc.land_comp)
@@ -93,24 +110,23 @@ export async function POST(request: Request) {
                 };
             });
 
-        // ──── 5. Fetch sale comps ────
-        const { data: saleCompLinks = [] } = await supabase
-            .from('pursuit_sale_comps')
-            .select('*, sale_comp:sale_comps(*)')
-            .eq('pursuit_id', pursuitId);
-
         const saleComps: MemoDocxData['saleComps'] = (saleCompLinks || [])
             .filter((sc: any) => sc.sale_comp)
             .map((sc: any) => {
                 const c = sc.sale_comp;
+                // Most recent transaction (undated ones sort last).
+                type SaleTx = { sale_date?: string | null; sale_price?: number | null; cap_rate?: number | null; price_per_unit?: number | null };
+                const txs: SaleTx[] = Array.isArray(c.transactions) ? [...c.transactions] : [];
+                txs.sort((a, b) => String(b.sale_date ?? '').localeCompare(String(a.sale_date ?? '')));
+                const tx: SaleTx = txs[0] ?? {};
                 return {
                     name: c.name || c.address || 'Unknown',
-                    units: c.units ?? null,
+                    units: c.total_units ?? null,
                     yearBuilt: c.year_built ?? null,
-                    salePrice: c.sale_price ?? null,
-                    pricePerUnit: c.price_per_unit ?? null,
-                    capRate: c.cap_rate ?? null,
-                    saleDate: c.sale_date ?? null,
+                    salePrice: tx.sale_price ?? null,
+                    pricePerUnit: tx.price_per_unit ?? (tx.sale_price && c.total_units ? tx.sale_price / c.total_units : null),
+                    capRate: tx.cap_rate ?? null,
+                    saleDate: tx.sale_date ?? null,
                 };
             });
 
@@ -122,7 +138,7 @@ export async function POST(request: Request) {
                 const lat = Number(pursuit.latitude);
                 if (!Number.isFinite(lng) || !Number.isFinite(lat)) throw new Error('Invalid coordinates');
                 const mapUrl = `https://api.mapbox.com/styles/v1/mapbox/light-v11/static/pin-l+2563EB(${lng},${lat})/${lng},${lat},14,0/800x500@2x?access_token=${MAPBOX_TOKEN}&attribution=false&logo=false`;
-                const mapRes = await fetch(mapUrl);
+                const mapRes = await fetch(mapUrl, { signal: AbortSignal.timeout(10_000) });
                 if (mapRes.ok) {
                     const arrayBuf = await mapRes.arrayBuffer();
                     mapImageBuffer = Buffer.from(arrayBuf);
@@ -188,11 +204,7 @@ export async function POST(request: Request) {
             },
         });
 
-    } catch (err: any) {
-        console.error('[DOCX Export] Error:', err);
-        return NextResponse.json(
-            { error: err.message || 'Failed to generate DOCX' },
-            { status: 500 }
-        );
+    } catch (err: unknown) {
+        return upstreamErrorResponse(err, 'DOCX Export', 'Failed to generate DOCX');
     }
 }

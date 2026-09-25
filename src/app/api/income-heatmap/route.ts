@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/app/api/_lib/auth';
+import { createTtlCache, upstreamErrorResponse, UPSTREAM_TIMEOUT_MS } from '@/app/api/_lib/upstream';
 import { z } from 'zod';
+
+// ACS 5-year income is annual data; cache a county's block-group map for a day.
+const countyIncomeCache = createTtlCache<Map<string, number | null>>(24 * 60 * 60 * 1000, 100);
 
 const BodySchema = z.object({
     latitude: z.number().min(-90).max(90),
@@ -40,14 +44,15 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Could not determine county FIPS for this location' }, { status: 404 });
         }
 
-        // ─── Step 2: Get block group geometries near the point ───
-        const bgFeatures = await getBlockGroupGeometries(latitude, longitude, radiusMiles, fips.stateFips, fips.countyFips);
+        // ─── Steps 2 + 3 in parallel: block group geometries and ACS income ───
+        // (independent of each other — both only need the FIPS codes)
+        const [bgFeatures, incomeMap] = await Promise.all([
+            getBlockGroupGeometries(latitude, longitude, radiusMiles, fips.stateFips, fips.countyFips),
+            getBlockGroupIncome(fips.stateFips, fips.countyFips),
+        ]);
         if (!bgFeatures || bgFeatures.length === 0) {
             return NextResponse.json({ error: 'No Census Block Groups found near this location' }, { status: 404 });
         }
-
-        // ─── Step 3: Get income data from Census ACS ───
-        const incomeMap = await getBlockGroupIncome(fips.stateFips, fips.countyFips);
 
         // ─── Step 4: Join geometry + income ───
         const geojson = joinIncomeData(bgFeatures, incomeMap, latitude, longitude, radiusMiles);
@@ -56,9 +61,8 @@ export async function POST(request: Request) {
             geojson,
             blockGroupCount: geojson.features.length,
         });
-    } catch (err: any) {
-        console.error('Income heatmap error:', err);
-        return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 });
+    } catch (err: unknown) {
+        return upstreamErrorResponse(err, 'Income heatmap', 'Failed to build income heatmap');
     }
 }
 
@@ -72,7 +76,8 @@ interface FipsResult {
 async function getFipsFromCoords(lat: number, lng: number): Promise<FipsResult | null> {
     try {
         const res = await fetch(
-            `https://geo.fcc.gov/api/census/area?lat=${lat}&lon=${lng}&format=json`
+            `https://geo.fcc.gov/api/census/area?lat=${lat}&lon=${lng}&format=json`,
+            { signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) }
         );
         const data = await res.json();
         const result = data.results?.[0];
@@ -82,8 +87,6 @@ async function getFipsFromCoords(lat: number, lng: number): Promise<FipsResult |
         const countyFips = result.county_fips; // 5-digit (state+county)
         // Census ACS needs just the 3-digit county code (without state prefix)
         const countyCode = countyFips.length === 5 ? countyFips.slice(2) : countyFips;
-
-        console.log(`FCC FIPS: state=${stateFips}, county=${countyCode} (raw: ${countyFips})`);
 
         return {
             stateFips,
@@ -134,29 +137,19 @@ async function getBlockGroupGeometries(
         });
 
         const url = `https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/${service}/MapServer/${layer}/query?${params}`;
-        console.log(`TIGERweb attempt: ${service}/MapServer/${layer}`);
-
         try {
-            const res = await fetch(url);
-            if (!res.ok) {
-                console.log(`  → HTTP ${res.status}, trying next...`);
-                continue;
-            }
+            const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+            if (!res.ok) continue; // try the next layer/service
 
             const data = await res.json();
-            if (data.error) {
-                console.log(`  → Error: ${JSON.stringify(data.error)}, trying next...`);
-                continue;
-            }
+            if (data.error) continue;
 
             const features = data.features || [];
-            console.log(`  → Found ${features.length} features`);
-
             if (features.length > 0) {
                 return features;
             }
         } catch (err) {
-            console.log(`  → Fetch error: ${err}, trying next...`);
+            console.warn(`TIGERweb ${service}/${layer} failed, trying next:`, err);
             continue;
         }
     }
@@ -171,13 +164,31 @@ async function getBlockGroupIncome(
     stateFips: string,
     countyFips: string
 ): Promise<Map<string, number | null>> {
+    const key = `${stateFips}:${countyFips}`;
+    const cached = countyIncomeCache.get(key);
+    if (cached) return cached;
+    const map = await fetchBlockGroupIncome(stateFips, countyFips);
+    // Only cache a successful lookup (an empty map means the ACS call failed).
+    if (map.size > 0) countyIncomeCache.set(key, map);
+    return map;
+}
+
+async function fetchBlockGroupIncome(
+    stateFips: string,
+    countyFips: string
+): Promise<Map<string, number | null>> {
     // Census ACS 5-Year: B19013_001E = Median Household Income
     // Get all block groups in the county
     const url = `https://api.census.gov/data/2022/acs/acs5?get=B19013_001E,NAME&for=block%20group:*&in=state:${stateFips}&in=county:${countyFips}`;
-    console.log(`Census ACS URL: ${url}`);
-
-    const res = await fetch(url);
-    const responseText = await res.text();
+    let res: Response;
+    let responseText: string;
+    try {
+        res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+        responseText = await res.text();
+    } catch (err) {
+        console.error('Census ACS request failed:', err);
+        return new Map();
+    }
 
     if (!res.ok) {
         console.error(`Census ACS error: HTTP ${res.status}, body: ${responseText.slice(0, 200)}`);
@@ -187,7 +198,7 @@ async function getBlockGroupIncome(
     let rows: string[][];
     try {
         rows = JSON.parse(responseText);
-    } catch (err) {
+    } catch {
         console.error(`Census ACS JSON parse error. Response (first 300 chars): ${responseText.slice(0, 300)}`);
         return new Map();
     }
@@ -206,7 +217,6 @@ async function getBlockGroupIncome(
         }
     }
 
-    console.log(`Census ACS: ${incomeMap.size} block groups with income data`);
     return incomeMap;
 }
 

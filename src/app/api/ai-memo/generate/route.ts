@@ -2,10 +2,21 @@ import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from '@/app/api/_lib/auth';
+import { upstreamErrorResponse } from '@/app/api/_lib/upstream';
 import { createClient } from '@/lib/supabase/server';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY; // The user said Gemini and Claude API keys are in .env.local
+
+// Two sequential LLM passes (Gemini analyst, then Claude writer) routinely run
+// past the default serverless limit.
+export const maxDuration = 300;
+
+/** Pursuit + one-pagers + comps without map geometry fit comfortably in this. */
+const MAX_BODY_BYTES = 4 * 1024 * 1024;
+
+const GEMINI_TIMEOUT_MS = 110_000;
+const CLAUDE_TIMEOUT_MS = 170_000;
 
 // ────────────────────────── Prompts ──────────────────────────
 
@@ -68,7 +79,26 @@ export async function POST(request: Request) {
     }
 
     try {
-        const payload = await request.json();
+        // Bound the request body: the client used to upload the multi-MB map
+        // blobs (drive_time_data / income_heatmap_data) only for this route to
+        // delete them, and nothing stopped arbitrarily large payloads.
+        const declaredLength = Number(request.headers.get('content-length') ?? 0);
+        if (declaredLength > MAX_BODY_BYTES) {
+            return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+        }
+        const bodyText = await request.text();
+        if (bodyText.length > MAX_BODY_BYTES) {
+            return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+        }
+        let payload: { pursuitData?: { id?: unknown } } & Record<string, unknown>;
+        try {
+            payload = JSON.parse(bodyText);
+        } catch {
+            return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+        }
+        if (!payload || typeof payload !== 'object') {
+            return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+        }
         const rawPursuitId = payload?.pursuitData?.id; // UUID from the Database
         const pursuitId = typeof rawPursuitId === 'string' ? rawPursuitId : null;
         
@@ -101,7 +131,6 @@ export async function POST(request: Request) {
         const rawJsonString = JSON.stringify(cleanPayload, null, 2);
 
         // --- 2. Model #1: Analyst (Gemini) ---
-        console.log('[AI Memo] Pass 1: Gemini Analyst analyzing %d chars of raw data...', rawJsonString.length);
         const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
         const geminiResponse = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
@@ -117,33 +146,48 @@ export async function POST(request: Request) {
             config: {
                 temperature: 0.2,
                 maxOutputTokens: 8000,
+                abortSignal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
             },
         });
 
         const factSheet = geminiResponse.text || '';
-        console.log('[AI Memo] Pass 1 complete. Fact-sheet length: %d chars', factSheet.length);
+        if (!factSheet) {
+            return NextResponse.json({ error: 'Analyst pass returned no content' }, { status: 502 });
+        }
 
         // --- 3. Model #2: Writer (Claude) ---
-        console.log('[AI Memo] Pass 2: Claude generating Memo HTML...');
-        const anthropic = new Anthropic({ apiKey: CLAUDE_API_KEY });
-        const claudeResponse = await anthropic.messages.create({
-            model: 'claude-opus-4-6',
-            max_tokens: 4000,
-            system: CLAUDE_WRITER_PROMPT,
-            messages: [
-                {
-                    role: 'user',
-                    content: `Here is the Investment Fact-Sheet:\n\n${factSheet}`
-                }
-            ],
-            temperature: 0.3,
-        });
+        // Claude Opus 5.5: thinking is always on (adaptive) and sampling params
+        // like `temperature` are rejected, so depth is steered with effort.
+        // max_tokens covers thinking + the HTML memo, so it has to be generous;
+        // streaming keeps a long generation clear of HTTP timeouts.
+        const anthropic = new Anthropic({ apiKey: CLAUDE_API_KEY, timeout: CLAUDE_TIMEOUT_MS, maxRetries: 1 });
+        const claudeResponse = await anthropic.messages
+            .stream({
+                model: 'claude-opus-5-5',
+                max_tokens: 32000,
+                thinking: { type: 'adaptive' },
+                output_config: { effort: 'medium' },
+                system: CLAUDE_WRITER_PROMPT,
+                messages: [
+                    {
+                        role: 'user',
+                        content: `Here is the Investment Fact-Sheet:\n\n${factSheet}`
+                    }
+                ],
+            })
+            .finalMessage();
 
-        let htmlContent = '';
-        const firstBlock = claudeResponse.content[0];
-        if (firstBlock && firstBlock.type === 'text') {
-            htmlContent = firstBlock.text;
+        if (claudeResponse.stop_reason === 'refusal') {
+            return NextResponse.json({ error: 'The writer model declined to generate this memo' }, { status: 502 });
         }
+        if (claudeResponse.stop_reason === 'max_tokens') {
+            console.warn('[AI Memo] Memo hit max_tokens and may be truncated');
+        }
+
+        // With thinking on, content[0] is a thinking block, so join the text blocks.
+        let htmlContent = claudeResponse.content
+            .map((block) => (block.type === 'text' ? block.text : ''))
+            .join('');
 
         // Clean up markdown fences if Claude ignored instructions
         // (the previous regex matched literal backslashes, so it never stripped anything)
@@ -151,11 +195,9 @@ export async function POST(request: Request) {
         if (!htmlContent) {
             return NextResponse.json({ error: 'Memo generation returned no content' }, { status: 502 });
         }
-        console.log('[AI Memo] Pass 2 complete. HTML length: %d chars', htmlContent.length);
 
         // --- 3.5. Save to Supabase ---
         if (pursuitId) {
-            console.log('[AI Memo] Saving HTML to Supabase executive_memo column...');
             const supabase = await createClient();
             const { error: dbError } = await supabase
                 .from('pursuits')
@@ -172,11 +214,7 @@ export async function POST(request: Request) {
             html: htmlContent
         });
 
-    } catch (err: any) {
-        console.error('[AI Memo] Error:', err);
-        return NextResponse.json(
-            { error: err.message || 'Failed to generate memo' },
-            { status: 500 }
-        );
+    } catch (err: unknown) {
+        return upstreamErrorResponse(err, 'AI Memo', 'Failed to generate memo');
     }
 }

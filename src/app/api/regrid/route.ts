@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/app/api/_lib/auth';
+import { upstreamErrorResponse } from '@/app/api/_lib/upstream';
+
+// Address lookup, then a point-lookup fallback (each capped at 25s).
+export const maxDuration = 60;
 import { z } from 'zod';
 
 const BodySchema = z.object({
@@ -351,7 +355,7 @@ export async function POST(request: Request) {
 
             const addrRes = await fetch(addrUrl.toString(), {
                 headers: { 'Accept': 'application/json' },
-                signal: AbortSignal.timeout(30_000),
+                signal: AbortSignal.timeout(25_000),
             });
 
             if (addrRes.ok) {
@@ -372,7 +376,7 @@ export async function POST(request: Request) {
 
             const ptRes = await fetch(ptUrl.toString(), {
                 headers: { 'Accept': 'application/json' },
-                signal: AbortSignal.timeout(30_000),
+                signal: AbortSignal.timeout(25_000),
             });
 
             if (ptRes.ok) {
@@ -442,11 +446,7 @@ export async function POST(request: Request) {
             taxSummary,
             buildings,
         });
-    } catch (err: any) {
-        console.error('Regrid route error:', err);
-        return NextResponse.json(
-            { error: err.message || 'Internal server error' },
-            { status: 500 }
-        );
+    } catch (err: unknown) {
+        return upstreamErrorResponse(err, 'Regrid', 'Parcel lookup failed');
     }
 }

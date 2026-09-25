@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { safeNextPath } from '@/lib/utils';
 
 /**
  * Auth callback handler.
@@ -11,10 +12,7 @@ export async function GET(request: Request) {
     const code = searchParams.get('code');
     // Only allow same-origin relative paths. Without this, `next=@evil.com`
     // produces `https://app@evil.com` (open redirect after login).
-    const rawNext = searchParams.get('next') ?? '/';
-    const next = rawNext.startsWith('/') && !rawNext.startsWith('//') && !rawNext.startsWith('/\\')
-        ? rawNext
-        : '/';
+    const next = safeNextPath(searchParams.get('next'));
 
     if (code) {
         const supabase = await createClient();

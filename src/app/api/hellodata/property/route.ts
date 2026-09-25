@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin-client';
 import { requireAuth } from '@/app/api/_lib/auth';
+import { upstreamErrorResponse } from '@/app/api/_lib/upstream';
 import { refreshHellodataProperty } from '@/lib/hellodata/refresh-property';
 
 /**
@@ -68,10 +69,9 @@ export async function GET(req: NextRequest) {
                     concessions:hellodata_concessions(*)
                 `)
                 .eq('hellodata_id', hellodataId)
-                .single();
+                .maybeSingle();
 
             if (cached) {
-                console.log(`[hellodata] Cache hit for ${hellodataId}`);
                 return NextResponse.json({ property: cached, source: 'cache' });
             }
         }
@@ -80,13 +80,11 @@ export async function GET(req: NextRequest) {
         const result = await refreshHellodataProperty(supabase, hellodataId, apiKey, user?.id);
 
         if (!result.success) {
-            return NextResponse.json({ error: result.error }, { status: 500 });
+            return NextResponse.json({ error: result.error }, { status: 502 });
         }
 
         return NextResponse.json({ property: result.property, source: 'api' });
     } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        console.error('[hellodata] Property fetch error:', err);
-        return NextResponse.json({ error: message }, { status: 500 });
+        return upstreamErrorResponse(err, 'hellodata/property', 'Property fetch failed');
     }
 }

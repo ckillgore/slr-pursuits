@@ -1,5 +1,6 @@
 'use client';
 
+import { useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as queries from '@/lib/supabase/queries';
 import type { Pursuit, PursuitStage, ProductType, LandComp } from '@/types';
@@ -12,6 +13,10 @@ export const queryKeys = {
     productTypes: ['product-types'] as const,
     pursuits: ['pursuits'] as const,
     pursuit: (id: string) => ['pursuits', id] as const,
+    // Deliberately outside the ['pursuits'] prefix so list invalidations never
+    // refetch these multi-MB map blobs.
+    pursuitDriveTime: (pursuitId: string) => ['pursuit-drive-time', pursuitId] as const,
+    pursuitIncomeHeatmap: (pursuitId: string) => ['pursuit-income-heatmap', pursuitId] as const,
     onePagers: (pursuitId: string) => ['one-pagers', pursuitId] as const,
     onePager: (id: string) => ['one-pager', id] as const,
     unitMix: (onePagerId: string) => ['unit-mix', onePagerId] as const,
@@ -45,10 +50,16 @@ export const queryKeys = {
 // Stages
 // ============================================================
 
+/** Reference data (stages, product types, key-date types) rarely changes. */
+const REFERENCE_STALE_TIME = 30 * 60 * 1000;
+const REFERENCE_GC_TIME = 60 * 60 * 1000;
+
 export function useStages() {
     return useQuery({
         queryKey: queryKeys.stages,
         queryFn: queries.fetchStages,
+        staleTime: REFERENCE_STALE_TIME,
+        gcTime: REFERENCE_GC_TIME,
     });
 }
 
@@ -87,6 +98,8 @@ export function useProductTypes(opts?: { enabled?: boolean }) {
         queryKey: queryKeys.productTypes,
         queryFn: queries.fetchProductTypes,
         enabled: opts?.enabled ?? true,
+        staleTime: REFERENCE_STALE_TIME,
+        gcTime: REFERENCE_GC_TIME,
     });
 }
 
@@ -136,12 +149,89 @@ export function usePursuit(idOrShortId: string) {
     });
 }
 
+/**
+ * Prefetch a pursuit's detail row (e.g. on hover of a dashboard/report row) so
+ * navigating to it renders from cache. Cheap: the detail select excludes the
+ * map blobs, and it's a no-op while the cached entry is fresh.
+ *
+ *   const prefetchPursuit = usePrefetchPursuit();
+ *   <tr onMouseEnter={() => prefetchPursuit(p.short_id)} ...>
+ */
+export function usePrefetchPursuit() {
+    const qc = useQueryClient();
+    return useCallback((idOrShortId: string | null | undefined) => {
+        if (!idOrShortId) return;
+        const isUuid = idOrShortId.length === 36 && idOrShortId.includes('-');
+        void qc.prefetchQuery({
+            queryKey: queryKeys.pursuit(idOrShortId),
+            queryFn: () => (isUuid ? queries.fetchPursuit(idOrShortId) : queries.fetchPursuitByShortId(idOrShortId)),
+            staleTime: 60 * 1000,
+        });
+    }, [qc]);
+}
+
+/**
+ * Saved drive-time isochrones for a pursuit (UUID). fetchPursuit no longer
+ * returns drive_time_data, so the drive-time map should read it from here.
+ */
+export function usePursuitDriveTime(pursuitId: string | null | undefined, opts?: { enabled?: boolean }) {
+    return useQuery({
+        queryKey: queryKeys.pursuitDriveTime(pursuitId ?? ''),
+        queryFn: () => queries.fetchPursuitDriveTimeData(pursuitId!),
+        enabled: !!pursuitId && (opts?.enabled ?? true),
+        staleTime: 10 * 60 * 1000,
+    });
+}
+
+/**
+ * Saved income heat-map data for a pursuit (UUID). fetchPursuit no longer
+ * returns income_heatmap_data, so the income map should read it from here.
+ */
+export function usePursuitIncomeHeatmap(pursuitId: string | null | undefined, opts?: { enabled?: boolean }) {
+    return useQuery({
+        queryKey: queryKeys.pursuitIncomeHeatmap(pursuitId ?? ''),
+        queryFn: () => queries.fetchPursuitIncomeHeatmapData(pursuitId!),
+        enabled: !!pursuitId && (opts?.enabled ?? true),
+        staleTime: 10 * 60 * 1000,
+    });
+}
+
+/** Save drive_time_data for a pursuit and update the dedicated cache entry. */
+export function useSavePursuitDriveTime() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ pursuitId, data }: { pursuitId: string; data: Record<string, unknown> }) =>
+            queries.updatePursuitColumns(pursuitId, { drive_time_data: data }),
+        onMutate: ({ pursuitId, data }) => {
+            qc.setQueryData(queryKeys.pursuitDriveTime(pursuitId), data);
+        },
+        onError: (_err, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitDriveTime(pursuitId) });
+        },
+    });
+}
+
+/** Save income_heatmap_data for a pursuit and update the dedicated cache entry. */
+export function useSavePursuitIncomeHeatmap() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ pursuitId, data }: { pursuitId: string; data: Record<string, unknown> }) =>
+            queries.updatePursuitColumns(pursuitId, { income_heatmap_data: data }),
+        onMutate: ({ pursuitId, data }) => {
+            qc.setQueryData(queryKeys.pursuitIncomeHeatmap(pursuitId), data);
+        },
+        onError: (_err, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.pursuitIncomeHeatmap(pursuitId) });
+        },
+    });
+}
+
 export function useCreatePursuit() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: queries.createPursuit,
         onSuccess: () => {
-            qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+            qc.invalidateQueries({ queryKey: queryKeys.pursuits, exact: true });
             qc.invalidateQueries({ queryKey: queryKeys.reportData });
         },
     });
@@ -170,6 +260,14 @@ export function useUpdatePursuit() {
                     old ? { ...old, ...updates } : old
                 );
             }
+            // Callers that still save the map blobs through updatePursuit keep
+            // the dedicated caches (usePursuitDriveTime / usePursuitIncomeHeatmap) in sync.
+            if (updates.drive_time_data !== undefined) {
+                qc.setQueryData(queryKeys.pursuitDriveTime(id), updates.drive_time_data);
+            }
+            if (updates.income_heatmap_data !== undefined) {
+                qc.setQueryData(queryKeys.pursuitIncomeHeatmap(id), updates.income_heatmap_data);
+            }
 
             return { prev, prevByQueryId, queryId, id };
         },
@@ -184,7 +282,10 @@ export function useUpdatePursuit() {
             if (queryId && queryId !== id) {
                 qc.invalidateQueries({ queryKey: queryKeys.pursuit(queryId), refetchType: 'none' });
             }
-            qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+            // exact: ['pursuits'] is a prefix of every detail key, so a prefix
+            // invalidation would refetch the (quietly-invalidated) detail on
+            // every autosave.
+            qc.invalidateQueries({ queryKey: queryKeys.pursuits, exact: true });
             // Name/region/stage feed the report + portfolio budget views
             qc.invalidateQueries({ queryKey: queryKeys.reportData });
             qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
@@ -197,7 +298,7 @@ export function useDeletePursuit() {
     return useMutation({
         mutationFn: (id: string) => queries.deletePursuit(id),
         onSuccess: () => {
-            qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+            qc.invalidateQueries({ queryKey: queryKeys.pursuits, exact: true });
             qc.invalidateQueries({ queryKey: queryKeys.reportData });
             qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
         },
@@ -240,7 +341,7 @@ export function useCreateOnePager() {
         onSuccess: (data) => {
             qc.invalidateQueries({ queryKey: queryKeys.onePagers(data.pursuit_id) });
             // one_pager_count / primary YOC on the dashboard
-            qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+            qc.invalidateQueries({ queryKey: queryKeys.pursuits, exact: true });
         },
     });
 }
@@ -293,7 +394,7 @@ export function useUpdateOnePager() {
             if (pursuitId) {
                 qc.invalidateQueries({ queryKey: queryKeys.onePagers(pursuitId) });
                 qc.invalidateQueries({ queryKey: queryKeys.pursuit(pursuitId) });
-                qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+                qc.invalidateQueries({ queryKey: queryKeys.pursuits, exact: true });
             }
             qc.invalidateQueries({ queryKey: queryKeys.reportData });
         },
@@ -307,7 +408,7 @@ export function useDeleteOnePager() {
             queries.deleteOnePager(id),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.onePagers(pursuitId) });
-            qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+            qc.invalidateQueries({ queryKey: queryKeys.pursuits, exact: true });
             qc.invalidateQueries({ queryKey: queryKeys.reportData });
         },
     });
@@ -503,7 +604,7 @@ export function useDuplicateOnePager() {
             queries.duplicateOnePager(sourceId, newName),
         onSuccess: (data) => {
             qc.invalidateQueries({ queryKey: queryKeys.onePagers(data.pursuit_id) });
-            qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+            qc.invalidateQueries({ queryKey: queryKeys.pursuits, exact: true });
         },
     });
 }
@@ -515,7 +616,7 @@ export function useArchiveOnePager() {
             queries.archiveOnePager(id),
         onSuccess: (_, { pursuitId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.onePagers(pursuitId) });
-            qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+            qc.invalidateQueries({ queryKey: queryKeys.pursuits, exact: true });
             qc.invalidateQueries({ queryKey: queryKeys.reportData });
         },
     });
@@ -526,7 +627,7 @@ export function useArchivePursuit() {
     return useMutation({
         mutationFn: (id: string) => queries.archivePursuit(id),
         onSuccess: () => {
-            qc.invalidateQueries({ queryKey: queryKeys.pursuits });
+            qc.invalidateQueries({ queryKey: queryKeys.pursuits, exact: true });
             qc.invalidateQueries({ queryKey: queryKeys.reportData });
             qc.invalidateQueries({ queryKey: ['all-predev-budgets'] });
         },
@@ -918,6 +1019,12 @@ export function useAllPortfolioJobCostAggregates() {
             const { fetchAllPortfolioJobCostAggregates } = await import('@/app/actions/accounting');
             return fetchAllPortfolioJobCostAggregates();
         },
+        // Yardi actuals sync at most daily and this is a multi-second portfolio
+        // pull; nothing in the app mutates it. Server actions also run one at a
+        // time per client, so each retry queues behind the others — retry once.
+        staleTime: 15 * 60 * 1000,
+        gcTime: 30 * 60 * 1000,
+        retry: 1,
     });
 }
 
@@ -1075,6 +1182,8 @@ export function useKeyDateTypes() {
     return useQuery({
         queryKey: ['key-date-types'] as const,
         queryFn: queries.fetchKeyDateTypes,
+        staleTime: REFERENCE_STALE_TIME,
+        gcTime: REFERENCE_GC_TIME,
     });
 }
 
@@ -1124,6 +1233,34 @@ export function useUpsertKeyDate() {
             queries.upsertKeyDate(keyDate),
         onSuccess: (data) => {
             qc.invalidateQueries({ queryKey: ['key-dates', data.pursuit_id] });
+            qc.invalidateQueries({ queryKey: ['key-date-report-data'] });
+        },
+    });
+}
+
+/**
+ * Partial update of one key date (e.g. a status toggle). Optimistically
+ * patches the per-pursuit list so toggles feel instant.
+ */
+export function useUpdateKeyDate() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, patch }: { id: string; pursuitId: string; patch: queries.KeyDatePatch }) =>
+            queries.updateKeyDate(id, patch),
+        onMutate: async ({ id, pursuitId, patch }) => {
+            const key = ['key-dates', pursuitId] as const;
+            await qc.cancelQueries({ queryKey: key });
+            const prev = qc.getQueryData<import('@/types').KeyDate[]>(key);
+            qc.setQueryData<import('@/types').KeyDate[]>(key, (old) =>
+                old?.map((d) => (d.id === id ? { ...d, ...patch } : d))
+            );
+            return { prev, key };
+        },
+        onError: (_err, _vars, ctx) => {
+            if (ctx?.prev) qc.setQueryData(ctx.key, ctx.prev);
+        },
+        onSettled: (_data, _err, { pursuitId }) => {
+            qc.invalidateQueries({ queryKey: ['key-dates', pursuitId] });
             qc.invalidateQueries({ queryKey: ['key-date-report-data'] });
         },
     });

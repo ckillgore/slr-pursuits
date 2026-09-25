@@ -97,11 +97,9 @@ export function AuthProvider({
     const scheduleProfileRetry = useCallback((userId: string) => {
         if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
         retryTimerRef.current = setTimeout(async () => {
-            console.log('[Auth] Retrying profile fetch...');
             const p = await fetchProfile(userId);
             if (p) {
                 setProfile(p);
-                console.log('[Auth] Profile recovered:', p.email);
             }
         }, 3000);
     }, [fetchProfile]);
@@ -129,7 +127,6 @@ export function AuthProvider({
                     return;
                 }
 
-                console.log('[Auth] Session initialized for:', currentUser?.email ?? 'no user');
                 setUser(currentUser);
                 if (currentUser) {
                     hadSessionRef.current = true;
@@ -165,14 +162,12 @@ export function AuthProvider({
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event: AuthChangeEvent, session: Session | null) => {
                 if (!mounted) return;
-                console.log('[Auth] State change:', event);
                 const currentUser = session?.user ?? null;
 
                 // Broadcast to other tabs so they re-sync immediately
                 try { authChannel?.postMessage({ event, userId: currentUser?.id ?? null }); } catch { /* ignore */ }
 
                 if (event === 'SIGNED_OUT' || !currentUser) {
-                    console.log('[Auth] Signed out or no user');
                     setUser(null);
                     setProfile(null);
                     // If we previously had a session and this wasn't triggered by
@@ -190,20 +185,17 @@ export function AuthProvider({
                     setUser(currentUser);
                     // Use ref to read current profile — avoids stale closure
                     if (!profileRef.current) {
-                        console.log('[Auth] Token refreshed, profile missing — recovering...');
                         const p = await fetchProfile(currentUser.id);
                         if (mounted && p) {
                             setProfile(p);
-                            console.log('[Auth] Profile recovered on token refresh:', p.email);
                         }
                     } else {
-                        console.log('[Auth] Token refreshed, profile intact');
+                        // Token refreshed, profile intact — nothing to do
                     }
                     return;
                 }
 
                 // SIGNED_IN or INITIAL_SESSION
-                console.log('[Auth] Sign-in event, fetching profile...');
                 hadSessionRef.current = true;
                 setIsSessionLost(false);
                 setUser(currentUser);
@@ -232,7 +224,6 @@ export function AuthProvider({
             authChannel.onmessage = async (e: MessageEvent) => {
                 if (!mounted) return;
                 const { event: remoteEvent, userId } = e.data as { event: string; userId: string | null };
-                console.log('[Auth] Cross-tab sync received:', remoteEvent);
 
                 if (remoteEvent === 'SIGNED_OUT' || !userId) {
                     // Another tab signed out — clear this tab's state too
@@ -297,13 +288,11 @@ export function AuthProvider({
                     }
                 } else if (healthUser && !profileRef.current) {
                     // Session is valid but profile was lost — recover it
-                    console.log('[Auth] Session valid, recovering lost profile...');
                     setUser(healthUser);
                     setIsSessionLost(false);
                     const p = await fetchProfile(healthUser.id);
                     if (mounted && p) {
                         setProfile(p);
-                        console.log('[Auth] Profile recovered on visibility change:', p.email);
                     }
                 }
             } catch {

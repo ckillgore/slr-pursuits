@@ -2,6 +2,15 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin-client';
 import { createYardiClient } from '@/lib/supabase/yardi-client';
 import { refreshHellodataProperty } from '@/lib/hellodata/refresh-property';
+import { mapWithConcurrency } from '@/app/api/_lib/upstream';
+
+// Refreshing every active comp takes minutes. Stop scheduling new refreshes
+// with a safety margin so the function returns a summary instead of being
+// killed mid-write; skipped properties are picked up next week (or by the
+// admin batch refresh).
+export const maxDuration = 300;
+const TIME_BUDGET_MS = (maxDuration - 30) * 1000;
+const REFRESH_CONCURRENCY = 3;
 
 /**
  * GET /api/cron/refresh-rent-comps
@@ -45,8 +54,6 @@ export async function GET(req: Request) {
                 property:hellodata_properties!inner(id, hellodata_id, fetched_at),
                 pursuit:pursuits!inner(id, name, stage_id)
             `);
-
-        console.log(`[cron] Pursuit query returned ${links?.length ?? 0} rows, error: ${linkErr?.message ?? 'none'}`);
 
         if (linkErr) {
             console.error('[cron] Failed to fetch pursuit_rent_comps:', linkErr.message);
@@ -125,40 +132,49 @@ export async function GET(req: Request) {
                     }
                 }
             }
-            console.log(`[cron] AssetIntel added ${assetintelCount} additional properties`);
         } catch (aiError: any) {
             // AssetIntel connection failure should not block pursuit refreshes
             console.warn('[cron] AssetIntel connection failed (non-fatal):', aiError.message);
         }
 
-        const properties = [...propertyMap.values()];
-        console.log(`[cron] Total: ${properties.length} unique properties (${pursuitCount} pursuit, ${assetintelCount} assetintel-only)`);
+        // Oldest cache first, so a run that hits the time budget still
+        // refreshes the stalest data.
+        const properties = [...propertyMap.values()].sort((a, b) =>
+            String(a.fetched_at ?? '').localeCompare(String(b.fetched_at ?? ''))
+        );
 
-        // ── Refresh each property ───────────────────────────────────
-        const results: { hellodata_id: string; status: string; ms: number; source: string }[] = [];
-
-        for (const prop of properties) {
-            const propStart = Date.now();
-            const result = await refreshHellodataProperty(supabase, prop.hellodata_id, apiKey);
-            results.push({
-                hellodata_id: prop.hellodata_id,
-                status: result.success ? 'success' : `error:${result.error}`,
-                ms: Date.now() - propStart,
-                source: prop.source,
-            });
-
-            // Rate limit: wait 500ms between requests to avoid overwhelming Hellodata API
-            await new Promise(resolve => setTimeout(resolve, 500));
+        // ── Refresh properties (small bounded concurrency) ──────────
+        const settled = await mapWithConcurrency(
+            properties,
+            REFRESH_CONCURRENCY,
+            async (prop) => {
+                const propStart = Date.now();
+                const result = await refreshHellodataProperty(supabase, prop.hellodata_id, apiKey);
+                // Rate limit: brief pause per worker to avoid overwhelming Hellodata API
+                await new Promise(resolve => setTimeout(resolve, 500));
+                return {
+                    hellodata_id: prop.hellodata_id,
+                    status: result.success ? 'success' : `error:${result.error}`,
+                    ms: Date.now() - propStart,
+                    source: prop.source,
+                };
+            },
+            () => Date.now() - startTime < TIME_BUDGET_MS,
+        );
+        const results = settled.filter((r): r is NonNullable<typeof r> => r !== undefined);
+        const skipped = properties.length - results.length;
+        if (skipped > 0) {
+            console.warn(`[cron] Time budget reached; skipped ${skipped} of ${properties.length} properties`);
         }
 
         const totalMs = Date.now() - startTime;
         const successCount = results.filter(r => r.status === 'success').length;
-        console.log(`[cron] Refresh complete in ${totalMs}ms: ${successCount}/${properties.length} succeeded`);
 
         return NextResponse.json({
-            refreshed: properties.length,
+            refreshed: results.length,
+            skipped,
             succeeded: successCount,
-            failed: properties.length - successCount,
+            failed: results.length - successCount,
             sources: { pursuit: pursuitCount, assetintel: assetintelCount },
             totalMs,
             results,

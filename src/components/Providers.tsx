@@ -5,6 +5,7 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { AuthProvider } from '@/components/AuthProvider';
 import { SessionGuard } from '@/components/SessionGuard';
+import { Toaster } from '@/components/shared/Toaster';
 import type { User } from '@supabase/supabase-js';
 import type { UserProfile } from '@/components/AuthProvider';
 import { useThemeStore } from '@/store/useThemeStore';
@@ -72,6 +73,7 @@ export function Providers({
                 <QueryClientProvider client={queryClient}>
                     <ThemeInitializer />
                     {children}
+                    <Toaster />
                 </QueryClientProvider>
             </SessionGuard>
         </AuthProvider>

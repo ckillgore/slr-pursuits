@@ -21,9 +21,10 @@ import {
     Loader2,
     ChevronDown,
     ChevronUp,
-    FileText,
+    Pencil,
     X,
 } from 'lucide-react';
+import { toast } from '@/lib/toast';
 
 interface KeyDatesTabProps {
     pursuitId: string;
@@ -88,7 +89,8 @@ function AIReviewModal({
 }: {
     dates: ExtractedDate[];
     types: KeyDateType[];
-    onAccept: (dates: ExtractedDate[]) => void;
+    /** Receives every row (with its accepted flag and any date edits) so a failed import can resume. */
+    onAccept: (items: ExtractedDate[]) => void;
     onClose: () => void;
     isImporting: boolean;
 }) {
@@ -105,12 +107,12 @@ function AIReviewModal({
     const acceptedCount = items.filter(d => d.accepted && d.date_value).length;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
-            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-3xl shadow-xl animate-fade-in max-h-[80vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm px-4">
+            <div role="dialog" aria-modal="true" aria-labelledby="ai-dates-title" className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 sm:p-6 w-full max-w-3xl shadow-xl animate-fade-in max-h-[80vh] flex flex-col">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
-                        <h2 className="text-lg font-semibold text-[var(--text-primary)]">AI Extracted Dates</h2>
+                        <h2 id="ai-dates-title" className="text-lg font-semibold text-[var(--text-primary)]">AI Extracted Dates</h2>
                         <span className="text-xs bg-[#8B5CF6]/10 text-[#8B5CF6] px-2 py-0.5 rounded-full font-medium">
                             {items.length} found
                         </span>
@@ -126,10 +128,11 @@ function AIReviewModal({
                             key={idx}
                             className={`border rounded-lg p-3 transition-all ${d.accepted ? 'border-[var(--accent)]/30 bg-[var(--accent-subtle)]/30' : 'border-[var(--border)] opacity-60'}`}
                         >
-                            <div className="flex items-center gap-3">
+                            <div className="flex flex-wrap sm:flex-nowrap items-center gap-3">
                                 <input
                                     type="checkbox"
                                     checked={d.accepted}
+                                    aria-label={`Import ${d.label}`}
                                     onChange={() => toggleItem(idx)}
                                     className="w-4 h-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
                                 />
@@ -142,7 +145,7 @@ function AIReviewModal({
                                             </span>
                                         )}
                                         <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${d.confidence >= 0.8 ? 'bg-[var(--success-bg)] text-[var(--success)]' :
-                                                d.confidence >= 0.5 ? 'bg-[#FFF8E1] text-[#CA8A04]' :
+                                                d.confidence >= 0.5 ? 'bg-[var(--warning-bg)] text-[var(--warning)]' :
                                                     'bg-[var(--danger-bg)] text-[var(--danger)]'
                                             }`}>
                                             {Math.round(d.confidence * 100)}%
@@ -159,7 +162,8 @@ function AIReviewModal({
                                     type="date"
                                     value={d.date_value ?? ''}
                                     onChange={(e) => updateDate(idx, e.target.value)}
-                                    className="px-2 py-1 rounded border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+                                    aria-label={`${d.label} date`}
+                                    className="px-2 py-1 rounded border border-[var(--border)] bg-[var(--bg-card)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                                 />
                             </div>
                         </div>
@@ -173,7 +177,7 @@ function AIReviewModal({
                             Cancel
                         </button>
                         <button
-                            onClick={() => onAccept(items.filter(d => d.accepted && d.date_value))}
+                            onClick={() => onAccept(items)}
                             disabled={acceptedCount === 0 || isImporting}
                             className="px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
                         >
@@ -224,17 +228,18 @@ function AddDateDialog({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
-            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in">
-                <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm px-4">
+            <div role="dialog" aria-modal="true" aria-labelledby="key-date-dialog-title" className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in">
+                <h2 id="key-date-dialog-title" className="text-lg font-semibold text-[var(--text-primary)] mb-4">
                     {editDate ? 'Edit Date' : 'Add Key Date'}
                 </h2>
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
+                        <label htmlFor="kd-type" className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
                             Date Type <span className="text-[var(--danger)]">*</span>
                         </label>
                         <select
+                            id="kd-type"
                             value={typeId}
                             onChange={(e) => setTypeId(e.target.value)}
                             className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
@@ -255,10 +260,11 @@ function AddDateDialog({
 
                     {(typeId === '' || typeId === 'custom') && (
                         <div>
-                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
+                            <label htmlFor="kd-label" className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
                                 Custom Label <span className="text-[var(--danger)]">*</span>
                             </label>
                             <input
+                                id="kd-label"
                                 type="text"
                                 value={customLabel}
                                 onChange={(e) => setCustomLabel(e.target.value)}
@@ -269,10 +275,11 @@ function AddDateDialog({
                     )}
 
                     <div>
-                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
+                        <label htmlFor="kd-date" className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
                             Date <span className="text-[var(--danger)]">*</span>
                         </label>
                         <input
+                            id="kd-date"
                             type="date"
                             value={dateValue}
                             onChange={(e) => setDateValue(e.target.value)}
@@ -281,10 +288,11 @@ function AddDateDialog({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
+                        <label htmlFor="kd-status" className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
                             Status
                         </label>
                         <select
+                            id="kd-status"
                             value={status}
                             onChange={(e) => setStatus(e.target.value as KeyDateStatus)}
                             className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
@@ -296,10 +304,11 @@ function AddDateDialog({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
+                        <label htmlFor="kd-notes" className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
                             Notes
                         </label>
                         <textarea
+                            id="kd-notes"
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
                             placeholder="Optional notes..."
@@ -360,7 +369,6 @@ function TimelineView({ dates, types }: { dates: KeyDate[]; types: KeyDateType[]
                 {/* Date dots */}
                 {sortedDates.map((kd, i) => {
                     const pct = ((parseLocalDate(kd.date_value).getTime() - earliest) / range) * 100;
-                    const statusCfg = STATUS_CONFIG[kd.status];
                     const color = getDateColor(kd, types);
                     return (
                         <div
@@ -369,11 +377,13 @@ function TimelineView({ dates, types }: { dates: KeyDate[]; types: KeyDateType[]
                             style={{ left: `calc(${pct}% + 16px)` }}
                         >
                             <div
-                                className="w-3 h-3 rounded-full border-2 border-white shadow-sm cursor-pointer"
+                                tabIndex={0}
+                                aria-label={`${getDateLabel(kd)}, ${formatDate(kd.date_value)}, ${STATUS_CONFIG[kd.status].label}`}
+                                className="w-3 h-3 rounded-full border-2 border-[var(--bg-card)] shadow-sm cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                                 style={{ backgroundColor: color }}
                             />
-                            <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 opacity-0 group-hover/dot:opacity-100 transition-opacity pointer-events-none z-10">
-                                <div className="bg-[var(--text-primary)] text-white text-[9px] px-2 py-1 rounded whitespace-nowrap shadow-lg">
+                            <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 opacity-0 group-hover/dot:opacity-100 group-focus-within/dot:opacity-100 transition-opacity pointer-events-none z-10">
+                                <div className="bg-[var(--text-primary)] text-[var(--bg-card)] text-[9px] px-2 py-1 rounded whitespace-nowrap shadow-lg">
                                     {getDateLabel(kd)} — {formatDate(kd.date_value)}
                                 </div>
                             </div>
@@ -403,6 +413,8 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
     const [extractError, setExtractError] = useState<string | null>(null);
     const [extractedDates, setExtractedDates] = useState<ExtractedDate[] | null>(null);
     const [isImporting, setIsImporting] = useState(false);
+    // Remounts the review modal after a partial import so it shows only the remaining rows
+    const [reviewKey, setReviewKey] = useState(0);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Collapse toggles
@@ -468,9 +480,10 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
     }, []);
 
     // Handle importing accepted AI dates
-    const handleAcceptDates = useCallback(async (accepted: ExtractedDate[]) => {
+    const handleAcceptDates = useCallback(async (items: ExtractedDate[]) => {
+        const accepted = items.filter(d => d.accepted && d.date_value);
         setIsImporting(true);
-        let imported = 0;
+        const importedRows = new Set<ExtractedDate>();
         try {
             for (const d of accepted) {
                 // Try to match to a key_date_type
@@ -489,12 +502,18 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                     ai_confidence: d.confidence,
                     sort_order: 0,
                 });
-                imported++;
+                importedRows.add(d);
             }
             setExtractedDates(null);
+            toast.success(`Imported ${accepted.length} key date${accepted.length !== 1 ? 's' : ''}`);
         } catch (err) {
             console.error('Failed to import dates:', err);
-            alert(`Imported ${imported} of ${accepted.length} dates before an error occurred. Deselect already-imported dates before retrying.`);
+            // Keep only the rows that weren't imported so retrying can't create duplicates
+            if (importedRows.size > 0) {
+                setExtractedDates(items.filter(d => !importedRows.has(d)));
+                setReviewKey(k => k + 1);
+            }
+            toast.error(`Imported ${importedRows.size} of ${accepted.length} dates. The rest are still listed — import again to retry`, err);
         } finally {
             setIsImporting(false);
         }
@@ -520,7 +539,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
             });
         } catch (err) {
             console.error('Failed to save key date:', err);
-            alert('Failed to save key date. Please try again.');
+            toast.error('Failed to save key date', err);
             return;
         }
         setShowAddDialog(false);
@@ -539,7 +558,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
         // NOT NULL columns (date_value) on the INSERT half before ON CONFLICT applies.
         upsertKeyDate.mutate(
             { ...kd, status: nextStatus[kd.status] },
-            { onError: (err) => { console.error('Failed to update key date status:', err); alert('Failed to update status.'); } }
+            { onError: (err) => { console.error('Failed to update key date status:', err); toast.error('Failed to update status', err); } }
         );
     }, [upsertKeyDate]);
 
@@ -554,13 +573,14 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
     return (
         <div>
             {/* Header actions */}
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <h2 className="text-lg font-semibold text-[var(--text-primary)]">Key Dates</h2>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     <input
                         ref={fileInputRef}
                         type="file"
                         accept=".pdf"
+                        aria-label="Upload a contract PDF for AI date extraction"
                         onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) handleFileUpload(file);
@@ -599,7 +619,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                 <div className="mb-4 p-3 rounded-lg bg-[var(--danger-bg)] border border-[var(--danger)] text-sm text-[var(--danger)] flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                     <span>{extractError}</span>
-                    <button onClick={() => setExtractError(null)} className="ml-auto text-[var(--danger)]/60 hover:text-[var(--danger)]">
+                    <button onClick={() => setExtractError(null)} aria-label="Dismiss" className="ml-auto text-[var(--danger)]/60 hover:text-[var(--danger)]">
                         <X className="w-3.5 h-3.5" />
                     </button>
                 </div>
@@ -612,7 +632,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                     <p className="text-sm text-[var(--text-muted)] mb-4">
                         No key dates added yet. Add dates manually or upload a contract for AI extraction.
                     </p>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap justify-center items-center gap-3">
                         <button
                             onClick={() => fileInputRef.current?.click()}
                             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-[#8B5CF6] to-[#6366F1] text-white text-sm font-semibold hover:from-[#7C3AED] hover:to-[#4F46E5] transition-all shadow-sm"
@@ -634,6 +654,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                 <div key={group.category} className="card mb-4">
                     <button
                         onClick={() => toggleCategory(group.category)}
+                        aria-expanded={!collapsedCategories.has(group.category)}
                         className="flex items-center justify-between w-full mb-2"
                     >
                         <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
@@ -657,12 +678,13 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
 
                                 return (
                                     <div key={kd.id} className="group/row">
-                                        <div className="flex items-center gap-3 py-2 px-2 -mx-2 rounded-lg hover:bg-[var(--bg-primary)] transition-colors">
+                                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-1 py-2 px-2 -mx-2 rounded-lg hover:bg-[var(--bg-primary)] transition-colors">
                                             {/* Status toggle */}
                                             <button
                                                 onClick={() => handleStatusToggle(kd)}
                                                 className="flex-shrink-0 transition-colors"
-                                                title={`Status: ${statusCfg.label} (click to toggle)`}
+                                                title={`Status: ${statusCfg.label} (click to mark ${kd.status === 'completed' ? 'upcoming' : 'completed'})`}
+                                                aria-label={`${getDateLabel(kd)}: ${statusCfg.label}. Mark ${kd.status === 'completed' ? 'upcoming' : 'completed'}`}
                                             >
                                                 <StatusIcon
                                                     className="w-4 h-4"
@@ -679,7 +701,8 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                                             {/* Label */}
                                             <button
                                                 onClick={() => setExpandedId(isExpanded ? null : kd.id)}
-                                                className="flex-1 text-left text-sm text-[var(--text-primary)] font-medium hover:text-[var(--accent)] transition-colors flex items-center gap-1.5"
+                                                aria-expanded={isExpanded}
+                                                className="flex-1 min-w-0 text-left text-sm text-[var(--text-primary)] font-medium hover:text-[var(--accent)] transition-colors flex items-center gap-1.5"
                                             >
                                                 {getDateLabel(kd)}
                                                 {kd.ai_extracted && (
@@ -695,7 +718,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                                             {/* Days until badge */}
                                             {kd.status === 'upcoming' && (
                                                 <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${days <= 7 ? 'bg-[var(--danger-bg)] text-[var(--danger)]' :
-                                                        days <= 30 ? 'bg-[#FFF8E1] text-[#CA8A04]' :
+                                                        days <= 30 ? 'bg-[var(--warning-bg)] text-[var(--warning)]' :
                                                             'bg-[var(--accent-subtle)] text-[var(--accent)]'
                                                     }`}>
                                                     {days === 0 ? 'Today' : days < 0 ? `${-days}d overdue` : `${days}d`}
@@ -711,18 +734,20 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                                             </span>
 
                                             {/* Actions */}
-                                            <div className="opacity-0 group-hover/row:opacity-100 flex items-center gap-1 transition-opacity">
+                                            <div className="opacity-0 group-hover/row:opacity-100 focus-within:opacity-100 flex items-center gap-1 transition-opacity">
                                                 <button
                                                     onClick={() => { setEditDate(kd); setShowAddDialog(true); }}
                                                     className="p-1 rounded text-[var(--text-faint)] hover:text-[var(--accent)] hover:bg-[var(--accent-subtle)] transition-colors"
                                                     title="Edit"
+                                                    aria-label={`Edit ${getDateLabel(kd)}`}
                                                 >
-                                                    <FileText className="w-3.5 h-3.5" />
+                                                    <Pencil className="w-3.5 h-3.5" />
                                                 </button>
                                                 <button
                                                     onClick={() => setDeleteConfirmId(kd.id)}
                                                     className="p-1 rounded text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-colors"
                                                     title="Delete"
+                                                    aria-label={`Delete ${getDateLabel(kd)}`}
                                                 >
                                                     <Trash2 className="w-3.5 h-3.5" />
                                                 </button>
@@ -775,6 +800,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
             {/* AI Review Modal */}
             {extractedDates && (
                 <AIReviewModal
+                    key={reviewKey}
                     dates={extractedDates}
                     types={dateTypes}
                     onAccept={handleAcceptDates}
@@ -785,9 +811,9 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
 
             {/* Delete Confirmation */}
             {deleteConfirmId && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
-                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in">
-                        <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Delete Key Date</h2>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm px-4">
+                    <div role="alertdialog" aria-modal="true" aria-labelledby="kd-delete-title" className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in">
+                        <h2 id="kd-delete-title" className="text-lg font-semibold text-[var(--text-primary)] mb-2">Delete Key Date</h2>
                         <p className="text-sm text-[var(--text-muted)] mb-1">
                             Are you sure you want to delete <span className="font-medium text-[var(--text-primary)]">
                                 {(() => { const kd = keyDates.find(d => d.id === deleteConfirmId); return kd ? getDateLabel(kd) : 'this date'; })()}
@@ -808,11 +834,11 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                                         setDeleteConfirmId(null);
                                     } catch (err) {
                                         console.error('Failed to delete key date:', err);
-                                        alert('Failed to delete key date.');
+                                        toast.error('Failed to delete key date', err);
                                     }
                                 }}
                                 disabled={deleteKeyDate.isPending}
-                                className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
+                                className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:opacity-90 disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
                             >
                                 {deleteKeyDate.isPending ? 'Deleting...' : 'Delete'}
                             </button>

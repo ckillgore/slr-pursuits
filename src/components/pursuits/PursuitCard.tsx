@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePrefetchPursuit } from '@/hooks/useSupabaseQueries';
 import { formatPercent } from '@/lib/constants';
 import type { Pursuit, PursuitStage } from '@/types';
 import { MapPin, FileText, TrendingUp, Calendar, Trash2 } from 'lucide-react';
@@ -13,16 +14,23 @@ interface PursuitCardProps {
 
 export function PursuitCard({ pursuit, stages, onDelete }: PursuitCardProps) {
     const stage = pursuit.stage ?? stages.find((s) => s.id === pursuit.stage_id);
+    const prefetch = usePrefetchPursuit();
 
     return (
-        <Link href={`/pursuits/${pursuit.short_id}`}>
+        <Link
+            href={`/pursuits/${pursuit.short_id}`}
+            // Warm the detail query so the pursuit page renders from cache on click
+            onMouseEnter={() => prefetch(pursuit.short_id)}
+            onFocus={() => prefetch(pursuit.short_id)}
+        >
             <div className="card group cursor-pointer animate-fade-in relative">
                 {/* Delete button */}
                 {onDelete && (
                     <button
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(pursuit.id); }}
-                        className="absolute bottom-3 right-3 p-1.5 rounded-md opacity-0 group-hover:opacity-100 text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-all z-10"
+                        className="absolute bottom-3 right-3 p-1.5 rounded-md opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-all z-10"
                         title="Delete pursuit"
+                        aria-label={`Delete ${pursuit.name}`}
                     >
                         <Trash2 className="w-3.5 h-3.5" />
                     </button>

@@ -23,22 +23,31 @@ import {
     useSeedDefaultScheduleItems,
     usePursuit,
 } from '@/hooks/useSupabaseQueries';
-import { fetchMonthlyJobCostAggregates } from '@/app/actions/accounting';
-import { fetchPursuitAccountingEntity } from '@/lib/supabase/queries';
-import { fetchJobsForProperty } from '@/app/actions/accounting';
-import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { useRouter, usePathname } from 'next/navigation';
 import { RichTextEditor } from '@/components/shared/RichTextEditor';
-import type { PredevBudget, PredevBudgetLineItem, MonthlyCell, PursuitFundingPartner, PredevScheduleItem } from '@/types';
+import type { PredevBudget, PredevBudgetLineItem, MonthlyCell, PredevScheduleItem } from '@/types';
 import type { YardiMonthlyCostAggregate } from '@/app/actions/accounting';
 import { CostCodeMappingDialog } from '@/components/pursuits/CostCodeMappingDialog';
 import { UnallocatedMappingDialog } from '@/components/pursuits/UnallocatedMappingDialog';
+import {
+    usePredevYardiAggregates,
+    predevMonthKeys,
+    buildYardiIndex,
+    yardiActualFor,
+    computeUnallocated,
+    summarizePredevTotals,
+    yardiGrandTotal,
+    findMappingOverlaps,
+} from '@/components/pursuits/predevYardi';
+import { toast } from '@/lib/toast';
 import {
     Plus, Loader2, DollarSign, Trash2, Settings, ChevronDown, ChevronUp,
     CalendarDays, StickyNote, TrendingUp, Camera, Pencil, Pin, PinOff,
     Database, AlertCircle, History, Users, Shield, BarChart3, FileDown, RefreshCw, Clock,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/constants';
-import { forecastCellValue, isMonthClosed } from '@/lib/calculations/predevForecast';
+import { forecastCellValue, isMonthClosed, OPEN_MONTH_NOTE } from '@/lib/calculations/predevForecast';
 
 interface PredevBudgetTabProps {
     pursuitId: string;
@@ -49,15 +58,26 @@ type ViewMode = 'budget' | 'forecast' | 'variance';
 
 // ── Helpers ─────────────────────────────────────────────────
 
-function getMonthKeys(startDate: string, durationMonths: number): string[] {
-    const keys: string[] = [];
-    const [year, month] = startDate.split('-').map(Number);
-    for (let i = 0; i < durationMonths; i++) {
-        const m = ((month - 1 + i) % 12) + 1;
-        const y = year + Math.floor((month - 1 + i) / 12);
-        keys.push(`${y}-${String(m).padStart(2, '0')}`);
-    }
-    return keys;
+const EMPTY_AGGS: YardiMonthlyCostAggregate[] = [];
+
+/** mutate() options that surface a failure as a toast instead of failing silently. */
+function toastOnError(message: string) {
+    return {
+        onError: (err: unknown) => {
+            console.error(`${message}:`, err);
+            toast.error(message, err);
+        },
+    };
+}
+
+type CellStyle = 'normal' | 'actual-yardi' | 'actual-yardi-pending' | 'actual-manual' | 'budget-snapshot' | 'variance-positive' | 'variance-negative';
+
+interface CellInfo {
+    value: number;
+    style: CellStyle;
+    editable: boolean;
+    source: 'projected' | 'yardi' | 'manual-override' | 'snapshot' | 'variance';
+    tooltip?: string;
 }
 
 function formatMonthLabel(key: string): string {
@@ -97,6 +117,15 @@ function parseCurrencyInput(raw: string): number | null {
     return Number.isFinite(n) ? n : null;
 }
 
+/** Placeholder for a Yardi-dependent number that hasn't loaded yet. */
+function YardiPending() {
+    return (
+        <span className="inline-flex items-center gap-1 text-sm font-normal text-[var(--text-faint)]" title="Loading Yardi actuals">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…
+        </span>
+    );
+}
+
 // ── EditableCell ────────────────────────────────────────────
 
 function EditableCell({
@@ -108,7 +137,7 @@ function EditableCell({
     onChange,
 }: {
     value: number;
-    cellStyle: 'normal' | 'actual-yardi' | 'actual-yardi-pending' | 'actual-manual' | 'budget-snapshot' | 'variance-positive' | 'variance-negative';
+    cellStyle: CellStyle;
     disabled?: boolean;
     tooltip?: string;
     forceEditing?: boolean;
@@ -172,7 +201,7 @@ function EditableCell({
     const styleClasses = {
         'normal': 'text-[var(--text-primary)]',
         'actual-yardi': 'text-[var(--success)] font-semibold',
-        'actual-yardi-pending': 'text-yellow-600 dark:text-yellow-500 font-semibold',
+        'actual-yardi-pending': 'text-[var(--warning)] font-semibold',
         'actual-manual': 'text-[var(--accent)] font-semibold',
         'budget-snapshot': 'text-[var(--text-secondary)]',
         'variance-positive': 'text-[var(--success)] font-semibold',
@@ -183,7 +212,10 @@ function EditableCell({
         <div
             title={tooltip}
             onClick={handleStartEdit}
-            className={`px-2 py-1.5 text-right text-xs font-mono tabular-nums transition-colors rounded ${disabled ? 'cursor-default' : 'cursor-text hover:bg-[var(--bg-elevated)]'
+            role={disabled ? undefined : 'button'}
+            tabIndex={disabled ? undefined : 0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); handleStartEdit(); } }}
+            className={`px-2 py-1.5 text-right text-xs font-mono tabular-nums transition-colors rounded outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${disabled ? 'cursor-default' : 'cursor-text hover:bg-[var(--bg-elevated)]'
                 } ${value === 0 ? 'text-[var(--border-strong)]' : styleClasses[cellStyle]}`}
         >
             {value === 0 ? '—' : formatCurrency(value, 0)}
@@ -219,7 +251,7 @@ function FundingSplitCell({
 
     return (
         <div className="flex flex-col items-end gap-0">
-            <span className={`text-[10px] font-mono tabular-nums ${amount === 0 ? 'text-[var(--border-strong)]' : isSlrh ? 'text-blue-500' : 'text-[var(--text-secondary)]'}`}>
+            <span className={`text-[10px] font-mono tabular-nums ${amount === 0 ? 'text-[var(--border-strong)]' : isSlrh ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]'}`}>
                 {amount === 0 ? '—' : formatCurrency(amount, 0)}
             </span>
             {editing ? (
@@ -367,30 +399,33 @@ function PredevScheduleRows({
                             <tr key={item.id} className="group/row hover:bg-[var(--bg-elevated)] transition-colors h-[32px] relative">
                                 <td className={`sticky left-0 z-10 bg-inherit border-r border-[var(--table-row-border)] p-0 ${cellBorderClass}`}>
                                     <div className="flex h-full w-full items-center">
-                                        <div className="flex-1 px-3 py-1 flex items-center text-xs font-medium text-[var(--text-primary)] border-r border-[var(--border)] hover:bg-[var(--background-hover)] transition-colors">
+                                        <div className="flex-1 px-3 py-1 flex items-center text-xs font-medium text-[var(--text-primary)] border-r border-[var(--border)] hover:bg-[var(--bg-elevated)] transition-colors">
                                             <input 
                                                 type="text" 
                                                 className="w-full bg-transparent outline-none placeholder-[var(--text-faint)] focus:bg-[var(--bg-card)] px-1 -mx-1 rounded" 
                                                 defaultValue={item.label || ''} 
+                                                aria-label="Milestone name"
                                                 onBlur={(e) => { if (e.target.value !== item.label) onUpsert(item.id, { label: e.target.value }) }}
                                                 onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
                                                 placeholder="Milestone name" 
                                             />
                                         </div>
-                                        <div className="w-[120px] px-1 border-r border-[var(--border)] relative h-full flex items-center hover:bg-[var(--background-hover)] transition-colors">
+                                        <div className="w-[120px] px-1 border-r border-[var(--border)] relative h-full flex items-center hover:bg-[var(--bg-elevated)] transition-colors">
                                             <input 
                                                 type="date" 
                                                 className="w-full text-xs bg-transparent outline-none focus:bg-[var(--bg-card)] px-1 -mx-1 rounded cursor-pointer" 
                                                 defaultValue={item.start_date || ''} 
+                                                aria-label={`${item.label || 'Milestone'} start date`}
                                                 onBlur={(e) => { const v = e.target.value || null; if (v !== (item.start_date || null)) onUpsert(item.id, { start_date: v }) }}
                                                 onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
                                             />
                                         </div>
-                                        <div className="w-[70px] p-1 flex items-center justify-center relative h-full hover:bg-[var(--background-hover)] transition-colors">
+                                        <div className="w-[70px] p-1 flex items-center justify-center relative h-full hover:bg-[var(--bg-elevated)] transition-colors">
                                             <input 
                                                 type="number" 
                                                 className="w-10 text-xs text-right bg-transparent outline-none appearance-none pr-1 focus:bg-[var(--bg-card)] px-1 -ml-1 rounded" 
                                                 defaultValue={item.duration_weeks || 0} 
+                                                aria-label={`${item.label || 'Milestone'} duration in weeks`}
                                                 onBlur={(e) => { 
                                                     const val = Math.max(0, parseInt(e.target.value, 10) || 0);
                                                     if (val !== item.duration_weeks) onUpsert(item.id, { duration_weeks: val });
@@ -401,7 +436,7 @@ function PredevScheduleRows({
                                             <span className="text-[10px] text-[var(--text-faint)]">wks</span>
                                         </div>
                                     </div>
-                                    <button onClick={() => { if (window.confirm(`Delete schedule item "${item.label || 'Untitled'}"?`)) onDelete(item.id); }} aria-label="Delete schedule item" className="absolute right-0 top-0 bottom-0 px-2 opacity-0 group-hover/row:opacity-100 text-[var(--danger)] bg-[var(--bg-card)] backdrop-blur-sm transition-opacity flex items-center justify-center border-l border-[var(--border)] z-10 hover:bg-red-50 dark:hover:bg-red-950/30">
+                                    <button onClick={() => { if (window.confirm(`Delete schedule item "${item.label || 'Untitled'}"?`)) onDelete(item.id); }} aria-label="Delete schedule item" className="absolute right-0 top-0 bottom-0 px-2 opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 text-[var(--danger)] bg-[var(--bg-card)] backdrop-blur-sm transition-opacity flex items-center justify-center border-l border-[var(--border)] z-10 hover:bg-[var(--danger-bg)]">
                                         <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                 </td>
@@ -419,10 +454,10 @@ function PredevScheduleRows({
                                     {/* The Gantt Bar */}
                                     {barLeft >= 0 && (
                                         <div 
-                                            className="absolute top-1.5 bottom-1.5 bg-orange-200 dark:bg-orange-600/50 rounded shadow-sm border border-orange-400 dark:border-orange-500 z-10 flex items-center overflow-hidden px-1.5 pointer-events-none"
+                                            className="absolute top-1.5 bottom-1.5 bg-[var(--warning-bg)] rounded shadow-sm border border-[var(--warning)] z-10 flex items-center overflow-hidden px-1.5 pointer-events-none"
                                             style={{ left: barLeft, width: barWidth }}
                                         >
-                                           <span className="text-[9px] font-semibold text-orange-900 dark:text-orange-100 truncate w-full">{item.label}</span>
+                                           <span className="text-[9px] font-semibold text-[var(--warning)] truncate w-full">{item.label}</span>
                                         </div>
                                     )}
                                 </td>
@@ -441,6 +476,9 @@ function PredevScheduleRows({
 
 export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
     const router = useRouter();
+    const pathname = usePathname();
+    // Drill into the Pursuit Costs tab on the current pursuit URL (short id), filtered to some codes
+    const openCostsFor = (codes: string) => router.push(`${pathname}?tab=costs&cost_codes=${encodeURIComponent(codes)}`);
     const { data: budget, isLoading } = usePredevBudget(pursuitId);
     const createBudget = useCreatePredevBudget();
     const updateBudget = useUpdatePredevBudget();
@@ -451,7 +489,9 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
     const amendBudgetMut = useAmendBudget();
     const { data: fundingPartners } = useFundingPartners(pursuitId);
     const { data: fundingSplits } = useFundingSplits(budget?.id ?? '');
-    const { data: amendments } = useBudgetAmendments(budget?.id ?? '');
+    const [showAmendments, setShowAmendments] = useState(false);
+    // Revision history is only fetched while its panel is open
+    const { data: amendments, isLoading: amendmentsLoading } = useBudgetAmendments(showAmendments ? budget?.id ?? '' : '');
     const createPartner = useCreateFundingPartner();
     const updatePartner = useUpdateFundingPartner();
     const deletePartner = useDeleteFundingPartner();
@@ -473,7 +513,6 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
     const [showNotes, setShowNotes] = useState(false);
     const [showAddLine, setShowAddLine] = useState(false);
     const [showFunding, setShowFunding] = useState(false);
-    const [showAmendments, setShowAmendments] = useState(false);
     const [showAmendDialog, setShowAmendDialog] = useState(false);
     const [amendReason, setAmendReason] = useState('');
     const [newLineLabel, setNewLineLabel] = useState('');
@@ -487,9 +526,14 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
     // Latest locally-edited monthly values per line item, used until the optimistic cache update
     // lands (rapid edits across cells). `known` holds every monthly_values object this ref produced
     // (plus the base it started from); if the cache holds anything else, something else changed it
-    // (pin, push-to-forecast, refetch) and the cache wins.
+    // (refetch, another tab) and the cache wins.
     const pendingUpdatesRef = useRef<Record<string, { values: Record<string, MonthlyCell>; known: Record<string, MonthlyCell>[] }>>({});
-    useEffect(() => { pendingUpdatesRef.current = {}; }, [pursuitId]);
+    // Per-line-item save queue. Each save writes the line item's whole month map, so two saves in
+    // flight at once could land out of order and drop an edit; saves for one line item run one at a
+    // time, and a queued save sends whatever the latest values are when its turn comes.
+    const saveQueueRef = useRef<Record<string, { chain: Promise<boolean>; queued: boolean }>>({});
+    useEffect(() => { pendingUpdatesRef.current = {}; saveQueueRef.current = {}; }, [pursuitId]);
+    const queryClient = useQueryClient();
     // Creation dialog
     const [newStartDate, setNewStartDate] = useState(() => {
         const now = new Date();
@@ -497,72 +541,25 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
     });
     const [newDuration, setNewDuration] = useState(12);
 
-    // Yardi actuals
-    const [yardiAggregates, setYardiAggregates] = useState<YardiMonthlyCostAggregate[]>([]);
-    const [yardiLoading, setYardiLoading] = useState(false);
-
-    // Fetch Yardi data on mount
-    useEffect(() => {
-        let cancelled = false;
-        // Clear the previous pursuit's actuals so they never render against this budget
-        setYardiAggregates([]);
-        async function loadYardi() {
-            try {
-                setYardiLoading(true);
-                const entity = await fetchPursuitAccountingEntity(pursuitId);
-                if (!entity?.property_code || cancelled) { setYardiLoading(false); return; }
-                const jobIds = await fetchJobsForProperty(entity.property_code);
-                if (!jobIds.length || cancelled) { setYardiLoading(false); return; }
-                const data = await fetchMonthlyJobCostAggregates(jobIds.map(String));
-                if (!cancelled) setYardiAggregates(data);
-            } catch (e) {
-                console.error('Failed to load Yardi data for budget:', e);
-            } finally {
-                if (!cancelled) setYardiLoading(false);
-            }
-        }
-        if (budget) loadYardi();
-        return () => { cancelled = true; };
-    }, [pursuitId, budget?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Yardi actuals (cached per pursuit; shared with the Overview tab's budget card)
+    const {
+        data: yardiAggregates = EMPTY_AGGS,
+        isLoading: yardiLoading,
+        isError: yardiError,
+        refetch: refetchYardi,
+    } = usePredevYardiAggregates(pursuitId, { enabled: !!budget });
 
     // ── Derived data ────────────────────────────────────────
     const today = useMemo(() => new Date(), []);
     const currentMonth = getCurrentMonthKey();
 
-    // Budget-configured month range
-    const budgetMonthKeys = useMemo(
-        () => budget ? getMonthKeys(budget.start_date, budget.duration_months) : [],
-        [budget]
+    // Budget-configured month range, extended to cover any Yardi actuals and schedule items outside it
+    const monthKeys = useMemo(
+        () => budget ? predevMonthKeys(budget, yardiAggregates) : [],
+        [budget, yardiAggregates]
     );
 
-    // Extend month range to include any Yardi actuals that predate the budget start, AND schedule items
-    const monthKeys = useMemo(() => {
-        const allMonths = new Set(budgetMonthKeys);
-        
-        // Add any months from Yardi data
-        for (const agg of yardiAggregates) {
-            allMonths.add(agg.month);
-        }
-        
-        // Add any months from Schedule items
-        const currentScheduleItems = budget?.schedule_items ?? [];
-        for (const item of currentScheduleItems) {
-            if (item.start_date) {
-                const startMk = item.start_date.substring(0, 7); // yyyy-mm
-                allMonths.add(startMk);
-                
-                if (item.duration_weeks > 0) {
-                    const monthsToAdd = Math.ceil(item.duration_weeks / 4.33); 
-                    const extendedKeys = getMonthKeys(startMk + '-01', Math.max(1, monthsToAdd));
-                    extendedKeys.forEach(mk => allMonths.add(mk));
-                }
-            }
-        }
-        
-        return Array.from(allMonths).sort();
-    }, [budgetMonthKeys, yardiAggregates, budget?.schedule_items]);
-    
-    const lineItems = budget?.line_items ?? [];
+    const lineItems = useMemo(() => budget?.line_items ?? [], [budget?.line_items]);
     const scheduleItems = budget?.schedule_items ?? [];
     const hasSnapshot = !!budget?.budget_snapshot;
 
@@ -582,135 +579,30 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
         return forwardMonths; // Only forward months when collapsed
     }, [expandLTD, monthKeys, forwardMonths]);
 
-    // Build Yardi lookup: key → month → amount
-    // Keys are BOTH 2-digit group codes (aggregate all under that group)
-    // AND individual category_codes (for detail-level mapping)
-    const yardiByCodeMonth = useMemo(() => {
-        const map = new Map<string, Map<string, number>>();
-        for (const agg of yardiAggregates) {
-            // Index by exact category_code (works for both 2-digit and detail codes)
-            if (!map.has(agg.category_code)) map.set(agg.category_code, new Map());
-            const codeMap = map.get(agg.category_code)!;
-            codeMap.set(agg.month, (codeMap.get(agg.month) ?? 0) + agg.total_amount);
-
-            // Also roll up detail codes into their 2-digit parent group
-            if (agg.category_code.length > 2) {
-                const groupKey = agg.category_code.substring(0, 2);
-                const groupTag = `__group_${groupKey}`; // synthetic key for group-level rollup
-                if (!map.has(groupTag)) map.set(groupTag, new Map());
-                const groupMap = map.get(groupTag)!;
-                groupMap.set(agg.month, (groupMap.get(agg.month) ?? 0) + agg.total_amount);
-            }
-        }
-        return map;
-    }, [yardiAggregates]);
+    // Yardi lookup: code → month → amount (2-digit groups roll up their detail codes)
+    const yardiIndex = useMemo(() => buildYardiIndex(yardiAggregates), [yardiAggregates]);
 
     /** Get Yardi actual for a line item + month */
-    const getYardiActual = useCallback((li: PredevBudgetLineItem, monthKey: string): number | null => {
-        if (!li.yardi_cost_groups?.length) return null;
-        let total = 0;
-        let hasData = false;
-        for (const code of li.yardi_cost_groups) {
-            if (code.length <= 2) {
-                // 2-digit group: use the rolled-up group aggregate
-                const groupMap = yardiByCodeMonth.get(`__group_${code}`) ?? yardiByCodeMonth.get(code);
-                if (groupMap?.has(monthKey)) {
-                    total += groupMap.get(monthKey)!;
-                    hasData = true;
-                }
-            } else {
-                // Specific detail code (e.g., '62-00400')
-                const codeMap = yardiByCodeMonth.get(code);
-                if (codeMap?.has(monthKey)) {
-                    total += codeMap.get(monthKey)!;
-                    hasData = true;
-                }
-            }
-        }
-        return hasData ? total : null;
-    }, [yardiByCodeMonth]);
-
-    // ── Unallocated Yardi costs ─────────────────────────────
-    // Find any Yardi detail codes with activity that aren't covered by any line item
-    const unallocatedByMonth = useMemo(() => {
-        if (!yardiAggregates.length || !lineItems.length) return new Map<string, number>();
-
-        // Build the set of all codes covered by line item mappings
-        const coveredCodes = new Set<string>();
-        const coveredGroups = new Set<string>(); // 2-digit groups that are fully captured
-        for (const li of lineItems) {
-            for (const code of (li.yardi_cost_groups ?? [])) {
-                if (code.length <= 2) {
-                    coveredGroups.add(code);
-                } else {
-                    coveredCodes.add(code);
-                }
-            }
-        }
-
-        // Check each Yardi aggregate — is it covered?
-        const unallocated = new Map<string, number>();
-        for (const agg of yardiAggregates) {
-            // The aggregate feed contains both 2-digit group rollups and detail rows for the
-            // same transactions — only count detail rows or everything is double counted.
-            if (agg.category_code.length <= 2) continue;
-            const prefix = agg.category_code.substring(0, 2);
-            // Covered if the parent group is mapped, or the specific code is mapped
-            if (coveredGroups.has(prefix) || coveredCodes.has(agg.category_code)) continue;
-
-            // This code is unallocated
-            unallocated.set(agg.month, (unallocated.get(agg.month) ?? 0) + agg.total_amount);
-        }
-        return unallocated;
-    }, [yardiAggregates, lineItems]);
-
-    const hasUnallocated = unallocatedByMonth.size > 0;
-    const unallocatedTotal = useMemo(
-        () => Array.from(unallocatedByMonth.values()).reduce((a, b) => a + b, 0),
-        [unallocatedByMonth]
+    const getYardiActual = useCallback(
+        (li: PredevBudgetLineItem, monthKey: string): number | null => yardiActualFor(yardiIndex, li, monthKey),
+        [yardiIndex]
     );
 
-    // Collect the unallocated code details
-    const unallocatedItems = useMemo(() => {
-        if (!yardiAggregates.length || !lineItems.length) return [];
-        const coveredCodes = new Set<string>();
-        const coveredGroups = new Set<string>();
-        for (const li of lineItems) {
-            for (const code of (li.yardi_cost_groups ?? [])) {
-                if (code.length <= 2) coveredGroups.add(code);
-                else coveredCodes.add(code);
-            }
-        }
-        const itemMap = new Map<string, { code: string; name: string; total: number }>();
-        for (const agg of yardiAggregates) {
-            if (agg.category_code.length <= 2) continue; // group rollup — details are counted instead
-            const prefix = agg.category_code.substring(0, 2);
-            if (coveredGroups.has(prefix) || coveredCodes.has(agg.category_code)) continue;
-            
-            const existing = itemMap.get(agg.category_code);
-            if (existing) {
-                existing.total += agg.total_amount;
-            } else {
-                itemMap.set(agg.category_code, {
-                    code: agg.category_code,
-                    name: agg.category_name,
-                    total: agg.total_amount,
-                });
-            }
-        }
-        return Array.from(itemMap.values()).sort((a, b) => b.total - a.total); // Sort by largest amount first
-    }, [yardiAggregates, lineItems]);
+    // ── Unallocated Yardi costs ─────────────────────────────
+    // Yardi detail codes with activity that aren't covered by any line item
+    const unallocated = useMemo(() => computeUnallocated(yardiAggregates, lineItems), [yardiAggregates, lineItems]);
+    const unallocatedByMonth = unallocated.byMonth;
+    const unallocatedItems = unallocated.items;
+    const unallocatedTotal = unallocated.total;
+    const hasUnallocated = unallocatedByMonth.size > 0;
+
+    // Line items whose Yardi mappings capture the same transactions (their actuals double count)
+    const mappingOverlaps = useMemo(() => findMappingOverlaps(lineItems), [lineItems]);
 
     /**
      * Get the effective display value for a cell based on view mode
      */
-    const getCellInfo = useCallback((li: PredevBudgetLineItem, monthKey: string): {
-        value: number;
-        style: 'normal' | 'actual-yardi' | 'actual-yardi-pending' | 'actual-manual' | 'budget-snapshot' | 'variance-positive' | 'variance-negative';
-        editable: boolean;
-        source: 'projected' | 'yardi' | 'manual-override' | 'snapshot' | 'variance';
-        tooltip?: string;
-    } => {
+    const computeCellInfo = useCallback((li: PredevBudgetLineItem, monthKey: string): CellInfo => {
         const cell = li.monthly_values[monthKey] ?? { projected: 0, actual: null };
         const closed = isMonthClosed(monthKey, today);
         const future = isMonthFuture(monthKey, currentMonth);
@@ -745,11 +637,11 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             }
             // Yardi actuals
             if (yardiVal !== null && yardiVal !== 0) {
-                return { 
-                    value: yardiVal, 
-                    style: 'actual-yardi', 
-                    editable: false, 
-                    source: 'yardi' 
+                return {
+                    value: yardiVal,
+                    style: 'actual-yardi',
+                    editable: false,
+                    source: 'yardi'
                 };
             }
             // Fallbacks if no Yardi data
@@ -763,7 +655,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
         const pending = !closed && !future;
         const baseYardi = yardiVal ?? 0;
         const combined = baseYardi + cell.projected;
-        
+
         let styleMode: 'normal' | 'actual-yardi-pending' | 'actual-manual' = 'normal';
         let tooltip = undefined;
 
@@ -788,12 +680,85 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
         return { value: combined, style: styleMode, editable: true, source: 'projected', tooltip };
     }, [viewMode, today, currentMonth, getYardiActual, budget?.budget_snapshot, hasSnapshot]);
 
+    // Every cell is read several times per render (cell, row total, column total, LTD, funding
+    // rows, exports), so compute the grid once per data/view change instead of per read.
+    const cellGrid = useMemo(() => {
+        const grid = new Map<string, Map<string, CellInfo>>();
+        for (const li of lineItems) {
+            const row = new Map<string, CellInfo>();
+            for (const mk of monthKeys) row.set(mk, computeCellInfo(li, mk));
+            grid.set(li.id, row);
+        }
+        return grid;
+    }, [lineItems, monthKeys, computeCellInfo]);
+
+    const getCellInfo = useCallback(
+        (li: PredevBudgetLineItem, monthKey: string): CellInfo =>
+            cellGrid.get(li.id)?.get(monthKey) ?? computeCellInfo(li, monthKey),
+        [cellGrid, computeCellInfo]
+    );
+
     // ── Handlers ─────────────────────────────────────────────
 
     const handleCreate = async () => {
-        await createBudget.mutateAsync({ pursuitId, startDate: newStartDate, durationMonths: newDuration });
-        setShowCreateDialog(false);
+        try {
+            await createBudget.mutateAsync({ pursuitId, startDate: newStartDate, durationMonths: newDuration });
+            setShowCreateDialog(false);
+        } catch (err) {
+            console.error('Failed to create pre-dev budget:', err);
+            toast.error('Failed to create budget', err);
+        }
     };
+
+    /** Latest month map for a line item: unsaved/in-flight local edits if the cache still reflects them. */
+    const latestMonthlyValues = useCallback((li: PredevBudgetLineItem): Record<string, MonthlyCell> => {
+        const pending = pendingUpdatesRef.current[li.id];
+        return pending && pending.known.includes(li.monthly_values) ? pending.values : li.monthly_values;
+    }, []);
+
+    /**
+     * Show a line item's new month map immediately and queue its save behind any save already
+     * in flight for that line item. Resolves true once saved, false if the save failed (the grid
+     * is then reloaded from the server and the error is toasted unless `silent`).
+     */
+    const saveMonthlyValues = useCallback(
+        (li: PredevBudgetLineItem, newMonthly: Record<string, MonthlyCell>, opts?: { silent?: boolean }): Promise<boolean> => {
+            const pending = pendingUpdatesRef.current[li.id];
+            const usePending = !!pending && pending.known.includes(li.monthly_values);
+            pendingUpdatesRef.current[li.id] = {
+                values: newMonthly,
+                known: [...(usePending ? pending.known : [li.monthly_values]), newMonthly],
+            };
+
+            // Optimistic update now — the mutation's own onMutate only runs when the queued save starts
+            const key = ['predev-budget', pursuitId] as const;
+            queryClient.setQueryData(key, (old: PredevBudget | null | undefined) => old?.line_items ? {
+                ...old,
+                line_items: old.line_items.map((x) => x.id === li.id ? { ...x, monthly_values: newMonthly } : x),
+            } : old);
+
+            const queue = (saveQueueRef.current[li.id] ??= { chain: Promise.resolve(true), queued: false });
+            if (queue.queued) return queue.chain; // the queued save will pick up these values
+            queue.queued = true;
+            queue.chain = queue.chain.then(async () => {
+                queue.queued = false;
+                const values = pendingUpdatesRef.current[li.id]?.values ?? newMonthly;
+                try {
+                    await upsertValues.mutateAsync({ lineItemId: li.id, monthlyValues: values, pursuitId });
+                    return true;
+                } catch (err) {
+                    console.error('Failed to save budget values:', err);
+                    // Drop local state for this line item and reload what the server actually has
+                    delete pendingUpdatesRef.current[li.id];
+                    queryClient.invalidateQueries({ queryKey: key });
+                    if (!opts?.silent) toast.error(`Failed to save "${li.label}" — reloaded the last saved values`, err);
+                    return false;
+                }
+            });
+            return queue.chain;
+        },
+        [pursuitId, queryClient, upsertValues]
+    );
 
     const handleCellChange = useCallback(
         (lineItem: PredevBudgetLineItem, monthKey: string, newValue: number) => {
@@ -802,13 +767,11 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                 const newSnapshot = JSON.parse(JSON.stringify(budget.budget_snapshot || {}));
                 if (!newSnapshot[lineItem.id]) newSnapshot[lineItem.id] = {};
                 newSnapshot[lineItem.id][monthKey] = newValue;
-                updateBudget.mutate({ id: budget.id, pursuitId, updates: { budget_snapshot: newSnapshot } });
+                updateBudget.mutate({ id: budget.id, pursuitId, updates: { budget_snapshot: newSnapshot } }, toastOnError('Failed to save budget value'));
                 return;
             }
 
-            const pending = pendingUpdatesRef.current[lineItem.id];
-            const usePending = !!pending && pending.known.includes(lineItem.monthly_values);
-            const currentOverrides = usePending ? pending.values : lineItem.monthly_values;
+            const currentOverrides = latestMonthlyValues(lineItem);
             const current = currentOverrides[monthKey] ?? { projected: 0, actual: null };
             const closed = isMonthClosed(monthKey, today);
 
@@ -826,31 +789,22 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                 const newProjected = Math.max(0, newValue - yardiVal);
                 updated = { projected: newProjected, actual: current.actual, manual_override: current.manual_override };
             }
-            const newMonthly = { ...currentOverrides, [monthKey]: updated };
-            pendingUpdatesRef.current[lineItem.id] = {
-                values: newMonthly,
-                known: [...(usePending ? pending.known : [lineItem.monthly_values]), newMonthly],
-            };
-            upsertValues.mutate(
-                { lineItemId: lineItem.id, monthlyValues: newMonthly, pursuitId },
-                { onError: (err) => { console.error('Failed to save budget cell:', err); alert('Failed to save budget value. Your change was reverted.'); } }
-            );
+            saveMonthlyValues(lineItem, { ...currentOverrides, [monthKey]: updated });
         },
-        [upsertValues, pursuitId, today, getYardiActual, viewMode, hasSnapshot, budget, updateBudget]
+        [pursuitId, today, getYardiActual, viewMode, hasSnapshot, budget, updateBudget, latestMonthlyValues, saveMonthlyValues]
     );
 
     const confirmPushBudgetToForecast = useCallback(async () => {
+        setShowPushConfirm(false);
         if (!hasSnapshot || !budget?.budget_snapshot) {
-            alert("No baseline budget snapshot exists yet.");
+            toast.info('No baseline budget snapshot exists yet.');
             return;
         }
 
-        setShowPushConfirm(false);
-
-        let operations = 0;
+        const saves: Promise<boolean>[] = [];
         for (const li of lineItems) {
             let changed = false;
-            const newMonthly = { ...li.monthly_values };
+            const newMonthly = { ...latestMonthlyValues(li) };
 
             for (const mk of forwardMonths) {
                 const snapshotVal = budget.budget_snapshot[li.id]?.[mk] ?? 0;
@@ -867,21 +821,26 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                 }
             }
 
-            if (changed) {
-                operations++;
-                // Bypass pendingUpdatesRef since we're bulk saving and not dealing with simultaneous keystrokes here
-                upsertValues.mutate({ lineItemId: li.id, monthlyValues: newMonthly, pursuitId });
-            }
+            if (changed) saves.push(saveMonthlyValues(li, newMonthly, { silent: true }));
         }
 
-        if (operations === 0) {
-            alert("No future months needed updating (they already match the budget).");
+        if (saves.length === 0) {
+            toast.info('No future months needed updating — they already match the budget.');
+            return;
         }
-    }, [hasSnapshot, budget, lineItems, forwardMonths, getYardiActual, upsertValues, pursuitId]);
+        const results = await Promise.all(saves);
+        const failed = results.filter((ok) => !ok).length;
+        if (failed === 0) {
+            toast.success(`Budget pushed to forecast for ${saves.length} line item${saves.length !== 1 ? 's' : ''}`);
+        } else {
+            toast.error(`Pushed ${saves.length - failed} of ${saves.length} line items; ${failed} failed and were reloaded. Try again.`);
+        }
+    }, [hasSnapshot, budget, lineItems, forwardMonths, getYardiActual, latestMonthlyValues, saveMonthlyValues]);
 
     const handleTogglePin = useCallback(
         (lineItem: PredevBudgetLineItem, monthKey: string) => {
-            const current = lineItem.monthly_values[monthKey] ?? { projected: 0, actual: null };
+            const base = latestMonthlyValues(lineItem);
+            const current = base[monthKey] ?? { projected: 0, actual: null };
             const newOverride = !current.manual_override;
             const updated: MonthlyCell = { ...current, manual_override: newOverride };
             if (!newOverride) {
@@ -892,70 +851,88 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                 // (non-editable) Yardi because an override needs a non-null actual.
                 updated.actual = getYardiActual(lineItem, monthKey) ?? 0;
             }
-            const newMonthly = { ...lineItem.monthly_values, [monthKey]: updated };
-            upsertValues.mutate({ lineItemId: lineItem.id, monthlyValues: newMonthly, pursuitId });
+            saveMonthlyValues(lineItem, { ...base, [monthKey]: updated });
         },
-        [upsertValues, pursuitId, getYardiActual]
+        [getYardiActual, latestMonthlyValues, saveMonthlyValues]
     );
 
     const handleSnapshot = () => {
         if (!budget) return;
-        snapshotBudgetMut.mutate({ budgetId: budget.id, pursuitId });
+        snapshotBudgetMut.mutate({ budgetId: budget.id, pursuitId }, {
+            onSuccess: () => toast.success('Original budget snapshot saved. Variance now tracks against it.'),
+            ...toastOnError('Failed to snapshot budget'),
+        });
     };
 
     const handleAmend = () => {
         if (!budget) return;
-        amendBudgetMut.mutate({ budgetId: budget.id, pursuitId, reason: amendReason || null });
-        setShowAmendDialog(false);
-        setAmendReason('');
+        amendBudgetMut.mutate({ budgetId: budget.id, pursuitId, reason: amendReason || null }, {
+            onSuccess: () => {
+                toast.success('Original budget amended. The previous snapshot is kept in History.');
+                setShowAmendDialog(false);
+                setAmendReason('');
+            },
+            ...toastOnError('Failed to amend budget'),
+        });
+    };
+
+    const handleAddLineItem = () => {
+        const label = newLineLabel.trim();
+        if (!budget || !label) return;
+        addLineItem.mutate({ budgetId: budget.id, label, pursuitId }, toastOnError(`Failed to add line item "${label}"`));
+        setNewLineLabel('');
+        setShowAddLine(false);
     };
 
     // ── Summary calculations ─────────────────────────────────
 
-    const { totalBudget, totalForecast, totalVariance, slrhPct } = useMemo(() => {
-        let bTotal = 0, fTotal = 0;
-        for (const li of lineItems) {
-            for (const mk of monthKeys) {
-                const cell = li.monthly_values[mk] ?? { projected: 0, actual: null };
-                const snapshotVal = budget?.budget_snapshot?.[li.id]?.[mk] ?? 0;
-                bTotal += hasSnapshot ? snapshotVal : cell.projected;
-
-                // Forecast value (same rules as the forecast grid)
-                fTotal += forecastCellValue(cell, getYardiActual(li, mk), isMonthClosed(mk, today));
-            }
-        }
-        // Add unallocated Yardi amounts to total forecast
-        fTotal += unallocatedTotal;
-
-        // SLRH split
-        const slrh = fundingPartners?.find(p => p.is_slrh);
-        const pct = slrh?.default_split_pct ?? 100;
-        return { totalBudget: bTotal, totalForecast: fTotal, totalVariance: fTotal - bTotal, slrhPct: pct };
-    }, [lineItems, monthKeys, budget?.budget_snapshot, hasSnapshot, today, getYardiActual, fundingPartners, unallocatedTotal]);
-
-    const rowTotal = useCallback((li: PredevBudgetLineItem) =>
-        monthKeys.reduce((sum, mk) => {
-            const info = getCellInfo(li, mk);
-            return sum + info.value;
-        }, 0),
-        [monthKeys, getCellInfo]
+    const { totalBudget, totalForecast, totalVariance } = useMemo(
+        () => summarizePredevTotals({
+            lineItems, monthKeys, snapshot: budget?.budget_snapshot ?? null,
+            index: yardiIndex, unallocatedTotal, today,
+        }),
+        [lineItems, monthKeys, budget?.budget_snapshot, yardiIndex, unallocatedTotal, today]
     );
+    const slrhPct = fundingPartners?.find(p => p.is_slrh)?.default_split_pct ?? 100;
+    const yardiTotal = useMemo(() => yardiGrandTotal(yardiAggregates), [yardiAggregates]);
 
-    const colTotal = useCallback((mk: string) => {
-        let sum = lineItems.reduce((acc, li) => acc + getCellInfo(li, mk).value, 0);
-        if (viewMode !== 'budget') {
-            sum += unallocatedByMonth.get(mk) ?? 0;
+    // Row, column, LTD and grand totals for the current view, computed once from the cell grid
+    const gridTotals = useMemo(() => {
+        const rows = new Map<string, number>();
+        const ltd = new Map<string, number>();
+        const cols = new Map<string, number>();
+        const closedSet = new Set(closedMonths);
+        for (const mk of monthKeys) cols.set(mk, viewMode !== 'budget' ? (unallocatedByMonth.get(mk) ?? 0) : 0);
+        for (const li of lineItems) {
+            const row = cellGrid.get(li.id);
+            let rowSum = 0, ltdSum = 0;
+            for (const mk of monthKeys) {
+                const v = row?.get(mk)?.value ?? 0;
+                rowSum += v;
+                if (closedSet.has(mk)) ltdSum += v;
+                cols.set(mk, (cols.get(mk) ?? 0) + v);
+            }
+            rows.set(li.id, rowSum);
+            ltd.set(li.id, ltdSum);
         }
-        return sum;
-    }, [lineItems, getCellInfo, unallocatedByMonth, viewMode]);
+        let grand = 0, ltdGrand = 0;
+        for (const [mk, v] of cols) {
+            grand += v;
+            if (closedSet.has(mk)) ltdGrand += v;
+        }
+        return { rows, ltd, cols, grand, ltdGrand };
+    }, [lineItems, monthKeys, closedMonths, cellGrid, unallocatedByMonth, viewMode]);
 
-    const grandTotal = useMemo(() => {
-        let sum = lineItems.reduce((acc, li) => acc + rowTotal(li), 0);
-        if (viewMode !== 'budget') {
-            sum += unallocatedTotal;
-        }
-        return sum;
-    }, [lineItems, rowTotal, unallocatedTotal, viewMode]);
+    const rowTotal = useCallback((li: PredevBudgetLineItem) => gridTotals.rows.get(li.id) ?? 0, [gridTotals]);
+    const colTotal = useCallback((mk: string) => gridTotals.cols.get(mk) ?? 0, [gridTotals]);
+    const grandTotal = gridTotals.grand;
+
+    // Funding split % per partner + month: a monthly override, else the partner default
+    const splitLookup = useMemo(() => {
+        const m = new Map<string, number>();
+        for (const s of fundingSplits ?? []) m.set(`${s.partner_id}|${s.month_key}`, s.split_pct);
+        return m;
+    }, [fundingSplits]);
 
     // ── Loading / Empty states ───────────────────────────────
 
@@ -990,7 +967,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
 
                 {showCreateDialog && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
-                        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in">
+                        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in mx-4">
                             <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">New Pre-Development Budget</h2>
                             <div className="space-y-4">
                                 <div>
@@ -1034,7 +1011,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
         <div className="space-y-4">
             {/* Snapshot Banner */}
             {!hasSnapshot && (
-                <div className="card p-3 border-[var(--warning)]/30 bg-[var(--warning)]/5 flex items-center justify-between">
+                <div className="card p-3 border-[var(--warning)]/30 bg-[var(--warning-bg)] flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                         <Camera className="w-4 h-4 text-[var(--warning)]" />
                         <span className="text-xs text-[var(--text-secondary)]">
@@ -1044,7 +1021,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                     <button
                         onClick={handleSnapshot}
                         disabled={snapshotBudgetMut.isPending}
-                        className="px-3 py-1 rounded-lg bg-[var(--warning)] hover:opacity-90 text-white text-xs font-medium transition-colors"
+                        className="px-3 py-1 rounded-lg bg-[var(--warning)] hover:opacity-90 disabled:opacity-50 text-white text-xs font-medium transition-colors"
                     >
                         {snapshotBudgetMut.isPending ? 'Saving...' : 'Snapshot Budget'}
                     </button>
@@ -1059,8 +1036,18 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                         <CalendarDays className="w-3.5 h-3.5" />
                         {formatMonthLabel(monthKeys[0])} – {formatMonthLabel(monthKeys[monthKeys.length - 1])}
                     </div>
-                    {yardiLoading && <Loader2 className="w-3 h-3 animate-spin text-[var(--text-muted)]" />}
-                    {!yardiLoading && yardiAggregates.length > 0 && (
+                    {yardiLoading && (
+                        <span className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
+                            <Loader2 className="w-3 h-3 animate-spin" /> Loading Yardi actuals…
+                        </span>
+                    )}
+                    {yardiError && (
+                        <span className="flex items-center gap-1 text-[10px] text-[var(--danger)] bg-[var(--danger-bg)] px-2 py-0.5 rounded-full font-medium">
+                            <AlertCircle className="w-2.5 h-2.5" /> Yardi actuals unavailable — forecast shows entered values only
+                            <button onClick={() => refetchYardi()} className="underline hover:no-underline ml-1">Retry</button>
+                        </span>
+                    )}
+                    {!yardiLoading && !yardiError && yardiAggregates.length > 0 && (
                         <span className="flex items-center gap-1 text-[10px] text-[var(--success)] bg-[var(--success-bg)] px-2 py-0.5 rounded-full font-medium">
                             <Database className="w-2.5 h-2.5" /> Yardi Connected
                         </span>
@@ -1074,6 +1061,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                             <button
                                 key={mode}
                                 onClick={() => setViewMode(mode)}
+                                aria-pressed={viewMode === mode}
                                 className={`px-3 py-1 rounded-md text-xs font-medium transition-colors capitalize ${viewMode === mode ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-muted)]'}`}
                             >
                                 {mode}
@@ -1092,14 +1080,11 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                 const { PredevBudgetPDF } = await import('@/components/export/PredevBudgetPDF');
                                 const doc = <PredevBudgetPDF pursuit={pursuit!} budget={budget} lineItems={lineItems} monthKeys={monthKeys} closedMonths={closedMonths} forwardMonths={forwardMonths} expandLTD={expandLTD} getCellInfo={getCellInfo} rowTotal={rowTotal} hasUnallocated={hasUnallocated} unallocatedByMonth={unallocatedByMonth} viewMode={viewMode} showSchedule={showSchedule} scheduleItems={scheduleItems} />;
                                 const blob = await pdf(doc).toBlob();
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = `${pursuit?.name?.replace(/[^a-zA-Z0-9-_]/g, '')}_PreDev_${viewMode}.pdf`;
-                                a.click();
-                                URL.revokeObjectURL(url);
+                                const { downloadBlob } = await import('@/components/export/download');
+                                downloadBlob(blob, `${pursuit?.name?.replace(/[^a-zA-Z0-9-_]/g, '')}_PreDev_${viewMode}.pdf`);
                             } catch (err) {
                                 console.error('PDF export failed:', err);
+                                toast.error('PDF export failed', err);
                             }
                             setIsExportingPdf(false);
                         }}
@@ -1124,6 +1109,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                 });
                             } catch (err) {
                                 console.error('Excel export failed:', err);
+                                toast.error('Excel export failed', err);
                             }
                             setIsExportingExcel(false);
                         }}
@@ -1137,7 +1123,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
 
                     <div className="w-px h-5 bg-[var(--border)] mx-1" />
 
-                    <button onClick={() => setIsEditAll(!isEditAll)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isEditAll ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'}`}>
+                    <button onClick={() => setIsEditAll(!isEditAll)} aria-pressed={isEditAll} title={isEditAll ? 'Stop editing all cells' : 'Show every editable cell as an input'} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${isEditAll ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'}`}>
                         <Pencil className="w-3.5 h-3.5" /> Edit All
                     </button>
 
@@ -1173,7 +1159,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                 <div className="card p-4 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-[var(--bg-elevated)] flex items-center justify-center shrink-0"><DollarSign className="w-5 h-5 text-[var(--text-primary)]" /></div>
                     <div>
-                        <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Original Budget</div>
+                        <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider" title={hasSnapshot ? 'Snapshotted original budget' : 'No snapshot yet — showing current projected values'}>{hasSnapshot ? 'Original Budget' : 'Budget (not snapshotted)'}</div>
                         <div className="text-lg font-bold text-[var(--text-primary)] tabular-nums">{totalBudget === 0 ? '$0' : formatCurrency(totalBudget, 0)}</div>
                     </div>
                 </div>
@@ -1181,7 +1167,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                     <div className="w-10 h-10 rounded-xl bg-[var(--accent-subtle)] flex items-center justify-center shrink-0"><TrendingUp className="w-5 h-5 text-[var(--accent)]" /></div>
                     <div>
                         <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Forecast</div>
-                        <div className="text-lg font-bold text-[var(--accent)] tabular-nums">{totalForecast === 0 ? '$0' : formatCurrency(totalForecast, 0)}</div>
+                        <div className="text-lg font-bold text-[var(--accent)] tabular-nums">{yardiLoading ? <YardiPending /> : totalForecast === 0 ? '$0' : formatCurrency(totalForecast, 0)}</div>
                     </div>
                 </div>
                 <div className="card p-4 flex items-center gap-3">
@@ -1191,15 +1177,15 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                     <div>
                         <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Variance</div>
                         <div className={`text-lg font-bold tabular-nums ${totalVariance > 0 ? 'text-[var(--danger)]' : totalVariance < 0 ? 'text-[var(--success)]' : 'text-[var(--text-primary)]'}`}>
-                            {totalVariance === 0 ? '$0' : `${totalVariance > 0 ? '+' : ''}${formatCurrency(totalVariance, 0)}`}
+                            {yardiLoading ? <YardiPending /> : totalVariance === 0 ? '$0' : `${totalVariance > 0 ? '+' : ''}${formatCurrency(totalVariance, 0)}`}
                         </div>
                     </div>
                 </div>
                 <div className="card p-4 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0"><Shield className="w-5 h-5 text-blue-500" /></div>
+                    <div className="w-10 h-10 rounded-xl bg-[var(--accent-subtle)] flex items-center justify-center shrink-0"><Shield className="w-5 h-5 text-[var(--accent)]" /></div>
                     <div>
                         <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">SLRH Obligation</div>
-                        <div className="text-lg font-bold text-blue-500 tabular-nums">{formatCurrency(totalForecast * (slrhPct / 100), 0)}</div>
+                        <div className="text-lg font-bold text-[var(--accent)] tabular-nums">{yardiLoading ? <YardiPending /> : formatCurrency(totalForecast * (slrhPct / 100), 0)}</div>
                         <div className="text-[10px] text-[var(--text-faint)]">{slrhPct}% share</div>
                     </div>
                 </div>
@@ -1208,7 +1194,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                     <div>
                         <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Yardi Actuals</div>
                         <div className="text-lg font-bold text-[var(--success)] tabular-nums">
-                            {formatCurrency(yardiAggregates.filter(a => a.category_code.length === 2).reduce((s, a) => s + a.total_amount, 0), 0)}
+                            {yardiLoading ? <YardiPending /> : yardiError ? '—' : formatCurrency(yardiTotal, 0)}
                         </div>
                     </div>
                 </div>
@@ -1222,13 +1208,13 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                         <div>
                             <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Start Month</label>
                             <input type="month" value={budget.start_date.substring(0, 7)}
-                                onChange={(e) => { if (e.target.value) updateBudget.mutate({ id: budget.id, pursuitId, updates: { start_date: `${e.target.value}-01` } }); }}
+                                onChange={(e) => { if (e.target.value) updateBudget.mutate({ id: budget.id, pursuitId, updates: { start_date: `${e.target.value}-01` } }, toastOnError('Failed to change start month')); }}
                                 className="w-full px-3 py-1.5 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none" />
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Duration (Months)</label>
                             <select value={budget.duration_months}
-                                onChange={(e) => updateBudget.mutate({ id: budget.id, pursuitId, updates: { duration_months: Number(e.target.value) } })}
+                                onChange={(e) => updateBudget.mutate({ id: budget.id, pursuitId, updates: { duration_months: Number(e.target.value) } }, toastOnError('Failed to change duration'))}
                                 className="w-full px-3 py-1.5 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none">
                                 {[6, 9, 12, 15, 18, 21, 24, 30, 36].map((n) => (<option key={n} value={n}>{n} months</option>))}
                             </select>
@@ -1249,7 +1235,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             {showNotes && (
                 <div className="card">
                     <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Budget Notes</h3>
-                    <RichTextEditor content={budget.notes} onChange={(json) => updateBudget.mutate({ id: budget.id, pursuitId, updates: { notes: json } })} placeholder="Enter notes about this pre-dev budget..." />
+                    <RichTextEditor content={budget.notes} onChange={(json) => updateBudget.mutate({ id: budget.id, pursuitId, updates: { notes: json } }, toastOnError('Failed to save budget notes'))} placeholder="Enter notes about this pre-dev budget..." />
                 </div>
             )}
 
@@ -1260,7 +1246,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                     <div className="space-y-2">
                         {(fundingPartners ?? []).map((p) => (
                             <div key={p.id} className="flex flex-wrap items-center gap-3 py-1.5 border-b border-[var(--border)] sm:border-0 last:border-0">
-                                <span className={`text-xs font-medium min-w-[120px] ${p.is_slrh ? 'text-blue-500' : 'text-[var(--text-primary)]'}`}>
+                                <span className={`text-xs font-medium min-w-[120px] ${p.is_slrh ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]'}`}>
                                     {p.is_slrh && <Shield className="w-3 h-3 inline mr-1" />}{p.name}
                                 </span>
                                 <input key={`${p.id}-${p.default_split_pct}`} type="number" min="0" max="100" step="0.5" defaultValue={p.default_split_pct}
@@ -1268,13 +1254,13 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                     onBlur={(e) => {
                                         const num = parseFloat(e.target.value);
                                         if (e.target.value === '' || isNaN(num) || num < 0 || num > 100) { e.target.value = String(p.default_split_pct); return; }
-                                        if (num !== p.default_split_pct) updatePartner.mutate({ id: p.id, pursuitId, updates: { default_split_pct: num } });
+                                        if (num !== p.default_split_pct) updatePartner.mutate({ id: p.id, pursuitId, updates: { default_split_pct: num } }, toastOnError(`Failed to update ${p.name}'s split`));
                                     }}
                                     onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                                    className="w-20 px-2 py-1 rounded border border-[var(--border)] text-xs text-right text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none" />
+                                    className="w-20 px-2 py-1 rounded border border-[var(--border)] bg-[var(--bg-card)] text-xs text-right text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none" />
                                 <span className="text-xs text-[var(--text-muted)]">%</span>
                                 <span className="text-xs text-[var(--text-faint)] ml-auto tabular-nums">{formatCurrency(totalForecast * (p.default_split_pct / 100), 0)}</span>
-                                <button onClick={() => { if (window.confirm(`Remove funding partner "${p.name}"?`)) deletePartner.mutate({ id: p.id, pursuitId }); }} className="text-[var(--text-faint)] hover:text-[var(--danger)] p-0.5" title="Remove funding partner"><Trash2 className="w-3 h-3" /></button>
+                                <button onClick={() => { if (window.confirm(`Remove funding partner "${p.name}"?`)) deletePartner.mutate({ id: p.id, pursuitId }, toastOnError(`Failed to remove ${p.name}`)); }} className="text-[var(--text-faint)] hover:text-[var(--danger)] p-0.5" title="Remove funding partner" aria-label={`Remove funding partner ${p.name}`}><Trash2 className="w-3 h-3" /></button>
                             </div>
                         ))}
                     </div>
@@ -1288,12 +1274,12 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                     })()}
                     {/* Add partner */}
                     <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 mt-3 pt-3 border-t border-[var(--border)]">
-                        <input type="text" value={newPartnerName} onChange={(e) => setNewPartnerName(e.target.value)} placeholder="Partner name..."
-                            className="flex-1 px-2 py-1 rounded border border-[var(--border)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none" />
-                        <input type="number" value={newPartnerSplit} onChange={(e) => setNewPartnerSplit(e.target.value)} placeholder="%" min="0" max="100"
-                            className="w-16 px-2 py-1 rounded border border-[var(--border)] text-xs text-right text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none" />
+                        <input type="text" value={newPartnerName} onChange={(e) => setNewPartnerName(e.target.value)} placeholder="Partner name..." aria-label="New partner name"
+                            className="flex-1 px-2 py-1 rounded border border-[var(--border)] bg-[var(--bg-card)] text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none" />
+                        <input type="number" value={newPartnerSplit} onChange={(e) => setNewPartnerSplit(e.target.value)} placeholder="%" min="0" max="100" aria-label="New partner default split %"
+                            className="w-16 px-2 py-1 rounded border border-[var(--border)] bg-[var(--bg-card)] text-xs text-right text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none" />
                         <button disabled={!newPartnerName.trim() || !newPartnerSplit || isNaN(Number(newPartnerSplit)) || Number(newPartnerSplit) < 0 || Number(newPartnerSplit) > 100}
-                            onClick={() => { createPartner.mutate({ pursuit_id: pursuitId, name: newPartnerName.trim(), default_split_pct: Number(newPartnerSplit) }); setNewPartnerName(''); setNewPartnerSplit(''); }}
+                            onClick={() => { const name = newPartnerName.trim(); createPartner.mutate({ pursuit_id: pursuitId, name, default_split_pct: Number(newPartnerSplit) }, toastOnError(`Failed to add partner ${name}`)); setNewPartnerName(''); setNewPartnerSplit(''); }}
                             className="px-3 py-1 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-xs font-medium">Add</button>
                     </div>
                 </div>
@@ -1303,7 +1289,9 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             {showAmendments && (
                 <div className="card p-4">
                     <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Budget Revisions</h3>
-                    {(amendments ?? []).length === 0 ? (
+                    {amendmentsLoading ? (
+                        <div className="flex justify-center py-3"><Loader2 className="w-4 h-4 animate-spin text-[var(--text-faint)]" /></div>
+                    ) : (amendments ?? []).length === 0 ? (
                         <p className="text-xs text-[var(--text-faint)]">No amendments yet. The original budget snapshot is the current baseline.</p>
                     ) : (
                         <div className="space-y-2">
@@ -1319,9 +1307,33 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                 </div>
             )}
 
+            {/* Overlapping Yardi mappings double count actuals */}
+            {viewMode !== 'budget' && yardiAggregates.length > 0 && mappingOverlaps.length > 0 && (
+                <div className="card p-3 border-[var(--danger)]/30 bg-[var(--danger-bg)] flex items-start gap-2" role="alert">
+                    <AlertCircle className="w-4 h-4 text-[var(--danger)] shrink-0 mt-0.5" />
+                    <div className="text-xs text-[var(--text-secondary)]">
+                        <strong className="text-[var(--danger)]">Yardi actuals are counted twice.</strong>{' '}
+                        These mappings capture the same transactions; open the line item&apos;s mapping (the database icon) and remove one:
+                        <ul className="mt-1 space-y-0.5">
+                            {mappingOverlaps.slice(0, 5).map((o, i) => (
+                                <li key={`${o.code}-${i}`}>
+                                    <span className="font-mono">{o.code}</span> — {o.labels.length === 1 ? `"${o.labels[0]}" maps both the group and this code` : `"${o.labels[0]}" and "${o.labels[1]}"`}
+                                </li>
+                            ))}
+                            {mappingOverlaps.length > 5 && <li>…and {mappingOverlaps.length - 5} more</li>}
+                        </ul>
+                    </div>
+                </div>
+            )}
+
             {/* Budget Grid */}
             <div className="card p-0 overflow-hidden">
-                <div className="overflow-x-auto custom-scrollbar pb-32">
+                {yardiLoading && viewMode !== 'budget' && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 text-[11px] text-[var(--text-muted)] bg-[var(--bg-elevated)] border-b border-[var(--border)]" role="status">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Loading Yardi actuals — closed months and forecast totals will update when they arrive.
+                    </div>
+                )}
+                <div className={`overflow-x-auto custom-scrollbar pb-32 transition-opacity ${yardiLoading && viewMode !== 'budget' ? 'opacity-60' : ''}`} aria-busy={yardiLoading || undefined}>
                     <table className="border-collapse relative" style={{ minWidth: `${340 + (expandLTD ? monthKeys.length : forwardMonths.length + 1) * 75 + 90}px` }}>
                         <thead>
                             {showSchedule && (
@@ -1332,10 +1344,10 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                     closedMonths={closedMonths}
                                     forwardMonths={forwardMonths}
                                     expandLTD={expandLTD}
-                                    onUpsert={(id, up) => upsertScheduleItem.mutate({ itemId: id, budgetId: budget!.id, pursuitId, updates: up })}
-                                    onDelete={(id) => deleteScheduleItem.mutate({ itemId: id, pursuitId })}
-                                    onSeed={() => seedScheduleItems.mutate({ budgetId: budget!.id, pursuitId })}
-                                    onAddBlank={() => upsertScheduleItem.mutate({ itemId: null, budgetId: budget!.id, pursuitId, updates: { section: 'Summary', label: 'New Milestone', duration_weeks: 4 } })}
+                                    onUpsert={(id, up) => upsertScheduleItem.mutate({ itemId: id, budgetId: budget.id, pursuitId, updates: up }, toastOnError('Failed to save schedule item'))}
+                                    onDelete={(id) => deleteScheduleItem.mutate({ itemId: id, pursuitId }, toastOnError('Failed to delete schedule item'))}
+                                    onSeed={() => seedScheduleItems.mutate({ budgetId: budget.id, pursuitId }, toastOnError('Failed to generate the default schedule'))}
+                                    onAddBlank={() => upsertScheduleItem.mutate({ itemId: null, budgetId: budget.id, pursuitId, updates: { section: 'Summary', label: 'New Milestone', duration_weeks: 4 } }, toastOnError('Failed to add schedule item'))}
                                     pursuitId={pursuitId}
                                 />
                             )}
@@ -1349,6 +1361,10 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                         className="text-center px-1 py-1.5 text-[10px] font-bold uppercase tracking-wider border-b border-[var(--border)] bg-[var(--success-bg)]/50 text-[var(--success)] cursor-pointer hover:bg-[var(--success-bg)] transition-colors"
                                         style={{ minWidth: 70 }}
                                         onClick={() => setExpandLTD(true)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandLTD(true); } }}
+                                        tabIndex={0}
+                                        aria-expanded={false}
+                                        title="Show each closed month"
                                     >
                                         <div className="flex flex-col items-center gap-0.5">
                                             <div className="flex items-center gap-1">
@@ -1366,7 +1382,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                         style={{ minWidth: 75 }}>
                                         <div className="flex flex-col items-center gap-0.5">
                                             {i === 0 ? (
-                                                <button onClick={() => setExpandLTD(false)} className="flex items-center gap-1 hover:opacity-70">
+                                                <button onClick={() => setExpandLTD(false)} aria-expanded={true} title="Collapse closed months into LTD" className="flex items-center gap-1 hover:opacity-70">
                                                     <ChevronUp className="w-3 h-3" />
                                                     <span>{shortMonthLabel(mk)}</span>
                                                 </button>
@@ -1390,7 +1406,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                     const isCurrent = viewMode !== 'budget' && mk === currentMonth;
                                     return (
                                         <th key={mk}
-                                            className={`text-center px-1 py-1.5 text-[10px] font-bold uppercase tracking-wider border-b border-[var(--border)] ${pending ? 'bg-yellow-50 dark:bg-yellow-900/10 text-yellow-600' : isCurrent ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}
+                                            className={`text-center px-1 py-1.5 text-[10px] font-bold uppercase tracking-wider border-b border-[var(--border)] ${pending ? 'bg-[var(--warning-bg)] text-[var(--warning)]' : isCurrent ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}
                                             style={{ minWidth: 75 }}>
                                             <div className="flex flex-col items-center gap-0.5">
                                                 <span>{shortMonthLabel(mk)}</span>
@@ -1406,21 +1422,18 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                         <tbody>
                             {lineItems.map((li, idx) => {
                                 const rt = rowTotal(li);
-                                // LTD sum for this line item
-                                const ltdSum = closedMonths.reduce((sum, mk) => {
-                                    const info = getCellInfo(li, mk);
-                                    return sum + info.value;
-                                }, 0);
+                                const ltdSum = gridTotals.ltd.get(li.id) ?? 0;
                                 return (
                                 <tr key={li.id} className={`group/row ${idx % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]'} hover:bg-[var(--bg-elevated)] transition-colors h-[32px]`}>
                                         <td className="sticky left-0 z-10 bg-inherit px-3 py-0 border-r border-[var(--table-row-border)] shadow-[1px_0_0_0_var(--border)]">
                                             <div className="flex items-center gap-1.5 h-[32px]">
-                                                <span className="text-xs text-[var(--text-primary)] font-medium truncate flex-1">{li.label}</span>
+                                                <span className="text-xs text-[var(--text-primary)] font-medium truncate flex-1" title={li.label}>{li.label}</span>
                                                 {li.yardi_cost_groups?.length > 0 && (
                                                     <button
                                                         onClick={() => setMappingLineItem(li)}
                                                         className="flex items-center gap-1 text-[9px] text-[var(--text-faint)] bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded hover:bg-[var(--accent-subtle)] hover:text-[var(--accent)] transition-colors"
                                                         title={`Mapped codes:\n${li.yardi_cost_groups.join('\n')}\n\nClick to edit`}
+                                                        aria-label={`Edit Yardi mapping for ${li.label} (${li.yardi_cost_groups.length} codes)`}
                                                     >
                                                         <Database className="w-2.5 h-2.5 opacity-70" />
                                                         <span className="font-mono">{li.yardi_cost_groups.length}</span>
@@ -1429,28 +1442,31 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                                 {(!li.yardi_cost_groups || li.yardi_cost_groups.length === 0) && (
                                                     <button
                                                         onClick={() => setMappingLineItem(li)}
-                                                        className="text-[8px] text-[var(--text-faint)] hover:text-[var(--accent)] transition-colors opacity-0 group-hover/row:opacity-100"
-                                                        title="Map cost groups"
+                                                        className="text-[8px] text-[var(--text-faint)] hover:text-[var(--accent)] transition-colors opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100"
+                                                        title="Map Yardi cost groups"
+                                                        aria-label={`Map Yardi cost groups for ${li.label}`}
                                                     >
                                                         <Database className="w-3 h-3 opacity-50" />
                                                     </button>
                                                 )}
-                                                <button onClick={() => { if (window.confirm(`Remove line item "${li.label}" and all of its monthly values?`)) deleteLineItemMut.mutate({ id: li.id, pursuitId }); }}
-                                                    className="opacity-0 group-hover/row:opacity-100 text-[var(--text-faint)] hover:text-[var(--danger)] p-0.5 rounded transition-all ml-auto" title="Remove line item">
+                                                <button onClick={() => { if (window.confirm(`Remove line item "${li.label}" and all of its monthly values?`)) deleteLineItemMut.mutate({ id: li.id, pursuitId }, toastOnError(`Failed to remove "${li.label}"`)); }}
+                                                    className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 text-[var(--text-faint)] hover:text-[var(--danger)] p-0.5 rounded transition-all ml-auto" title="Remove line item" aria-label={`Remove line item ${li.label}`}>
                                                     <Trash2 className="w-3 h-3" />
                                                 </button>
                                             </div>
                                         </td>
                                         {/* LTD cell (collapsed) */}
                                         {!expandLTD && (
-                                            <td className="border-[var(--table-row-border)] bg-[var(--success-bg)]/20 text-right px-1 py-0 hover:bg-[var(--success-bg)]/40 transition-colors cursor-pointer group/ltd"
+                                            <td className={`border-[var(--table-row-border)] bg-[var(--success-bg)]/20 text-right px-1 py-0 transition-colors group/ltd outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)] ${li.yardi_cost_groups?.length ? 'cursor-pointer hover:bg-[var(--success-bg)]/40' : ''}`}
                                                 onClick={() => {
                                                     if (li.yardi_cost_groups && li.yardi_cost_groups.length > 0) {
                                                         const groupString = li.yardi_cost_groups.join(',');
-                                                        router.push(`/pursuits/${pursuitId}?tab=costs&cost_codes=${encodeURIComponent(groupString)}`);
+                                                        openCostsFor(groupString);
                                                     }
                                                 }}
-                                                title={`Click to drill down into actual Job Cost transactions for ${li.label}\nFiltered by: ${li.yardi_cost_groups?.join(', ') || 'None'}`}
+                                                tabIndex={li.yardi_cost_groups?.length ? 0 : undefined}
+                                                onKeyDown={(e) => { if (e.key === 'Enter' && li.yardi_cost_groups?.length) openCostsFor(li.yardi_cost_groups.join(',')); }}
+                                                title={li.yardi_cost_groups?.length ? `Click to drill down into actual Job Cost transactions for ${li.label}\nFiltered by: ${li.yardi_cost_groups.join(', ')}` : 'Map Yardi cost codes to this line item to drill into its transactions'}
                                             >
                                                 <span className={`text-xs font-semibold font-mono tabular-nums group-hover/ltd:text-[var(--accent)] transition-colors ${ltdSum === 0 ? 'text-[var(--border-strong)]' : 'text-[var(--success)]'}`}>
                                                     {ltdSum === 0 ? '—' : formatCurrency(ltdSum, 0)}
@@ -1466,12 +1482,12 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                                     <EditableCell value={info.value} cellStyle={info.style} disabled={!info.editable} tooltip={info.tooltip} forceEditing={isEditAll && info.editable}
                                                         onChange={(val) => handleCellChange(li, mk, val)} />
                                                     {viewMode === 'forecast' && info.source === 'yardi' && (
-                                                        <button onClick={() => handleTogglePin(li, mk)} className="absolute top-0 right-0 p-0.5 opacity-0 group-hover/row:opacity-100 text-[var(--text-faint)] hover:text-[var(--accent)] transition-opacity" title="Override with manual value">
+                                                        <button onClick={() => handleTogglePin(li, mk)} className="absolute top-0 right-0 p-0.5 opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 text-[var(--text-faint)] hover:text-[var(--accent)] transition-opacity" title="Override with manual value" aria-label={`Override ${li.label} ${formatMonthLabel(mk)} with a manual value`}>
                                                             <Pin className="w-2.5 h-2.5" />
                                                         </button>
                                                     )}
                                                     {viewMode === 'forecast' && cell?.manual_override && (
-                                                        <button onClick={() => handleTogglePin(li, mk)} className="absolute top-0 right-0 p-0.5 text-[var(--accent)] hover:text-[var(--danger)] transition-opacity" title="Unpin — revert to Yardi actual">
+                                                        <button onClick={() => handleTogglePin(li, mk)} className="absolute top-0 right-0 p-0.5 text-[var(--accent)] hover:text-[var(--danger)] transition-opacity" title="Unpin — revert to Yardi actual" aria-label={`Revert ${li.label} ${formatMonthLabel(mk)} to the Yardi actual`}>
                                                             <PinOff className="w-2.5 h-2.5" />
                                                         </button>
                                                     )}
@@ -1504,12 +1520,12 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                             })}
                             {/* Unallocated Yardi Costs */}
                             {viewMode !== 'budget' && hasUnallocated && (
-                                <tr className="group/row bg-[#FFF6ED] dark:bg-[#1A0F0A] hover:bg-[#FFECD9] dark:hover:bg-[#2A170F] transition-colors">
+                                <tr className="group/row bg-[var(--warning-bg)] hover:bg-[var(--bg-elevated)] transition-colors">
                                     <td className="sticky left-0 z-10 bg-inherit px-2 py-1 border-r border-[var(--table-row-border)]">
                                         <div className="flex items-center gap-1.5">
-                                            <AlertCircle className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                                            <AlertCircle className="w-3.5 h-3.5 text-[var(--warning)] shrink-0" />
                                             <button 
-                                                className="text-xs font-semibold text-orange-600 dark:text-orange-400 hover:underline text-left"
+                                                className="text-xs font-semibold text-[var(--warning)] hover:underline text-left"
                                                 onClick={() => setShowUnallocatedMapping(true)}
                                                 title={`Unallocated codes:\n${unallocatedItems.map(i => `${i.code} (${i.name}) - ${formatCurrency(i.total, 0)}`).join('\n')}\n\nClick to map`}
                                             >
@@ -1522,11 +1538,11 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                         <td className="border-[var(--table-row-border)] text-right px-1 py-1 bg-[var(--success-bg)]/5 hover:bg-[var(--success-bg)]/20 transition-colors cursor-pointer group/ltd-unalloc"
                                             onClick={() => {
                                                 const codes = unallocatedItems.map(i => i.code).join(',');
-                                                if (codes) router.push(`/pursuits/${pursuitId}?tab=costs&cost_codes=${encodeURIComponent(codes)}`);
+                                                if (codes) openCostsFor(codes);
                                             }}
                                             title={`Click to drill down into unallocated actual Job Cost transactions`}
                                         >
-                                            <span className="text-xs font-mono font-semibold text-orange-600 dark:text-orange-400 tabular-nums group-hover/ltd-unalloc:text-orange-700 dark:group-hover/ltd-unalloc:text-orange-300 transition-colors">
+                                            <span className="text-xs font-mono font-semibold text-[var(--warning)] tabular-nums group-hover/ltd-unalloc:underline">
                                                 {formatCurrency(closedMonths.reduce((sum, mk) => sum + (unallocatedByMonth.get(mk) ?? 0), 0), 0)}
                                             </span>
                                         </td>
@@ -1536,7 +1552,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                         const val = unallocatedByMonth.get(mk) ?? 0;
                                         return (
                                             <td key={mk} className="border-[var(--table-row-border)] text-right px-1 py-1 bg-[var(--success-bg)]/5">
-                                                <span className={`text-xs font-mono tabular-nums ${val === 0 ? 'text-[var(--border-strong)]' : 'text-orange-600 dark:text-orange-400 font-semibold'}`}>
+                                                <span className={`text-xs font-mono tabular-nums ${val === 0 ? 'text-[var(--border-strong)]' : 'text-[var(--warning)] font-semibold'}`}>
                                                     {val === 0 ? '—' : formatCurrency(val, 0)}
                                                 </span>
                                             </td>
@@ -1553,14 +1569,14 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                         const val = unallocatedByMonth.get(mk) ?? 0;
                                         return (
                                             <td key={mk} className="border-[var(--table-row-border)] text-right px-1 py-1">
-                                                <span className={`text-xs font-mono tabular-nums ${val === 0 ? 'text-[var(--border-strong)]' : 'text-orange-600 dark:text-orange-400 font-semibold'}`}>
+                                                <span className={`text-xs font-mono tabular-nums ${val === 0 ? 'text-[var(--border-strong)]' : 'text-[var(--warning)] font-semibold'}`}>
                                                     {val === 0 ? '—' : formatCurrency(val, 0)}
                                                 </span>
                                             </td>
                                         );
                                     })}
                                     <td className="sticky right-0 z-10 bg-inherit px-2 py-1 border-l border-[var(--table-row-border)] text-right">
-                                        <span className="text-xs font-mono font-bold text-orange-600 dark:text-orange-400 tabular-nums">
+                                        <span className="text-xs font-mono font-bold text-[var(--warning)] tabular-nums">
                                             {formatCurrency(unallocatedTotal, 0)}
                                         </span>
                                     </td>
@@ -1568,12 +1584,12 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                             )}
                             {/* Total row */}
                             <tr className="bg-[var(--text-primary)]">
-                                <td className="sticky left-0 z-10 bg-[var(--text-primary)] px-2 py-1.5 border-r border-[#2A3040] text-xs font-bold text-white uppercase tracking-wider">Total</td>
+                                <td className="sticky left-0 z-10 bg-[var(--text-primary)] px-2 py-1.5 border-r border-[var(--border-strong)] text-xs font-bold text-[var(--bg-card)] uppercase tracking-wider">Total</td>
                                 {/* LTD total (collapsed) */}
                                 {!expandLTD && (
                                     <td className="px-1 py-1 text-right bg-[var(--success)]/10">
-                                        <span className="text-xs font-mono font-bold text-green-300 tabular-nums">
-                                            {formatCurrency(closedMonths.reduce((sum, mk) => sum + colTotal(mk), 0), 0)}
+                                        <span className="text-xs font-mono font-bold text-[var(--success-bg)] tabular-nums">
+                                            {formatCurrency(gridTotals.ltdGrand, 0)}
                                         </span>
                                     </td>
                                 )}
@@ -1582,7 +1598,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                     const ct = colTotal(mk);
                                     return (
                                         <td key={mk} className="px-1 py-1 text-right bg-[var(--success)]/10">
-                                            <span className={`text-xs font-mono font-bold tabular-nums ${ct === 0 ? 'text-[var(--text-secondary)]' : 'text-green-300'}`}>
+                                            <span className={`text-xs font-mono font-bold tabular-nums ${ct === 0 ? 'text-[var(--text-faint)]' : 'text-[var(--success-bg)]'}`}>
                                                 {ct === 0 ? '—' : formatCurrency(ct, 0)}
                                             </span>
                                         </td>
@@ -1597,14 +1613,14 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                     const ct = colTotal(mk);
                                     return (
                                         <td key={mk} className="px-1 py-1 text-right">
-                                            <span className={`text-xs font-mono font-bold tabular-nums ${ct === 0 ? 'text-[var(--text-secondary)]' : 'text-white'}`}>
+                                            <span className={`text-xs font-mono font-bold tabular-nums ${ct === 0 ? 'text-[var(--text-faint)]' : 'text-[var(--bg-card)]'}`}>
                                                 {ct === 0 ? '—' : formatCurrency(ct, 0)}
                                             </span>
                                         </td>
                                     );
                                 })}
-                                <td className="sticky right-0 z-10 bg-[var(--text-primary)] px-2 py-1.5 border-l border-[#2A3040] text-right">
-                                    <span className="text-xs font-mono font-bold text-white tabular-nums">{grandTotal === 0 ? '—' : formatCurrency(grandTotal, 0)}</span>
+                                <td className="sticky right-0 z-10 bg-[var(--text-primary)] px-2 py-1.5 border-l border-[var(--border-strong)] text-right">
+                                    <span className="text-xs font-mono font-bold text-[var(--bg-card)] tabular-nums">{grandTotal === 0 ? '—' : formatCurrency(grandTotal, 0)}</span>
                                 </td>
                             </tr>
                             {/* ── Funding Partner Rows ─────────────── */}
@@ -1617,12 +1633,8 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                     </tr>
                                     {fundingPartners.map((partner) => {
                                         // Get the split for a specific month: check monthly overrides first, then fallback to default
-                                        const getSplit = (mk: string): number => {
-                                            const override = fundingSplits?.find(
-                                                (s) => s.partner_id === partner.id && s.month_key === mk
-                                            );
-                                            return override ? override.split_pct : partner.default_split_pct;
-                                        };
+                                        const getSplit = (mk: string): number =>
+                                            splitLookup.get(`${partner.id}|${mk}`) ?? partner.default_split_pct;
 
                                         const partnerLtdTotal = closedMonths.reduce((sum, mk) => sum + colTotal(mk) * getSplit(mk) / 100, 0);
                                         const partnerGrandTotal = monthKeys.reduce((sum, mk) => sum + colTotal(mk) * getSplit(mk) / 100, 0);
@@ -1631,8 +1643,8 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                             <tr key={partner.id} className="bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)]/50 transition-colors group/frow">
                                                 <td className="sticky left-0 z-10 bg-inherit px-4 py-1.5 border-r border-[var(--table-row-border)]">
                                                     <div className="flex items-center gap-1.5">
-                                                        {partner.is_slrh && <Shield className="w-3 h-3 text-blue-500 shrink-0" />}
-                                                        <span className={`text-xs font-medium truncate ${partner.is_slrh ? 'text-blue-500' : 'text-[var(--text-secondary)]'}`}>
+                                                        {partner.is_slrh && <Shield className="w-3 h-3 text-[var(--accent)] shrink-0" />}
+                                                        <span className={`text-xs font-medium truncate ${partner.is_slrh ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]'}`}>
                                                             {partner.name}
                                                         </span>
                                                         <span className="text-[8px] text-[var(--text-faint)] ml-auto font-mono">
@@ -1643,7 +1655,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                                 {/* LTD cell (collapsed) */}
                                                 {!expandLTD && (
                                                     <td className="border-[var(--table-row-border)] bg-[var(--success-bg)]/10 text-right px-2 py-1.5">
-                                                        <span className={`text-xs font-mono tabular-nums ${partnerLtdTotal === 0 ? 'text-[var(--border-strong)]' : partner.is_slrh ? 'text-blue-500' : 'text-[var(--text-secondary)]'}`}>
+                                                        <span className={`text-xs font-mono tabular-nums ${partnerLtdTotal === 0 ? 'text-[var(--border-strong)]' : partner.is_slrh ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]'}`}>
                                                             {partnerLtdTotal === 0 ? '—' : formatCurrency(partnerLtdTotal, 0)}
                                                         </span>
                                                     </td>
@@ -1661,7 +1673,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                                                 onChangeSplit={(pct) => upsertSplit.mutate({
                                                                     split: { budget_id: budget.id, partner_id: partner.id, month_key: mk, split_pct: pct },
                                                                     budgetId: budget.id,
-                                                                })}
+                                                                }, toastOnError(`Failed to save ${partner.name}'s split for ${formatMonthLabel(mk)}`))}
                                                             />
                                                         </td>
                                                     );
@@ -1685,13 +1697,13 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                                                                 onChangeSplit={(pct) => upsertSplit.mutate({
                                                                     split: { budget_id: budget.id, partner_id: partner.id, month_key: mk, split_pct: pct },
                                                                     budgetId: budget.id,
-                                                                })}
+                                                                }, toastOnError(`Failed to save ${partner.name}'s split for ${formatMonthLabel(mk)}`))}
                                                             />
                                                         </td>
                                                     );
                                                 })}
                                                 <td className="sticky right-0 z-10 bg-inherit px-3 py-1.5 border-l border-[var(--table-row-border)] text-right">
-                                                    <span className={`text-xs font-mono font-semibold tabular-nums ${partnerGrandTotal === 0 ? 'text-[var(--border-strong)]' : partner.is_slrh ? 'text-blue-500' : 'text-[var(--text-primary)]'}`}>
+                                                    <span className={`text-xs font-mono font-semibold tabular-nums ${partnerGrandTotal === 0 ? 'text-[var(--border-strong)]' : partner.is_slrh ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]'}`}>
                                                         {partnerGrandTotal === 0 ? '—' : formatCurrency(partnerGrandTotal, 0)}
                                                     </span>
                                                 </td>
@@ -1708,11 +1720,11 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             {/* Add Custom Line Item */}
             <div className="flex items-center gap-2">
                 {showAddLine ? (
-                    <div className="flex items-center gap-2">
-                        <input type="text" value={newLineLabel} onChange={(e) => setNewLineLabel(e.target.value)} placeholder="Custom line item name..." autoFocus
-                            className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none w-64"
-                            onKeyDown={(e) => { if (e.key === 'Enter' && newLineLabel.trim()) { addLineItem.mutate({ budgetId: budget.id, label: newLineLabel.trim(), pursuitId }); setNewLineLabel(''); setShowAddLine(false); } if (e.key === 'Escape') { setShowAddLine(false); setNewLineLabel(''); } }} />
-                        <button onClick={() => { if (newLineLabel.trim()) { addLineItem.mutate({ budgetId: budget.id, label: newLineLabel.trim(), pursuitId }); setNewLineLabel(''); setShowAddLine(false); } }}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <input type="text" value={newLineLabel} onChange={(e) => setNewLineLabel(e.target.value)} placeholder="Custom line item name..." autoFocus aria-label="Custom line item name"
+                            className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none w-64 max-w-full"
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleAddLineItem(); if (e.key === 'Escape') { setShowAddLine(false); setNewLineLabel(''); } }} />
+                        <button onClick={handleAddLineItem}
                             disabled={!newLineLabel.trim() || addLineItem.isPending} className="px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-xs font-medium transition-colors">Add</button>
                         <button onClick={() => { setShowAddLine(false); setNewLineLabel(''); }} className="px-3 py-1.5 rounded-lg text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]">Cancel</button>
                     </div>
@@ -1726,13 +1738,14 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             {/* Amend Budget Dialog */}
             {showAmendDialog && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
-                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in">
+                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in mx-4">
                         <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Amend Original Budget</h2>
                         <p className="text-xs text-[var(--text-muted)] mb-4">The current projected values will replace the original budget snapshot. The previous snapshot is preserved in the revision history.</p>
                         <div className="mb-4">
                             <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Reason (optional)</label>
                             <input type="text" value={amendReason} onChange={(e) => setAmendReason(e.target.value)} placeholder="e.g., Scope change — added landscape design"
-                                className="w-full px-3 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none" autoFocus />
+                                onKeyDown={(e) => { if (e.key === 'Enter' && !amendBudgetMut.isPending) handleAmend(); if (e.key === 'Escape') { setShowAmendDialog(false); setAmendReason(''); } }}
+                                className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none" autoFocus />
                         </div>
                         <div className="flex justify-end gap-3">
                             <button onClick={() => { setShowAmendDialog(false); setAmendReason(''); }} className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]">Cancel</button>
@@ -1748,10 +1761,10 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             {showPushConfirm && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm px-4">
                     <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in text-center">
-                        <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-4">
-                            <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
+                        <div className="w-12 h-12 rounded-full bg-[var(--danger-bg)] flex items-center justify-center mx-auto mb-4">
+                            <AlertCircle className="w-6 h-6 text-[var(--danger)]" />
                         </div>
-                        <h2 className="text-lg font-bold text-[var(--text-primary)] mb-2">Push Core Budget?</h2>
+                        <h2 className="text-lg font-bold text-[var(--text-primary)] mb-2">Push Budget to Forecast?</h2>
                         <p className="text-sm text-[var(--text-secondary)] mb-6">
                             This will completely overwrite your working forecast for all future and pending months using the original budget allocations. 
                             <br /><br />
@@ -1761,7 +1774,7 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
                             <button onClick={() => setShowPushConfirm(false)} className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors">
                                 Cancel
                             </button>
-                            <button onClick={confirmPushBudgetToForecast} className="flex-1 px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-bold shadow-sm transition-colors">
+                            <button onClick={confirmPushBudgetToForecast} className="flex-1 px-4 py-2.5 rounded-lg bg-[var(--danger)] hover:opacity-90 text-white text-sm font-bold shadow-sm transition-colors">
                                 Overwrite
                             </button>
                         </div>
@@ -1770,17 +1783,19 @@ export function PredevBudgetTab({ pursuitId }: PredevBudgetTabProps) {
             )}
 
             {/* Legend */}
-            <div className="flex items-center gap-4 text-[10px] text-[var(--text-faint)]">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-[var(--text-faint)]" title={OPEN_MONTH_NOTE}>
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--success)]" /> Yardi Actual</span>
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--accent)]" /> Manual Override</span>
                 <span className="flex items-center gap-1"><Database className="w-2.5 h-2.5" /> Closed Month (15-day lag)</span>
                 <span className="flex items-center gap-1"><AlertCircle className="w-2.5 h-2.5" /> Pending Close</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--warning)]" /> Yardi posted, month not yet closed</span>
             </div>
 
             {/* Cost Code Mapping Dialog */}
             {mappingLineItem && (
                 <CostCodeMappingDialog
                     lineItem={mappingLineItem}
+                    otherLineItems={lineItems.filter((li) => li.id !== mappingLineItem.id)}
                     pursuitId={pursuitId}
                     onClose={() => setMappingLineItem(null)}
                 />

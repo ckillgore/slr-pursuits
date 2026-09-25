@@ -63,20 +63,31 @@ import {
     MoreVertical,
     RotateCcw,
 } from 'lucide-react';
+import { toast } from '@/lib/toast';
 
-// â”€â”€ Status Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/** mutate() options that surface a failure as a toast instead of failing silently. */
+function toastOnError(message: string) {
+    return {
+        onError: (err: unknown) => {
+            console.error(`${message}:`, err);
+            toast.error(message, err);
+        },
+    };
+}
+
+// ── Status Config ─────────────────────────────────────────────
 const STATUS_CONFIG: Record<ChecklistTaskStatus, { label: string; color: string; bgColor: string; Icon: any }> = {
-    not_started: { label: 'Not Started', color: '#9CA3AF', bgColor: 'var(--bg-elevated)', Icon: Circle },
-    in_progress: { label: 'In Progress', color: '#3B82F6', bgColor: 'var(--accent-subtle)', Icon: Clock },
-    in_review: { label: 'In Review', color: '#F59E0B', bgColor: 'var(--warning-bg)', Icon: Eye },
-    complete: { label: 'Complete', color: '#10B981', bgColor: '#ECFDF5', Icon: CheckCircle2 },
-    not_applicable: { label: 'N/A', color: '#64748B', bgColor: '#F1F5F9', Icon: Ban },
-    blocked: { label: 'Blocked', color: '#EF4444', bgColor: 'var(--danger-bg)', Icon: XCircle },
+    not_started: { label: 'Not Started', color: 'var(--text-faint)', bgColor: 'var(--bg-elevated)', Icon: Circle },
+    in_progress: { label: 'In Progress', color: 'var(--accent)', bgColor: 'var(--accent-subtle)', Icon: Clock },
+    in_review: { label: 'In Review', color: 'var(--warning)', bgColor: 'var(--warning-bg)', Icon: Eye },
+    complete: { label: 'Complete', color: 'var(--success)', bgColor: 'var(--success-bg)', Icon: CheckCircle2 },
+    not_applicable: { label: 'N/A', color: 'var(--text-muted)', bgColor: 'var(--bg-elevated)', Icon: Ban },
+    blocked: { label: 'Blocked', color: 'var(--danger)', bgColor: 'var(--danger-bg)', Icon: XCircle },
 };
 
 const ALL_STATUSES: ChecklistTaskStatus[] = ['not_started', 'in_progress', 'in_review', 'complete', 'not_applicable', 'blocked'];
 
-// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Helpers ───────────────────────────────────────────────────
 function daysUntil(dateStr: string): number {
     // Local-midnight parse; tolerate values that already carry a time component
     const d = new Date(dateStr.split('T')[0] + 'T00:00:00');
@@ -100,7 +111,7 @@ function timeAgo(dateStr: string): string {
     return `${days}d ago`;
 }
 
-// â”€â”€ Confirmation Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Confirmation Dialog ───────────────────────────────────────
 function ConfirmDialog({ title, message, requireString, onConfirm, onCancel }: {
     title: string; message: string; requireString?: string; onConfirm: () => void; onCancel: () => void;
 }) {
@@ -108,8 +119,8 @@ function ConfirmDialog({ title, message, requireString, onConfirm, onCancel }: {
     const isValid = requireString ? inputVal === requireString : true;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
-            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm px-4">
+            <div role="alertdialog" aria-modal="true" aria-label={title} className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm shadow-xl animate-fade-in">
                 <h3 className="text-base font-semibold text-[var(--text-primary)] mb-2">{title}</h3>
                 <p className="text-sm text-[var(--text-muted)] mb-5">{message}</p>
                 
@@ -120,10 +131,12 @@ function ConfirmDialog({ title, message, requireString, onConfirm, onCancel }: {
                         </label>
                         <input 
                             type="text" 
-                            className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-1 focus:ring-[#EF4444] focus:border-[#EF4444]"
+                            className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm bg-[var(--bg-elevated)] focus:outline-none focus:ring-1 focus:ring-[var(--danger)] focus:border-[var(--danger)]"
                             value={inputVal}
                             onChange={(e) => setInputVal(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && isValid) onConfirm(); if (e.key === 'Escape') onCancel(); }}
                             placeholder={requireString}
+                            aria-label={`Type ${requireString} to confirm`}
                             autoFocus
                         />
                     </div>
@@ -136,7 +149,7 @@ function ConfirmDialog({ title, message, requireString, onConfirm, onCancel }: {
                         disabled={!isValid}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                             isValid 
-                                ? 'bg-[#EF4444] hover:bg-[#DC2626] text-white' 
+                                ? 'bg-[var(--danger)] hover:opacity-90 text-white' 
                                 : 'bg-[var(--bg-elevated)] text-[var(--text-faint)] cursor-not-allowed'
                         }`}
                     >
@@ -148,7 +161,7 @@ function ConfirmDialog({ title, message, requireString, onConfirm, onCancel }: {
     );
 }
 
-// â”€â”€ Apply Template Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Apply Template Dialog ─────────────────────────────────────
 function ApplyTemplateDialog({ pursuitId, onClose }: { pursuitId: string; onClose: () => void }) {
     const { data: templates = [], isLoading } = useChecklistTemplates();
     const applyMutation = useApplyTemplate();
@@ -159,12 +172,12 @@ function ApplyTemplateDialog({ pursuitId, onClose }: { pursuitId: string; onClos
 
     const handleApply = () => {
         if (!selectedId) return;
-        applyMutation.mutate({ pursuitId, templateId: selectedId }, { onSuccess: () => onClose() });
+        applyMutation.mutate({ pursuitId, templateId: selectedId }, { onSuccess: () => onClose(), ...toastOnError('Failed to apply template') });
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
-            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm px-4">
+            <div role="dialog" aria-modal="true" aria-label="Apply checklist template" className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in">
                 <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-1">Apply Checklist Template</h2>
                 <p className="text-sm text-[var(--text-muted)] mb-5">Select a template to create the checklist for this pursuit.</p>
                 {isLoading ? (
@@ -174,7 +187,7 @@ function ApplyTemplateDialog({ pursuitId, onClose }: { pursuitId: string; onClos
                 ) : (
                     <div className="space-y-2 max-h-60 overflow-y-auto">
                         {activeTemplates.map(t => (
-                            <button key={t.id} onClick={() => setSelectedId(t.id)}
+                            <button key={t.id} onClick={() => setSelectedId(t.id)} aria-pressed={selectedId === t.id}
                                 className={`w-full text-left px-4 py-3 rounded-lg border transition-all ${selectedId === t.id
                                     ? 'border-[var(--accent)] bg-[var(--accent-subtle)] ring-2 ring-[var(--accent)]/20'
                                     : 'border-[var(--border)] bg-[var(--bg-card)] hover:bg-[var(--bg-primary)]'}`}>
@@ -199,14 +212,14 @@ function ApplyTemplateDialog({ pursuitId, onClose }: { pursuitId: string; onClos
     );
 }
 
-// â”€â”€ Milestone Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Milestone Bar ─────────────────────────────────────────────
 function MilestoneBar({ pursuitId, milestones }: { pursuitId: string; milestones: PursuitMilestone[] }) {
     const upsertMilestone = useUpsertMilestone();
     const [expanded, setExpanded] = useState(false);
     return (
         <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl mb-4">
-            <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-primary)] rounded-xl transition-colors">
-                <span className="flex items-center gap-2"><Flag className="w-4 h-4 text-[#F59E0B]" /> Milestones</span>
+            <button onClick={() => setExpanded(!expanded)} aria-expanded={expanded} className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-primary)] rounded-xl transition-colors">
+                <span className="flex items-center gap-2"><Flag className="w-4 h-4 text-[var(--warning)]" /> Milestones</span>
                 <span className="flex items-center gap-2">
                     <span className="text-xs text-[var(--text-muted)]">{milestones.filter(m => m.target_date).length}/{milestones.length} set</span>
                     {expanded ? <ChevronDown className="w-4 h-4 text-[var(--text-muted)]" /> : <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />}
@@ -223,12 +236,14 @@ function MilestoneBar({ pursuitId, milestones }: { pursuitId: string; milestones
                                 aria-label={`${m.milestone_label} target date`}
                                 onBlur={(e) => {
                                     const v = e.target.value || null;
-                                    if (v !== (m.target_date ?? null)) upsertMilestone.mutate({ id: m.id, target_date: v, pursuit_id: pursuitId });
+                                    if (v !== (m.target_date ?? null)) upsertMilestone.mutate({ id: m.id, target_date: v, pursuit_id: pursuitId }, toastOnError(`Failed to save ${m.milestone_label} date`));
                                 }}
                                 onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                                className={`px-2 py-1.5 rounded-md text-sm border ${m.target_date ? (m.is_confirmed ? 'border-[#10B981]' : 'border-dashed border-[#F59E0B]') : 'border-[var(--border)]'} bg-[var(--bg-card)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/20 focus:outline-none`} />
-                            <button onClick={() => upsertMilestone.mutate({ id: m.id, is_confirmed: !m.is_confirmed, pursuit_id: pursuitId })}
-                                className={`text-[10px] uppercase tracking-wider font-semibold self-start px-2 py-0.5 rounded-full transition-colors ${m.is_confirmed ? 'bg-[var(--success-bg)] text-[var(--success)]' : 'bg-[var(--warning-bg)] text-[#D97706]'}`}>
+                                className={`px-2 py-1.5 rounded-md text-sm border ${m.target_date ? (m.is_confirmed ? 'border-[var(--success)]' : 'border-dashed border-[var(--warning)]') : 'border-[var(--border)]'} bg-[var(--bg-card)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/20 focus:outline-none`} />
+                            <button onClick={() => upsertMilestone.mutate({ id: m.id, is_confirmed: !m.is_confirmed, pursuit_id: pursuitId }, toastOnError(`Failed to update ${m.milestone_label}`))}
+                                aria-pressed={m.is_confirmed}
+                                title={m.is_confirmed ? 'Confirmed — click to mark as estimated' : 'Estimated — click to mark as confirmed'}
+                                className={`text-[10px] uppercase tracking-wider font-semibold self-start px-2 py-0.5 rounded-full transition-colors ${m.is_confirmed ? 'bg-[var(--success-bg)] text-[var(--success)]' : 'bg-[var(--warning-bg)] text-[var(--warning)]'}`}>
                                 {m.is_confirmed ? '✓ Confirmed' : 'Estimated'}
                             </button>
                         </div>
@@ -237,7 +252,10 @@ function MilestoneBar({ pursuitId, milestones }: { pursuitId: string; milestones
             )}
         </div>
     );
-}function TaskCard({
+}
+
+// ── Task Card ───────────────────────────────────────────────
+function TaskCard({
     task, onClick, isSelected,
     onDelete,
     dragHandlers,
@@ -256,10 +274,10 @@ function MilestoneBar({ pursuitId, milestones }: { pursuitId: string; milestones
     const overdue = task.due_date && task.status !== 'complete' && task.status !== 'not_applicable' && daysUntil(task.due_date) < 0;
 
     return (
-        <div draggable className={`flex items-center gap-1 px-1 py-0.5 rounded-lg transition-all ${isSelected ? 'bg-[var(--accent-subtle)] ring-1 ring-[var(--accent)]/30' : ''}`}
+        <div draggable className={`group/task flex items-center gap-1 px-1 py-0.5 rounded-lg transition-all ${isSelected ? 'bg-[var(--accent-subtle)] ring-1 ring-[var(--accent)]/30' : ''}`}
             onDragStart={dragHandlers.onDragStart} onDragOver={dragHandlers.onDragOver} onDrop={dragHandlers.onDrop} onDragEnd={dragHandlers.onDragEnd}
             onTouchStart={dragHandlers.onTouchStart} onTouchMove={dragHandlers.onTouchMove} onTouchEnd={dragHandlers.onTouchEnd}>
-            <div className="cursor-grab active:cursor-grabbing p-1 text-[var(--text-faint)] hover:text-[var(--text-muted)] touch-none">
+            <div className="cursor-grab active:cursor-grabbing p-1 text-[var(--text-faint)] hover:text-[var(--text-muted)] touch-none" title="Drag to reorder" aria-hidden="true">
                 <GripVertical className="w-3.5 h-3.5" />
             </div>
             <button onClick={onClick} className="flex-1 text-left flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-[var(--bg-primary)] transition-all min-w-0">
@@ -269,11 +287,11 @@ function MilestoneBar({ pursuitId, milestones }: { pursuitId: string; milestones
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                         <span className="text-sm text-[var(--text-primary)] truncate">{task.name}</span>
-                        {task.is_critical_path && <span className="flex-shrink-0 text-[9px] uppercase tracking-wider font-bold text-[#EF4444] bg-[var(--danger-bg)] px-1 py-0.5 rounded">Critical</span>}
+                        {task.is_critical_path && <span className="flex-shrink-0 text-[9px] uppercase tracking-wider font-bold text-[var(--danger)] bg-[var(--danger-bg)] px-1 py-0.5 rounded">Critical</span>}
                     </div>
                     <div className="flex items-center gap-3 mt-0.5">
                         {task.due_date && (
-                            <span className={`text-[11px] flex items-center gap-0.5 ${overdue ? 'text-[#EF4444] font-semibold' : 'text-[var(--text-muted)]'}`}>
+                            <span className={`text-[11px] flex items-center gap-0.5 ${overdue ? 'text-[var(--danger)] font-semibold' : 'text-[var(--text-muted)]'}`}>
                                 <Calendar className="w-3 h-3" /> {formatDate(task.due_date)}
                             </span>
                         )}
@@ -289,19 +307,15 @@ function MilestoneBar({ pursuitId, milestones }: { pursuitId: string; milestones
             </button>
             <button onClick={(e) => { e.stopPropagation(); onDelete(); }}
                 aria-label={`Delete task ${task.name}`}
-                onFocus={(e) => (e.currentTarget.style.opacity = '1')}
-                onBlur={(e) => (e.currentTarget.style.opacity = '0')}
-                className="p-1 text-[var(--text-faint)] hover:text-[#EF4444] opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
-                style={{ opacity: undefined }}
-                onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                onMouseLeave={(e) => (e.currentTarget.style.opacity = '0')}>
+                title="Delete task"
+                className="p-1 text-[var(--text-faint)] hover:text-[var(--danger)] opacity-0 group-hover/task:opacity-100 focus-visible:opacity-100 transition-all flex-shrink-0">
                 <Trash2 className="w-3.5 h-3.5" />
             </button>
         </div>
     );
 }
 
-// â”€â”€ Phase Accordion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Phase Accordion ───────────────────────────────────────────
 function PhaseAccordion({
     phase, pursuitId, selectedTaskId, onSelectTask, users,
     onQueueDeletePhase, onQueueDeleteTask
@@ -332,7 +346,8 @@ function PhaseAccordion({
 
     const handleAddTask = () => {
         if (!newTaskName.trim()) return;
-        addTask.mutate({ phaseId: phase.id, pursuitId, task: { name: newTaskName.trim(), sort_order: tasks.length } });
+        const name = newTaskName.trim();
+        addTask.mutate({ phaseId: phase.id, pursuitId, task: { name, sort_order: tasks.length } }, toastOnError(`Failed to add task "${name}"`));
         setNewTaskName('');
         setAddingTask(false);
     };
@@ -345,7 +360,7 @@ function PhaseAccordion({
         const ordered = [...tasks];
         const [moved] = ordered.splice(fromIdx, 1);
         ordered.splice(targetIdx, 0, moved);
-        reorderTasks.mutate({ phaseId: phase.id, orderedIds: ordered.map(t => t.id), pursuitId });
+        reorderTasks.mutate({ phaseId: phase.id, orderedIds: ordered.map(t => t.id), pursuitId }, toastOnError('Failed to reorder tasks'));
         setDragIdx(null);
     };
 
@@ -355,27 +370,30 @@ function PhaseAccordion({
     return (
         <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden">
             <div className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg-primary)] transition-colors">
-                <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: phase.color || '#9CA3AF' }} />
+                <button onClick={() => setExpanded(!expanded)} aria-expanded={expanded} className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: phase.color || 'var(--text-faint)' }} />
                     <span className="text-sm font-semibold text-[var(--text-primary)] flex-1 text-left">{phase.name}</span>
                 </button>
                 <div className="flex items-center gap-3">
+                    <span className="sm:hidden text-xs text-[var(--text-muted)] tabular-nums">{completedCount}/{applicableCount}</span>
                     <div className="hidden sm:flex items-center gap-2">
                         <div className="w-24 h-1.5 rounded-full bg-[var(--table-row-border)] overflow-hidden">
-                            <div className="h-full rounded-full bg-[#10B981] transition-all" style={{ width: `${progress}%` }} />
+                            <div className="h-full rounded-full bg-[var(--success)] transition-all" style={{ width: `${progress}%` }} />
                         </div>
                         <span className="text-xs text-[var(--text-muted)] tabular-nums w-16">{completedCount}/{applicableCount}</span>
                     </div>
                     <div className="relative">
-                        <button onClick={() => setShowPhaseMenu(!showPhaseMenu)} className="p-1 rounded-md hover:bg-[var(--bg-elevated)] text-[var(--text-muted)]">
+                        <button onClick={() => setShowPhaseMenu(!showPhaseMenu)} aria-label={`${phase.name} section actions`} aria-haspopup="menu" aria-expanded={showPhaseMenu}
+                            onKeyDown={(e) => { if (e.key === 'Escape') setShowPhaseMenu(false); }}
+                            className="p-1 rounded-md hover:bg-[var(--bg-elevated)] text-[var(--text-muted)]">
                             <MoreVertical className="w-4 h-4" />
                         </button>
                         {showPhaseMenu && (
                             <>
                                 <div className="fixed inset-0 z-10" onClick={() => setShowPhaseMenu(false)} />
-                                <div className="absolute right-0 top-8 z-20 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg shadow-lg py-1 w-44">
-                                    <button onClick={() => { setShowPhaseMenu(false); setConfirmDeletePhase(true); }}
-                                        className="w-full text-left px-3 py-2 text-sm text-[#EF4444] hover:bg-[var(--bg-primary)] flex items-center gap-2">
+                                <div role="menu" className="absolute right-0 top-8 z-20 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg shadow-lg py-1 w-44">
+                                    <button role="menuitem" onClick={() => { setShowPhaseMenu(false); setConfirmDeletePhase(true); }}
+                                        className="w-full text-left px-3 py-2 text-sm text-[var(--danger)] hover:bg-[var(--bg-primary)] flex items-center gap-2">
                                         <Trash2 className="w-3.5 h-3.5" /> Delete Section
                                     </button>
                                 </div>
@@ -419,9 +437,9 @@ function PhaseAccordion({
                     {addingTask ? (
                         <div className="flex items-center gap-2 px-3 py-2">
                             <input autoFocus value={newTaskName} onChange={(e) => setNewTaskName(e.target.value)}
-                                placeholder="New task name..." className="flex-1 px-3 py-1.5 rounded-lg text-sm border border-[var(--accent)] bg-[var(--bg-card)] focus:outline-none"
+                                placeholder="New task name..." aria-label="New task name" className="flex-1 min-w-0 px-3 py-1.5 rounded-lg text-sm border border-[var(--accent)] bg-[var(--bg-card)] text-[var(--text-primary)] focus:outline-none"
                                 onKeyDown={(e) => { if (e.key === 'Enter') handleAddTask(); if (e.key === 'Escape') { setAddingTask(false); setNewTaskName(''); } }} />
-                            <button onClick={handleAddTask} className="text-xs text-[var(--accent)] font-medium">Add</button>
+                            <button onClick={handleAddTask} disabled={!newTaskName.trim()} className="text-xs text-[var(--accent)] font-medium disabled:opacity-50">Add</button>
                             <button onClick={() => { setAddingTask(false); setNewTaskName(''); }} className="text-xs text-[var(--text-muted)]">Cancel</button>
                         </div>
                     ) : (
@@ -434,7 +452,7 @@ function PhaseAccordion({
             )}
             {/* Confirm dialogs */}
             {confirmDeletePhase && (
-                <ConfirmDialog title="Delete Section" requireString="DELETE" message={`Delete "${phase.name}" and all its tasks? This action implies deletion.`}
+                <ConfirmDialog title="Delete Section" requireString="DELETE" message={`Delete "${phase.name}" and all its tasks? You'll have a few seconds to undo.`}
                     onConfirm={() => { 
                         onQueueDeletePhase(phase.name, () => deletePhase.mutateAsync({ id: phase.id, pursuitId })); 
                         setConfirmDeletePhase(false); 
@@ -442,7 +460,7 @@ function PhaseAccordion({
                     onCancel={() => setConfirmDeletePhase(false)} />
             )}
             {confirmDeleteTask && (
-                <ConfirmDialog title="Delete Task" requireString="DELETE" message="Delete this task and all its sub-items? This action implies deletion."
+                <ConfirmDialog title="Delete Task" requireString="DELETE" message="Delete this task and all its sub-items? You'll have a few seconds to undo."
                     onConfirm={() => { 
                         const tName = tasks.find(t => t.id === confirmDeleteTask)?.name || 'Task';
                         const taskId = confirmDeleteTask;
@@ -455,7 +473,7 @@ function PhaseAccordion({
     );
 }
 
-// â”€â”€ Main ChecklistTab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Main ChecklistTab ─────────────────────────────────────────
 export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
     const { data: phases = [], isLoading: checklistLoading } = usePursuitChecklist(pursuitId);
     const { data: milestones = [], isLoading: milestonesLoading } = usePursuitMilestones(pursuitId);
@@ -491,7 +509,7 @@ export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
             execute().catch((err) => {
                 console.error(`Failed to delete ${label}:`, err);
                 clearPendingFlag(type, targetId);
-                alert(`Failed to delete "${label}". It has been restored.`);
+                toast.error(`Failed to delete "${label}". It has been restored`, err);
             });
             setPendingDeletions(prev => prev.filter(p => p.id !== id));
         }, 7000); // 7 seconds to undo
@@ -512,7 +530,8 @@ export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
 
     const handleAddSection = () => {
         if (!newSectionName.trim()) return;
-        addPhase.mutate({ pursuitId, name: newSectionName.trim(), sortOrder: phases.length });
+        const name = newSectionName.trim();
+        addPhase.mutate({ pursuitId, name, sortOrder: phases.length }, toastOnError(`Failed to add section "${name}"`));
         setNewSectionName('');
         setAddingSection(false);
     };
@@ -587,25 +606,25 @@ export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
                 </div>
                 {stats.inProgress > 0 && (
                     <div className="flex items-center gap-1.5 text-sm">
-                        <Clock className="w-4 h-4 text-[#3B82F6]" />
+                        <Clock className="w-4 h-4 text-[var(--accent)]" />
                         <span className="text-[var(--text-primary)] font-medium">{stats.inProgress}</span>
                         <span className="text-[var(--text-muted)]">in progress</span>
                     </div>
                 )}
                 {stats.overdue > 0 && (
                     <div className="flex items-center gap-1.5 text-sm">
-                        <AlertTriangle className="w-4 h-4 text-[#EF4444]" />
-                        <span className="text-[#EF4444] font-medium">{stats.overdue}</span>
+                        <AlertTriangle className="w-4 h-4 text-[var(--danger)]" />
+                        <span className="text-[var(--danger)] font-medium">{stats.overdue}</span>
                         <span className="text-[var(--text-muted)]">overdue</span>
                     </div>
                 )}
                 <div className="flex-1 hidden md:block">
                     <div className="w-full h-2 rounded-full bg-[var(--table-row-border)] overflow-hidden">
-                        <div className="h-full rounded-full bg-[#10B981] transition-all" style={{ width: `${stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%` }} />
+                        <div className="h-full rounded-full bg-[var(--success)] transition-all" style={{ width: `${stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%` }} />
                     </div>
                 </div>
-                <button onClick={() => setConfirmReset(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[var(--text-faint)] hover:text-[#EF4444] hover:bg-[var(--bg-elevated)] transition-colors">
+                <button onClick={() => setConfirmReset(true)} title="Delete this pursuit's entire checklist"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--bg-elevated)] transition-colors">
                     <RotateCcw className="w-3.5 h-3.5" /> Reset
                 </button>
             </div>
@@ -626,9 +645,9 @@ export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
                 {addingSection ? (
                     <div className="flex items-center gap-2 p-3 bg-[var(--bg-card)] border border-[var(--accent)] rounded-xl shadow-sm">
                         <input autoFocus value={newSectionName} onChange={(e) => setNewSectionName(e.target.value)}
-                            placeholder="New section name..." className="flex-1 px-3 py-1.5 rounded-lg text-sm bg-[var(--bg-primary)] focus:outline-none"
+                            placeholder="New section name..." aria-label="New section name" className="flex-1 min-w-0 px-3 py-1.5 rounded-lg text-sm bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none"
                             onKeyDown={(e) => { if (e.key === 'Enter') handleAddSection(); if (e.key === 'Escape') { setAddingSection(false); setNewSectionName(''); } }} />
-                        <button onClick={handleAddSection} className="text-sm px-3 py-1.5 bg-[var(--accent)] text-white rounded-lg font-medium shadow-sm hover:bg-[var(--accent-hover)] transition-colors">Add</button>
+                        <button onClick={handleAddSection} disabled={!newSectionName.trim()} className="disabled:opacity-50 text-sm px-3 py-1.5 bg-[var(--accent)] text-white rounded-lg font-medium shadow-sm hover:bg-[var(--accent-hover)] transition-colors">Add</button>
                         <button onClick={() => { setAddingSection(false); setNewSectionName(''); }} className="text-sm px-3 py-1.5 text-[var(--text-muted)] hover:bg-[var(--bg-primary)] rounded-lg transition-colors">Cancel</button>
                     </div>
                 ) : (
@@ -656,13 +675,13 @@ export default function ChecklistTab({ pursuitId }: { pursuitId: string }) {
             )}
 
             {/* Undo Snackbars */}
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex flex-col gap-2 z-50">
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex flex-col gap-2 z-50 w-[calc(100%-2rem)] max-w-md" role="status" aria-live="polite">
                 {pendingDeletions.map(del => (
                     <div key={del.id} className="flex items-center justify-between gap-6 px-5 py-3.5 bg-[var(--bg-card)] border border-[var(--border-strong)] shadow-2xl rounded-xl animate-fade-in shadow-black/20">
-                        <span className="text-sm font-medium text-[var(--text-primary)]">
+                        <span className="text-sm font-medium text-[var(--text-primary)] min-w-0 truncate">
                             <strong className="font-semibold text-[var(--accent)]">{del.label}</strong> deleted
                         </span>
-                        <button onClick={() => undoDeletion(del.id)} className="text-sm font-bold tracking-wide text-[#EF4444] hover:text-[#DC2626] transition-colors uppercase">Undo</button>
+                        <button onClick={() => undoDeletion(del.id)} className="text-sm font-bold tracking-wide text-[var(--accent)] hover:opacity-80 transition-colors uppercase shrink-0">Undo</button>
                     </div>
                 ))}
             </div>

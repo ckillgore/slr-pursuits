@@ -105,6 +105,7 @@ export default function ComparisonPage() {
             <AppShell>
                 <div className="max-w-7xl mx-auto px-6 py-12 text-center">
                     <p className="text-[var(--text-muted)]">Pursuit not found.</p>
+                    <Link href="/" className="text-[var(--accent)] text-sm mt-2 inline-block hover:underline">Back to Dashboard</Link>
                 </div>
             </AppShell>
         );
@@ -116,7 +117,7 @@ export default function ComparisonPage() {
 
     return (
         <AppShell>
-            <div className="max-w-full mx-auto px-6 py-8">
+            <div className="max-w-full mx-auto px-4 md:px-6 py-8">
                 {/* Breadcrumb */}
                 <Link
                     href={`/pursuits/${pursuitId}`}
@@ -135,7 +136,7 @@ export default function ComparisonPage() {
                 {activeOPs.length < 2 && (
                     <div className="card flex flex-col items-center py-12 text-center">
                         <p className="text-sm text-[var(--text-muted)]">Create at least 2 one-pagers to compare scenarios side-by-side.</p>
-                        <Link href={`/pursuits/${pursuitId}`} className="mt-4 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors">
+                        <Link href={`/pursuits/${pursuitId}?tab=onepagers`} className="mt-4 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors">
                             Back to Pursuit
                         </Link>
                     </div>

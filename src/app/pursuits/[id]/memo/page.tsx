@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/constants';
 import type { OnePager } from '@/types';
+import { toast } from '@/lib/toast';
 
 // ═══════════════════════════════════════════════════════════════
 // Inline Exhibit Components (self-contained, no external deps)
@@ -229,19 +230,15 @@ export default function MemoPage() {
                 body: JSON.stringify({ pursuitId: pursuit.id }),
             });
             if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || 'Export failed');
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || `Export failed (${res.status})`);
             }
             const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `Deal_Summary_${pursuit.name.replace(/[^a-zA-Z0-9]/g, '_')}.docx`;
-            a.click();
-            URL.revokeObjectURL(url);
+            const { downloadBlob } = await import('@/components/export/download');
+            downloadBlob(blob, `Deal_Summary_${pursuit.name.replace(/[^a-zA-Z0-9]/g, '_')}.docx`);
         } catch (err) {
             console.error('DOCX export failed:', err);
-            alert('Failed to export DOCX. Please try again.');
+            toast.error('Failed to export DOCX', err);
         } finally {
             setIsExporting(false);
         }
@@ -275,6 +272,7 @@ export default function MemoPage() {
             <AppShell>
                 <div className="max-w-7xl mx-auto px-6 py-12 text-center">
                     <p className="text-[var(--text-muted)]">Pursuit not found.</p>
+                    <Link href="/" className="text-[var(--accent)] text-sm mt-2 inline-block hover:underline">Back to Dashboard</Link>
                 </div>
             </AppShell>
         );
@@ -286,9 +284,9 @@ export default function MemoPage() {
 
     return (
         <AppShell>
-            <div className="max-w-4xl mx-auto px-6 py-8 memo-print-container">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 memo-print-container">
                 {/* Header (Hidden when printing) */}
-                <div className="flex items-center justify-between mb-8 print:hidden">
+                <div className="flex flex-wrap items-start justify-between gap-4 mb-8 print:hidden">
                     <div>
                         <Link
                             href={`/pursuits/${pursuitId}`}
@@ -305,6 +303,7 @@ export default function MemoPage() {
                     <button
                         onClick={handleExportDocx}
                         disabled={isExporting || !pursuit.executive_memo}
+                        title={pursuit.executive_memo ? 'Download the memo as a Word document' : 'Generate a memo first'}
                         className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
                     >
                         {isExporting ? (

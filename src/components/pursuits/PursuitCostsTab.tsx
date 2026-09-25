@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { fetchPursuitGLTotals, fetchPursuitJobCosts, fetchJobCostMatrix, fetchJobsForProperty, type YardiPursuitCostSummary, type YardiJobCostTransaction, type YardiJobCostMatrixRow } from '@/app/actions/accounting';
+import { useState, useEffect, useMemo } from 'react';
+import { fetchPursuitGLTotals, fetchPursuitJobCosts, fetchJobCostMatrix, type YardiPursuitCostSummary, type YardiJobCostTransaction, type YardiJobCostMatrixRow } from '@/app/actions/accounting';
 import { usePursuitAccountingEntities } from '@/hooks/useSupabaseQueries';
-import { Loader2, DollarSign, Calendar, AlertCircle, Building2, Search, SlidersHorizontal, BarChart3, ArrowUpDown, ArrowUp, ArrowDown, Filter, X } from 'lucide-react';
-import { formatCurrency, formatPercent } from '@/lib/constants';
+import { resolvePursuitJobIds } from '@/components/pursuits/accountingJobs';
+import { Loader2, DollarSign, AlertCircle, Building2, Search, SlidersHorizontal, BarChart3, ArrowUpDown, ArrowUp, ArrowDown, Filter, X, RefreshCw } from 'lucide-react';
+import { formatCurrency } from '@/lib/constants';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 
 /** 'YYYY-MM-DD…' → 'YYYY-MM-DD' (date-only, no timezone shift). */
@@ -25,21 +26,10 @@ interface PursuitCostsTabProps {
     unmappedName?: string;
 }
 
-// Standardized Logical Cost Category Mapping
-const CATEGORY_MAPPING: Record<string, string> = {
-    "01": "General Conditions", "02": "Site Work", "03": "Apartments", "04": "Leasing Office",
-    "05": "Fitness Center", "06": "Garage", "07": "Pool Amenity", "08": "Auxiliary Amenity",
-    "10": "Misc. Site Work", "11": "Permits & Bonds", "12": "Contingency", "13": "Project Specific",
-    "14": "Retail", "15": "General Contractor Fee", "48": "Deposits", "49": "General Contractor Fee",
-    "50": "Land Acquisition Costs", "51": "Acquisition Costs", "52": "Loan Costs", "53": "Joint Venture Costs",
-    "54": "Legal Costs", "60": "Architectural & Engineering", "61": "Impact Fees", "62": "Architectural & Engineering",
-    "63": "Other Development Costs", "64": "Other Dev Costs - Office", "70": "Development Interest",
-    "71": "Taxes & Assessments", "73": "Overhead Allocation", "74": "Developer Fee", "78": "Lease-Up Expenses",
-    "80": "Marketing / Lease-Up / FF&E", "86": "Retail", "89": "Deposits", "90": "Contingency", "99": "Total of All Accounts"
-};
-
 export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName }: PursuitCostsTabProps) {
-    const { data: entities = [], isLoading: loadingEntities } = usePursuitAccountingEntities();
+    const { data: entities, isLoading: loadingEntities, isError: entitiesError, refetch: refetchEntities } = usePursuitAccountingEntities();
+    // Bumped by "Retry" to re-run the Yardi load
+    const [reloadKey, setReloadKey] = useState(0);
     
     const [glData, setGlData] = useState<YardiPursuitCostSummary | null>(null);
     const [jobCosts, setJobCosts] = useState<YardiJobCostTransaction[]>([]);
@@ -80,6 +70,20 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
         }
     }, [costCodesQuery]);
 
+    // The Yardi entities this view loads. Keyed by value, so a refetch of the (all-pursuits)
+    // entity list that doesn't change this pursuit's mapping doesn't blank and reload the tab.
+    const pursuitEntities = useMemo(
+        () => (pursuitId && entities ? entities.filter(e => e.pursuit_id === pursuitId) : []),
+        [entities, pursuitId]
+    );
+    const targetEntities = useMemo(
+        () => unmappedPropertyCode
+            ? [{ property_code: unmappedPropertyCode, job_id: null }]
+            : pursuitEntities.map(e => ({ property_code: e.property_code, job_id: e.job_id })),
+        [unmappedPropertyCode, pursuitEntities]
+    );
+    const targetKey = JSON.stringify(targetEntities);
+
     useEffect(() => {
         let cancelled = false;
         // Reset so a previous pursuit's data never shows while (or instead of) loading this one
@@ -87,61 +91,32 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
         setJobCosts([]);
         setMatrixData([]);
         setError(null);
+        const targets: { property_code: string; job_id: number | null }[] = JSON.parse(targetKey);
+        if (targets.length === 0) return;
+
         const loadCosts = async () => {
-            const pursuitEntities = pursuitId 
-                ? entities.filter(e => e.pursuit_id === pursuitId)
-                : [];
-            
-            // If we are viewing an unmapped property, create a mock entity array
-            const targetEntities = unmappedPropertyCode 
-                ? [{ property_code: unmappedPropertyCode, job_id: undefined }] 
-                : pursuitEntities;
-                
-            if (targetEntities.length === 0) return;
-            
             setIsLoadingCosts(true);
-            setError(null);
             try {
-                // Fetch GL Totals
-                const propertyCodes = targetEntities.map(e => e.property_code).filter(Boolean);
-                if (propertyCodes.length > 0) {
-                    const data = await fetchPursuitGLTotals(propertyCodes);
-                    if (data.length > 0) {
-                        // Aggregate if multiple properties mapped to one pursuit
-                        const aggregated = data.reduce((acc, curr) => ({
-                            ...acc,
-                            earnest_money: acc.earnest_money + curr.earnest_money,
-                            wip: acc.wip + curr.wip,
-                            wip_contra: acc.wip_contra + curr.wip_contra,
-                            net_cost: acc.net_cost + curr.net_cost,
-                        }), { ...data[0], earnest_money: 0, wip: 0, wip_contra: 0, net_cost: 0 });
-                        if (!cancelled) setGlData(aggregated);
-                    }
-                }
-                
-                // Fetch Job Costs & Matrix
-                const jobIdsSet = new Set<string>();
-                
-                // 1. Add explicitly mapped job IDs
-                targetEntities.filter(e => e.job_id).forEach(e => jobIdsSet.add(String(e.job_id)));
-                
-                // 2. Discover jobs for property codes that don't have explicit jobs mapped
-                const entitiesNeedingJobs = targetEntities.filter(e => e.property_code && !e.job_id);
-                for (const entity of entitiesNeedingJobs) {
-                    if (entity.property_code) {
-                        const discoveredJobs = await fetchJobsForProperty(entity.property_code);
-                        discoveredJobs.forEach(id => jobIdsSet.add(id));
-                    }
-                }
-                
-                // If we are fully unmapped and only have the URL parameter, act as an entity needing jobs
-                if (jobIdsSet.size === 0 && unmappedPropertyCode) {
-                    const discoveredJobs = await fetchJobsForProperty(unmappedPropertyCode);
-                    discoveredJobs.forEach(id => jobIdsSet.add(id));
+                const propertyCodes = targets.map(e => e.property_code).filter(Boolean);
+                // GL totals and job discovery are independent — run them together.
+                // Job rule (shared with the Pre-Dev budget): explicit job_id, else every job on the property.
+                const [glRows, jobIds] = await Promise.all([
+                    propertyCodes.length > 0 ? fetchPursuitGLTotals(propertyCodes) : Promise.resolve([]),
+                    resolvePursuitJobIds(targets),
+                ]);
+                if (cancelled) return;
+                if (glRows.length > 0) {
+                    // Aggregate if multiple properties mapped to one pursuit
+                    const aggregated = glRows.reduce((acc, curr) => ({
+                        ...acc,
+                        earnest_money: acc.earnest_money + curr.earnest_money,
+                        wip: acc.wip + curr.wip,
+                        wip_contra: acc.wip_contra + curr.wip_contra,
+                        net_cost: acc.net_cost + curr.net_cost,
+                    }), { ...glRows[0], earnest_money: 0, wip: 0, wip_contra: 0, net_cost: 0 });
+                    setGlData(aggregated);
                 }
 
-                const jobIds = Array.from(jobIdsSet);
-                
                 if (jobIds.length > 0) {
                     const [txs, matrix] = await Promise.all([
                         fetchPursuitJobCosts(jobIds),
@@ -158,41 +133,40 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                 if (!cancelled) setIsLoadingCosts(false);
             }
         };
-        
+
         loadCosts();
         return () => { cancelled = true; };
-    }, [entities, pursuitId, unmappedPropertyCode]);
+    }, [targetKey, reloadKey]);
 
-    const pursuitEntities = pursuitId 
-        ? entities.filter(e => e.pursuit_id === pursuitId)
-        : [];
-        
     const hasMapping = pursuitEntities.length > 0 || !!unmappedPropertyCode;
-    
+
     // Create a lookup for category names from the matrix
-    const categoryLookup = matrixData.reduce((acc, row) => {
+    const categoryLookup = useMemo(() => matrixData.reduce((acc, row) => {
         if (row.cost_code && row.category_name) {
             acc[row.cost_code] = row.category_name;
         }
         return acc;
-    }, {} as Record<string, string>);
+    }, {} as Record<string, string>), [matrixData]);
 
     // Get unique categories for dropdown
-    const availableCategories = Array.from(new Set(jobCosts.map(tx => tx.cost_category_code))).sort();
+    const availableCategories = useMemo(
+        () => Array.from(new Set(jobCosts.map(tx => tx.cost_category_code))).sort(),
+        [jobCosts]
+    );
 
-    // Apply mapping, filtering, and sorting
-    const processedTx = jobCosts
+    // Apply mapping, filtering, and sorting (can be thousands of rows — only redo it when inputs change)
+    const processedTx = useMemo(() => { const q = searchTerm.toLowerCase(); return jobCosts
         .map(tx => ({
             ...tx,
             category_name: categoryLookup[tx.cost_category_code] || tx.cost_category_code
         }))
         .filter(tx => {
             // Search filter (empty search matches everything, even rows with no text fields)
-            const matchesSearch = !searchTerm ||
-                tx.line_description?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                tx.vendor_invoice_num?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                tx.category_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                tx.cost_category_code?.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesSearch = !q ||
+                tx.line_description?.toLowerCase().includes(q) ||
+                tx.vendor_invoice_num?.toLowerCase().includes(q) ||
+                tx.category_name?.toLowerCase().includes(q) ||
+                tx.cost_category_code?.toLowerCase().includes(q);
             
             // Category filter
             const matchesCategory = selectedCategory ? tx.cost_category_code === selectedCategory : true;
@@ -235,7 +209,7 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
             if (valA < valB) return direction === 'asc' ? -1 : 1;
             if (valA > valB) return direction === 'asc' ? 1 : -1;
             return 0;
-        });
+        }); }, [jobCosts, categoryLookup, searchTerm, selectedCategory, filterCodes, dateRange, sortConfig]);
 
     const handleSort = (key: string) => {
         setSortConfig(current => {
@@ -250,7 +224,19 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
         if (sortConfig?.key !== columnKey) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-50" />;
         return sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 ml-1 text-[var(--accent)]" /> : <ArrowDown className="w-3 h-3 ml-1 text-[var(--accent)]" />;
     };
+    const ariaSort = (columnKey: string): 'ascending' | 'descending' | 'none' =>
+        sortConfig?.key !== columnKey ? 'none' : sortConfig.direction === 'asc' ? 'ascending' : 'descending';
+    /** Sortable column header: a real button so it works from the keyboard. */
+    const sortHeader = (columnKey: string, label: string, className = '', align: 'left' | 'right' = 'left') => (
+        <th className={`text-${align} ${className} hover:bg-[var(--bg-elevated)]`} aria-sort={ariaSort(columnKey)}>
+            <button onClick={() => handleSort(columnKey)}
+                className={`w-full inline-flex items-center uppercase rounded outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${align === 'right' ? 'justify-end' : ''}`}>
+                {label} <SortIcon columnKey={columnKey} />
+            </button>
+        </th>
+    );
 
+    const { sortedMatrixRows, totalMatrixSpent } = useMemo(() => {
     // Base it on Matrix to include lines that are setup but have $0
     const matrixSummary = (matrixData || []).reduce((acc, row) => {
         const code = row.cost_code || 'Uncategorized';
@@ -300,11 +286,26 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
     });
 
     const totalMatrixSpent = sortedMatrixRows.reduce((sum, r) => sum + r.total_spent, 0);
+    return { sortedMatrixRows, totalMatrixSpent };
+    }, [matrixData, jobCosts, categoryLookup]);
 
     if (loadingEntities || isLoadingCosts) {
         return (
-            <div className="flex justify-center items-center py-24">
+            <div className="flex flex-col justify-center items-center gap-2 py-24" role="status">
                 <Loader2 className="w-8 h-8 animate-spin text-[var(--border-strong)]" />
+                <span className="text-xs text-[var(--text-muted)]">{loadingEntities ? 'Loading accounting mapping…' : 'Loading Yardi costs…'}</span>
+            </div>
+        );
+    }
+
+    if (entitiesError) {
+        return (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+                <AlertCircle className="w-12 h-12 text-[var(--danger)] mb-3 opacity-50" />
+                <p className="text-sm text-[var(--text-muted)] mb-3">Couldn&apos;t load this pursuit&apos;s accounting mapping.</p>
+                <button onClick={() => refetchEntities()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]">
+                    <RefreshCw className="w-3.5 h-3.5" /> Retry
+                </button>
             </div>
         );
     }
@@ -325,8 +326,11 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
         return (
             <div className="flex flex-col items-center justify-center py-24 text-center">
                 <AlertCircle className="w-12 h-12 text-[var(--danger)] mb-3 opacity-50" />
-                <p className="text-sm text-[var(--text-muted)] mb-1">Error Loading Data</p>
-                <p className="text-xs text-[var(--danger)]">{error}</p>
+                <p className="text-sm text-[var(--text-muted)] mb-1">Couldn&apos;t load Yardi cost data</p>
+                <p className="text-xs text-[var(--danger)] mb-3">{error}</p>
+                <button onClick={() => setReloadKey(k => k + 1)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]">
+                    <RefreshCw className="w-3.5 h-3.5" /> Retry
+                </button>
             </div>
         );
     }
@@ -377,7 +381,7 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                             <thead className="bg-[var(--bg-primary)]">
                                 <tr>
                                     <th className="text-left w-64">Cost Category</th>
-                                    <th className="text-left text-[var(--text-faint)]">Mapped Codes</th>
+                                    <th className="text-left">Mapped Codes</th>
                                     <th className="text-right w-32">Total Spent</th>
                                 </tr>
                             </thead>
@@ -385,10 +389,12 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                                 {sortedMatrixRows.map((row) => {
                                     const codesArray = Array.from(row.cost_codes).sort();
                                     return (
-                                        <tr key={codesArray.join(',')} className="hover:bg-[var(--bg-elevated)] transition-colors text-sm cursor-pointer group"
+                                        <tr key={codesArray.join(',')} className="hover:bg-[var(--bg-elevated)] focus-visible:bg-[var(--bg-elevated)] outline-none transition-colors text-sm cursor-pointer group"
+                                            tabIndex={0}
                                             onClick={() => {
                                                 router.push(costCodesHref(codesArray.join(',')));
                                             }}
+                                            onKeyDown={(e) => { if (e.key === 'Enter') router.push(costCodesHref(codesArray.join(','))); }}
                                             title={`Filter transactions down to groups: ${codesArray.join(', ')}`}
                                         >
                                             <td className="text-[var(--text-primary)] font-medium group-hover:text-[var(--accent)] transition-colors">
@@ -432,13 +438,14 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                     
                     <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto mt-4 sm:mt-0">
                         {/* Filters */}
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                             <input
                                 type="date"
                                 value={dateRange.start}
                                 onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
                                 className="px-2 py-1.5 text-xs bg-[var(--bg-card)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
                                 title="Start Date"
+                                aria-label="Posted on or after"
                             />
                             <input
                                 type="date"
@@ -446,10 +453,12 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                                 onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
                                 className="px-2 py-1.5 text-xs bg-[var(--bg-card)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)]"
                                 title="End Date"
+                                aria-label="Posted on or before"
                             />
                             <select
                                 value={selectedCategory}
                                 onChange={(e) => setSelectedCategory(e.target.value)}
+                                aria-label="Cost category"
                                 className="px-2 py-1.5 text-xs bg-[var(--bg-card)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] max-w-[150px]"
                             >
                                 <option value="">All Categories</option>
@@ -464,13 +473,15 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                         {/* Search */}
                         <div className="flex gap-2 w-full sm:w-auto">
                             {filterCodes.length > 0 && (
-                                <div className="flex items-center gap-1.5 px-3 py-1 bg-[var(--accent-subtle)] text-[var(--accent)] text-xs rounded-md font-medium whitespace-nowrap border border-[var(--accent)]/20 animate-fade-in shadow-sm">
+                                <div className="flex items-center gap-1.5 px-3 py-1 bg-[var(--accent-subtle)] text-[var(--accent)] text-xs rounded-md font-medium whitespace-nowrap border border-[var(--accent)]/20 animate-fade-in shadow-sm"
+                                    title={`Showing only cost codes: ${filterCodes.join(', ')}`}>
                                     <Filter className="w-3 h-3" />
-                                    Filtered by Line Item
+                                    {filterCodes.length === 1 ? `Code ${filterCodes[0]}` : `${filterCodes.length} codes`}
                                     <button 
                                         onClick={() => router.push(costCodesHref(null))}  
                                         className="ml-1 p-0.5 hover:bg-[var(--accent)]/10 rounded-full transition-colors"
                                         title="Clear drill-down filter"
+                                        aria-label="Clear drill-down filter"
                                     >
                                         <X className="w-3 h-3" />
                                     </button>
@@ -481,6 +492,7 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                                 <input 
                                     type="text" 
                                     placeholder="Search descriptions, vendors..."
+                                    aria-label="Search transactions"
                                     value={searchTerm}
                                     onChange={e => setSearchTerm(e.target.value)}
                                     className="w-full pl-9 pr-3 py-1.5 text-sm bg-[var(--bg-card)] border border-[var(--border)] rounded-md focus:outline-none focus:border-[var(--accent)] transition-colors"
@@ -491,27 +503,15 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
                 </div>
                 
                 <div className="overflow-x-auto min-h-[300px] max-h-[600px] overflow-y-auto block rounded-b-xl border border-[var(--border)]">
-                    <table className="data-table w-full">
+                    <table className="data-table w-full min-w-[760px]">
                         <thead className="sticky top-0 bg-[var(--bg-primary)] z-10 shadow-sm border-b border-[var(--border)]">
                             <tr>
-                                <th className="text-left w-24 cursor-pointer hover:bg-[var(--bg-elevated)] select-none" onClick={() => handleSort('post_date')}>
-                                    <div className="flex items-center">Date <SortIcon columnKey="post_date" /></div>
-                                </th>
-                                <th className="text-left w-32 cursor-pointer hover:bg-[var(--bg-elevated)] select-none" onClick={() => handleSort('job_code')}>
-                                    <div className="flex items-center">Job Code <SortIcon columnKey="job_code" /></div>
-                                </th>
-                                <th className="text-left w-48 cursor-pointer hover:bg-[var(--bg-elevated)] select-none" onClick={() => handleSort('cost_category_code')}>
-                                    <div className="flex items-center">Category <SortIcon columnKey="cost_category_code" /></div>
-                                </th>
-                                <th className="text-left cursor-pointer hover:bg-[var(--bg-elevated)] select-none" onClick={() => handleSort('line_description')}>
-                                    <div className="flex items-center">Description <SortIcon columnKey="line_description" /></div>
-                                </th>
-                                <th className="text-left cursor-pointer hover:bg-[var(--bg-elevated)] select-none" onClick={() => handleSort('vendor_invoice_num')}>
-                                    <div className="flex items-center">Invoice # <SortIcon columnKey="vendor_invoice_num" /></div>
-                                </th>
-                                <th className="text-right w-36 cursor-pointer hover:bg-[var(--bg-elevated)] select-none" onClick={() => handleSort('amount')}>
-                                    <div className="flex items-center justify-end">Amount <SortIcon columnKey="amount" /></div>
-                                </th>
+                                {sortHeader('post_date', 'Date', 'w-24')}
+                                {sortHeader('job_code', 'Job Code', 'w-32')}
+                                {sortHeader('cost_category_code', 'Category', 'w-48')}
+                                {sortHeader('line_description', 'Description')}
+                                {sortHeader('vendor_invoice_num', 'Invoice #')}
+                                {sortHeader('amount', 'Amount', 'w-36', 'right')}
                             </tr>
                         </thead>
                         <tbody>

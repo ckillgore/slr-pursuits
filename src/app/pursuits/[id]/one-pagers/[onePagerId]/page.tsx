@@ -20,7 +20,7 @@ export default function OnePagerPage() {
         return (
             <AppShell>
                 <div className="flex justify-center py-24">
-                    <Loader2 className="w-8 h-8 animate-spin text-slate-500" />
+                    <Loader2 className="w-8 h-8 animate-spin text-[var(--border-strong)]" />
                 </div>
             </AppShell>
         );
@@ -30,9 +30,9 @@ export default function OnePagerPage() {
         return (
             <AppShell>
                 <div className="max-w-4xl mx-auto px-6 py-16 text-center">
-                    <h2 className="text-xl text-slate-300">One-Pager not found</h2>
-                    <Link href="/" className="text-blue-400 text-sm mt-2 inline-block">
-                        Back to Dashboard
+                    <h2 className="text-xl text-[var(--text-secondary)]">One-Pager not found</h2>
+                    <Link href={pursuit ? `/pursuits/${pursuitId}?tab=onepagers` : '/'} className="text-[var(--accent)] text-sm mt-2 inline-block hover:underline">
+                        {pursuit ? `Back to ${pursuit.name}` : 'Back to Dashboard'}
                     </Link>
                 </div>
             </AppShell>

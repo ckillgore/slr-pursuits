@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
+import { useParams, useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
 import {
@@ -16,12 +17,17 @@ import {
     useTemplates,
     usePredevBudget,
     useKeyDates,
+    usePursuitDriveTime,
+    usePursuitIncomeHeatmap,
+    useSavePursuitDriveTime,
+    useSavePursuitIncomeHeatmap,
 } from '@/hooks/useSupabaseQueries';
-import { usePursuitRentComps } from '@/hooks/useHellodataQueries';
-import { upsertPayrollRow } from '@/lib/supabase/queries';
+import { hellodataKeys } from '@/hooks/useHellodataQueries';
+import { upsertPayrollRow, fetchPursuitRentComps } from '@/lib/supabase/queries';
+import { usePredevYardiAggregates, summarizePredevBudget } from '@/components/pursuits/predevYardi';
+import { toast } from '@/lib/toast';
 import { formatCurrency, formatNumber, SF_PER_ACRE } from '@/lib/constants';
 import { LocationCard } from '@/components/pursuits/LocationCard';
-import { InlineInput } from '@/components/one-pager/InlineInput';
 import CommentTrigger from '@/components/shared/CommentTrigger';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
 import {
@@ -42,8 +48,8 @@ import {
     DollarSign,
     TrendingUp,
     TrendingDown,
-    Building2,
     Clock,
+    ChevronRight,
 } from 'lucide-react';
 import type { OnePager } from '@/types';
 import { RichTextEditor } from '@/components/shared/RichTextEditor';
@@ -80,6 +86,61 @@ function escapeHtml(text: string): string {
     return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+const TABS = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'onepagers', label: 'One-Pagers' },
+    { key: 'demographics', label: 'Demographic Data' },
+    { key: 'publicinfo', label: 'Public Information' },
+    { key: 'rent_comps', label: 'Rent Comps' },
+    { key: 'comps', label: 'Comps' },
+    { key: 'predev', label: 'Pre-Dev Budget' },
+    { key: 'keydates', label: 'Key Dates' },
+    { key: 'checklist', label: 'Checklist' },
+    { key: 'costs', label: 'Pursuit Costs' },
+] as const;
+type TabKey = typeof TABS[number]['key'];
+const isTabKey = (v: string | null): v is TabKey => !!v && TABS.some((t) => t.key === v);
+
+/**
+ * Number field that shows "—" when empty (0/null), like the derived measures beside it.
+ * Commits on blur/Enter; Escape reverts.
+ */
+function OptionalNumberInput({ value, onCommit, ariaLabel, className }: {
+    value: number | null | undefined;
+    onCommit: (v: number) => void;
+    ariaLabel: string;
+    className?: string;
+}) {
+    const [draft, setDraft] = useState<string | null>(null);
+    const skipRef = useRef(false);
+    const current = value || 0;
+    return (
+        <input
+            type="text"
+            inputMode="decimal"
+            aria-label={ariaLabel}
+            placeholder="—"
+            value={draft ?? (current ? formatNumber(current, 0) : '')}
+            onFocus={() => { skipRef.current = false; setDraft(current ? String(current) : ''); }}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => {
+                const raw = draft;
+                setDraft(null);
+                if (skipRef.current || raw === null) return;
+                const n = raw.trim() === '' ? 0 : Number(raw.replace(/[,\s]/g, ''));
+                if (!Number.isFinite(n) || n < 0) { toast.error('Enter a positive number'); return; }
+                if (n !== current) onCommit(n);
+            }}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur();
+                if (e.key === 'Escape') { skipRef.current = true; e.currentTarget.blur(); }
+            }}
+            className={`inline-input w-full placeholder:text-[var(--text-secondary)] ${className ?? ''}`}
+            style={{ textAlign: 'left' }}
+        />
+    );
+}
+
 function TabLoader() {
     return (
         <div className="flex items-center justify-center py-16">
@@ -91,6 +152,8 @@ function TabLoader() {
 export default function PursuitDetailPage() {
     const params = useParams();
     const router = useRouter();
+    const pathname = usePathname();
+    const queryClient = useQueryClient();
     const pursuitId = params.id as string; // short_id from URL
     const searchParams = useSearchParams();
     const initialTab = searchParams.get('tab');
@@ -114,17 +177,35 @@ export default function PursuitDetailPage() {
     const [isEditingName, setIsEditingName] = useState(false);
     const [editName, setEditName] = useState('');
     const skipNameCommitRef = useRef(false);
-    const [activeTab, setActiveTab] = useState<'overview' | 'onepagers' | 'demographics' | 'publicinfo' | 'rent_comps' | 'comps' | 'predev' | 'keydates' | 'checklist' | 'costs'>(
-        initialTab === 'onepagers' ? 'onepagers' : initialTab === 'predev' ? 'predev' : initialTab === 'keydates' ? 'keydates' : initialTab === 'checklist' ? 'checklist' : initialTab === 'rent_comps' ? 'rent_comps' : initialTab === 'costs' ? 'costs' : 'overview'
-    );
+    const [activeTab, setActiveTab] = useState<TabKey>(isTabKey(initialTab) ? initialTab : 'overview');
 
-    // Synchronize tab state when URL changes (e.g., from drill-down router.push)
+    // The URL (?tab=) is the source of truth, so refresh, back/forward, shared links and
+    // drill-downs (router.push(...?tab=costs&cost_codes=...)) all land on the right tab.
     useEffect(() => {
         const tab = searchParams.get('tab');
-        if (tab && ['overview', 'onepagers', 'demographics', 'publicinfo', 'rent_comps', 'comps', 'predev', 'keydates', 'checklist', 'costs'].includes(tab)) {
-            setActiveTab(tab as any);
-        }
+        setActiveTab(isTabKey(tab) ? tab : 'overview');
     }, [searchParams]);
+
+    const selectTab = useCallback((key: TabKey) => {
+        setActiveTab(key);
+        const sp = new URLSearchParams(searchParams.toString());
+        if (key === 'overview') sp.delete('tab'); else sp.set('tab', key);
+        // The cost-code drill-down filter only applies to the costs tab
+        if (key !== 'costs') sp.delete('cost_codes');
+        const qs = sp.toString();
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    }, [searchParams, router, pathname]);
+
+    // Tab strip: keep the active tab visible and show edge fades when tabs overflow
+    const tabStripRef = useRef<HTMLDivElement>(null);
+    const [tabOverflow, setTabOverflow] = useState({ left: false, right: false });
+    const updateTabOverflow = useCallback(() => {
+        const el = tabStripRef.current;
+        if (!el) return;
+        const left = el.scrollLeft > 2;
+        const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+        setTabOverflow((prev) => (prev.left === left && prev.right === right ? prev : { left, right }));
+    }, []);
 
     // Dynamic page title
     useEffect(() => {
@@ -142,7 +223,19 @@ export default function PursuitDetailPage() {
     const needsOverviewData = activeTab === 'overview';
     const { data: predevBudget } = usePredevBudget(pursuitUuid, { enabled: needsOverviewData || activeTab === 'predev' });
     const { data: keyDates = [] } = useKeyDates(pursuitUuid, { enabled: needsOverviewData || activeTab === 'keydates' });
-    const { data: rentComps = [] } = usePursuitRentComps(pursuitUuid, { enabled: needsOverviewData || activeTab === 'rent_comps' });
+    // Drive-time and income heat-map results are multi-MB jsonb blobs, so fetchPursuit no longer
+    // returns them — load each on its own, only for the Demographic Data tab.
+    const needsMapData = activeTab === 'demographics';
+    const driveTime = usePursuitDriveTime(pursuitUuid, { enabled: needsMapData });
+    const incomeHeatmap = usePursuitIncomeHeatmap(pursuitUuid, { enabled: needsMapData });
+    const saveDriveTime = useSavePursuitDriveTime();
+    const saveIncomeHeatmap = useSavePursuitIncomeHeatmap();
+    // Pre-dev card uses the same Yardi-aware totals as the Pre-Dev Budget tab (shared, cached query)
+    const predevYardi = usePredevYardiAggregates(pursuitUuid, { enabled: needsOverviewData && !!predevBudget?.line_items?.length });
+    const predevSummary = useMemo(
+        () => predevBudget ? summarizePredevBudget(predevBudget, predevYardi.data ?? [], new Date()) : null,
+        [predevBudget, predevYardi.data]
+    );
 
     const [aiSummary, setAiSummary] = useState<string | null>(null);
     const [aiLoading, setAiLoading] = useState(false);
@@ -167,11 +260,23 @@ export default function PursuitDetailPage() {
         }
     }, [pursuit?.id, pursuit?.parcel_data]);
 
+    const handleUpdatePursuit = useCallback((updates: Partial<NonNullable<typeof pursuit>>) => {
+        updatePursuit.mutate(
+            { id: pursuitUuid, updates, queryId: pursuitId },
+            { onError: (err) => { console.error('Failed to save pursuit:', err); toast.error('Failed to save your change', err); } }
+        );
+    }, [updatePursuit, pursuitUuid, pursuitId]);
+
     const generateSummary = useCallback(async () => {
         if (!pursuit) return;
         setAiLoading(true);
         setAiError(null);
         try {
+            // Rent comps are only needed here, so fetch them on demand (cached with the Rent Comps tab)
+            const rentComps = await queryClient.fetchQuery({
+                queryKey: hellodataKeys.rentComps(pursuit.id),
+                queryFn: () => fetchPursuitRentComps(pursuit.id),
+            });
             const res = await fetch('/api/ai-summary', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -205,7 +310,8 @@ export default function PursuitDetailPage() {
                     }),
                 }),
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({ error: `Summary request failed (${res.status})` }));
+            if (!res.ok && !data.error) data.error = `Summary request failed (${res.status})`;
             if (data.error) {
                 setAiError(data.error);
             } else if (data.summary) {
@@ -223,7 +329,21 @@ export default function PursuitDetailPage() {
         } finally {
             setAiLoading(false);
         }
-    }, [pursuit, onePagers, rentComps]);
+    }, [pursuit, onePagers, queryClient, handleUpdatePursuit]);
+
+    useEffect(() => {
+        const el = tabStripRef.current;
+        if (!el) return;
+        updateTabOverflow();
+        const ro = new ResizeObserver(updateTabOverflow);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [updateTabOverflow, loadingPursuit, pursuit?.id]);
+    useEffect(() => {
+        tabStripRef.current
+            ?.querySelector<HTMLElement>(`[data-tab="${activeTab}"]`)
+            ?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+    }, [activeTab, loadingPursuit]);
 
     const { data: templates = [] } = useTemplates({ enabled: needsOnePagerDeps });
     const matchingTemplates = templates.filter(
@@ -257,11 +377,7 @@ export default function PursuitDetailPage() {
     const selectedProductType = productTypes.find((pt) => pt.id === newProductTypeId);
     const subTypes = selectedProductType?.sub_product_types ?? [];
 
-    const handleUpdatePursuit = (updates: Partial<typeof pursuit>) => {
-        updatePursuit.mutate({ id: pursuitUuid, updates, queryId: pursuitId });
-    };
-
-    const handleCreateOnePager = async () => {
+const handleCreateOnePager = async () => {
         if (!newName.trim() || !newProductTypeId) return;
         const tpl = templates.find((t) => t.id === selectedTemplateId);
         try {
@@ -299,7 +415,8 @@ export default function PursuitDetailPage() {
                 sensitivity_land_cost_steps: [-2000000, -1000000, -500000, 0, 500000, 1000000, 2000000],
             } as Omit<OnePager, 'id' | 'created_at' | 'updated_at' | 'unit_mix' | 'payroll' | 'soft_cost_details' | 'product_type' | 'sub_product_type'>);
 
-            // Copy payroll defaults from template
+            // Copy payroll defaults from template. The one-pager already exists at this point, so a
+            // failure here is reported but still opens it — retrying the dialog would create a duplicate.
             if (tpl?.payroll_defaults && tpl.payroll_defaults.length > 0) {
                 await Promise.all(
                     tpl.payroll_defaults.map((pd) =>
@@ -314,7 +431,10 @@ export default function PursuitDetailPage() {
                             sort_order: pd.sort_order,
                         })
                     )
-                );
+                ).catch((err) => {
+                    console.error('Failed to copy template payroll rows:', err);
+                    toast.error('One-pager created, but the template payroll rows could not be copied — add them on the one-pager', err);
+                });
             }
 
             setNewName('');
@@ -325,7 +445,7 @@ export default function PursuitDetailPage() {
             router.push(`/pursuits/${pursuitId}/one-pagers/${op.short_id}`);
         } catch (err) {
             console.error('Failed to create one-pager:', err);
-            alert('Failed to create one-pager. Please try again.');
+            toast.error('Failed to create one-pager', err);
         }
     };
 
@@ -391,13 +511,17 @@ export default function PursuitDetailPage() {
                             <select
                                 value={pursuit.stage_id || ''}
                                 onChange={(e) => handleUpdatePursuit({ stage_id: e.target.value, stage_changed_at: new Date().toISOString() })}
-                                className="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors flex-shrink-0"
+                                aria-label="Stage"
+                                title="Pursuit stage"
+                                className="px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors flex-shrink-0 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-subtle)]"
                                 style={{
-                                    backgroundColor: stage ? `${stage.color}10` : 'var(--bg-elevated)',
-                                    color: stage?.color ?? 'var(--text-secondary)',
-                                    borderColor: stage ? `${stage.color}30` : 'var(--border)',
+                                    // Stage color as the accent; text stays full-contrast (a pale stage color read as disabled)
+                                    backgroundColor: stage ? `${stage.color}1A` : 'var(--bg-elevated)',
+                                    borderColor: stage ? `${stage.color}80` : 'var(--border)',
+                                    borderLeft: `4px solid ${stage?.color ?? 'var(--border-strong)'}`,
                                 }}
                             >
+                                {!pursuit.stage_id && <option value="" disabled>Select stage…</option>}
                                 {stages.filter((s) => s.is_active).map((s) => (
                                     <option key={s.id} value={s.id} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>{s.name}</option>
                                 ))}
@@ -409,6 +533,7 @@ export default function PursuitDetailPage() {
                                 onClick={() => setDeletePursuitConfirm(true)}
                                 className="p-2 rounded-lg text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-colors flex-shrink-0"
                                 title="Delete pursuit"
+                                aria-label="Delete pursuit"
                             >
                                 <Trash2 className="w-4 h-4" />
                             </button>
@@ -416,18 +541,18 @@ export default function PursuitDetailPage() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6 pt-4 border-t border-[var(--table-row-border)]">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6 mb-6 pt-4 border-t border-[var(--table-row-border)]">
                     <div>
                             <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Site Area (SF)</div>
-                            <InlineInput value={pursuit.site_area_sf} onChange={(val) => handleUpdatePursuit({ site_area_sf: val })} format="number" decimals={0} align="left" className="text-lg font-semibold" />
+                            <OptionalNumberInput value={pursuit.site_area_sf} onCommit={(val) => handleUpdatePursuit({ site_area_sf: val })} ariaLabel="Site area (SF)" className="text-lg font-semibold" />
                         </div>
                         <div>
                             <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Site Area (Acres)</div>
-                            <div className="text-lg font-semibold text-[var(--text-secondary)]">{pursuit.site_area_sf > 0 ? formatNumber(pursuit.site_area_sf / SF_PER_ACRE, 2) : '—'}</div>
+                            <div className="text-lg font-semibold text-[var(--text-secondary)] px-1.5">{pursuit.site_area_sf > 0 ? formatNumber(pursuit.site_area_sf / SF_PER_ACRE, 2) : '—'}</div>
                         </div>
                         <div>
                             <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Region</div>
-                            <DebouncedTextInput value={pursuit.region || ''} onCommit={(v) => handleUpdatePursuit({ region: v })} placeholder="e.g., DFW" className="inline-input text-sm text-[var(--text-secondary)] w-full" style={{ textAlign: 'left' }} />
+                            <DebouncedTextInput value={pursuit.region || ''} onCommit={(v) => handleUpdatePursuit({ region: v })} placeholder="e.g., DFW" aria-label="Region"className="inline-input text-sm text-[var(--text-secondary)] w-full" style={{ textAlign: 'left' }} />
                         </div>
                         <div>
                             <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Created</div>
@@ -439,6 +564,7 @@ export default function PursuitDetailPage() {
                                         handleUpdatePursuit({ created_at: new Date(e.target.value + 'T12:00:00').toISOString() });
                                     }
                                 }}
+                                aria-label="Created date"
                                 className="inline-input text-sm text-[var(--text-muted)] w-full cursor-pointer"
                                 style={{ textAlign: 'left' }}
                             />
@@ -453,6 +579,7 @@ export default function PursuitDetailPage() {
                                         handleUpdatePursuit({ stage_changed_at: new Date(e.target.value + 'T12:00:00').toISOString() });
                                     }
                                 }}
+                                aria-label="In current stage since"
                                 className="inline-input text-sm text-[var(--text-muted)] w-full cursor-pointer"
                                 style={{ textAlign: 'left' }}
                             />
@@ -460,134 +587,83 @@ export default function PursuitDetailPage() {
                     </div>
 
                 {/* Tab Bar */}
-                <div className="flex items-center gap-x-1 mb-6 border-b border-[var(--border)] overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-                    <button
-                        onClick={() => setActiveTab('overview')}
-                        className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'overview'
-                            ? 'text-[var(--accent)]'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                            }`}
+                <div className="relative mb-6 border-b border-[var(--border)] -mx-4 sm:mx-0">
+                    <div
+                        ref={tabStripRef}
+                        onScroll={updateTabOverflow}
+                        role="tablist"
+                        aria-label="Pursuit sections"
+                        className="flex items-center gap-x-1 overflow-x-auto scrollbar-hide px-4 sm:px-0"
+                        onKeyDown={(e) => {
+                            const idx = TABS.findIndex((t) => t.key === activeTab);
+                            let next = -1;
+                            if (e.key === 'ArrowRight') next = (idx + 1) % TABS.length;
+                            else if (e.key === 'ArrowLeft') next = (idx - 1 + TABS.length) % TABS.length;
+                            else if (e.key === 'Home') next = 0;
+                            else if (e.key === 'End') next = TABS.length - 1;
+                            if (next < 0) return;
+                            e.preventDefault();
+                            selectTab(TABS[next].key);
+                            tabStripRef.current?.querySelector<HTMLElement>(`[data-tab="${TABS[next].key}"]`)?.focus();
+                        }}
                     >
-                        Overview
-                        {activeTab === 'overview' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('onepagers')}
-                        className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'onepagers'
-                            ? 'text-[var(--accent)]'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                            }`}
-                    >
-                        One-Pagers
-                        {onePagers.filter(op => !op.is_archived).length > 0 && (
-                            <span className="ml-1.5 text-[10px] bg-[var(--accent-subtle)] text-[var(--accent)] px-1.5 py-0.5 rounded-full font-medium">
-                                {onePagers.filter(op => !op.is_archived).length}
-                            </span>
-                        )}
-                        {activeTab === 'onepagers' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('demographics')}
-                        className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'demographics'
-                            ? 'text-[var(--accent)]'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                            }`}
-                    >
-                        Demographic Data
-                        {activeTab === 'demographics' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('publicinfo')}
-                        className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'publicinfo'
-                            ? 'text-[var(--accent)]'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                            }`}
-                    >
-                        Public Information
-                        {activeTab === 'publicinfo' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('rent_comps')}
-                        className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'rent_comps'
-                            ? 'text-[var(--accent)]'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                            }`}
-                    >
-                        Rent Comps
-                        {activeTab === 'rent_comps' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('comps')}
-                        className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'comps'
-                            ? 'text-[var(--accent)]'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                            }`}
-                    >
-                        Comps
-                        {activeTab === 'comps' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('predev')}
-                        className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'predev'
-                            ? 'text-[var(--accent)]'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                            }`}
-                    >
-                        Pre-Dev Budget
-                        {activeTab === 'predev' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('keydates')}
-                        className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'keydates'
-                            ? 'text-[var(--accent)]'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                            }`}
-                    >
-                        Key Dates
-                        {activeTab === 'keydates' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('checklist')}
-                        className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'checklist'
-                            ? 'text-[var(--accent)]'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                            }`}
-                    >
-                        Checklist
-                        {activeTab === 'checklist' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('costs')}
-                        className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap ${activeTab === 'costs'
-                            ? 'text-[var(--accent)]'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                            }`}
-                    >
-                        Pursuit Costs
-                        {activeTab === 'costs' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
-                        )}
-                    </button>
+                        {TABS.map((t) => {
+                            const selected = activeTab === t.key;
+                            const activeOnePagers = t.key === 'onepagers' ? onePagers.filter(op => !op.is_archived).length : 0;
+                            return (
+                                <button
+                                    key={t.key}
+                                    id={`tab-${t.key}`}
+                                    data-tab={t.key}
+                                    role="tab"
+                                    aria-selected={selected}
+                                    aria-controls="pursuit-tabpanel"
+                                    tabIndex={selected ? 0 : -1}
+                                    onClick={() => selectTab(t.key)}
+                                    className={`px-4 py-2.5 text-sm font-medium transition-colors relative whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)] rounded-t ${selected
+                                        ? 'text-[var(--accent)]'
+                                        : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                                        }`}
+                                >
+                                    {t.label}
+                                    {activeOnePagers > 0 && (
+                                        <span className="ml-1.5 text-[10px] bg-[var(--accent-subtle)] text-[var(--accent)] px-1.5 py-0.5 rounded-full font-medium">
+                                            {activeOnePagers}
+                                        </span>
+                                    )}
+                                    {selected && (
+                                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--accent)] rounded-full" />
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {/* Edge fades + scroll buttons when some tabs are out of view */}
+                    {tabOverflow.left && (
+                        <button
+                            type="button"
+                            tabIndex={-1}
+                            aria-hidden="true"
+                            onClick={() => tabStripRef.current?.scrollBy({ left: -200, behavior: 'smooth' })}
+                            className="absolute left-0 top-0 bottom-px w-10 flex items-center justify-start pl-1 bg-gradient-to-r from-[var(--bg-primary)] via-[var(--bg-primary)]/80 to-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+                    )}
+                    {tabOverflow.right && (
+                        <button
+                            type="button"
+                            tabIndex={-1}
+                            aria-hidden="true"
+                            onClick={() => tabStripRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}
+                            className="absolute right-0 top-0 bottom-px w-10 flex items-center justify-end pr-1 bg-gradient-to-l from-[var(--bg-primary)] via-[var(--bg-primary)]/80 to-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
+                    )}
                 </div>
 
+                <div role="tabpanel" id="pursuit-tabpanel" aria-labelledby={`tab-${activeTab}`}>
                 {/* ===== OVERVIEW TAB ===== */}
                 {activeTab === 'overview' && (
                     <>
@@ -597,15 +673,8 @@ export default function PursuitDetailPage() {
                                 ? onePagers.find(op => op.id === pursuit.primary_one_pager_id)
                                 : onePagers.filter(o => !o.is_archived).length === 1 ? onePagers.filter(o => !o.is_archived)[0] : null;
 
-                            // Pre-dev budget totals
+                            // Pre-dev budget totals — same Yardi-aware numbers as the Pre-Dev Budget tab
                             const budgetItems = predevBudget?.line_items || [];
-                            const totalProjected = budgetItems.reduce((sum, item) => {
-                                return sum + Object.values(item.monthly_values || {}).reduce((s, cell) => s + (cell.projected || 0), 0);
-                            }, 0);
-                            const totalActual = budgetItems.reduce((sum, item) => {
-                                return sum + Object.values(item.monthly_values || {}).reduce((s, cell) => s + (cell.actual || 0), 0);
-                            }, 0);
-                            const budgetVariance = totalProjected - totalActual;
 
                             // Key dates — compare as local calendar dates (date_value is 'YYYY-MM-DD';
                             // new Date() on it is UTC midnight, which made "today" count as overdue)
@@ -622,16 +691,22 @@ export default function PursuitDetailPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                                     {/* Primary One-Pager KPIs */}
                                     <div
-                                        className={`card ${primaryOp ? 'cursor-pointer hover:border-[var(--accent)]/40 hover:shadow-md transition-all' : ''}`}
+                                        className={`card ${primaryOp ? 'cursor-pointer hover:border-[var(--accent)]/40 hover:shadow-md transition-all outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]' : ''}`}
                                         onClick={() => {
                                             if (primaryOp) router.push(`/pursuits/${pursuitId}/one-pagers/${primaryOp.short_id}`);
                                         }}
+                                        {...(primaryOp ? {
+                                            role: 'link',
+                                            tabIndex: 0,
+                                            'aria-label': `Open primary scenario ${primaryOp.name}`,
+                                            onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter') router.push(`/pursuits/${pursuitId}/one-pagers/${primaryOp.short_id}`); },
+                                        } : {})}
                                     >
                                         <div className="flex items-center gap-1.5 mb-3">
                                             <FileText className="w-3.5 h-3.5 text-[var(--accent)]" />
                                             <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Primary Scenario</h3>
                                             {primaryOp && (
-                                                <span className="text-[9px] bg-[#F59E0B]/10 text-[#F59E0B] px-1.5 py-0.5 rounded-full font-medium ml-auto">
+                                                <span className="text-[9px] bg-[var(--warning-bg)] text-[var(--warning)] px-1.5 py-0.5 rounded-full font-medium ml-auto truncate max-w-[60%]">
                                                     <Star className="w-2.5 h-2.5 inline fill-current -mt-px" /> {primaryOp.name}
                                                 </span>
                                             )}
@@ -674,7 +749,7 @@ export default function PursuitDetailPage() {
                                             <div className="text-center py-4">
                                                 <p className="text-xs text-[var(--text-faint)]">No primary scenario set</p>
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); setActiveTab('onepagers'); }}
+                                                    onClick={(e) => { e.stopPropagation(); selectTab('onepagers'); }}
                                                     className="text-xs text-[var(--accent)] hover:underline mt-1"
                                                 >
                                                     Go to One-Pagers →
@@ -688,25 +763,47 @@ export default function PursuitDetailPage() {
                                         <div className="flex items-center gap-1.5 mb-3">
                                             <DollarSign className="w-3.5 h-3.5 text-[var(--success)]" />
                                             <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Pre-Dev Budget</h3>
+                                            {predevSummary && budgetItems.length > 0 && (
+                                                <button onClick={() => selectTab('predev')} className="ml-auto text-[10px] text-[var(--accent)] hover:underline">
+                                                    View budget →
+                                                </button>
+                                            )}
                                         </div>
-                                        {predevBudget && budgetItems.length > 0 ? (
+                                        {predevSummary && budgetItems.length > 0 ? (
                                             <div className="space-y-3">
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <div>
-                                                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Projected</div>
-                                                        <div className="text-xl font-bold text-[var(--text-primary)]">{formatCurrency(totalProjected, 0)}</div>
+                                                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold" title={predevSummary.hasSnapshot ? 'Snapshotted original budget' : 'No snapshot yet — current projected values'}>
+                                                            {predevSummary.hasSnapshot ? 'Original Budget' : 'Budget (draft)'}
+                                                        </div>
+                                                        <div className="text-xl font-bold text-[var(--text-primary)]">{formatCurrency(predevSummary.totalBudget, 0)}</div>
                                                     </div>
                                                     <div>
-                                                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Actual</div>
-                                                        <div className="text-xl font-bold text-[var(--text-primary)]">{formatCurrency(totalActual, 0)}</div>
+                                                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold" title="Yardi actuals for closed months plus the remaining projection">Forecast</div>
+                                                        <div className="text-xl font-bold text-[var(--accent)]">
+                                                            {predevYardi.isLoading
+                                                                ? <span className="inline-flex items-center gap-1 text-sm font-normal text-[var(--text-faint)]"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…</span>
+                                                                : formatCurrency(predevSummary.totalForecast, 0)}
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 <div className="pt-2 border-t border-[var(--table-row-border)]">
-                                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Variance (Under / Over)</div>
-                                                    <div className={`text-sm font-semibold flex items-center gap-1 ${budgetVariance >= 0 ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
-                                                        {budgetVariance >= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
-                                                        {formatCurrency(Math.abs(budgetVariance), 0)}
-                                                        <span className="text-[10px] font-normal text-[var(--text-muted)] ml-1">{budgetVariance >= 0 ? 'under' : 'over'}</span>
+                                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Forecast vs Budget</div>
+                                                    {predevYardi.isLoading ? (
+                                                        <div className="text-xs text-[var(--text-faint)]">Waiting for Yardi actuals…</div>
+                                                    ) : (
+                                                        <div className={`text-sm font-semibold flex items-center gap-1 ${predevSummary.totalVariance > 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'}`}>
+                                                            {predevSummary.totalVariance > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                                            {formatCurrency(Math.abs(predevSummary.totalVariance), 0)}
+                                                            <span className="text-[10px] font-normal text-[var(--text-muted)] ml-1">{predevSummary.totalVariance > 0 ? 'over' : 'under'}</span>
+                                                        </div>
+                                                    )}
+                                                    <div className="text-[10px] text-[var(--text-faint)] mt-1">
+                                                        {predevYardi.isError
+                                                            ? 'Yardi actuals unavailable — forecast uses entered values only'
+                                                            : !predevYardi.isLoading && predevSummary.yardiTotal > 0
+                                                                ? `Includes ${formatCurrency(predevSummary.yardiTotal, 0)} Yardi actuals to date`
+                                                                : null}
                                                     </div>
                                                 </div>
                                             </div>
@@ -714,7 +811,7 @@ export default function PursuitDetailPage() {
                                             <div className="text-center py-4">
                                                 <p className="text-xs text-[var(--text-faint)]">No pre-dev budget yet</p>
                                                 <button
-                                                    onClick={() => setActiveTab('predev')}
+                                                    onClick={() => selectTab('predev')}
                                                     className="text-xs text-[var(--accent)] hover:underline mt-1"
                                                 >
                                                     Set Up Budget →
@@ -726,7 +823,7 @@ export default function PursuitDetailPage() {
                                     {/* Key Dates KPIs */}
                                     <div className="card">
                                         <div className="flex items-center gap-1.5 mb-3">
-                                            <Calendar className="w-3.5 h-3.5 text-[#8B5CF6]" />
+                                            <Calendar className="w-3.5 h-3.5 text-[var(--accent)]" />
                                             <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Key Dates</h3>
                                             {overdueDates.length > 0 && (
                                                 <span className="text-[9px] bg-[var(--danger)]/10 text-[var(--danger)] px-1.5 py-0.5 rounded-full font-medium ml-auto">
@@ -773,7 +870,7 @@ export default function PursuitDetailPage() {
                                             <div className="text-center py-4">
                                                 <p className="text-xs text-[var(--text-faint)]">No key dates tracked</p>
                                                 <button
-                                                    onClick={() => setActiveTab('keydates')}
+                                                    onClick={() => selectTab('keydates')}
                                                     className="text-xs text-[var(--accent)] hover:underline mt-1"
                                                 >
                                                     Add Key Dates →
@@ -831,7 +928,7 @@ export default function PursuitDetailPage() {
                                                     },
                                                 } as any);
                                             }}
-                                            className="flex items-center gap-1 text-[10px] text-[var(--text-faint)] hover:text-red-500 font-medium transition-colors"
+                                            className="flex items-center gap-1 text-[10px] text-[var(--text-faint)] hover:text-[var(--danger)] font-medium transition-colors"
                                         >
                                             <X className="w-3 h-3" /> Clear
                                         </button>
@@ -845,7 +942,7 @@ export default function PursuitDetailPage() {
                                     <span className="text-sm text-[var(--text-muted)]">Generating site assessment...</span>
                                 </div>
                             ) : aiError ? (
-                                <div className="flex items-center gap-2 py-4 text-sm text-red-600">
+                                <div className="flex items-center gap-2 py-4 text-sm text-[var(--danger)]" role="alert">
                                     <AlertCircle className="w-4 h-4" />
                                     <span>{aiError}</span>
                                     <button onClick={generateSummary} className="ml-auto text-[10px] text-[var(--accent)] hover:underline">Retry</button>
@@ -953,7 +1050,7 @@ export default function PursuitDetailPage() {
                 {activeTab === 'onepagers' && (
                     <>
                         {/* One-Pagers */}
-                        <div className="flex items-center justify-between mb-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                             <h2 className="text-lg font-semibold text-[var(--text-primary)]">One-Pagers</h2>
                             <div className="flex items-center gap-2">
                                 {onePagers.filter(op => !op.is_archived).length >= 2 && (
@@ -1001,6 +1098,8 @@ export default function PursuitDetailPage() {
                                                                         : 'text-[var(--text-muted)] opacity-30 hover:opacity-100 hover:text-[#F59E0B]'
                                                                         }`}
                                                                     title={isPrimary ? 'Primary scenario (used in reports)' : 'Set as primary scenario'}
+                                                                    aria-label={isPrimary ? `${op.name} is the primary scenario — click to unset` : `Set ${op.name} as primary scenario`}
+                                                                    aria-pressed={isPrimary}
                                                                 >
                                                                     <Star className={`w-4 h-4 ${isPrimary ? 'fill-current' : ''}`} />
                                                                 </button>
@@ -1021,8 +1120,9 @@ export default function PursuitDetailPage() {
                                             </Link>
                                             <button
                                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteConfirmId(op.id); }}
-                                                className="absolute bottom-3 right-3 p-1.5 rounded-md opacity-0 group-hover/card:opacity-100 text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-all z-10"
+                                                className="absolute bottom-3 right-3 p-1.5 rounded-md opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-all z-10"
                                                 title="Delete one-pager"
+                                                aria-label={`Delete one-pager ${op.name}`}
                                             >
                                                 <Trash2 className="w-3.5 h-3.5" />
                                             </button>
@@ -1054,26 +1154,54 @@ export default function PursuitDetailPage() {
                             <GrowthTrendsCard pursuit={pursuit} />
                         </div>
 
-                        {/* Drive-Time Analysis */}
+                        {/* Drive-Time Analysis — rendered only once its saved results have loaded:
+                            the map saves its whole per-radius cache, so generating a radius before
+                            the saved data arrives would overwrite the other saved radii. */}
                         <div className="mb-6">
-                            <DriveTimeMap
-                                latitude={pursuit.latitude}
-                                longitude={pursuit.longitude}
-                                pursuitName={pursuit.name}
-                                savedDriveTimeData={pursuit.drive_time_data as any}
-                                onSaveDriveTimeData={(data) => handleUpdatePursuit({ drive_time_data: data } as any)}
-                            />
+                            {driveTime.isLoading ? (
+                                <div className="card flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-[var(--border-strong)]" /></div>
+                            ) : driveTime.isError ? (
+                                <div className="card py-8 text-center text-sm text-[var(--text-muted)]">
+                                    Couldn&apos;t load saved drive-time results.{' '}
+                                    <button onClick={() => driveTime.refetch()} className="text-[var(--accent)] hover:underline">Retry</button>
+                                </div>
+                            ) : (
+                                <DriveTimeMap
+                                    latitude={pursuit.latitude}
+                                    longitude={pursuit.longitude}
+                                    pursuitName={pursuit.name}
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    savedDriveTimeData={driveTime.data as any}
+                                    onSaveDriveTimeData={(data) => saveDriveTime.mutate(
+                                        { pursuitId: pursuit.id, data },
+                                        { onError: (err) => toast.error('Failed to save drive-time results', err) },
+                                    )}
+                                />
+                            )}
                         </div>
 
-                        {/* Income Heat Map */}
+                        {/* Income Heat Map — same load-before-render rule as the drive-time map */}
                         <div className="mb-6">
-                            <IncomeHeatMap
-                                latitude={pursuit.latitude}
-                                longitude={pursuit.longitude}
-                                pursuitName={pursuit.name}
-                                savedIncomeData={pursuit.income_heatmap_data as any}
-                                onSaveIncomeData={(data) => handleUpdatePursuit({ income_heatmap_data: data } as any)}
-                            />
+                            {incomeHeatmap.isLoading ? (
+                                <div className="card flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-[var(--border-strong)]" /></div>
+                            ) : incomeHeatmap.isError ? (
+                                <div className="card py-8 text-center text-sm text-[var(--text-muted)]">
+                                    Couldn&apos;t load saved income heat-map results.{' '}
+                                    <button onClick={() => incomeHeatmap.refetch()} className="text-[var(--accent)] hover:underline">Retry</button>
+                                </div>
+                            ) : (
+                                <IncomeHeatMap
+                                    latitude={pursuit.latitude}
+                                    longitude={pursuit.longitude}
+                                    pursuitName={pursuit.name}
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    savedIncomeData={incomeHeatmap.data as any}
+                                    onSaveIncomeData={(data) => saveIncomeHeatmap.mutate(
+                                        { pursuitId: pursuit.id, data },
+                                        { onError: (err) => toast.error('Failed to save income heat-map results', err) },
+                                    )}
+                                />
+                            )}
                         </div>
                     </Suspense>
                 )}
@@ -1142,6 +1270,8 @@ export default function PursuitDetailPage() {
                     </Suspense>
                 )}
 
+                </div>
+
                 {/* New One-Pager Dialog */}
                 {showNewOnePagerDialog && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
@@ -1208,15 +1338,17 @@ export default function PursuitDetailPage() {
                                 <button
                                     onClick={async () => {
                                         try {
+                                            const name = onePagers.find(op => op.id === deleteConfirmId)?.name;
                                             await deleteOnePager.mutateAsync({ id: deleteConfirmId, pursuitId: pursuitUuid });
                                             setDeleteConfirmId(null);
+                                            toast.success(name ? `Deleted "${name}"` : 'One-pager deleted');
                                         } catch (err) {
                                             console.error('Failed to delete one-pager:', err);
-                                            alert('Failed to delete one-pager.');
+                                            toast.error('Failed to delete one-pager', err);
                                         }
                                     }}
                                     disabled={deleteOnePager.isPending}
-                                    className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
+                                    className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:opacity-90 disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
                                 >
                                     {deleteOnePager.isPending ? 'Deleting...' : 'Delete'}
                                 </button>
@@ -1248,11 +1380,11 @@ export default function PursuitDetailPage() {
                                             router.push('/');
                                         } catch (err) {
                                             console.error('Failed to delete pursuit:', err);
-                                            alert('Failed to delete pursuit.');
+                                            toast.error('Failed to delete pursuit', err);
                                         }
                                     }}
                                     disabled={deletePursuit.isPending}
-                                    className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
+                                    className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:opacity-90 disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
                                 >
                                     {deletePursuit.isPending ? 'Deleting...' : 'Delete Pursuit'}
                                 </button>

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { usePursuits, useLinkLandCompToPursuit, useLinkSaleCompToPursuit } from '@/hooks/useSupabaseQueries';
 import { Search, Plus, Check, FolderPlus, X } from 'lucide-react';
+import { toast } from '@/lib/toast';
 
 interface AddToPursuitButtonProps {
     compId: string;
@@ -44,7 +45,7 @@ export function AddToPursuitButton({ compId, compType, linkedPursuitIds = [] }: 
         setRecentlyAdded((prev) => new Set(prev).add(pursuitId));
         const onError = (err: unknown) => {
             setRecentlyAdded((prev) => { const next = new Set(prev); next.delete(pursuitId); return next; });
-            alert(`Failed to link comp: ${err instanceof Error ? err.message : 'Unknown error'}`);
+            toast.error('Failed to link comp', err);
         };
         if (compType === 'land') {
             linkLand.mutate({ pursuitId, landCompId: compId }, { onError });
@@ -108,7 +109,7 @@ export function AddToPursuitButton({ compId, compType, linkedPursuitIds = [] }: 
                                             </div>
                                         </div>
                                         {linked ? (
-                                            <span className="flex items-center gap-1 text-[10px] text-[var(--success)] font-medium px-2 py-1 bg-green-50 rounded-full flex-shrink-0">
+                                            <span className="flex items-center gap-1 text-[10px] text-[var(--success)] font-medium px-2 py-1 bg-[var(--success-bg)] rounded-full flex-shrink-0">
                                                 <Check className="w-3 h-3" /> Linked
                                             </span>
                                         ) : (

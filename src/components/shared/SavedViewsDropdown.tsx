@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Bookmark, BookmarkPlus, ChevronDown, Check, Trash2, Loader2, Star } from 'lucide-react';
 import type { UserSavedView } from '@/types';
 import { useSavedViews, useUpsertSavedView, useDeleteSavedView } from '@/hooks/useSupabaseQueries';
+import { toast } from '@/lib/toast';
 
 interface SavedViewsDropdownProps {
   currentFilters: {
@@ -33,8 +34,15 @@ export function SavedViewsDropdown({ currentFilters, onApplyView, viewType = 'pu
         setIsSavingBoxOpen(false);
       }
     };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setIsOpen(false); setIsSavingBoxOpen(false); }
+    };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKey);
+    };
   }, []);
 
   const handleSaveCurrentView = () => {
@@ -50,23 +58,21 @@ export function SavedViewsDropdown({ currentFilters, onApplyView, viewType = 'pu
         onSuccess: () => {
           setIsSavingBoxOpen(false);
           setNewViewName('');
-        }
+          toast.success('View saved');
+        },
+        onError: (err) => toast.error('Failed to save view', err),
       }
     );
-  };
-
-  const handleSetDefault = (e: React.MouseEvent, view: UserSavedView) => {
-    e.stopPropagation();
-    // Setting a view as default via upsert. The backend DB has unique index, we need to unset others first or the hook handles it.
-    // Wait, Supabase unique index `WHERE is_default = true` means we can't just upsert `is_default=true` without removing the old one first.
-    // Let's do a multi-step: Set all to false, then set this to true. Or we just toggle it if the DB allows it.
-    // Actually, letting users just click "Load" is enough for now. Building true default-load requires updating all rows. We'll skip complex default toggling in the quick UI for now, but we'll mark them.
   };
 
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
+        aria-haspopup="true"
+        aria-expanded={isOpen}
+        aria-label="Saved views"
         className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent)] transition-all"
       >
         <Bookmark className="w-4 h-4 text-[var(--text-muted)]" />
@@ -75,16 +81,18 @@ export function SavedViewsDropdown({ currentFilters, onApplyView, viewType = 'pu
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-2 w-64 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="absolute top-full left-0 mt-2 w-64 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in">
           <div className="p-3 border-b border-[var(--border)] bg-[var(--bg-elevated)]">
             {isSavingBoxOpen ? (
               <div className="space-y-2">
                 <input
                   type="text"
+                  aria-label="View name"
                   placeholder="View Name (e.g., Texas Deals)"
                   value={newViewName}
                   onChange={(e) => setNewViewName(e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm bg-[var(--bg-primary)] border border-[var(--border)] rounded focus:outline-none focus:border-[var(--accent)]"
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCurrentView(); }}
+                  className="w-full px-2 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] bg-[var(--bg-primary)] border border-[var(--border)] rounded focus:outline-none focus:border-[var(--accent)]"
                   autoFocus
                 />
                 <div className="flex gap-2">
@@ -124,23 +132,31 @@ export function SavedViewsDropdown({ currentFilters, onApplyView, viewType = 'pu
               savedViews.map((view) => (
                 <div
                   key={view.id}
-                  className="group flex items-center justify-between px-2 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] rounded-lg cursor-pointer transition-colors"
-                  onClick={() => {
-                    onApplyView(view.filters);
-                    setIsOpen(false);
-                  }}
+                  className="group flex items-center justify-between px-2 py-1 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] rounded-lg transition-colors"
                 >
-                  <span className="truncate pr-4">{view.name}</span>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {/* A real button so saved views can be applied from the keyboard */}
+                  <button
+                    type="button"
+                    className="flex-1 min-w-0 text-left truncate py-1 pr-4"
+                    onClick={() => {
+                      onApplyView(view.filters);
+                      setIsOpen(false);
+                    }}
+                  >
+                    {view.name}
+                  </button>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (confirm(`Delete saved view "${view.name}"?`)) {
-                          deleteView.mutate(view.id);
+                          deleteView.mutate(view.id, { onError: (err) => toast.error('Failed to delete view', err) });
                         }
                       }}
                       className="p-1 text-[var(--text-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] rounded transition-colors"
                       title="Delete View"
+                      aria-label={`Delete saved view ${view.name}`}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>

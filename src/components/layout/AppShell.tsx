@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Building2, Settings, Plus, LayoutDashboard, BarChart3, FileSpreadsheet, TrendingUp, Menu, X, LogOut, ChevronDown, Users, Landmark, Compass, KeyRound, Bell, Moon, Sun, CheckSquare } from 'lucide-react';
+import { Building2, Settings, Plus, LayoutDashboard, BarChart3, FileSpreadsheet, TrendingUp, Menu, X, LogOut, ChevronDown, Users, Landmark, Compass, KeyRound, Bell, Moon, Sun, CheckSquare, type LucideIcon } from 'lucide-react';
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { createClient } from '@/lib/supabase/client';
@@ -11,6 +11,30 @@ import {
     useMyIncompleteTaskCount 
 } from '@/hooks/useSupabaseQueries';
 import { useThemeStore } from '@/store/useThemeStore';
+
+// Primary sections, shared by the desktop bar and the mobile menu.
+const NAV_ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
+    { href: '/', label: 'Pursuits', icon: LayoutDashboard },
+    { href: '/explore', label: 'Explore', icon: Compass },
+    { href: '/comps', label: 'Comps', icon: Landmark },
+    { href: '/reports', label: 'Reports', icon: FileSpreadsheet },
+    { href: '/analytics', label: 'Analytics', icon: TrendingUp },
+    { href: '/compare', label: 'Compare', icon: BarChart3 },
+    { href: '/tasks', label: 'Tasks', icon: CheckSquare },
+];
+
+function CountBadge({ count, label }: { count: number; label: string }) {
+    if (count <= 0) return null;
+    return (
+        <span
+            className="min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-[var(--accent)] text-white text-[10px] font-bold leading-none tabular-nums"
+            title={label}
+        >
+            <span aria-hidden>{count > 99 ? '99+' : count}</span>
+            <span className="sr-only">, {label}</span>
+        </span>
+    );
+}
 
 interface AppShellProps {
     children: ReactNode;
@@ -25,7 +49,8 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
     const userMenuRef = useRef<HTMLDivElement>(null);
     const { data: mentionCount = 0 } = useMyMentionCount(profile?.id);
     const { data: pendingTaskCount = 0 } = useMyIncompleteTaskCount(profile?.id);
-    const { theme, toggleTheme } = useThemeStore();
+    const theme = useThemeStore(s => s.theme);
+    const toggleTheme = useThemeStore(s => s.toggleTheme);
 
     // Change password state
     const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -67,7 +92,7 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
         }
     };
 
-    // Close user menu on outside click
+    // Close user menu on outside click; Escape closes menus and the password dialog
     useEffect(() => {
         const handleClick = (e: MouseEvent) => {
             if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
@@ -78,6 +103,10 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
             if (e.key === 'Escape') {
                 setUserMenuOpen(false);
                 setMobileMenuOpen(false);
+                setShowPasswordModal(false);
+                setNewPassword('');
+                setConfirmPassword('');
+                setPasswordError(null);
             }
         };
         document.addEventListener('mousedown', handleClick);
@@ -106,10 +135,14 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
 
     // Section match on path segment boundary (so /compare doesn't light up /comps, etc.)
     const isSection = (base: string) => pathname === base || pathname.startsWith(`${base}/`);
-    const isPursuitsActive = pathname === '/' || isSection('/pursuits');
+    const isNavActive = (href: string) => href === '/' ? (pathname === '/' || isSection('/pursuits')) : isSection(href);
+    const isAdminActive = isSection('/admin');
+    const taskBadgeLabel = `${pendingTaskCount} open task${pendingTaskCount === 1 ? '' : 's'}`;
 
+    // Desktop bar: icon-only links from lg (1024px), labels from xl (1280px).
+    // The fully labelled bar needs ~1250px, so below lg everything lives in the menu.
     const navLinkClass = (active: boolean) =>
-        `flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${active
+        `flex items-center gap-2 px-2.5 xl:px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${active
             ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
             : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
         }`;
@@ -137,36 +170,23 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                             </div>
                         </Link>
 
-                        <nav className="hidden md:flex items-center gap-1">
-                            <Link href="/" className={navLinkClass(isPursuitsActive)}>
-                                <LayoutDashboard className="w-4 h-4" />
-                                Pursuits
-                            </Link>
-
-                            <Link href="/explore" className={navLinkClass(isSection('/explore'))}>
-                                <Compass className="w-4 h-4" />
-                                Explore
-                            </Link>
-                            <Link href="/comps" className={navLinkClass(isSection('/comps'))}>
-                                <Landmark className="w-4 h-4" />
-                                Comps
-                            </Link>
-                            <Link href="/reports" className={navLinkClass(isSection('/reports'))}>
-                                <FileSpreadsheet className="w-4 h-4" />
-                                Reports
-                            </Link>
-                            <Link href="/analytics" className={navLinkClass(isSection('/analytics'))}>
-                                <TrendingUp className="w-4 h-4" />
-                                Analytics
-                            </Link>
-                            <Link href="/compare" className={navLinkClass(isSection('/compare'))}>
-                                <BarChart3 className="w-4 h-4" />
-                                Compare
-                            </Link>
-                            <Link href="/tasks" className={navLinkClass(isSection('/tasks'))}>
-                                <CheckSquare className="w-4 h-4" />
-                                Tasks
-                            </Link>
+                        <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1" aria-label="Main">
+                            {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+                                const active = isNavActive(href);
+                                return (
+                                    <Link
+                                        key={href}
+                                        href={href}
+                                        className={navLinkClass(active)}
+                                        aria-current={active ? 'page' : undefined}
+                                        title={label}
+                                    >
+                                        <Icon className="w-4 h-4" aria-hidden />
+                                        <span className="sr-only xl:not-sr-only">{label}</span>
+                                        {href === '/tasks' && <CountBadge count={pendingTaskCount} label={taskBadgeLabel} />}
+                                    </Link>
+                                );
+                            })}
                         </nav>
                     </div>
 
@@ -176,17 +196,19 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                         {isAdminOrOwner && (
                             <Link
                                 href="/admin/product-types"
-                                className={`hidden md:flex ${navLinkClass(pathname.startsWith('/admin'))}`}
+                                className={`hidden lg:flex ${navLinkClass(isAdminActive)}`}
+                                aria-current={isAdminActive ? 'page' : undefined}
+                                title="Admin"
                             >
-                                <Settings className="w-4 h-4" />
-                                Admin
+                                <Settings className="w-4 h-4" aria-hidden />
+                                <span className="sr-only 2xl:not-sr-only">Admin</span>
                             </Link>
                         )}
 
                         {onNewPursuit && (
                             <button
                                 onClick={onNewPursuit}
-                                className="hidden md:flex items-center gap-2 px-4 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors shadow-sm"
+                                className="hidden lg:flex items-center gap-2 px-4 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors shadow-sm"
                             >
                                 <Plus className="w-4 h-4" />
                                 New Pursuit
@@ -197,7 +219,7 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                         {onNewPursuit && (
                             <button
                                 onClick={onNewPursuit}
-                                className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--accent)] text-white"
+                                className="lg:hidden flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--accent)] text-white"
                                 aria-label="New pursuit"
                             >
                                 <Plus className="w-4 h-4" />
@@ -207,30 +229,35 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                         {/* Mobile hamburger */}
                         <button
                             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                            className="md:hidden flex items-center justify-center w-8 h-8 rounded-md text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] transition-colors"
-                            aria-label="Toggle menu"
+                            className="lg:hidden relative flex items-center justify-center w-8 h-8 rounded-md text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] transition-colors"
+                            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
                             aria-expanded={mobileMenuOpen}
+                            aria-controls="mobile-nav"
                         >
                             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                            {/* Open-task count is otherwise hidden inside the closed menu */}
+                            {!mobileMenuOpen && pendingTaskCount > 0 && (
+                                <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-[var(--accent)] ring-2 ring-[var(--bg-nav)]" aria-hidden />
+                            )}
                         </button>
 
-                        {/* Mention & Task notification badge */}
-                        {(mentionCount > 0) && (
-                            <Link href="/tasks" className="relative hover:opacity-80 transition-opacity" title={`${mentionCount} unread action${mentionCount > 1 ? 's' : ''}`}>
-                                <Bell className="w-5 h-5 text-[var(--text-muted)]" />
-                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold text-white bg-[var(--danger)] rounded-full">
+                        {/* Unread mentions */}
+                        <Link
+                            href="/tasks"
+                            className="relative hover:opacity-80 transition-opacity"
+                            title={mentionCount > 0 ? `${mentionCount} unread mention${mentionCount > 1 ? 's' : ''}` : 'No unread mentions'}
+                            aria-label={mentionCount > 0 ? `${mentionCount} unread mention${mentionCount > 1 ? 's' : ''}` : 'Notifications: no unread mentions'}
+                        >
+                            <Bell className="w-5 h-5 text-[var(--text-muted)]" aria-hidden />
+                            {mentionCount > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 flex items-center justify-center px-1 text-[9px] font-bold text-white bg-[var(--danger)] rounded-full" aria-hidden>
                                     {mentionCount > 99 ? '99+' : mentionCount}
                                 </span>
-                            </Link>
-                        )}
-                        {(mentionCount === 0) && (
-                            <Link href="/tasks" className="relative hover:opacity-80 transition-opacity" title="No unread actions">
-                                <Bell className="w-5 h-5 text-[var(--text-muted)]" />
-                            </Link>
-                        )}
+                            )}
+                        </Link>
 
                         {/* Desktop User Avatar + Dropdown */}
-                        <div className="hidden md:block relative" ref={userMenuRef}>
+                        <div className="hidden lg:block relative" ref={userMenuRef}>
                             <button
                                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                                 aria-haspopup="menu"
@@ -293,41 +320,30 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
 
             {/* Mobile Menu Overlay */}
             {mobileMenuOpen && (
-                <div className="md:hidden fixed inset-0 top-14 z-40 bg-[var(--bg-card)] border-t border-[var(--border)]">
-                    <nav className="flex flex-col p-4 gap-1">
-                        <Link href="/" className={mobileNavLinkClass(isPursuitsActive)} onClick={() => setMobileMenuOpen(false)}>
-                            <LayoutDashboard className="w-5 h-5" />
-                            Pursuits
-                        </Link>
-
-                        <Link href="/explore" className={mobileNavLinkClass(isSection('/explore'))} onClick={() => setMobileMenuOpen(false)}>
-                            <Compass className="w-5 h-5" />
-                            Explore
-                        </Link>
-                        <Link href="/comps" className={mobileNavLinkClass(isSection('/comps'))} onClick={() => setMobileMenuOpen(false)}>
-                            <Landmark className="w-5 h-5" />
-                            Comps
-                        </Link>
-                        <Link href="/reports" className={mobileNavLinkClass(isSection('/reports'))} onClick={() => setMobileMenuOpen(false)}>
-                            <FileSpreadsheet className="w-5 h-5" />
-                            Reports
-                        </Link>
-                        <Link href="/analytics" className={mobileNavLinkClass(isSection('/analytics'))} onClick={() => setMobileMenuOpen(false)}>
-                            <TrendingUp className="w-5 h-5" />
-                            Analytics
-                        </Link>
-                        <Link href="/compare" className={mobileNavLinkClass(isSection('/compare'))} onClick={() => setMobileMenuOpen(false)}>
-                            <BarChart3 className="w-5 h-5" />
-                            Compare
-                        </Link>
-                        <Link href="/tasks" className={mobileNavLinkClass(isSection('/tasks'))} onClick={() => setMobileMenuOpen(false)}>
-                            <CheckSquare className="w-5 h-5" />
-                            Tasks
-                        </Link>
+                <div id="mobile-nav" className="lg:hidden fixed inset-0 top-14 z-40 overflow-y-auto overscroll-contain bg-[var(--bg-card)] border-t border-[var(--border)]">
+                    <nav className="flex flex-col p-4 gap-1" aria-label="Main">
+                        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+                            const active = isNavActive(href);
+                            return (
+                                <Link
+                                    key={href}
+                                    href={href}
+                                    className={mobileNavLinkClass(active)}
+                                    aria-current={active ? 'page' : undefined}
+                                    onClick={() => setMobileMenuOpen(false)}
+                                >
+                                    <Icon className="w-5 h-5" aria-hidden />
+                                    {label}
+                                    {href === '/tasks' && (
+                                        <span className="ml-auto"><CountBadge count={pendingTaskCount} label={taskBadgeLabel} /></span>
+                                    )}
+                                </Link>
+                            );
+                        })}
                         {isAdminOrOwner && (
                             <>
                                 <div className="border-t border-[var(--border)] my-2" />
-                                <Link href="/admin/product-types" className={mobileNavLinkClass(pathname.startsWith('/admin'))} onClick={() => setMobileMenuOpen(false)}>
+                                <Link href="/admin/product-types" className={mobileNavLinkClass(isAdminActive && pathname !== '/admin/users')} onClick={() => setMobileMenuOpen(false)}>
                                     <Settings className="w-5 h-5" />
                                     Admin
                                 </Link>
@@ -393,8 +409,8 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
             {/* Change Password Modal */}
             {showPasswordModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'var(--bg-overlay)', backdropFilter: 'blur(4px)' }}>
-                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm animate-fade-in mx-4" style={{ boxShadow: 'var(--shadow-dropdown)' }}>
-                        <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-1">Change Password</h2>
+                    <div role="dialog" aria-modal="true" aria-labelledby="change-password-title" className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm animate-fade-in mx-4" style={{ boxShadow: 'var(--shadow-dropdown)' }}>
+                        <h2 id="change-password-title" className="text-lg font-semibold text-[var(--text-primary)] mb-1">Change Password</h2>
                         <p className="text-xs text-[var(--text-muted)] mb-5">Enter your new password below.</p>
 
                         {passwordSuccess ? (
@@ -406,25 +422,30 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                             </div>
                         ) : (
                             <>
-                                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">New Password</label>
+                                <label htmlFor="new-password" className="block text-xs font-medium text-[var(--text-secondary)] mb-1">New Password</label>
                                 <input
+                                    id="new-password"
                                     type="password"
+                                    autoComplete="new-password"
+                                    autoFocus
                                     value={newPassword}
                                     onChange={(e) => setNewPassword(e.target.value)}
                                     placeholder="Min 6 characters"
-                                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--border-strong)] mb-3 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 focus:border-[var(--accent)]"
+                                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] mb-3 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 focus:border-[var(--accent)]"
                                 />
-                                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Confirm Password</label>
+                                <label htmlFor="confirm-password" className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Confirm Password</label>
                                 <input
+                                    id="confirm-password"
                                     type="password"
+                                    autoComplete="new-password"
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
                                     placeholder="Re-enter password"
-                                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--border-strong)] mb-4 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 focus:border-[var(--accent)]"
+                                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] mb-4 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 focus:border-[var(--accent)]"
                                     onKeyDown={(e) => e.key === 'Enter' && handleChangePassword()}
                                 />
                                 {passwordError && (
-                                    <p className="text-xs text-[var(--danger)] mb-3">{passwordError}</p>
+                                    <p role="alert" className="text-xs text-[var(--danger)] mb-3">{passwordError}</p>
                                 )}
                                 <div className="flex justify-end gap-3">
                                     <button

@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -14,7 +14,14 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: 'SLR Pursuits | Feasibility Analysis',
-  description: 'Multifamily development feasibility analysis platform — Streetlight Residential',
+  description: 'Multifamily development feasibility analysis platform — StreetLights Residential',
+};
+
+// Pinch-zoom stays enabled (WCAG 1.4.4). iOS focus-zoom is prevented instead by
+// rendering form fields at 16px on small/touch screens (see globals.css).
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 };
 
 /**
@@ -50,7 +57,6 @@ export default async function RootLayout({
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] antialiased">

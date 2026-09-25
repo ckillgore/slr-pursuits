@@ -10,6 +10,7 @@ import {
 } from '@/app/portal/task/[token]/actions';
 import { Paperclip, Download, Trash2, File as FileIcon, Loader2, Image as ImageIcon, FileText, Plus } from 'lucide-react';
 import type { TaskAttachment } from '@/types';
+import { toast } from '@/lib/toast';
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // matches the "up to 50MB" hint below
 
@@ -78,12 +79,12 @@ export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId:
     const handleUpload = async (file: File) => {
         if (!file) return;
         if (file.size > MAX_UPLOAD_BYTES) {
-            alert(`"${file.name}" is ${formatBytes(file.size)} — the limit is 50 MB.`);
+            toast.error(`"${file.name}" is ${formatBytes(file.size)} — the limit is 50 MB.`);
             if (fileInputRef.current) fileInputRef.current.value = '';
             return;
         }
         if (file.size === 0) {
-            alert(`"${file.name}" is empty.`);
+            toast.error(`"${file.name}" is empty.`);
             if (fileInputRef.current) fileInputRef.current.value = '';
             return;
         }
@@ -102,7 +103,7 @@ export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId:
             } catch (err) {
                 console.error('Failed to upload file:', err);
                 const msg = err instanceof Error ? err.message : (err as { message?: string })?.message;
-                alert(`Failed to upload file${msg ? `: ${msg}` : ''}. Please try again.`);
+                toast.error(`Failed to upload file${msg ? `: ${msg}` : ''}. Please try again.`);
             } finally {
                 setUploading(false);
                 if (fileInputRef.current) fileInputRef.current.value = '';
@@ -150,7 +151,7 @@ export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId:
                 await supabase.storage.from('task-files').remove([uploadedPath]).catch(() => {});
             }
             const msg = err instanceof Error ? err.message : (err as { message?: string })?.message;
-            alert(`Failed to upload file${msg ? `: ${msg}` : ''}. Please try again.`);
+            toast.error(`Failed to upload file${msg ? `: ${msg}` : ''}. Please try again.`);
         } finally {
             setUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -161,7 +162,7 @@ export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId:
         if (externalToken) {
             const res = await getExternalDownloadUrl(externalToken, attachment.id);
             if (res.error || !res.url) {
-                alert(res.error || 'Could not download file.');
+                toast.error(res.error || 'Could not download file.');
                 return;
             }
             window.open(res.url, '_blank');
@@ -170,7 +171,7 @@ export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId:
         if (!attachment.storage_path) return;
         const { data, error } = await supabase.storage.from('task-files').createSignedUrl(attachment.storage_path, 3600); // 1 hour link
         if (error || !data) {
-            alert('Could not download file.');
+            toast.error('Could not download file.');
             return;
         }
         window.open(data.signedUrl, '_blank');
@@ -186,8 +187,8 @@ export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId:
 
     const getIcon = (type: string | null) => {
         if (!type) return <FileIcon className="w-5 h-5 text-[var(--text-muted)]" />;
-        if (type.startsWith('image/')) return <ImageIcon className="w-5 h-5 text-blue-500" />;
-        if (type.includes('pdf')) return <FileText className="w-5 h-5 text-red-500" />;
+        if (type.startsWith('image/')) return <ImageIcon className="w-5 h-5 text-[var(--info)]" />;
+        if (type.includes('pdf')) return <FileText className="w-5 h-5 text-[var(--danger)]" />;
         return <FileIcon className="w-5 h-5 text-[var(--text-muted)]" />;
     };
 
@@ -233,12 +234,12 @@ export default function TaskAttachmentPanel({ taskId, externalToken }: { taskId:
                                                     }
                                                 } catch (e) {
                                                     console.error(e);
-                                                    alert('Failed to delete file. Please try again.');
+                                                    toast.error('Failed to delete file. Please try again.');
                                                 }
                                             }
                                         }} 
                                         title="Delete" 
-                                        className="p-1.5 text-[var(--text-muted)] hover:text-[#EF4444] hover:bg-[var(--danger-bg)] rounded transition-colors"
+                                        className="p-1.5 text-[var(--text-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] rounded transition-colors"
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </button>

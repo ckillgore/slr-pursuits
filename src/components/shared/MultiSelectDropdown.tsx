@@ -25,8 +25,13 @@ export function MultiSelectDropdown({ options, selectedIds, onChange, placeholde
         setIsOpen(false);
       }
     };
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsOpen(false); };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKey);
+    };
   }, []);
 
   const toggleOption = (id: string, e: React.MouseEvent) => {
@@ -47,7 +52,11 @@ export function MultiSelectDropdown({ options, selectedIds, onChange, placeholde
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
+        aria-haspopup="true"
+        aria-expanded={isOpen}
+        aria-label={selectedIds.length > 0 ? `${placeholder}: ${getLabel()}` : placeholder}
         className="w-full h-full min-h-[38px] flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--text-primary)] transition-colors focus:outline-none focus:border-[var(--accent)]"
       >
         <span className="truncate pr-2">{getLabel()}</span>
@@ -55,9 +64,10 @@ export function MultiSelectDropdown({ options, selectedIds, onChange, placeholde
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 z-50 w-full mt-2 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl shadow-lg max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="absolute top-full left-0 z-50 w-full mt-2 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl shadow-lg max-h-60 overflow-y-auto animate-fade-in">
           <div className="py-1">
              <button
+                type="button"
                 onClick={(e) => { e.stopPropagation(); onChange([]); }}
                 className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors border-b border-[var(--border)]"
              >
@@ -67,7 +77,9 @@ export function MultiSelectDropdown({ options, selectedIds, onChange, placeholde
               const isSelected = selectedIds.includes(option.id);
               return (
                 <button
+                  type="button"
                   key={option.id}
+                  aria-pressed={isSelected}
                   onClick={(e) => toggleOption(option.id, e)}
                   className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-[var(--bg-elevated)] transition-colors"
                 >

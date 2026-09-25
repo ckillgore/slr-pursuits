@@ -27,7 +27,8 @@ import {
 import { useCalculations } from '@/hooks/useCalculations';
 import { useAutoSave } from '@/hooks/useAutoSave';
 import { useUndoRedo } from '@/hooks/useUndoRedo';
-import { useRealtimeOnePager } from '@/hooks/useRealtimeOnePager';
+import { useRealtimeOnePager, parseTimestamp } from '@/hooks/useRealtimeOnePager';
+import { toast } from '@/lib/toast';
 import { InlineInput } from './InlineInput';
 import FieldNoteButton from './FieldNoteButton';
 import { RichTextEditor } from '@/components/shared/RichTextEditor';
@@ -60,8 +61,16 @@ import {
     X,
     Car,
     Library,
+    MoreHorizontal,
 } from 'lucide-react';
 import * as queries from '@/lib/supabase/queries';
+
+// Module-level defaults keep the sensitivity memos stable (a fresh `?? [...]`
+// array on every render used to recompute all four grids on each render).
+const DEFAULT_RENT_STEPS = [-0.15, -0.10, -0.05, 0, 0.05, 0.10, 0.15];
+const DEFAULT_HARD_COST_STEPS = [-15, -10, -5, 0, 5, 10, 15];
+const DEFAULT_LAND_COST_STEPS = [-2000000, -1000000, -500000, 0, 500000, 1000000, 2000000];
+const EMPTY_NOTES: Record<string, string> = {};
 
 interface OnePagerEditorProps {
     pursuit: Pursuit;
@@ -102,13 +111,9 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     const [payrollExpanded] = useState(true); // always visible
     const [taxExpanded] = useState(true); // always visible
     const [sensitivityExpanded, setSensitivityExpanded] = useState(false);
-    const [isEditingName, setIsEditingName] = useState(false);
-    const [editName, setEditName] = useState('');
-    const nameCancelledRef = useRef(false);
     const [softCostExpanded, setSoftCostExpanded] = useState(false);
     const [premiumsExpanded] = useState(true); // always visible
     const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
-    const [duplicateName, setDuplicateName] = useState('');
     const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
     const [isExportingPdf, setIsExportingPdf] = useState(false);
     const [isExportingExcel, setIsExportingExcel] = useState(false);
@@ -116,6 +121,23 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     const [showPrototypePicker, setShowPrototypePicker] = useState(false);
     const [showAddMenu, setShowAddMenu] = useState(false);
     const addMenuRef = useRef<HTMLDivElement>(null);
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
+    const moreMenuRef = useRef<HTMLDivElement>(null);
+
+    // Close the toolbar overflow menu on outside click / Escape
+    useEffect(() => {
+        if (!showMoreMenu) return;
+        const handleClick = (e: MouseEvent) => {
+            if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) setShowMoreMenu(false);
+        };
+        const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowMoreMenu(false); };
+        document.addEventListener('mousedown', handleClick);
+        document.addEventListener('keydown', handleKey);
+        return () => {
+            document.removeEventListener('mousedown', handleClick);
+            document.removeEventListener('keydown', handleKey);
+        };
+    }, [showMoreMenu]);
 
     // Close add menu on outside click
     useEffect(() => {
@@ -129,31 +151,147 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
         return () => document.removeEventListener('mousedown', handleClick);
     }, [showAddMenu]);
 
-    // Realtime subscription for multi-user sync
-    useRealtimeOnePager(onePager.id);
-
     const pendingUpdatesRef = useRef<Partial<OnePager>>({});
     // Updates sent to the server but not yet acknowledged. Together with
     // pendingUpdatesRef these are re-applied if a refetch (realtime echo,
     // window focus) lands mid-edit and would otherwise revert the UI.
     const inFlightUpdatesRef = useRef<Partial<OnePager>>({});
+    // Field-note edits not yet acknowledged, by note key (null = cleared).
+    // field_notes is one JSONB object shared by everyone on this one-pager, so it
+    // is never saved or re-applied wholesale: these keys are merged into the
+    // newest known object instead, so two people editing different notes don't
+    // overwrite each other.
+    const pendingNoteEditsRef = useRef<Record<string, string | null>>({});
+    // Newest server updated_at seen (fetch, own save response or realtime event).
+    // Realtime events at or before it are echoes of our own saves or stale.
+    const serverUpdatedAtRef = useRef<number | null>(parseTimestamp(onePager.updated_at));
 
     // Always-current one-pager for callbacks (avoids stale oldValue in undo entries)
     const onePagerRef = useRef(onePager);
     onePagerRef.current = onePager;
 
+    // The page reads the one-pager under the URL param (usually the short id);
+    // writes go to both that key and the UUID key.
+    const readKey = useMemo(() => queryKeys.onePager(queryId || onePager.id), [queryId, onePager.id]);
+    const patchCache = useCallback((patch: Partial<OnePager>) => {
+        const apply = (old: OnePager | undefined) => (old ? { ...old, ...patch } : old);
+        queryClient.setQueryData(queryKeys.onePager(onePager.id), apply);
+        if (queryId && queryId !== onePager.id) queryClient.setQueryData(queryKeys.onePager(queryId), apply);
+    }, [queryClient, onePager.id, queryId]);
+
+    const withNoteEdits = useCallback((base: Record<string, string> | null | undefined) => {
+        const next: Record<string, string> = { ...(base ?? {}) };
+        for (const [k, v] of Object.entries(pendingNoteEditsRef.current)) {
+            if (v === null) delete next[k];
+            else next[k] = v;
+        }
+        return next;
+    }, []);
+
+    /**
+     * Merge a server copy of the row (another user's realtime update, or the
+     * response to our own save) into the cache. Fields with a local edit pending
+     * or in flight keep the local value; field notes merge per key.
+     */
+    const mergeServerRow = useCallback((row: Partial<OnePager>) => {
+        const cached = ((queryClient.getQueryData(readKey) as OnePager | undefined) ?? onePagerRef.current) as unknown as Record<string, unknown>;
+        const local = { ...inFlightUpdatesRef.current, ...pendingUpdatesRef.current } as Record<string, unknown>;
+        const patch: Record<string, unknown> = {};
+        for (const [k, raw] of Object.entries(row)) {
+            if (k === 'field_notes' || k === 'updated_at' || k in local) continue;
+            let v: unknown = raw;
+            // Guard against numeric columns arriving as strings in change payloads
+            if (typeof cached[k] === 'number' && typeof raw === 'string' && raw.trim() !== '' && Number.isFinite(Number(raw))) v = Number(raw);
+            if (JSON.stringify(cached[k]) !== JSON.stringify(v)) patch[k] = v;
+        }
+        if ('field_notes' in row) {
+            const merged = withNoteEdits(row.field_notes);
+            if (JSON.stringify(merged) !== JSON.stringify(cached.field_notes ?? {})) patch.field_notes = merged;
+        }
+        if (Object.keys(patch).length === 0) return;
+        if (row.updated_at) patch.updated_at = row.updated_at;
+        patchCache(patch as Partial<OnePager>);
+    }, [queryClient, readKey, withNoteEdits, patchCache]);
+
+    const noteServerTimestamp = (updatedAt: string | null | undefined) => {
+        const ts = parseTimestamp(updatedAt);
+        if (ts === null) return null;
+        if (serverUpdatedAtRef.current === null || ts > serverUpdatedAtRef.current) serverUpdatedAtRef.current = ts;
+        return ts;
+    };
+
+    // Keep the high-water mark current when a refetch brings a newer row
+    useEffect(() => {
+        const ts = parseTimestamp(onePager.updated_at);
+        if (ts !== null && (serverUpdatedAtRef.current === null || ts > serverUpdatedAtRef.current)) serverUpdatedAtRef.current = ts;
+    }, [onePager.updated_at]);
+
+    // Realtime: other users' edits appear live without clobbering our own
+    const handleRemoteOnePager = useCallback((row: Partial<OnePager>) => {
+        const ts = parseTimestamp(row.updated_at);
+        if (ts !== null) {
+            // Echo of a save we already have the response for, or an out-of-order older event
+            if (serverUpdatedAtRef.current !== null && ts <= serverUpdatedAtRef.current) return;
+            serverUpdatedAtRef.current = ts;
+        }
+        // An echo that beats our save's response carries our own values for the
+        // fields still in flight — mergeServerRow skips those.
+        mergeServerRow(row);
+    }, [mergeServerRow]);
+    useRealtimeOnePager(onePager.id, { queryId, onOnePagerUpdate: handleRemoteOnePager });
+
     const { save, status: saveStatus } = useAutoSave(async (data: { id: string; updates: Partial<OnePager> }) => {
         // Clear the pending updates so subsequent edits accumulate in a fresh batch
         pendingUpdatesRef.current = {};
-        inFlightUpdatesRef.current = { ...inFlightUpdatesRef.current, ...data.updates };
+        let updates = data.updates;
+        // Right before sending, re-merge our note edits into the newest field_notes we
+        // know of (realtime keeps the cache current), rather than a copy taken when
+        // the edit was queued.
+        let noteEditsSent: Record<string, string | null> | null = null;
+        if ('field_notes' in updates) {
+            noteEditsSent = { ...pendingNoteEditsRef.current };
+            const latest = (queryClient.getQueryData(readKey) as OnePager | undefined)?.field_notes ?? onePagerRef.current.field_notes;
+            updates = { ...updates, field_notes: withNoteEdits(latest) };
+        }
+        inFlightUpdatesRef.current = { ...inFlightUpdatesRef.current, ...updates };
+        let saved: OnePager | undefined;
         try {
-            await updateOnePagerMutation.mutateAsync({ id: data.id, updates: data.updates, queryId });
+            let toSend = updates;
+            if (noteEditsSent && Object.keys(noteEditsSent).length > 0) {
+                // Merge each edited note key server-side in one UPDATE, instead of writing
+                // the whole field_notes object (which could drop a concurrent edit by
+                // someone else). A null result means the RPC isn't deployed yet: keep
+                // the whole-object save as the fallback.
+                const results = await Promise.all(
+                    Object.entries(noteEditsSent).map(([k, v]) => queries.setOnePagerFieldNote(data.id, k, v)),
+                );
+                if (results.every((r) => r !== null)) {
+                    const rest = { ...updates };
+                    delete rest.field_notes;
+                    toSend = rest;
+                }
+            }
+            if (Object.keys(toSend).length > 0) {
+                saved = await updateOnePagerMutation.mutateAsync({ id: data.id, updates: toSend, queryId });
+            }
         } finally {
             // Drop acknowledged keys unless a newer save already replaced them
             const inFlight = inFlightUpdatesRef.current as Record<string, unknown>;
-            for (const [k, v] of Object.entries(data.updates)) {
+            for (const [k, v] of Object.entries(updates)) {
                 if (inFlight[k] === v) delete inFlight[k];
             }
+            if (noteEditsSent) {
+                const pendingNotes = pendingNoteEditsRef.current;
+                for (const [k, v] of Object.entries(noteEditsSent)) {
+                    if (pendingNotes[k] === v) delete pendingNotes[k];
+                }
+            }
+        }
+        // The response is the full row as of this write, so it also carries any
+        // changes other users made in the meantime.
+        if (saved) {
+            noteServerTimestamp(saved.updated_at);
+            mergeServerRow(saved);
         }
     });
 
@@ -161,14 +299,13 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     useEffect(() => {
         const overlay = { ...inFlightUpdatesRef.current, ...pendingUpdatesRef.current } as Record<string, unknown>;
         const current = onePager as unknown as Record<string, unknown>;
-        const stale = Object.keys(overlay).some((k) => JSON.stringify(current[k]) !== JSON.stringify(overlay[k]));
+        // Notes: re-apply only our own keys on top of the fetched object
+        delete overlay.field_notes;
+        if (Object.keys(pendingNoteEditsRef.current).length > 0) overlay.field_notes = withNoteEdits(onePager.field_notes);
+        const stale = Object.keys(overlay).some((k) => JSON.stringify(current[k] ?? {}) !== JSON.stringify(overlay[k] ?? {}));
         if (!stale) return;
-        const apply = (old: any) => (old ? { ...old, ...overlay } : old);
-        queryClient.setQueryData(queryKeys.onePager(onePager.id), apply);
-        if (queryId && queryId !== onePager.id) {
-            queryClient.setQueryData(queryKeys.onePager(queryId), apply);
-        }
-    }, [onePager, queryClient, queryId]);
+        patchCache(overlay as Partial<OnePager>);
+    }, [onePager, patchCache, withNoteEdits]);
 
     const sortedUnitMix = useMemo(() => [...unitMixRows].sort((a, b) => a.sort_order - b.sort_order), [unitMixRows]);
     const sortedPayroll = useMemo(() => [...payrollRows].sort((a, b) => a.sort_order - b.sort_order), [payrollRows]);
@@ -234,6 +371,9 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     // Undo/Redo System
     // ============================================================
 
+    // Set by applyNoteEdit below (declared later; undo only runs after mount)
+    const applyNoteEditRef = useRef<(fieldKey: string, note: string) => void>(() => { });
+
     const applyUndoRedo = useCallback(
         (action: import('@/hooks/useUndoRedo').UndoAction, direction: 'undo' | 'redo') => {
             const value = direction === 'undo' ? action.oldValue : action.newValue;
@@ -244,11 +384,12 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                     // save of the newer value can't overwrite the undo afterwards.
                     const updates = { [action.field]: value } as Partial<OnePager>;
                     pendingUpdatesRef.current = { ...pendingUpdatesRef.current, ...updates };
-                    queryClient.setQueryData(queryKeys.onePager(action.entityId), (old: any) => old ? { ...old, ...updates } : old);
-                    if (queryId && queryId !== action.entityId) {
-                        queryClient.setQueryData(queryKeys.onePager(queryId), (old: any) => old ? { ...old, ...updates } : old);
-                    }
+                    patchCache(updates);
                     save({ id: action.entityId, updates: { ...pendingUpdatesRef.current } });
+                    break;
+                }
+                case 'fieldNote': {
+                    applyNoteEditRef.current(action.field, typeof value === 'string' ? value : '');
                     break;
                 }
                 case 'unitMix': {
@@ -261,7 +402,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                 }
             }
         },
-        [queryClient, upsertUnitMixRow, upsertPayrollRow, onePager.id, save, queryId]
+        [upsertUnitMixRow, upsertPayrollRow, onePager.id, save, patchCache]
     );
 
     const { push: pushUndo, undo, redo, canUndo, canRedo } = useUndoRedo(applyUndoRedo);
@@ -281,27 +422,36 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
             pendingUpdatesRef.current = { ...pendingUpdatesRef.current, ...updates };
 
             // 2. Optimistically update the query cache so UI reacts instantly
-            queryClient.setQueryData(queryKeys.onePager(onePager.id), (old: any) => old ? { ...old, ...updates } : old);
-            if (queryId && queryId !== onePager.id) {
-                queryClient.setQueryData(queryKeys.onePager(queryId), (old: any) => old ? { ...old, ...updates } : old);
-            }
+            patchCache(updates);
 
             // 3. Debounce save through the shared auto-save mechanism
             save({ id: onePager.id, updates: { ...pendingUpdatesRef.current } });
         },
-        [queryClient, onePager.id, save, pushUndo, queryId]
+        [onePager.id, save, pushUndo, patchCache]
     );
 
-    // Field-level notes helper
-    const fieldNotes = onePager.field_notes ?? {};
+    // Field-level notes: one key changes per edit, merged into the latest object at save time
+    const fieldNotes = onePager.field_notes ?? EMPTY_NOTES;
+    const applyNoteEdit = useCallback(
+        (fieldKey: string, note: string) => {
+            pendingNoteEditsRef.current = { ...pendingNoteEditsRef.current, [fieldKey]: note.trim() ? note : null };
+            const current = (queryClient.getQueryData(readKey) as OnePager | undefined) ?? onePagerRef.current;
+            const merged = withNoteEdits(current.field_notes);
+            pendingUpdatesRef.current = { ...pendingUpdatesRef.current, field_notes: merged };
+            patchCache({ field_notes: merged });
+            save({ id: onePager.id, updates: { ...pendingUpdatesRef.current } });
+        },
+        [queryClient, readKey, withNoteEdits, patchCache, save, onePager.id]
+    );
+    useEffect(() => { applyNoteEditRef.current = applyNoteEdit; }, [applyNoteEdit]);
+
     const updateFieldNote = useCallback(
         (fieldKey: string, note: string) => {
-            const updated = { ...fieldNotes, [fieldKey]: note };
-            // Remove empty notes to keep the JSONB clean
-            if (!note.trim()) delete updated[fieldKey];
-            updateField('field_notes', updated as unknown as string);
+            const oldValue = (onePagerRef.current.field_notes ?? EMPTY_NOTES)[fieldKey] ?? '';
+            pushUndo({ entity: 'fieldNote', entityId: onePager.id, field: fieldKey, oldValue, newValue: note });
+            applyNoteEdit(fieldKey, note);
         },
-        [fieldNotes, updateField]
+        [pushUndo, applyNoteEdit, onePager.id]
     );
 
     const handleUnitMixChange = useCallback(
@@ -317,14 +467,11 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                 const calcUpdates: Partial<OnePager> = { total_units: newTotal };
                 
                 pendingUpdatesRef.current = { ...pendingUpdatesRef.current, ...calcUpdates };
-                queryClient.setQueryData(queryKeys.onePager(onePager.id), (old: any) => old ? { ...old, ...calcUpdates } : old);
-                if (queryId && queryId !== onePager.id) {
-                    queryClient.setQueryData(queryKeys.onePager(queryId), (old: any) => old ? { ...old, ...calcUpdates } : old);
-                }
+                patchCache(calcUpdates);
                 save({ id: onePager.id, updates: { ...pendingUpdatesRef.current } });
             }
         },
-        [upsertUnitMixRow, queryClient, onePager.id, pushUndo, sortedUnitMix, save, queryId]
+        [upsertUnitMixRow, onePager.id, pushUndo, sortedUnitMix, save, patchCache]
     );
 
     const handleAddPayroll = useCallback(
@@ -355,15 +502,15 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     // Duplicate & Archive
     // ============================================================
 
-    const handleDuplicate = async () => {
-        const name = duplicateName.trim() || `Copy of ${onePager.name}`;
+    const handleDuplicate = async (requestedName: string) => {
+        const name = requestedName.trim() || `Copy of ${onePager.name}`;
         try {
             const newOp = await duplicateOnePager.mutateAsync({ sourceId: onePager.id, newName: name });
             setShowDuplicateDialog(false);
-            setDuplicateName('');
             router.push(`/pursuits/${pursuit.short_id}/one-pagers/${newOp.short_id}`);
         } catch (err) {
             console.error('Duplicate failed:', err);
+            toast.error('Failed to duplicate one-pager', err);
         }
     };
 
@@ -373,8 +520,60 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
             router.push(`/pursuits/${pursuit.short_id}`);
         } catch (err) {
             console.error('Archive failed:', err);
+            toast.error('Failed to archive one-pager', err);
         }
     };
+
+    const handleRename = (name: string) => {
+        updateOnePagerMutation.mutate(
+            { id: onePager.id, updates: { name }, queryId },
+            { onError: (err) => toast.error('Failed to rename one-pager', err) }
+        );
+    };
+
+    // Exports load @react-pdf / exceljs only when used
+    const handleExportPdf = async () => {
+        setShowMoreMenu(false);
+        setIsExportingPdf(true);
+        try {
+            const { pdf } = await import('@react-pdf/renderer');
+            const { OnePagerPDF } = await import('@/components/export/OnePagerPDF');
+            const doc = <OnePagerPDF onePager={onePager} pursuit={pursuit} calc={calc} productTypeName={productType?.name} unitMix={sortedUnitMix} payroll={sortedPayroll} softCostDetails={softCostDetails} unitPremiums={unitPremiums} showPayroll={true} showPropertyTax={true} />;
+            const blob = await pdf(doc).toBlob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${onePager.name.replace(/[^a-zA-Z0-9-_ ]/g, '')}.pdf`;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (err) {
+            console.error('PDF export failed:', err);
+            toast.error('PDF export failed', err);
+        } finally {
+            setIsExportingPdf(false);
+        }
+    };
+
+    const handleExportExcel = async () => {
+        setShowMoreMenu(false);
+        setIsExportingExcel(true);
+        try {
+            const { exportOnePagerToExcel } = await import('@/components/export/exportExcel');
+            await exportOnePagerToExcel({ onePager, pursuit, calc, productTypeName: productType?.name });
+        } catch (err) {
+            console.error('Excel export failed:', err);
+            toast.error('Excel export failed', err);
+        } finally {
+            setIsExportingExcel(false);
+        }
+    };
+
+    const openDuplicateDialog = () => {
+        setShowMoreMenu(false);
+        setShowDuplicateDialog(true);
+    };
+
+    const hasSiteArea = pursuit.site_area_sf > 0;
 
     // Density status — use effective (subtype-overridden) range
     const densityStatus = (() => {
@@ -391,9 +590,9 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     // Sensitivity Analysis (memoized)
     // ============================================================
 
-    const rentSteps = onePager.sensitivity_rent_steps ?? [-0.15, -0.10, -0.05, 0, 0.05, 0.10, 0.15];
-    const hardCostSteps = onePager.sensitivity_hard_cost_steps ?? [-15, -10, -5, 0, 5, 10, 15];
-    const landCostSteps = onePager.sensitivity_land_cost_steps ?? [-2000000, -1000000, -500000, 0, 500000, 1000000, 2000000];
+    const rentSteps = onePager.sensitivity_rent_steps ?? DEFAULT_RENT_STEPS;
+    const hardCostSteps = onePager.sensitivity_hard_cost_steps ?? DEFAULT_HARD_COST_STEPS;
+    const landCostSteps = onePager.sensitivity_land_cost_steps ?? DEFAULT_LAND_COST_STEPS;
 
     const rentSensitivity = useMemo(
         () => sensitivityExpanded ? calcRentSensitivity(onePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, unitPremiums) : [],
@@ -416,43 +615,30 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     );
 
     if (loadingUnitMix || loadingPayroll) {
-        return <div className="flex justify-center py-24"><Loader2 className="w-8 h-8 animate-spin text-[var(--border-strong)]" /></div>;
+        return <div className="flex justify-center py-24" role="status" aria-label="Loading one-pager"><Loader2 className="w-8 h-8 animate-spin text-[var(--text-faint)]" /></div>;
     }
 
     return (
         <div className="max-w-[1600px] mx-auto px-3 sm:px-6 py-4 sm:py-6">
-            {/* Top bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
-                <div className="flex items-center gap-3">
-                    <Link href={`/pursuits/${pursuit.short_id}`} className="text-sm text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors">
-                        <ChevronLeft className="w-4 h-4 inline mr-1" />{pursuit.name}
+            {/* Top bar — stacks below lg; the right padding keeps clear of the page's
+                floating Comments button (absolute top-right on the one-pager route). */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4 sm:mb-6 lg:pr-36">
+                <div className="flex items-center gap-3 min-w-0 pr-12 sm:pr-36 lg:pr-0">
+                    <Link href={`/pursuits/${pursuit.short_id}`} className="text-sm text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors truncate max-w-[40%] flex-shrink-0">
+                        <ChevronLeft className="w-4 h-4 inline mr-1" aria-hidden />{pursuit.name}
                     </Link>
-                    <span className="text-[var(--border-strong)]">/</span>
-                    {isEditingName ? (
-                        <input
-                            type="text"
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            onBlur={() => { if (!nameCancelledRef.current && editName.trim() && editName.trim() !== onePager.name) updateOnePagerMutation.mutate({ id: onePager.id, updates: { name: editName.trim() }, queryId }); setIsEditingName(false); }}
-                            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { nameCancelledRef.current = true; setIsEditingName(false); } }}
-                            className="text-lg font-semibold text-[var(--text-primary)] bg-transparent border-b-2 border-[var(--accent)] outline-none"
-                            autoFocus
-                        />
-                    ) : (
-                        <button className="text-lg font-semibold text-[var(--text-primary)] hover:text-[var(--accent)] transition-colors group flex items-center gap-1.5" onClick={() => { nameCancelledRef.current = false; setEditName(onePager.name); setIsEditingName(true); }}>
-                            {onePager.name}
-                            <Pencil className="w-3.5 h-3.5 opacity-0 group-hover:opacity-40 transition-opacity" />
-                        </button>
-                    )}
-                    {productType && <span className="text-xs text-[var(--text-muted)] px-2.5 py-0.5 rounded-md bg-[var(--bg-elevated)] font-medium">{productType.name}</span>}
+                    <span className="text-[var(--border-strong)]" aria-hidden>/</span>
+                    <OnePagerNameEditor name={onePager.name} onRename={handleRename} />
+                    {productType && <span className="hidden sm:inline text-xs text-[var(--text-muted)] px-2.5 py-0.5 rounded-md bg-[var(--bg-elevated)] font-medium whitespace-nowrap">{productType.name}</span>}
                 </div>
 
-                {/* Actions Toolbar */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1">
+                {/* Actions Toolbar — secondary actions fold into "…" below xl */}
+                <div className="flex flex-wrap items-center gap-2 whitespace-nowrap">
                     {/* Edit All Toggle */}
                     <button
                         onClick={() => setEditAllMode(!editAllMode)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${editAllMode
+                        aria-pressed={editAllMode}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${editAllMode
                             ? 'bg-[var(--accent)] text-white shadow-sm hover:bg-[var(--accent-hover)]'
                             : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]'
                             }`}
@@ -462,88 +648,85 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                         {editAllMode ? 'Done' : 'Edit All'}
                     </button>
 
-                    <div className="w-px h-5 bg-[var(--border)] mx-1" />
+                    <div className="w-px h-5 bg-[var(--border)] mx-1" aria-hidden />
 
                     {/* Undo/Redo */}
-                    <button onClick={undo} disabled={!canUndo} className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Undo (Ctrl+Z)">
+                    <button onClick={undo} disabled={!canUndo} className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Undo (Ctrl+Z)" aria-label="Undo">
                         <Undo2 className="w-4 h-4" />
                     </button>
-                    <button onClick={redo} disabled={!canRedo} className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Redo (Ctrl+Shift+Z)">
+                    <button onClick={redo} disabled={!canRedo} className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">
                         <Redo2 className="w-4 h-4" />
                     </button>
 
-                    <div className="w-px h-5 bg-[var(--border)] mx-1" />
+                    <div className="w-px h-5 bg-[var(--border)] mx-1" aria-hidden />
 
-                    {/* PDF Export */}
-                    <button
-                        onClick={async () => {
-                            setIsExportingPdf(true);
-                            try {
-                                const { pdf } = await import('@react-pdf/renderer');
-                                const { OnePagerPDF } = await import('@/components/export/OnePagerPDF');
-                                const pt = productTypes?.find((p) => p.id === onePager.product_type_id);
-                                const doc = <OnePagerPDF onePager={onePager} pursuit={pursuit} calc={calc} productTypeName={pt?.name} unitMix={sortedUnitMix} payroll={sortedPayroll} softCostDetails={softCostDetails} unitPremiums={unitPremiums} showPayroll={true} showPropertyTax={true} />;
-                                const blob = await pdf(doc).toBlob();
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = `${onePager.name.replace(/[^a-zA-Z0-9-_ ]/g, '')}.pdf`;
-                                a.click();
-                                setTimeout(() => URL.revokeObjectURL(url), 1000);
-                            } catch (err) {
-                                console.error('PDF export failed:', err);
-                            }
-                            setIsExportingPdf(false);
-                        }}
-                        disabled={isExportingPdf}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] disabled:opacity-50 transition-colors"
-                        title="Export PDF"
-                    >
-                        {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
-                        PDF
-                    </button>
+                    {/* Inline secondary actions (xl and up) */}
+                    <div className="hidden xl:flex items-center gap-2">
+                        <button
+                            onClick={handleExportPdf}
+                            disabled={isExportingPdf}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] disabled:opacity-50 transition-colors"
+                            title="Export PDF"
+                        >
+                            {isExportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+                            PDF
+                        </button>
+                        <button
+                            onClick={handleExportExcel}
+                            disabled={isExportingExcel}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] disabled:opacity-50 transition-colors"
+                            title="Export Excel"
+                        >
+                            {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+                            Excel
+                        </button>
+                        <button onClick={openDuplicateDialog} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors" title="Duplicate">
+                            <Copy className="w-3.5 h-3.5" /> Duplicate
+                        </button>
+                    </div>
 
-                    {/* Excel Export */}
-                    <button
-                        onClick={async () => {
-                            setIsExportingExcel(true);
-                            try {
-                                const { exportOnePagerToExcel } = await import('@/components/export/exportExcel');
-                                const pt = productTypes?.find((p) => p.id === onePager.product_type_id);
-                                await exportOnePagerToExcel({ onePager, pursuit, calc, productTypeName: pt?.name });
-                            } catch (err) {
-                                console.error('Excel export failed:', err);
-                            }
-                            setIsExportingExcel(false);
-                        }}
-                        disabled={isExportingExcel}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] disabled:opacity-50 transition-colors"
-                        title="Export Excel"
-                    >
-                        {isExportingExcel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
-                        Excel
-                    </button>
-
-                    {/* Duplicate */}
-                    <button onClick={() => { setDuplicateName(`Copy of ${onePager.name}`); setShowDuplicateDialog(true); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors" title="Duplicate">
-                        <Copy className="w-3.5 h-3.5" /> Duplicate
-                    </button>
+                    {/* Overflow menu (below xl) */}
+                    <div className="relative xl:hidden" ref={moreMenuRef}>
+                        <button
+                            onClick={() => setShowMoreMenu((o) => !o)}
+                            aria-haspopup="menu"
+                            aria-expanded={showMoreMenu}
+                            aria-label="More actions"
+                            title="More actions"
+                            className="flex items-center gap-1.5 p-1.5 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
+                        >
+                            {isExportingPdf || isExportingExcel ? <Loader2 className="w-4 h-4 animate-spin" /> : <MoreHorizontal className="w-4 h-4" />}
+                        </button>
+                        {showMoreMenu && (
+                            <div role="menu" className="absolute left-0 lg:left-auto lg:right-0 top-full mt-1 z-30 w-44 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg py-1 animate-fade-in" style={{ boxShadow: 'var(--shadow-dropdown)' }}>
+                                <button role="menuitem" onClick={handleExportPdf} disabled={isExportingPdf} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-50">
+                                    <FileDown className="w-3.5 h-3.5" /> Export PDF
+                                </button>
+                                <button role="menuitem" onClick={handleExportExcel} disabled={isExportingExcel} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-50">
+                                    <FileDown className="w-3.5 h-3.5" /> Export Excel
+                                </button>
+                                <button role="menuitem" onClick={openDuplicateDialog} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]">
+                                    <Copy className="w-3.5 h-3.5" /> Duplicate
+                                </button>
+                            </div>
+                        )}
+                    </div>
 
                     {/* Archive */}
-                    <button onClick={() => setShowArchiveConfirm(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--text-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-colors" title="Archive">
+                    <button onClick={() => setShowArchiveConfirm(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--text-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-colors" title="Archive" aria-label="Archive one-pager">
                         <Archive className="w-3.5 h-3.5" />
                     </button>
 
-                    <div className="w-px h-5 bg-[var(--border)] mx-1" />
-
                     {/* Save Status */}
-                    {saveStatus !== 'idle' && (
-                        <span className={`save-indicator ${saveStatus}`}>
-                            {saveStatus === 'saving' && '● Saving...'}
-                            {saveStatus === 'saved' && '✓ Saved'}
-                            {saveStatus === 'error' && '✕ Error saving'}
-                        </span>
-                    )}
+                    <span className="min-w-[88px]" aria-live="polite">
+                        {saveStatus !== 'idle' && (
+                            <span className={`save-indicator ${saveStatus}`}>
+                                {saveStatus === 'saving' && '● Saving...'}
+                                {saveStatus === 'saved' && '✓ Saved'}
+                                {saveStatus === 'error' && '✕ Error saving'}
+                            </span>
+                        )}
+                    </span>
                 </div>
             </div>
 
@@ -592,10 +775,10 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                 <div className="card min-w-0">
                     <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4">Site & Density</h3>
                     <div className="space-y-3">
-                        <FieldRow label="Site Area (SF)" value={formatNumber(pursuit.site_area_sf)} display noteKey="site_area_sf" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
-                        <FieldRow label="Site Area (Acres)" value={formatNumber(pursuit.site_area_sf / SF_PER_ACRE, 2)} display />
+                        <FieldRow label="Site Area (SF)" value={hasSiteArea ? formatNumber(pursuit.site_area_sf) : '—'} display noteKey="site_area_sf" fieldNotes={fieldNotes} onNoteChange={updateFieldNote} />
+                        <FieldRow label="Site Area (Acres)" value={hasSiteArea ? formatNumber(pursuit.site_area_sf / SF_PER_ACRE, 2) : '—'} display />
                         <FieldRow label="Total Units" value={formatNumber(sortedUnitMix.reduce((sum, r) => sum + r.unit_count, 0))} display />
-                        <FieldRow label="Density (Units/Acre)" value={formatNumber(calc.density_units_per_acre, 1)} display />
+                        <FieldRow label="Density (Units/Acre)" value={hasSiteArea ? formatNumber(calc.density_units_per_acre, 1) : '—'} display />
                         {productType && (
                             <div className={`text-xs px-2.5 py-1.5 rounded-md ${densityStatus === 'within' ? 'bg-[var(--success-bg)] text-[var(--success)]' :
                                 densityStatus ? 'bg-[var(--warning-bg)] text-[var(--warning)]' : 'text-[var(--text-muted)]'
@@ -621,7 +804,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                         )}
                         <div className="border-t border-[var(--table-row-border)] pt-2 mt-1">
                             <FieldRow label="Parking Spaces" noteKey="parking_spaces" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}>
-                                <InlineInput value={onePager.parking_spaces} onChange={(v) => updateField('parking_spaces', v)} format="number" decimals={0} editAllMode={editAllMode} />
+                                <InlineInput value={onePager.parking_spaces} onChange={(v) => updateField('parking_spaces', v)} format="number" decimals={0} editAllMode={editAllMode} zeroAs="—" />
                             </FieldRow>
                             {onePager.parking_spaces > 0 && onePager.total_units > 0 && (
                                 <FieldRow label="Spaces / Unit" value={formatNumber(onePager.parking_spaces / onePager.total_units, 2)} display />
@@ -1340,48 +1523,27 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
             {/* ===== DIALOGS ===== */}
 
             {/* Duplicate Dialog */}
-            {
-                showDuplicateDialog && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
-                        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in">
-                            <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Duplicate One-Pager</h2>
-                            <p className="text-sm text-[var(--text-muted)] mb-4">
-                                Creates a full copy of this one-pager including all unit mix, payroll, and soft cost data.
-                            </p>
-                            <div>
-                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Name for the copy</label>
-                                <input
-                                    type="text"
-                                    value={duplicateName}
-                                    onChange={(e) => setDuplicateName(e.target.value)}
-                                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-subtle)] focus:outline-none"
-                                    autoFocus
-                                    onKeyDown={(e) => e.key === 'Enter' && handleDuplicate()}
-                                />
-                            </div>
-                            <div className="flex justify-end gap-3 mt-6">
-                                <button onClick={() => setShowDuplicateDialog(false)} className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors">Cancel</button>
-                                <button onClick={handleDuplicate} disabled={duplicateOnePager.isPending} className="px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm">
-                                    {duplicateOnePager.isPending ? 'Duplicating...' : 'Duplicate'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
+            {showDuplicateDialog && (
+                <DuplicateDialog
+                    defaultName={`Copy of ${onePager.name}`}
+                    isPending={duplicateOnePager.isPending}
+                    onCancel={() => setShowDuplicateDialog(false)}
+                    onConfirm={handleDuplicate}
+                />
+            )}
 
             {/* Archive Confirm */}
             {
                 showArchiveConfirm && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
-                        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in">
-                            <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-2">Archive One-Pager</h2>
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm" onKeyDown={(e) => { if (e.key === 'Escape') setShowArchiveConfirm(false); }}>
+                        <div role="alertdialog" aria-modal="true" aria-labelledby="archive-one-pager-title" className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in mx-4">
+                            <h2 id="archive-one-pager-title" className="text-lg font-semibold text-[var(--text-primary)] mb-2">Archive One-Pager</h2>
                             <p className="text-sm text-[var(--text-muted)] mb-4">
                                 Archive &ldquo;{onePager.name}&rdquo;? This hides it from the active list but doesn&rsquo;t delete any data.
                             </p>
                             <div className="flex justify-end gap-3">
-                                <button onClick={() => setShowArchiveConfirm(false)} className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors">Cancel</button>
-                                <button onClick={handleArchive} disabled={archiveOnePager.isPending} className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm">
+                                <button onClick={() => setShowArchiveConfirm(false)} autoFocus className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors">Cancel</button>
+                                <button onClick={handleArchive} disabled={archiveOnePager.isPending} className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:opacity-90 disabled:opacity-50 text-white text-sm font-medium transition-opacity shadow-sm">
                                     {archiveOnePager.isPending ? 'Archiving...' : 'Archive'}
                                 </button>
                             </div>
@@ -1396,6 +1558,76 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
 // ============================================================
 // Helper Components & Utils
 // ============================================================
+
+/** Click-to-rename title. Holds its own draft so typing doesn't re-render the editor. */
+function OnePagerNameEditor({ name, onRename }: { name: string; onRename: (name: string) => void }) {
+    const [isEditing, setIsEditing] = useState(false);
+    const [draft, setDraft] = useState('');
+    const cancelledRef = useRef(false);
+
+    if (isEditing) {
+        return (
+            <input
+                type="text"
+                aria-label="One-pager name"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={() => {
+                    const next = draft.trim();
+                    if (!cancelledRef.current && next && next !== name) onRename(next);
+                    setIsEditing(false);
+                }}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.currentTarget.blur();
+                    if (e.key === 'Escape') { cancelledRef.current = true; setIsEditing(false); }
+                }}
+                className="min-w-0 flex-1 text-lg font-semibold text-[var(--text-primary)] bg-transparent border-b-2 border-[var(--accent)] outline-none"
+                autoFocus
+            />
+        );
+    }
+    return (
+        <button
+            className="min-w-0 text-lg font-semibold text-[var(--text-primary)] hover:text-[var(--accent)] transition-colors group flex items-center gap-1.5"
+            onClick={() => { cancelledRef.current = false; setDraft(name); setIsEditing(true); }}
+            title="Rename"
+        >
+            <span className="truncate">{name}</span>
+            <Pencil className="w-3.5 h-3.5 flex-shrink-0 opacity-0 group-hover:opacity-40 group-focus-visible:opacity-40 transition-opacity" aria-hidden />
+        </button>
+    );
+}
+
+function DuplicateDialog({ defaultName, isPending, onCancel, onConfirm }: { defaultName: string; isPending: boolean; onCancel: () => void; onConfirm: (name: string) => void }) {
+    const [name, setName] = useState(defaultName);
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm" onKeyDown={(e) => { if (e.key === 'Escape' && !isPending) onCancel(); }}>
+            <div role="dialog" aria-modal="true" aria-labelledby="duplicate-one-pager-title" className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in mx-4">
+                <h2 id="duplicate-one-pager-title" className="text-lg font-semibold text-[var(--text-primary)] mb-4">Duplicate One-Pager</h2>
+                <p className="text-sm text-[var(--text-muted)] mb-4">
+                    Creates a full copy of this one-pager including all unit mix, payroll, and soft cost data.
+                </p>
+                <form onSubmit={(e) => { e.preventDefault(); if (!isPending) onConfirm(name); }}>
+                    <label htmlFor="duplicate-one-pager-name" className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Name for the copy</label>
+                    <input
+                        id="duplicate-one-pager-name"
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-subtle)] focus:outline-none"
+                        autoFocus
+                    />
+                    <div className="flex justify-end gap-3 mt-6">
+                        <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors">Cancel</button>
+                        <button type="submit" disabled={isPending} className="px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm">
+                            {isPending ? 'Duplicating...' : 'Duplicate'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
 
 function UnitTypeInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
     const [local, setLocal] = useState(value);

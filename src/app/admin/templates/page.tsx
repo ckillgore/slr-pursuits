@@ -17,6 +17,7 @@ import {
 import type { DataModelTemplate, DataModelPayrollDefault } from '@/types';
 import { Plus, Loader2, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { formatCurrency, formatPercent } from '@/lib/constants';
+import { useMutationErrorToast } from '@/components/shared/useMutationErrorToast';
 
 export default function TemplatesPage() {
     const { isAdminOrOwner, isLoading: authLoading } = useAuth();
@@ -32,6 +33,10 @@ export default function TemplatesPage() {
     const deleteTemplate = useDeleteTemplate();
     const upsertPayrollDefault = useUpsertPayrollDefault();
     const deletePayrollDefaultMutation = useDeletePayrollDefault();
+    useMutationErrorToast(upsertTemplate.error, 'Failed to save template');
+    useMutationErrorToast(deleteTemplate.error, 'Failed to delete template');
+    useMutationErrorToast(upsertPayrollDefault.error, 'Failed to save payroll default');
+    useMutationErrorToast(deletePayrollDefaultMutation.error, 'Failed to delete payroll default');
 
     const [showAdd, setShowAdd] = useState(false);
     const [newName, setNewName] = useState('');
@@ -88,7 +93,7 @@ export default function TemplatesPage() {
                     </button>
                 </div>
 
-                {isLoading && <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-[var(--border-strong)]" /></div>}
+                {isLoading && <div className="flex justify-center py-12" role="status" aria-label="Loading"><Loader2 className="w-6 h-6 animate-spin text-[var(--text-faint)]" /></div>}
 
                 <div className="space-y-3">
                     {templates.map((t) => {

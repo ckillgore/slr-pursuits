@@ -22,6 +22,11 @@ interface InlineInputProps {
     align?: 'left' | 'right';
     /** When true, show a visible border to highlight editable fields */
     editAllMode?: boolean;
+    /**
+     * Text shown instead of a zero/empty value while not editing (e.g. "—" for
+     * "not entered yet"). Off by default, since 0 is a real value for most inputs.
+     */
+    zeroAs?: string;
 }
 
 function formatDisplay(value: number, format: FormatType, decimals: number, percentAsDecimal: boolean): string {
@@ -65,6 +70,7 @@ export function InlineInput({
     disabled = false,
     align = 'right',
     editAllMode = false,
+    zeroAs,
 }: InlineInputProps) {
     const [isEditing, setIsEditing] = useState(false);
     const [editValue, setEditValue] = useState('');
@@ -156,7 +162,9 @@ export function InlineInput({
         );
     }
 
-    const displayText = formatDisplay(Number(value ?? 0), format, decimals, percentAsDecimal);
+    const numericValue = Number(value ?? 0);
+    const showZeroAs = zeroAs !== undefined && (!Number.isFinite(numericValue) || numericValue === 0);
+    const displayText = showZeroAs ? zeroAs : formatDisplay(numericValue, format, decimals, percentAsDecimal);
 
     return (
         <button
@@ -165,7 +173,7 @@ export function InlineInput({
             className={cn(
                 'w-full px-1.5 py-0.5 rounded text-[var(--text-primary)] tabular-nums text-xs transition-colors',
                 editAllMode
-                    ? 'border border-dashed border-[#93B4F5] bg-[var(--bg-primary)] hover:border-[var(--accent)] hover:bg-[var(--accent-subtle)]'
+                    ? 'border border-dashed border-[var(--accent)]/50 bg-[var(--bg-primary)] hover:border-[var(--accent)] hover:bg-[var(--accent-subtle)]'
                     : 'border border-transparent hover:border-[var(--border)] hover:bg-[var(--bg-primary)]',
                 align === 'right' ? 'text-right' : 'text-left',
                 !disabled && 'cursor-pointer',
@@ -173,9 +181,9 @@ export function InlineInput({
                 className
             )}
         >
-            {prefix}
+            {!showZeroAs && prefix}
             {displayText}
-            {suffix}
+            {!showZeroAs && suffix}
         </button>
     );
 }

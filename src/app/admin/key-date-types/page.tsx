@@ -6,8 +6,10 @@ import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { useKeyDateTypes, useUpsertKeyDateType } from '@/hooks/useSupabaseQueries';
 import { AdminNav } from '@/components/layout/AdminNav';
-import { Plus, GripVertical, Loader2 } from 'lucide-react';
+import { Plus, Loader2 } from 'lucide-react';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
+import { ColorInput } from '@/components/shared/ColorInput';
+import { useMutationErrorToast } from '@/components/shared/useMutationErrorToast';
 import type { KeyDateCategory } from '@/types';
 
 export default function KeyDateTypesPage() {
@@ -20,6 +22,7 @@ export default function KeyDateTypesPage() {
 
     const { data: types = [], isLoading } = useKeyDateTypes();
     const upsertMutation = useUpsertKeyDateType();
+    useMutationErrorToast(upsertMutation.error, 'Failed to save key date type');
 
     const [showAdd, setShowAdd] = useState(false);
     const [newName, setNewName] = useState('');
@@ -55,7 +58,7 @@ export default function KeyDateTypesPage() {
                     </button>
                 </div>
 
-                {isLoading && <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-[var(--border-strong)]" /></div>}
+                {isLoading && <div className="flex justify-center py-12" role="status" aria-label="Loading"><Loader2 className="w-6 h-6 animate-spin text-[var(--text-faint)]" /></div>}
 
                 {/* Contract Types */}
                 {contractTypes.length > 0 && (
@@ -64,11 +67,10 @@ export default function KeyDateTypesPage() {
                         <div className="space-y-2">
                             {contractTypes.map((t) => (
                                 <div key={t.id} className="card flex flex-wrap items-center gap-2 sm:gap-4">
-                                    <GripVertical className="w-4 h-4 text-[var(--border-strong)] cursor-grab" />
                                     <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
-                                    <DebouncedTextInput value={t.name} onCommit={(v) => upsertMutation.mutate({ id: t.id, name: v })} className="flex-1 min-w-[120px] inline-input text-sm text-[var(--text-primary)] text-left" />
-                                    <input type="color" value={t.color} onChange={(e) => upsertMutation.mutate({ id: t.id, color: e.target.value })} className="w-8 h-8 rounded cursor-pointer border border-[var(--border)] bg-transparent" />
-                                    <span className="text-xs text-[var(--text-faint)] font-mono w-16 hidden sm:inline">{t.color}</span>
+                                    <DebouncedTextInput value={t.name} aria-label="Key date type name" onCommit={(v) => { if (v.trim()) upsertMutation.mutate({ id: t.id, name: v.trim() }); }} className="flex-1 min-w-[120px] inline-input text-sm text-[var(--text-primary)] text-left" />
+                                    <ColorInput value={t.color} aria-label={`${t.name} color`} onCommit={(color) => upsertMutation.mutate({ id: t.id, color })} className="w-8 h-8 rounded cursor-pointer border border-[var(--border)] bg-transparent" />
+                                    <span className="text-xs text-[var(--text-muted)] font-mono w-16 hidden sm:inline">{t.color}</span>
                                     <button onClick={() => upsertMutation.mutate({ id: t.id, is_active: !t.is_active })} className={`text-xs px-2 py-0.5 rounded ${t.is_active ? 'bg-[var(--success-bg)] text-[var(--success)]' : 'bg-[var(--bg-elevated)] text-[var(--text-faint)]'}`}>
                                         {t.is_active ? 'Active' : 'Inactive'}
                                     </button>
@@ -85,11 +87,10 @@ export default function KeyDateTypesPage() {
                         <div className="space-y-2">
                             {predevTypes.map((t) => (
                                 <div key={t.id} className="card flex flex-wrap items-center gap-2 sm:gap-4">
-                                    <GripVertical className="w-4 h-4 text-[var(--border-strong)] cursor-grab" />
                                     <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
-                                    <DebouncedTextInput value={t.name} onCommit={(v) => upsertMutation.mutate({ id: t.id, name: v })} className="flex-1 min-w-[120px] inline-input text-sm text-[var(--text-primary)] text-left" />
-                                    <input type="color" value={t.color} onChange={(e) => upsertMutation.mutate({ id: t.id, color: e.target.value })} className="w-8 h-8 rounded cursor-pointer border border-[var(--border)] bg-transparent" />
-                                    <span className="text-xs text-[var(--text-faint)] font-mono w-16 hidden sm:inline">{t.color}</span>
+                                    <DebouncedTextInput value={t.name} aria-label="Key date type name" onCommit={(v) => { if (v.trim()) upsertMutation.mutate({ id: t.id, name: v.trim() }); }} className="flex-1 min-w-[120px] inline-input text-sm text-[var(--text-primary)] text-left" />
+                                    <ColorInput value={t.color} aria-label={`${t.name} color`} onCommit={(color) => upsertMutation.mutate({ id: t.id, color })} className="w-8 h-8 rounded cursor-pointer border border-[var(--border)] bg-transparent" />
+                                    <span className="text-xs text-[var(--text-muted)] font-mono w-16 hidden sm:inline">{t.color}</span>
                                     <button onClick={() => upsertMutation.mutate({ id: t.id, is_active: !t.is_active })} className={`text-xs px-2 py-0.5 rounded ${t.is_active ? 'bg-[var(--success-bg)] text-[var(--success)]' : 'bg-[var(--bg-elevated)] text-[var(--text-faint)]'}`}>
                                         {t.is_active ? 'Active' : 'Inactive'}
                                     </button>
@@ -101,17 +102,17 @@ export default function KeyDateTypesPage() {
 
                 {/* Add Dialog */}
                 {showAdd && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
-                        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in mx-4">
-                            <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Add Key Date Type</h2>
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm" onKeyDown={(e) => { if (e.key === 'Escape') setShowAdd(false); }}>
+                        <div role="dialog" aria-modal="true" aria-labelledby="add-key-date-type-title" className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in mx-4">
+                            <h2 id="add-key-date-type-title" className="text-lg font-semibold text-[var(--text-primary)] mb-4">Add Key Date Type</h2>
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Name</label>
-                                    <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-subtle)] focus:outline-none" autoFocus />
+                                    <label htmlFor="new-key-date-type-name" className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Name</label>
+                                    <input id="new-key-date-type-name" type="text" value={newName} onChange={(e) => setNewName(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-subtle)] focus:outline-none" autoFocus />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Category</label>
-                                    <select value={newCategory} onChange={(e) => setNewCategory(e.target.value as KeyDateCategory)} className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none">
+                                    <label htmlFor="new-key-date-type-category" className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Category</label>
+                                    <select id="new-key-date-type-category" value={newCategory} onChange={(e) => setNewCategory(e.target.value as KeyDateCategory)} className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none">
                                         <option value="contract">Contract</option>
                                         <option value="pre_development">Pre-Development</option>
                                     </select>

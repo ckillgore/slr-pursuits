@@ -84,7 +84,7 @@ export function PrototypePicker({ onSelect, onClose }: PrototypePickerProps) {
         'Studio': 'var(--warning)',
         '1 Bed': 'var(--accent)',
         '2 Bed': 'var(--success)',
-        '3 Bed': '#c084fc',
+        '3 Bed': 'var(--review)',
     };
 
     return (

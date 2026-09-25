@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
 import { usePursuits, useProductTypes } from '@/hooks/useSupabaseQueries';
@@ -136,6 +136,23 @@ export default function CrossComparisonPage() {
         setPickerOnePagers([]);
     };
 
+    const closePicker = useCallback(() => {
+        pickerRequestRef.current++; // drop any in-flight picker response
+        setShowPicker(false);
+        setPickerPursuitId('');
+        setPickerOnePagers([]);
+        setPickerError(null);
+        setLoadingPicker(false);
+    }, []);
+
+    // Escape closes the picker
+    useEffect(() => {
+        if (!showPicker) return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closePicker(); };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [showPicker, closePicker]);
+
     const removeOnePager = (id: string) => {
         setSelectedOPs((prev) => prev.filter((s) => s.onePager.id !== id));
     };
@@ -146,9 +163,9 @@ export default function CrossComparisonPage() {
 
     return (
         <AppShell>
-            <div className="max-w-full mx-auto px-6 py-8">
+            <div className="max-w-full mx-auto px-4 md:px-6 py-6 md:py-8">
                 <div className="mb-6">
-                    <h1 className="text-2xl font-bold text-[var(--text-primary)]">Cross-Pursuit Comparison</h1>
+                    <h1 className="text-xl md:text-2xl font-bold text-[var(--text-primary)]">Cross-Pursuit Comparison</h1>
                     <p className="text-sm text-[var(--text-muted)] mt-1">
                         Compare one-pagers across different pursuits side-by-side.
                     </p>
@@ -161,7 +178,7 @@ export default function CrossComparisonPage() {
                         return (
                             <div
                                 key={s.onePager.id}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--accent-subtle)] border border-[#C7D7FE] text-sm"
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--accent-subtle)] border border-[var(--accent)]/30 text-sm"
                             >
                                 <div>
                                     <span className="font-medium text-[var(--text-primary)]">{s.onePager.name}</span>
@@ -170,6 +187,8 @@ export default function CrossComparisonPage() {
                                 </div>
                                 <button
                                     onClick={() => removeOnePager(s.onePager.id)}
+                                    aria-label={`Remove ${s.onePager.name} from comparison`}
+                                    title="Remove"
                                     className="text-[var(--text-muted)] hover:text-[var(--danger)] transition-colors"
                                 >
                                     <X className="w-3.5 h-3.5" />
@@ -261,19 +280,22 @@ export default function CrossComparisonPage() {
 
             {/* Picker Dialog */}
             {showPicker && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm">
-                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in">
-                        <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Select One-Pager</h2>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-overlay)] backdrop-blur-sm" onClick={closePicker}>
+                    <div role="dialog" aria-modal="true" aria-labelledby="compare-picker-title" className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-md shadow-xl animate-fade-in mx-4" onClick={(e) => e.stopPropagation()}>
+                        <h2 id="compare-picker-title" className="text-lg font-semibold text-[var(--text-primary)] mb-4">Select One-Pager</h2>
 
                         {/* Step 1: Pick pursuit */}
                         <div className="mb-4">
-                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Pursuit</label>
+                            <label htmlFor="compare-picker-pursuit" className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Pursuit</label>
                             <select
+                                id="compare-picker-pursuit"
+                                autoFocus
+                                disabled={loadingPursuits}
                                 value={pickerPursuitId}
                                 onChange={(e) => handlePickerPursuitChange(e.target.value)}
                                 className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
                             >
-                                <option value="">Select a pursuit...</option>
+                                <option value="">{loadingPursuits ? 'Loading pursuits…' : 'Select a pursuit...'}</option>
                                 {pursuits.filter((p) => !p.is_archived).map((p) => (
                                     <option key={p.id} value={p.id}>{p.name}{p.city ? ` — ${p.city}, ${p.state}` : ''}</option>
                                 ))}
@@ -283,12 +305,12 @@ export default function CrossComparisonPage() {
                         {/* Step 2: Pick one-pager */}
                         {pickerPursuitId && (
                             <div className="mb-4">
-                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">One-Pager</label>
+                                <div className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">One-Pager</div>
                                 {loadingPicker && (
-                                    <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-[var(--border-strong)]" /></div>
+                                    <div className="flex justify-center py-4" role="status" aria-label="Loading one-pagers"><Loader2 className="w-5 h-5 animate-spin text-[var(--text-faint)]" /></div>
                                 )}
                                 {!loadingPicker && pickerError && (
-                                    <p className="text-sm text-[var(--danger)] py-2">{pickerError}</p>
+                                    <p role="alert" className="text-sm text-[var(--danger)] py-2">{pickerError}</p>
                                 )}
                                 {!loadingPicker && !pickerError && pickerOnePagers.length === 0 && (
                                     <p className="text-sm text-[var(--text-muted)] py-2">No one-pagers in this pursuit.</p>
@@ -312,7 +334,7 @@ export default function CrossComparisonPage() {
                                                     <div className="flex items-center gap-3 mt-0.5 text-[10px] text-[var(--text-muted)]">
                                                         {pt && <span>{pt.name}</span>}
                                                         <span>{op.total_units} units</span>
-                                                        {op.calc_yoc ? <span>YOC: {(op.calc_yoc * 100).toFixed(2)}%</span> : null}
+                                                        {op.calc_yoc ? <span>YOC: {formatPercent(op.calc_yoc)}</span> : null}
                                                         {alreadyAdded && <span className="text-[var(--accent)] font-medium">Already added</span>}
                                                     </div>
                                                 </button>
@@ -325,7 +347,7 @@ export default function CrossComparisonPage() {
 
                         <div className="flex justify-end mt-4">
                             <button
-                                onClick={() => { setShowPicker(false); setPickerPursuitId(''); setPickerOnePagers([]); }}
+                                onClick={closePicker}
                                 className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
                             >
                                 Close

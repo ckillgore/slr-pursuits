@@ -10,9 +10,9 @@ import type { PursuitChecklistTask, PursuitMilestone, ChecklistTaskStatus } from
 const STATUS_CONFIG: Record<ChecklistTaskStatus, { label: string; color: string; bg: string }> = {
     not_applicable: { label: 'N/A', color: 'var(--text-faint)', bg: 'var(--bg-primary)' },
     not_started: { label: 'Not Started', color: 'var(--text-secondary)', bg: 'var(--bg-elevated)' },
-    in_progress: { label: 'In Progress', color: '#3B82F6', bg: '#EFF6FF' },
-    in_review: { label: 'In Review', color: '#8B5CF6', bg: '#F5F3FF' },
-    blocked: { label: 'Blocked', color: '#EF4444', bg: '#FEF2F2' },
+    in_progress: { label: 'In Progress', color: 'var(--info)', bg: 'var(--info-bg)' },
+    in_review: { label: 'In Review', color: 'var(--review)', bg: 'var(--review-bg)' },
+    blocked: { label: 'Blocked', color: 'var(--danger)', bg: 'var(--danger-bg)' },
     complete: { label: 'Complete', color: 'var(--success)', bg: 'var(--success-bg)' },
 };
 
@@ -21,7 +21,9 @@ type FilterStatus = 'all' | 'incomplete' | 'complete';
 
 export function TasksClient() {
     const { profile } = useAuth();
-    const { data: tasks = [], isLoading } = useMyTasks(profile?.id);
+    const { data: tasks = [], isLoading: loadingTasks, isError, error, refetch } = useMyTasks(profile?.id);
+    // The query is disabled until the profile loads; don't flash "all caught up" meanwhile
+    const isLoading = loadingTasks || !profile?.id;
     // Track the selected task by id and read it from the live query data so the
     // detail panel reflects edits (a stored snapshot never updated after a change).
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -118,16 +120,29 @@ export function TasksClient() {
 
     if (isLoading) {
         return (
-            <div className="flex-1 h-[calc(100vh-3.5rem)] flex items-center justify-center bg-[var(--bg-primary)]">
+            <div className="flex-1 h-[calc(100dvh-3.5rem)] flex items-center justify-center bg-[var(--bg-primary)]" role="status" aria-label="Loading tasks">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent)]" />
             </div>
         );
     }
 
+    if (isError) {
+        return (
+            <div role="alert" className="flex-1 h-[calc(100dvh-3.5rem)] flex flex-col items-center justify-center text-center px-6 bg-[var(--bg-primary)]">
+                <AlertCircle className="w-8 h-8 text-[var(--danger)] mb-3" aria-hidden />
+                <h2 className="text-base font-semibold text-[var(--text-secondary)] mb-1">Couldn&rsquo;t load your tasks</h2>
+                <p className="text-sm text-[var(--text-muted)] max-w-sm">{error instanceof Error ? error.message : 'Check your connection and try again.'}</p>
+                <button onClick={() => refetch()} className="mt-5 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors">
+                    Try again
+                </button>
+            </div>
+        );
+    }
+
     return (
-        <div className="flex flex-col h-[calc(100vh-3.5rem)] bg-[var(--bg-primary)]">
+        <div className="flex flex-col h-[calc(100dvh-3.5rem)] bg-[var(--bg-primary)]">
             {/* Header */}
-            <header className="flex-none px-6 py-5 bg-[var(--bg-nav)] border-b border-[var(--border)]">
+            <header className="flex-none px-4 sm:px-6 py-4 sm:py-5 bg-[var(--bg-nav)] border-b border-[var(--border)]">
                 <div className="flex items-center justify-between max-w-6xl mx-auto">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-[var(--accent)]/10 flex items-center justify-center">
@@ -143,22 +158,24 @@ export function TasksClient() {
 
             {/* Toolbar */}
             <div className="flex-none bg-[var(--bg-card)] border-b border-[var(--border)] sticky top-0 z-10">
-                <div className="max-w-6xl mx-auto px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 justify-between">
                     {/* Search */}
                     <div className="relative flex-1 max-w-md">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" aria-hidden />
                         <input
-                            type="text"
+                            type="search"
+                            aria-label="Search tasks"
                             placeholder="Search tasks..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-9 pr-4 py-2 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)] focus:border-[var(--accent)] transition-all"
+                            className="w-full pl-9 pr-4 py-2 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg text-sm text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] focus:border-[var(--accent)] transition-all"
                         />
                     </div>
 
                     {/* Filters & Sort */}
                     <div className="flex items-center gap-3 overflow-x-auto pb-1 sm:pb-0">
                         <select
+                            aria-label="Filter by status"
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value as FilterStatus)}
                             className="bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] text-sm rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-[var(--accent)] cursor-pointer"
@@ -169,6 +186,7 @@ export function TasksClient() {
                         </select>
 
                         <select
+                            aria-label="Filter by pursuit"
                             value={pursuitFilter}
                             onChange={(e) => setPursuitFilter(e.target.value)}
                             className="bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] text-sm rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-[var(--accent)] cursor-pointer max-w-[200px]"
@@ -180,6 +198,7 @@ export function TasksClient() {
                         </select>
 
                         <select
+                            aria-label="Sort tasks"
                             value={sortBy}
                             onChange={(e) => setSortBy(e.target.value as SortOption)}
                             className="bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] text-sm rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-[var(--accent)] cursor-pointer"
@@ -194,12 +213,12 @@ export function TasksClient() {
             </div>
 
             {/* Main Content Area */}
-            <div className="flex-1 overflow-auto p-6">
+            <div className="flex-1 overflow-auto p-4 sm:p-6">
                 <div className="max-w-6xl mx-auto space-y-3">
                     {processedTasks.length === 0 ? (
                         <div className="text-center py-20 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl shadow-sm">
                             <div className="w-16 h-16 bg-[var(--bg-elevated)] rounded-full flex items-center justify-center mx-auto mb-4">
-                                <CheckSquare className="w-8 h-8 text-[var(--border-strong)]" />
+                                <CheckSquare className="w-8 h-8 text-[var(--text-faint)]" aria-hidden />
                             </div>
                             <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">
                                 {tasks.length === 0 ? "You're all caught up!" : "No tasks match your filters"}
@@ -212,7 +231,7 @@ export function TasksClient() {
                             {tasks.length > 0 && (
                                 <button 
                                     onClick={() => { setSearchQuery(''); setStatusFilter('all'); setPursuitFilter('all'); }}
-                                    className="mt-6 px-4 py-2 bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] border border-[var(--border)] rounded-lg text-sm font-medium transition-colors"
+                                    className="mt-6 px-4 py-2 bg-[var(--bg-elevated)] hover:bg-[var(--border)] border border-[var(--border)] rounded-lg text-sm font-medium text-[var(--text-secondary)] transition-colors"
                                 >
                                     Clear all filters
                                 </button>
@@ -237,7 +256,7 @@ export function TasksClient() {
                                     onClick={() => setSelectedTask(task)}
                                     className={`w-full text-left bg-[var(--bg-card)] px-5 py-4 rounded-xl transition-all border group ${
                                         isSelected 
-                                            ? 'border-[var(--accent)] ring-1 ring-[var(--accent)] ring-opacity-50 shadow-md transform scale-[1.002] z-10 relative' 
+                                            ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]/50 shadow-md z-10 relative' 
                                             : 'border-[var(--border)] hover:border-[var(--border-strong)] hover:shadow-sm'
                                     }`}
                                 >
@@ -266,7 +285,7 @@ export function TasksClient() {
 
                                             <span 
                                                 className="inline-flex justify-center min-w-[5.5rem] items-center px-2 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider border shadow-sm"
-                                                style={{ color: cfg.color, backgroundColor: `${cfg.color}15`, borderColor: `${cfg.color}30` }}
+                                                style={{ color: cfg.color, backgroundColor: cfg.bg, borderColor: `color-mix(in srgb, ${cfg.color} 30%, transparent)` }}
                                             >
                                                 {cfg.label}
                                             </span>
@@ -275,7 +294,7 @@ export function TasksClient() {
                                                 {task.due_date ? (
                                                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold shadow-sm border ${
                                                         overdue 
-                                                            ? 'bg-[#EF4444] text-white border-[#EF4444]' 
+                                                            ? 'bg-[var(--danger-bg)] text-[var(--danger)] border-[var(--danger)]/40' 
                                                             : task.status === 'complete' || task.status === 'not_applicable'
                                                                 ? 'bg-[var(--bg-elevated)] text-[var(--text-muted)] border-[var(--border)]'
                                                                 : 'bg-[var(--bg-card)] text-[var(--text-primary)] border-[var(--border)]'
@@ -295,12 +314,12 @@ export function TasksClient() {
                                     {/* Alert strip for critical path / overdue */}
                                     <div className="mt-2.5 flex items-center gap-2">
                                         {task.is_critical_path && (
-                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/20">
+                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider text-[var(--danger)] bg-[var(--danger-bg)] border border-[var(--danger)]/20">
                                                 Critical Path
                                             </span>
                                         )}
                                         {overdue && (
-                                            <span className="text-[10px] font-bold text-[#EF4444] uppercase tracking-wider">
+                                            <span className="text-[10px] font-bold text-[var(--danger)] uppercase tracking-wider">
                                                 {Math.abs(daysUntil(task.due_date!))} Days Overdue
                                             </span>
                                         )}
@@ -315,7 +334,7 @@ export function TasksClient() {
             {/* Task Detail Panel Overlay */}
             {selectedTask && (
                 <>
-                    <div className="fixed inset-0 bg-black/10 z-30" onClick={() => setSelectedTask(null)} />
+                    <div className="fixed inset-0 bg-[var(--bg-overlay)]/40 z-30" onClick={() => setSelectedTask(null)} aria-hidden />
                     <TaskDetailPanel 
                         task={selectedTask} 
                         onClose={() => setSelectedTask(null)} 

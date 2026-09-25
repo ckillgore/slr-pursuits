@@ -66,10 +66,13 @@ export default function FieldNoteButton({ fieldKey, note, onNoteChange }: FieldN
                 ref={buttonRef}
                 onClick={(e) => { e.stopPropagation(); if (open) commitAndClose(); else setOpen(true); }}
                 className={`p-0.5 rounded transition-colors ${hasNote
-                        ? 'text-[var(--accent)] hover:text-[#1D4ED8]'
-                        : 'text-[var(--text-faint)] hover:text-[var(--text-muted)] opacity-0 group-hover/note:opacity-100'
+                        ? 'text-[var(--accent)] hover:text-[var(--accent-hover)]'
+                        // Hidden until row hover — except on touch screens, which have no hover
+                        : 'text-[var(--text-faint)] hover:text-[var(--text-muted)] opacity-0 group-hover/note:opacity-100 [@media(hover:none)]:opacity-60'
                     } ${hasNote ? '' : 'focus:opacity-100'}`}
                 title={hasNote ? 'View/edit note' : 'Add a note'}
+                aria-label={hasNote ? 'View or edit note' : 'Add a note'}
+                aria-expanded={open}
                 type="button"
             >
                 <MessageSquare className="w-3 h-3" />

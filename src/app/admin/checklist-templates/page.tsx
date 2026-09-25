@@ -7,6 +7,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { useChecklistTemplates, useUpsertChecklistTemplate } from '@/hooks/useSupabaseQueries';
 import { Plus, Loader2, ChevronDown, ChevronRight, FileCheck2 } from 'lucide-react';
+import { useMutationErrorToast } from '@/components/shared/useMutationErrorToast';
 
 export default function ChecklistTemplatesPage() {
     const { isAdminOrOwner, isLoading: authLoading } = useAuth();
@@ -18,6 +19,7 @@ export default function ChecklistTemplatesPage() {
 
     const { data: templates = [], isLoading } = useChecklistTemplates();
     const upsertMutation = useUpsertChecklistTemplate();
+    useMutationErrorToast(upsertMutation.error, 'Failed to save checklist template');
 
     const [showAdd, setShowAdd] = useState(false);
     const [newName, setNewName] = useState('');
@@ -50,7 +52,7 @@ export default function ChecklistTemplatesPage() {
                     </button>
                 </div>
 
-                {isLoading && <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-[var(--border-strong)]" /></div>}
+                {isLoading && <div className="flex justify-center py-12" role="status" aria-label="Loading"><Loader2 className="w-6 h-6 animate-spin text-[var(--text-faint)]" /></div>}
 
                 <div className="space-y-2">
                     {templates.map((t) => (
@@ -81,15 +83,18 @@ export default function ChecklistTemplatesPage() {
                                     <p className="text-xs text-[var(--text-muted)] mb-3">
                                         To edit this template&apos;s phases, tasks, and checklist items, apply it to a pursuit from the Checklist tab on the pursuit detail page.
                                     </p>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="space-y-1">
                                             <span className="text-xs text-[var(--text-muted)]">Template Name</span>
                                             <input
                                                 type="text"
                                                 defaultValue={t.name}
                                                 onBlur={(e) => {
-                                                    if (e.target.value !== t.name) {
-                                                        upsertMutation.mutate({ id: t.id, name: e.target.value });
+                                                    const next = e.target.value.trim();
+                                                    // A template needs a name — restore it rather than saving a blank
+                                                    if (!next) { e.target.value = t.name; return; }
+                                                    if (next !== t.name) {
+                                                        upsertMutation.mutate({ id: t.id, name: next });
                                                     }
                                                 }}
                                                 className="w-full inline-input text-xs text-left"

@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useProductTypes, useUpsertProductType } from '@/hooks/useSupabaseQueries';
 import { AdminNav } from '@/components/layout/AdminNav';
 import { Plus, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { useMutationErrorToast } from '@/components/shared/useMutationErrorToast';
 
 export default function ProductTypesPage() {
     const { isAdminOrOwner, isLoading: authLoading } = useAuth();
@@ -18,6 +19,7 @@ export default function ProductTypesPage() {
 
     const { data: productTypes = [], isLoading } = useProductTypes();
     const upsertMutation = useUpsertProductType();
+    useMutationErrorToast(upsertMutation.error, 'Failed to save product type');
 
     const [expanded, setExpanded] = useState<string | null>(null);
     const [showAdd, setShowAdd] = useState(false);
@@ -41,12 +43,12 @@ export default function ProductTypesPage() {
                         <Plus className="w-4 h-4" /> Add Product Type
                     </button>
                 </div>
-                {isLoading && <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-[var(--border-strong)]" /></div>}
+                {isLoading && <div className="flex justify-center py-12" role="status" aria-label="Loading"><Loader2 className="w-6 h-6 animate-spin text-[var(--text-faint)]" /></div>}
                 <div className="space-y-2">
                     {[...productTypes].sort((a, b) => a.sort_order - b.sort_order).map((pt) => (
                         <div key={pt.id} className="card">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                <button onClick={() => setExpanded(expanded === pt.id ? null : pt.id)} className="flex items-center gap-2 text-[var(--text-primary)] font-medium">
+                                <button onClick={() => setExpanded(expanded === pt.id ? null : pt.id)} aria-expanded={expanded === pt.id} className="flex items-center gap-2 text-[var(--text-primary)] font-medium">
                                     {expanded === pt.id ? <ChevronDown className="w-4 h-4 text-[var(--text-muted)]" /> : <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />}{pt.name}
                                 </button>
                                 <div className="flex items-center gap-2 sm:gap-4 text-sm text-[var(--text-muted)] flex-wrap">

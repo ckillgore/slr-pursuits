@@ -144,7 +144,7 @@ export default function AdminUsersPage() {
     const activityColor = (total: number) => {
         if (total >= 50) return 'text-[var(--success)] bg-[var(--success-bg)]';
         if (total >= 20) return 'text-[var(--accent)] bg-[var(--accent-subtle)]';
-        if (total >= 5) return 'text-[#D97706] bg-[var(--warning-bg)]';
+        if (total >= 5) return 'text-[var(--warning)] bg-[var(--warning-bg)]';
         return 'text-[var(--text-muted)] bg-[var(--bg-elevated)]';
     };
 
@@ -187,7 +187,7 @@ export default function AdminUsersPage() {
                     <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-[var(--danger-bg)] border border-[var(--danger)] text-sm text-[var(--danger)] mb-4">
                         <AlertCircle className="w-4 h-4 flex-shrink-0" />
                         {error}
-                        <button onClick={() => setError(null)} className="ml-auto text-[var(--danger)] hover:text-[#B91C1C]">✕</button>
+                        <button onClick={() => setError(null)} aria-label="Dismiss error" className="ml-auto text-[var(--danger)] hover:opacity-70">✕</button>
                     </div>
                 )}
 
@@ -196,8 +196,9 @@ export default function AdminUsersPage() {
                         <Loader2 className="w-6 h-6 animate-spin text-[var(--text-faint)]" />
                     </div>
                 ) : (
-                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden">
-                        <table className="w-full">
+                    // Scrolls sideways inside the card on narrow screens instead of clipping columns
+                    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-x-auto">
+                        <table className="w-full min-w-[640px]">
                             <thead>
                                 <tr className="border-b border-[var(--border)] bg-[var(--bg-primary)]">
                                     <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">User</th>
@@ -259,7 +260,7 @@ export default function AdminUsersPage() {
                                                         {u.is_active ? 'Active' : 'Deactivated'}
                                                     </span>
                                                 ) : (
-                                                    <span className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-[var(--warning-bg)] text-[#D97706]">
+                                                    <span className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-[var(--warning-bg)] text-[var(--warning)]">
                                                         Pending
                                                     </span>
                                                 )}
@@ -298,10 +299,10 @@ export default function AdminUsersPage() {
                                                 <td colSpan={6} className="px-4 py-3">
                                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 max-w-3xl mx-auto">
                                                         <ActivityStat icon={<TrendingUp className="w-3.5 h-3.5" />} label="Pursuits" count={u.activity.pursuits_created} color="var(--accent)" />
-                                                        <ActivityStat icon={<FileText className="w-3.5 h-3.5" />} label="One-Pagers" count={u.activity.one_pagers_created} color="#8B5CF6" />
-                                                        <ActivityStat icon={<GitBranch className="w-3.5 h-3.5" />} label="Stage Changes" count={u.activity.stage_changes} color="#F59E0B" />
+                                                        <ActivityStat icon={<FileText className="w-3.5 h-3.5" />} label="One-Pagers" count={u.activity.one_pagers_created} color="var(--review)" />
+                                                        <ActivityStat icon={<GitBranch className="w-3.5 h-3.5" />} label="Stage Changes" count={u.activity.stage_changes} color="var(--warning)" />
                                                         <ActivityStat icon={<DollarSign className="w-3.5 h-3.5" />} label="Budgets" count={u.activity.budgets_created} color="var(--success)" />
-                                                        <ActivityStat icon={<CalendarDays className="w-3.5 h-3.5" />} label="Key Dates" count={u.activity.key_dates_created} color="#D97706" />
+                                                        <ActivityStat icon={<CalendarDays className="w-3.5 h-3.5" />} label="Key Dates" count={u.activity.key_dates_created} color="var(--info)" />
                                                         <ActivityStat icon={<Map className="w-3.5 h-3.5" />} label="Land Comps" count={u.activity.land_comps_created} color="var(--danger)" />
                                                     </div>
                                                     {u.created_at && (

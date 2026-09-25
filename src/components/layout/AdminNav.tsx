@@ -17,13 +17,14 @@ export function AdminNav() {
     const pathname = usePathname();
 
     return (
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
+        <nav aria-label="Admin sections" className="flex gap-2 mb-6 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
             {ADMIN_TABS.map((tab) => {
                 const isActive = pathname === tab.href;
                 return (
                     <Link
                         key={tab.href}
                         href={tab.href}
+                        aria-current={isActive ? 'page' : undefined}
                         className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
                             isActive
                                 ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)] font-medium'
@@ -34,6 +35,6 @@ export function AdminNav() {
                     </Link>
                 );
             })}
-        </div>
+        </nav>
     );
 }

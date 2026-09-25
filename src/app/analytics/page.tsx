@@ -5,6 +5,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { useAnalyticsData, useStages, useProductTypes } from '@/hooks/useSupabaseQueries';
 import {
     Loader2,
+    AlertCircle,
     TrendingUp,
     Calendar,
     ArrowRight,
@@ -28,7 +29,7 @@ import {
     PieChart,
     Pie,
 } from 'recharts';
-import type { Pursuit, PursuitStage, PursuitStageHistory } from '@/types';
+import type { PursuitStage } from '@/types';
 
 // ── Time Period ──────────────────────────────────────────────
 type TimePeriod = 'ytd' | 'prior_year' | 'all_time' | 'custom';
@@ -62,9 +63,52 @@ function getDateRange(period: TimePeriod, customStart?: string, customEnd?: stri
     }
 }
 
-// ── Helpers ──────────────────────────────────────────────────
-const PIPELINE_STAGES = ['Screening', 'Initial Analysis', 'LOI', 'Under Contract', 'Due Diligence'];
-const TERMINAL_STAGES = ['Closed', 'Passed', 'Dead'];
+// ── Stage roles ──────────────────────────────────────────────
+// Stages are admin-editable, so roles come from stage data rather than names:
+//  - pipeline:  counts_toward_forecast = true, in sort_order (the funnel)
+//  - terminal:  counts_toward_forecast = false (left the pipeline)
+//  - won:       the terminal stage(s) that mean the deal closed — named like
+//               "Closed"/"Won"/"Acquired", else the first terminal stage
+//               ordered right after the pipeline
+//  - lost:      every other terminal stage (Passed, Dead, Inactive…)
+// Before migration 20260921000000 the flag is absent; fall back to names.
+const TERMINAL_NAME_FALLBACK = /^(closed|passed|dead|inactive|lost|won|acquired)\b/i;
+const WON_NAME = /\b(closed|close|won|acquired|purchased)\b/i;
+
+interface StageRoles {
+    ordered: PursuitStage[];
+    pipeline: PursuitStage[];
+    won: PursuitStage[];
+    lost: PursuitStage[];
+}
+
+function deriveStageRoles(stages: PursuitStage[]): StageRoles {
+    const ordered = [...stages].sort((a, b) => a.sort_order - b.sort_order);
+    const hasFlag = ordered.some(s => typeof s.counts_toward_forecast === 'boolean');
+    const isTerminal = (s: PursuitStage) =>
+        hasFlag ? s.counts_toward_forecast === false : TERMINAL_NAME_FALLBACK.test(s.name);
+    const pipeline = ordered.filter(s => !isTerminal(s));
+    const terminal = ordered.filter(isTerminal);
+
+    let won = terminal.filter(s => WON_NAME.test(s.name));
+    if (won.length === 0) {
+        const lastPipelineOrder = pipeline.length ? pipeline[pipeline.length - 1].sort_order : -Infinity;
+        const next = terminal.find(s => s.sort_order > lastPipelineOrder);
+        won = next ? [next] : [];
+    }
+    const wonIds = new Set(won.map(s => s.id));
+    const lost = terminal.filter(s => !wonIds.has(s.id));
+    return { ordered, pipeline, won, lost };
+}
+
+const TOOLTIP_STYLE = {
+    backgroundColor: 'var(--bg-card)',
+    color: 'var(--text-primary)',
+    border: '1px solid var(--border)',
+    borderRadius: '8px',
+    fontSize: '12px',
+    boxShadow: 'var(--shadow-dropdown)',
+};
 
 function isInPeriod(dateStr: string, start: Date, end: Date): boolean {
     const d = new Date(dateStr);
@@ -72,7 +116,7 @@ function isInPeriod(dateStr: string, start: Date, end: Date): boolean {
 }
 
 export default function AnalyticsPage() {
-    const { data: analyticsData, isLoading } = useAnalyticsData();
+    const { data: analyticsData, isLoading, isError, error, refetch } = useAnalyticsData();
     const { data: stages = [] } = useStages();
     const { data: productTypes = [] } = useProductTypes();
 
@@ -82,23 +126,8 @@ export default function AnalyticsPage() {
     const [regionFilter, setRegionFilter] = useState('');
     const [productTypeFilter, setProductTypeFilter] = useState('');
 
-    // Map stage id → stage
-    const stageMap = useMemo(() => {
-        const m = new Map<string, PursuitStage>();
-        stages.forEach(s => m.set(s.id, s));
-        return m;
-    }, [stages]);
-
-    // Get sorted pipeline stages in order
-    const orderedStages = useMemo(() => {
-        return [...PIPELINE_STAGES, ...TERMINAL_STAGES]
-            .map(name => stages.find(s => s.name === name))
-            .filter(Boolean) as PursuitStage[];
-    }, [stages]);
-
-    const pipelineStageIds = useMemo(() => {
-        return new Set(orderedStages.filter(s => PIPELINE_STAGES.includes(s.name)).map(s => s.id));
-    }, [orderedStages]);
+    const stageRoles = useMemo(() => deriveStageRoles(stages), [stages]);
+    const { ordered: orderedStages, pipeline: pipelineStages } = stageRoles;
 
     // Unique regions
     const regions = useMemo(() => {
@@ -116,6 +145,12 @@ export default function AnalyticsPage() {
         [period, customStart, customEnd, analyticsData]
     );
 
+    // Pursuits with a one-pager of the selected product type (one pass, not per pursuit)
+    const productTypeIdsByPursuit = useMemo(() => {
+        if (!analyticsData || !productTypeFilter) return null;
+        return new Set(analyticsData.onePagers.filter(op => op.product_type_id === productTypeFilter).map(op => op.pursuit_id));
+    }, [analyticsData, productTypeFilter]);
+
     // ── Filtered pursuits ──────────────────────────────────
     const filteredPursuits = useMemo(() => {
         if (!analyticsData) return [];
@@ -125,15 +160,12 @@ export default function AnalyticsPage() {
             // Region filter
             if (regionFilter && p.region !== regionFilter) return false;
             // Product type filter (check one-pagers)
-            if (productTypeFilter) {
-                const pursuitOps = analyticsData.onePagers.filter(op => op.pursuit_id === p.id);
-                if (!pursuitOps.some(op => op.product_type_id === productTypeFilter)) return false;
-            }
+            if (productTypeIdsByPursuit && !productTypeIdsByPursuit.has(p.id)) return false;
             // Exclude archived
             if (p.is_archived) return false;
             return true;
         });
-    }, [analyticsData, dateStart, dateEnd, regionFilter, productTypeFilter]);
+    }, [analyticsData, dateStart, dateEnd, regionFilter, productTypeIdsByPursuit]);
 
     // ── Stage distribution (current stage of filtered pursuits) ──
     const stageDistribution = useMemo(() => {
@@ -144,7 +176,8 @@ export default function AnalyticsPage() {
                 counts.set(p.stage_id, (counts.get(p.stage_id) || 0) + 1);
             }
         });
-        return orderedStages.map(s => ({
+        // Retired (inactive) stages only appear while pursuits still sit in them
+        return orderedStages.filter(s => s.is_active || (counts.get(s.id) || 0) > 0).map(s => ({
             name: s.name,
             value: counts.get(s.id) || 0,
             color: s.color,
@@ -156,71 +189,62 @@ export default function AnalyticsPage() {
     const funnelData = useMemo(() => {
         if (!analyticsData) return [];
         const pursuitIds = new Set(filteredPursuits.map(p => p.id));
-        // For each stage, count how many of the filtered pursuits ever reached it
-        // A pursuit "reached" a stage if it had a stage history entry with that stage
-        // OR if its current stage is at or past that stage
-        const reachedCounts = new Map<string, Set<string>>();
-        orderedStages.forEach(s => reachedCounts.set(s.id, new Set()));
+        const pipelineIndex = new Map(pipelineStages.map((s, i) => [s.id, i]));
+        const wonIds = new Set(stageRoles.won.map(s => s.id));
 
-        // From stage history
+        // Furthest pipeline stage each pursuit is known to have reached — from
+        // stage history and from its current stage. Reaching a stage implies the
+        // earlier ones (if you're at LOI, you went through Screening).
+        const furthest = new Map<string, number>();
+        const reach = (pursuitId: string, idx: number) => {
+            if (idx > (furthest.get(pursuitId) ?? -1)) furthest.set(pursuitId, idx);
+        };
         analyticsData.stageHistory.forEach(sh => {
             if (!pursuitIds.has(sh.pursuit_id)) return;
-            if (reachedCounts.has(sh.stage_id)) {
-                reachedCounts.get(sh.stage_id)!.add(sh.pursuit_id);
-            }
+            const idx = pipelineIndex.get(sh.stage_id);
+            if (idx !== undefined) reach(sh.pursuit_id, idx);
         });
-
-        // From current stage
-        filteredPursuits.forEach(p => {
-            if (p.stage_id && reachedCounts.has(p.stage_id)) {
-                reachedCounts.get(p.stage_id)!.add(p.id);
-            }
-        });
-
-        // Also mark all stages "before" the current stage as reached
-        // (implicit: if you're at LOI, you went through Screening and Initial Analysis)
-        const pipelineOrder = orderedStages.filter(s => PIPELINE_STAGES.includes(s.name));
         filteredPursuits.forEach(p => {
             if (!p.stage_id) return;
-            const currentStage = stageMap.get(p.stage_id);
-            if (!currentStage) return;
-            const currentIdx = pipelineOrder.findIndex(s => s.id === currentStage.id);
-            // For terminal stages, mark all pipeline stages as reached
-            if (TERMINAL_STAGES.includes(currentStage.name)) {
-                pipelineOrder.forEach(s => reachedCounts.get(s.id)?.add(p.id));
-                reachedCounts.get(p.stage_id)?.add(p.id);
-            } else if (currentIdx >= 0) {
-                for (let i = 0; i <= currentIdx; i++) {
-                    reachedCounts.get(pipelineOrder[i].id)?.add(p.id);
-                }
-            }
+            const idx = pipelineIndex.get(p.stage_id);
+            if (idx !== undefined) reach(p.id, idx);
+            // A closed deal went through the whole pipeline. A passed/dead deal only
+            // counts for the stages its history shows (it used to count for all of them).
+            else if (wonIds.has(p.stage_id)) reach(p.id, pipelineStages.length - 1);
+            else if (!furthest.has(p.id) && pipelineStages.length > 0) reach(p.id, 0);
         });
 
-        return orderedStages
-            .filter(s => PIPELINE_STAGES.includes(s.name))
-            .map(s => ({
-                name: s.name,
-                value: reachedCounts.get(s.id)?.size || 0,
-                fill: s.color,
-            }));
-    }, [analyticsData, filteredPursuits, orderedStages, stageMap]);
+        const counts = pipelineStages.map(() => 0);
+        furthest.forEach(idx => {
+            for (let i = 0; i <= idx; i++) counts[i]++;
+        });
+
+        return pipelineStages.map((s, i) => ({
+            name: s.name,
+            value: counts[i],
+            fill: s.color,
+        }));
+    }, [analyticsData, filteredPursuits, pipelineStages, stageRoles.won]);
 
     // ── KPI metrics ──────────────────────────────────────────
     const kpis = useMemo(() => {
         const total = filteredPursuits.length;
-        const closedStage = stages.find(s => s.name === 'Closed');
-        const passedStage = stages.find(s => s.name === 'Passed');
-        const deadStage = stages.find(s => s.name === 'Dead');
+        const wonIds = new Set(stageRoles.won.map(s => s.id));
+        const lostIds = new Set(stageRoles.lost.map(s => s.id));
 
-        const closed = filteredPursuits.filter(p => p.stage_id === closedStage?.id).length;
-        const passed = filteredPursuits.filter(p => p.stage_id === passedStage?.id).length;
-        const dead = filteredPursuits.filter(p => p.stage_id === deadStage?.id).length;
-        const active = total - closed - passed - dead;
+        const closed = filteredPursuits.filter(p => p.stage_id && wonIds.has(p.stage_id)).length;
+        const lost = filteredPursuits.filter(p => p.stage_id && lostIds.has(p.stage_id)).length;
+        const active = total - closed - lost;
 
         const conversionRate = total > 0 ? (closed / total) * 100 : 0;
 
-        return { total, active, closed, passed, dead, conversionRate };
-    }, [filteredPursuits, stages]);
+        return { total, active, closed, lost, conversionRate };
+    }, [filteredPursuits, stageRoles]);
+
+    const wonLabel = stageRoles.won.length === 1 ? stageRoles.won[0].name : 'Closed';
+    const lostLabel = stageRoles.lost.length > 0 && stageRoles.lost.length <= 2
+        ? stageRoles.lost.map(s => s.name).join(' / ')
+        : 'Exited';
 
     // ── Conversion rates between stages ──────────────────────
     const conversionRates = useMemo(() => {
@@ -241,14 +265,15 @@ export default function AnalyticsPage() {
     }, [funnelData]);
 
     // ── Outcome pie chart ────────────────────────────────────
+    // One slice per terminal stage, in that stage's own color
     const outcomeData = useMemo(() => {
+        const byStage = new Map<string, number>();
+        filteredPursuits.forEach(p => { if (p.stage_id) byStage.set(p.stage_id, (byStage.get(p.stage_id) || 0) + 1); });
         return [
-            { name: 'Active', value: kpis.active, color: '#3B82F6' },
-            { name: 'Closed', value: kpis.closed, color: '#10B981' },
-            { name: 'Passed', value: kpis.passed, color: '#EF4444' },
-            { name: 'Dead', value: kpis.dead, color: '#6B7280' },
+            { name: 'Active', value: kpis.active, color: 'var(--accent)' },
+            ...[...stageRoles.won, ...stageRoles.lost].map(s => ({ name: s.name, value: byStage.get(s.id) || 0, color: s.color })),
         ].filter(d => d.value > 0);
-    }, [kpis]);
+    }, [filteredPursuits, kpis.active, stageRoles]);
 
     return (
         <AppShell>
@@ -268,7 +293,7 @@ export default function AnalyticsPage() {
 
                 {/* Filters bar */}
                 <div className="flex flex-wrap items-center gap-3 mb-8 p-4 bg-[var(--bg-card)] rounded-xl border border-[var(--border)]">
-                    <Calendar className="w-4 h-4 text-[var(--text-muted)]" />
+                    <Calendar className="w-4 h-4 text-[var(--text-muted)]" aria-hidden />
 
                     {/* Time period */}
                     <div className="flex items-center rounded-lg bg-[var(--bg-elevated)] p-0.5">
@@ -281,6 +306,7 @@ export default function AnalyticsPage() {
                             <button
                                 key={opt.key}
                                 onClick={() => setPeriod(opt.key)}
+                                aria-pressed={period === opt.key}
                                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${period === opt.key
                                     ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-sm'
                                     : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
@@ -295,16 +321,20 @@ export default function AnalyticsPage() {
                         <div className="flex items-center gap-2">
                             <input
                                 type="date"
+                                aria-label="Start date"
                                 value={customStart}
+                                max={customEnd || undefined}
                                 onChange={(e) => setCustomStart(e.target.value)}
-                                className="px-2 py-1.5 rounded-lg border border-[var(--border)] text-xs text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
+                                className="px-2 py-1.5 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-xs text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
                             />
                             <span className="text-xs text-[var(--text-faint)]">to</span>
                             <input
                                 type="date"
+                                aria-label="End date"
                                 value={customEnd}
+                                min={customStart || undefined}
                                 onChange={(e) => setCustomEnd(e.target.value)}
-                                className="px-2 py-1.5 rounded-lg border border-[var(--border)] text-xs text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
+                                className="px-2 py-1.5 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-xs text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
                             />
                         </div>
                     )}
@@ -313,6 +343,7 @@ export default function AnalyticsPage() {
 
                     {regions.length > 0 && (
                         <select
+                            aria-label="Region"
                             value={regionFilter}
                             onChange={(e) => setRegionFilter(e.target.value)}
                             className="px-3 py-1.5 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-xs text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
@@ -324,6 +355,7 @@ export default function AnalyticsPage() {
 
                     {productTypes.length > 0 && (
                         <select
+                            aria-label="Product type"
                             value={productTypeFilter}
                             onChange={(e) => setProductTypeFilter(e.target.value)}
                             className="px-3 py-1.5 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-xs text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
@@ -335,31 +367,40 @@ export default function AnalyticsPage() {
                         </select>
                     )}
 
-                    <span className="ml-auto text-[11px] text-[var(--text-faint)]">
+                    <span className="ml-auto text-[11px] text-[var(--text-muted)]" aria-live="polite">
                         {filteredPursuits.length} pursuit{filteredPursuits.length !== 1 ? 's' : ''} in period
                     </span>
                 </div>
 
                 {isLoading ? (
-                    <div className="flex justify-center py-24">
-                        <Loader2 className="w-8 h-8 animate-spin text-[var(--border-strong)]" />
+                    <div className="flex justify-center py-24" role="status" aria-label="Loading analytics">
+                        <Loader2 className="w-8 h-8 animate-spin text-[var(--text-faint)]" />
+                    </div>
+                ) : isError ? (
+                    <div role="alert" className="flex flex-col items-center justify-center py-24 text-center">
+                        <AlertCircle className="w-8 h-8 text-[var(--danger)] mb-3" aria-hidden />
+                        <h2 className="text-base font-semibold text-[var(--text-secondary)] mb-1">Couldn&rsquo;t load analytics</h2>
+                        <p className="text-sm text-[var(--text-muted)] max-w-md">{error instanceof Error ? error.message : 'Check your connection and try again.'}</p>
+                        <button onClick={() => refetch()} className="mt-5 px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors">
+                            Try again
+                        </button>
                     </div>
                 ) : (
                     <>
                         {/* ── KPI Cards ─────────────────────────── */}
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-8">
                             {[
                                 { label: 'Total Deals', value: kpis.total, icon: Building2, color: 'var(--accent)', bg: 'var(--accent-subtle)' },
-                                { label: 'Active Pipeline', value: kpis.active, icon: Target, color: '#3B82F6', bg: '#EFF6FF' },
-                                { label: 'Closed', value: kpis.closed, icon: CheckCircle2, color: '#10B981', bg: '#ECFDF5' },
-                                { label: 'Passed / Dead', value: kpis.passed + kpis.dead, icon: XCircle, color: '#EF4444', bg: 'var(--danger-bg)' },
-                                { label: 'Close Rate', value: `${kpis.conversionRate.toFixed(1)}%`, icon: TrendingUp, color: '#8B5CF6', bg: '#F5F3FF' },
+                                { label: 'Active Pipeline', value: kpis.active, icon: Target, color: 'var(--info)', bg: 'var(--info-bg)' },
+                                { label: wonLabel, value: kpis.closed, icon: CheckCircle2, color: 'var(--success)', bg: 'var(--success-bg)' },
+                                { label: lostLabel, value: kpis.lost, icon: XCircle, color: 'var(--danger)', bg: 'var(--danger-bg)' },
+                                { label: 'Close Rate', value: `${kpis.conversionRate.toFixed(1)}%`, icon: TrendingUp, color: 'var(--review)', bg: 'var(--review-bg)' },
                             ].map((kpi) => (
                                 <div key={kpi.label} className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4 hover:shadow-md transition-shadow">
                                     <div className="flex items-center justify-between mb-3">
-                                        <span className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider">{kpi.label}</span>
+                                        <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider truncate" title={kpi.label}>{kpi.label}</span>
                                         <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: kpi.bg }}>
-                                            <kpi.icon className="w-4 h-4" style={{ color: kpi.color }} />
+                                            <kpi.icon className="w-4 h-4" style={{ color: kpi.color }} aria-hidden />
                                         </div>
                                     </div>
                                     <div className="text-2xl font-bold text-[var(--text-primary)]">{kpi.value}</div>
@@ -377,13 +418,7 @@ export default function AnalyticsPage() {
                                     <ResponsiveContainer width="100%" height={320}>
                                         <FunnelChart>
                                             <Tooltip
-                                                contentStyle={{
-                                                    backgroundColor: '#fff',
-                                                    border: '1px solid var(--border)',
-                                                    borderRadius: '8px',
-                                                    fontSize: '12px',
-                                                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                                                }}
+                                                contentStyle={TOOLTIP_STYLE}
                                                 formatter={(value: any, name: any) => [`${value} pursuits`, name]}
                                             />
                                             <Funnel
@@ -432,20 +467,14 @@ export default function AnalyticsPage() {
                                                     outerRadius={80}
                                                     dataKey="value"
                                                     strokeWidth={2}
-                                                    stroke="#fff"
+                                                    stroke="var(--bg-card)"
                                                 >
                                                     {outcomeData.map((entry, idx) => (
                                                         <Cell key={idx} fill={entry.color} />
                                                     ))}
                                                 </Pie>
                                                 <Tooltip
-                                                    contentStyle={{
-                                                        backgroundColor: '#fff',
-                                                        border: '1px solid var(--border)',
-                                                        borderRadius: '8px',
-                                                        fontSize: '12px',
-                                                        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                                                    }}
+                                                    contentStyle={TOOLTIP_STYLE}
                                                     formatter={(value: any) => [`${value} pursuits`]}
                                                 />
                                             </PieChart>
@@ -471,19 +500,13 @@ export default function AnalyticsPage() {
                         <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-6 mb-8">
                             <h2 className="text-sm font-semibold text-[var(--text-primary)] mb-1">Current Stage Distribution</h2>
                             <p className="text-[11px] text-[var(--text-faint)] mb-4">Where pursuits currently sit in the pipeline</p>
-                            <ResponsiveContainer width="100%" height={280}>
+                            <ResponsiveContainer width="100%" height={Math.max(160, stageDistribution.length * 36 + 24)}>
                                 <BarChart data={stageDistribution} layout="vertical" margin={{ left: 20, right: 30 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="var(--table-row-border)" horizontal={false} />
                                     <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
                                     <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: 'var(--text-secondary)', fontWeight: 500 }} width={120} axisLine={false} tickLine={false} />
                                     <Tooltip
-                                        contentStyle={{
-                                            backgroundColor: '#fff',
-                                            border: '1px solid var(--border)',
-                                            borderRadius: '8px',
-                                            fontSize: '12px',
-                                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                                        }}
+                                        contentStyle={TOOLTIP_STYLE}
                                         formatter={(value: any) => [`${value} pursuits`, 'Count']}
                                     />
                                     <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={24}>
@@ -516,15 +539,14 @@ export default function AnalyticsPage() {
                                             {conversionRates.map((cr, idx) => (
                                                 <tr key={idx} className="border-b border-[var(--table-row-border)] last:border-0 hover:bg-[var(--bg-primary)]">
                                                     <td className="py-3 px-3 font-medium text-[var(--text-primary)]">{cr.from}</td>
-                                                    <td className="py-3 px-3 text-center text-[var(--text-faint)]"><ArrowRight className="w-3.5 h-3.5 inline" /></td>
+                                                    <td className="py-3 px-3 text-center text-[var(--text-faint)]"><ArrowRight className="w-3.5 h-3.5 inline" aria-label="to" /></td>
                                                     <td className="py-3 px-3 font-medium text-[var(--text-primary)]">{cr.to}</td>
                                                     <td className="py-3 px-3 text-right text-[var(--text-secondary)] font-mono">{cr.fromCount}</td>
                                                     <td className="py-3 px-3 text-right text-[var(--text-secondary)] font-mono">{cr.toCount}</td>
                                                     <td className="py-3 px-3 text-right">
                                                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${cr.rate >= 75 ? 'bg-[var(--success-bg)] text-[var(--success)]' :
-                                                            cr.rate >= 50 ? 'bg-[#FFF7ED] text-[#F59E0B]' :
-                                                                cr.rate >= 25 ? 'bg-[#FFF7ED] text-[#F97316]' :
-                                                                    'bg-[var(--danger-bg)] text-[#EF4444]'
+                                                            cr.rate >= 25 ? 'bg-[var(--warning-bg)] text-[var(--warning)]' :
+                                                                'bg-[var(--danger-bg)] text-[var(--danger)]'
                                                             }`}>
                                                             {cr.rate.toFixed(0)}%
                                                         </span>

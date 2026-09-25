@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { safeNextPath } from '@/lib/utils';
 import { Building2, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
@@ -19,10 +20,16 @@ export default function LoginPage() {
         setError(null);
         setLoading(true);
 
-        const { error: authError } = await supabase.auth.signInWithPassword({
-            email: email.trim(),
-            password,
-        });
+        let authError: { message: string } | null = null;
+        try {
+            ({ error: authError } = await supabase.auth.signInWithPassword({
+                email: email.trim(),
+                password,
+            }));
+        } catch (err) {
+            // Network failure — without this the button stayed on "Signing in..." forever
+            authError = { message: err instanceof Error ? err.message : 'Could not reach the sign-in service. Check your connection and try again.' };
+        }
 
         if (authError) {
             setError(
@@ -34,8 +41,9 @@ export default function LoginPage() {
             return;
         }
 
-        // Successful login — middleware will redirect to /
-        window.location.href = '/';
+        // Successful login — return to the page the proxy bounced us from (?next=),
+        // same-site paths only.
+        window.location.href = safeNextPath(new URLSearchParams(window.location.search).get('next'));
     };
 
     const handleResetPassword = async (e: React.FormEvent) => {
@@ -43,10 +51,15 @@ export default function LoginPage() {
         setError(null);
         setLoading(true);
 
-        const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-            email.trim(),
-            { redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset-password` }
-        );
+        let resetError: { message: string } | null = null;
+        try {
+            ({ error: resetError } = await supabase.auth.resetPasswordForEmail(
+                email.trim(),
+                { redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset-password` }
+            ));
+        } catch (err) {
+            resetError = { message: err instanceof Error ? err.message : 'Could not send the reset email. Try again.' };
+        }
 
         if (resetError) {
             setError(resetError.message);
@@ -64,7 +77,7 @@ export default function LoginPage() {
                 {/* Logo */}
                 <div className="flex flex-col items-center mb-8">
                     <div className="w-14 h-14 rounded-2xl bg-[var(--text-primary)] flex items-center justify-center mb-4 shadow-lg">
-                        <Building2 className="w-7 h-7 text-white" />
+                        <Building2 className="w-7 h-7 text-[var(--bg-primary)]" />
                     </div>
                     <h1 className="text-2xl font-bold text-[var(--text-primary)]">
                         SLR <span className="text-[var(--text-muted)] font-normal">Pursuits</span>
@@ -83,12 +96,13 @@ export default function LoginPage() {
 
                             <form onSubmit={handleLogin} className="space-y-4">
                                 <div>
-                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
+                                    <label htmlFor="login-email" className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
                                         Email
                                     </label>
                                     <div className="relative">
-                                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
+                                        <Mail aria-hidden className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
                                         <input
+                                            id="login-email"
                                             type="email"
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
@@ -102,12 +116,13 @@ export default function LoginPage() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
+                                    <label htmlFor="login-password" className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
                                         Password
                                     </label>
                                     <div className="relative">
-                                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
+                                        <Lock aria-hidden className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
                                         <input
+                                            id="login-password"
                                             type="password"
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
@@ -120,7 +135,7 @@ export default function LoginPage() {
                                 </div>
 
                                 {error && (
-                                    <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-[var(--danger-bg)] border border-[var(--danger)] text-sm text-[var(--danger)]">
+                                    <div role="alert" className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-[var(--danger-bg)] border border-[var(--danger)] text-sm text-[var(--danger)]">
                                         <AlertCircle className="w-4 h-4 flex-shrink-0" />
                                         {error}
                                     </div>
@@ -140,6 +155,7 @@ export default function LoginPage() {
                             </form>
 
                             <button
+                                type="button"
                                 onClick={() => { setMode('reset'); setError(null); }}
                                 className="w-full text-center text-sm text-[var(--accent)] hover:text-[var(--accent-hover)] font-medium mt-4 transition-colors"
                             >
@@ -168,13 +184,15 @@ export default function LoginPage() {
                             ) : (
                                 <form onSubmit={handleResetPassword} className="space-y-4">
                                     <div>
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
+                                        <label htmlFor="reset-email" className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">
                                             Email
                                         </label>
                                         <div className="relative">
-                                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
+                                            <Mail aria-hidden className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-faint)]" />
                                             <input
+                                                id="reset-email"
                                                 type="email"
+                                                autoComplete="email"
                                                 value={email}
                                                 onChange={(e) => setEmail(e.target.value)}
                                                 placeholder="you@streetlights.com"
@@ -186,7 +204,7 @@ export default function LoginPage() {
                                     </div>
 
                                     {error && (
-                                        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-[var(--danger-bg)] border border-[var(--danger)] text-sm text-[var(--danger)]">
+                                        <div role="alert" className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-[var(--danger-bg)] border border-[var(--danger)] text-sm text-[var(--danger)]">
                                             <AlertCircle className="w-4 h-4 flex-shrink-0" />
                                             {error}
                                         </div>
@@ -207,6 +225,7 @@ export default function LoginPage() {
                             )}
 
                             <button
+                                type="button"
                                 onClick={() => { setMode('login'); setError(null); setResetSent(false); }}
                                 className="w-full text-center text-sm text-[var(--text-muted)] hover:text-[var(--text-secondary)] font-medium mt-4 transition-colors"
                             >
@@ -216,8 +235,8 @@ export default function LoginPage() {
                     )}
                 </div>
 
-                <p className="text-center text-[10px] text-[var(--text-faint)] mt-6">
-                    © {new Date().getFullYear()} Streetlight Residential
+                <p className="text-center text-[11px] text-[var(--text-faint)] mt-6">
+                    © {new Date().getFullYear()} StreetLights Residential
                 </p>
             </div>
         </div>

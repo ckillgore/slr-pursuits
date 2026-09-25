@@ -27,15 +27,16 @@ import {
 } from '@/hooks/useSupabaseQueries';
 import type { PursuitChecklistTask, ChecklistTaskStatus, TaskNote, TaskActivityLog } from '@/types';
 import TaskAttachmentPanel from './TaskAttachmentPanel';
+import { toast } from '@/lib/toast';
 
 // Constants
 const ALL_STATUSES: ChecklistTaskStatus[] = ['not_applicable', 'not_started', 'in_progress', 'in_review', 'blocked', 'complete'];
 const STATUS_CONFIG: Record<ChecklistTaskStatus, { label: string; color: string; bg: string }> = {
     not_applicable: { label: 'N/A', color: 'var(--text-faint)', bg: 'var(--bg-primary)' },
     not_started: { label: 'Not Started', color: 'var(--text-secondary)', bg: 'var(--bg-elevated)' },
-    in_progress: { label: 'In Progress', color: '#3B82F6', bg: '#EFF6FF' },
-    in_review: { label: 'In Review', color: '#8B5CF6', bg: '#F5F3FF' },
-    blocked: { label: 'Blocked', color: '#EF4444', bg: '#FEF2F2' },
+    in_progress: { label: 'In Progress', color: 'var(--info)', bg: 'var(--info-bg)' },
+    in_review: { label: 'In Review', color: 'var(--review)', bg: 'var(--review-bg)' },
+    blocked: { label: 'Blocked', color: 'var(--danger)', bg: 'var(--danger-bg)' },
     complete: { label: 'Complete', color: 'var(--success)', bg: 'var(--success-bg)' },
 };
 
@@ -84,7 +85,13 @@ export function TaskDetailPanel({
     const pursuitId = task.pursuit_id;
     const { data: milestones = [] } = usePursuitMilestones(pursuitId);
     
-    const updateTask = useUpdateChecklistTask();
+    const updateTaskMutation = useUpdateChecklistTask();
+    // Every edit in this panel goes through here so a failed save is never silent
+    // (the hook rolls back its optimistic update).
+    const updateTask = {
+        mutate: (vars: Parameters<typeof updateTaskMutation.mutate>[0]) =>
+            updateTaskMutation.mutate(vars, { onError: (err) => toast.error('Failed to update task', err) }),
+    };
     const toggleItem = useToggleChecklistItem();
     const addItem = useAddChecklistItem();
     const deleteItem = useDeleteChecklistItem();
@@ -113,6 +120,18 @@ export function TaskDetailPanel({
     const [newExtEmail, setNewExtEmail] = useState('');
     const [newExtCompany, setNewExtCompany] = useState('');
 
+    // Escape closes the panel (unless it's cancelling an inline field)
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape' || e.defaultPrevented) return;
+            const target = e.target as HTMLElement | null;
+            if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+            onClose();
+        };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [onClose]);
+
     // Sync description when task changes
     useEffect(() => { setDescText(task.description ?? ''); }, [task.id, task.description]);
 
@@ -139,7 +158,7 @@ export function TaskDetailPanel({
             { taskId: task.id, content: noteText.trim() },
             {
                 onSuccess: () => setNoteText(''),
-                onError: (err) => alert(`Failed to post note: ${err instanceof Error ? err.message : 'Unknown error'}`),
+                onError: (err) => toast.error('Failed to post note', err),
             }
         );
     };
@@ -188,16 +207,16 @@ export function TaskDetailPanel({
     }, [task.relative_milestone, task.relative_due_days, milestones]);
 
     return (
-        <div className="fixed inset-y-0 right-0 w-full max-w-lg bg-[var(--bg-card)] border-l border-[var(--border)] shadow-xl z-40 flex flex-col animate-slide-in-right">
+        <div role="dialog" aria-label={`Task: ${task.name}`} className="fixed inset-y-0 right-0 w-full max-w-lg bg-[var(--bg-card)] border-l border-[var(--border)] shadow-xl z-40 flex flex-col animate-slide-in-right">
             {/* Header */}
             <div className="flex items-start justify-between px-5 py-4 border-b border-[var(--border)]">
                 <div className="flex-1 min-w-0 pr-3">
                     <h3 className="text-base font-semibold text-[var(--text-primary)] leading-tight">{task.name}</h3>
                     {task.is_critical_path && (
-                        <span className="inline-block mt-1 text-[9px] uppercase tracking-wider font-bold text-[#EF4444] bg-[var(--danger-bg)] px-1.5 py-0.5 rounded">Critical Path</span>
+                        <span className="inline-block mt-1 text-[9px] uppercase tracking-wider font-bold text-[var(--danger)] bg-[var(--danger-bg)] px-1.5 py-0.5 rounded">Critical Path</span>
                     )}
                 </div>
-                <button onClick={onClose} className="p-1 rounded-md hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] transition-colors">
+                <button onClick={onClose} aria-label="Close task details" className="p-1 rounded-md hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] transition-colors">
                     <X className="w-5 h-5" />
                 </button>
             </div>
@@ -336,7 +355,7 @@ export function TaskDetailPanel({
                                 Relative
                             </button>
                             {task.due_date && (
-                                <button onClick={handleClearDueDate} className="px-2 py-1 rounded text-xs text-[var(--text-faint)] hover:text-[#EF4444] transition-colors">Clear</button>
+                                <button onClick={handleClearDueDate} className="px-2 py-1 rounded text-xs text-[var(--text-faint)] hover:text-[var(--danger)] transition-colors">Clear</button>
                             )}
                         </div>
                     </div>
@@ -345,7 +364,7 @@ export function TaskDetailPanel({
                             <input type="date" value={task.due_date_is_manual ? (task.due_date ?? '') : ''}
                                 onChange={(e) => handleFixedDateChange(e.target.value)}
                                 className="px-2 py-1.5 rounded-md text-sm border border-[var(--border)] bg-[var(--bg-card)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/20 focus:outline-none w-full" />
-                            {task.due_date && overdue && <p className="text-xs text-[#EF4444] mt-1 font-medium">{Math.abs(daysUntil(task.due_date))} days overdue</p>}
+                            {task.due_date && overdue && <p className="text-xs text-[var(--danger)] mt-1 font-medium">{Math.abs(daysUntil(task.due_date))} days overdue</p>}
                         </div>
                     ) : (
                         <div className="ml-[76px] space-y-2">
@@ -379,7 +398,7 @@ export function TaskDetailPanel({
                             </div>
                             <button 
                                 onClick={() => updateTask.mutate({ taskId: task.id, pursuitId, updates: { external_portal_enabled: !task.external_portal_enabled }})}
-                                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors ${task.external_portal_enabled ? 'bg-[#10B981]' : 'bg-[var(--border)]'}`}>
+                                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors ${task.external_portal_enabled ? 'bg-[var(--success)]' : 'bg-[var(--border)]'}`}>
                                 <span className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${task.external_portal_enabled ? 'translate-x-2' : '-translate-x-2'}`} />
                             </button>
                         </div>
@@ -392,10 +411,15 @@ export function TaskDetailPanel({
                                 <div className="flex items-center gap-1">
                                     <button 
                                         onClick={() => {
-                                            if (typeof window !== 'undefined') {
-                                                navigator.clipboard?.writeText(`${window.location.origin}/portal/task/${task.external_portal_token}`)
-                                                    .catch(() => alert('Could not copy to clipboard. Select the link text and copy it manually.'));
+                                            const link = `${window.location.origin}/portal/task/${task.external_portal_token}`;
+                                            // navigator.clipboard is undefined on insecure origins (calling .catch on it threw)
+                                            if (!navigator.clipboard) {
+                                                toast.error('Could not copy to clipboard. Select the link text and copy it manually.');
+                                                return;
                                             }
+                                            navigator.clipboard.writeText(link)
+                                                .then(() => toast.success('Portal link copied'))
+                                                .catch(() => toast.error('Could not copy to clipboard. Select the link text and copy it manually.'));
                                         }}
                                         className="px-2 py-1 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-subtle)] rounded transition-colors whitespace-nowrap">
                                         Copy Link
@@ -407,7 +431,7 @@ export function TaskDetailPanel({
                                             updateTask.mutate({ taskId: task.id, pursuitId, updates: { external_portal_token: newToken }});
                                         }}
                                         title="Generate a new link (invalidates the old one)"
-                                        className="px-2 py-1 text-xs font-medium text-[var(--text-faint)] hover:text-[#EF4444] hover:bg-[var(--bg-elevated)] rounded transition-colors whitespace-nowrap">
+                                        className="px-2 py-1 text-xs font-medium text-[var(--text-faint)] hover:text-[var(--danger)] hover:bg-[var(--bg-elevated)] rounded transition-colors whitespace-nowrap">
                                         Refresh Link
                                     </button>
                                 </div>
@@ -460,9 +484,9 @@ export function TaskDetailPanel({
                                     <input value={boxLabel} onChange={(e) => setBoxLabel(e.target.value)} placeholder="Label (optional)"
                                         className="w-full px-2 py-1.5 rounded-md text-sm border border-[var(--border)] bg-[var(--bg-card)] focus:border-[var(--accent)] focus:outline-none" />
                                     <input value={boxUrl} onChange={(e) => setBoxUrl(e.target.value)} placeholder="https://app.box.com/..."
-                                        className={`w-full px-2 py-1.5 rounded-md text-sm border bg-[var(--bg-card)] focus:outline-none ${boxUrl && !isValidBoxUrl(boxUrl) ? 'border-[#EF4444]' : 'border-[var(--border)] focus:border-[var(--accent)]'}`}
+                                        className={`w-full px-2 py-1.5 rounded-md text-sm border bg-[var(--bg-card)] focus:outline-none ${boxUrl && !isValidBoxUrl(boxUrl) ? 'border-[var(--danger)]' : 'border-[var(--border)] focus:border-[var(--accent)]'}`}
                                         onKeyDown={(e) => { if (e.key === 'Enter') handleAddBoxLink(); if (e.key === 'Escape') setAddingLink(false); }} />
-                                    {boxUrl && !isValidBoxUrl(boxUrl) && <p className="text-[10px] text-[#EF4444]">Must be a Box URL (app.box.com or box.com)</p>}
+                                    {boxUrl && !isValidBoxUrl(boxUrl) && <p className="text-[10px] text-[var(--danger)]">Must be a Box URL (app.box.com or box.com)</p>}
                                     <div className="flex justify-end gap-2">
                                         <button onClick={() => setAddingLink(false)} className="text-xs text-[var(--text-muted)]">Cancel</button>
                                         <button onClick={handleAddBoxLink} disabled={!boxUrl || !isValidBoxUrl(boxUrl)}
@@ -478,7 +502,7 @@ export function TaskDetailPanel({
                                             <a href={link.url} target="_blank" rel="noopener noreferrer"
                                                 className="text-sm text-[var(--accent)] hover:underline truncate flex-1">{link.label}</a>
                                             <ExternalLink className="w-3 h-3 text-[var(--text-faint)]" />
-                                            <button onClick={() => handleRemoveBoxLink(i)} className="opacity-0 group-hover:opacity-100 p-0.5 text-[var(--text-faint)] hover:text-[#EF4444] transition-all">
+                                            <button onClick={() => handleRemoveBoxLink(i)} className="opacity-0 group-hover:opacity-100 p-0.5 text-[var(--text-faint)] hover:text-[var(--danger)] transition-all">
                                                 <X className="w-3 h-3" />
                                             </button>
                                         </div>
@@ -509,7 +533,7 @@ export function TaskDetailPanel({
                                             {item.label}
                                         </span>
                                         <button onClick={() => deleteItem.mutate({ id: item.id, pursuitId })}
-                                            className="opacity-0 group-hover:opacity-100 p-0.5 text-[var(--text-faint)] hover:text-[#EF4444] transition-all">
+                                            className="opacity-0 group-hover:opacity-100 p-0.5 text-[var(--text-faint)] hover:text-[var(--danger)] transition-all">
                                             <X className="w-3 h-3" />
                                         </button>
                                     </div>

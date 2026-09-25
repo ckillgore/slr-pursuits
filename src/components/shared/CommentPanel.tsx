@@ -5,6 +5,7 @@ import { Send, X, AtSign } from 'lucide-react';
 import { useEntityComments, useCreateComment, useUsers } from '@/hooks/useSupabaseQueries';
 import { useAuth } from '@/components/AuthProvider';
 import type { CommentEntityType, EntityComment, UserProfile } from '@/types';
+import { toast } from '@/lib/toast';
 
 interface CommentPanelProps {
     entityType: CommentEntityType;
@@ -143,7 +144,7 @@ export default function CommentPanel({ entityType, entityId, onClose }: CommentP
             mentions,
         }, {
             onSuccess: () => setDraft(''),
-            onError: (err) => alert(`Failed to post comment: ${err instanceof Error ? err.message : 'Unknown error'}`),
+            onError: (err) => toast.error('Failed to post comment', err),
         });
     }, [draft, profile?.id, entityType, entityId, createComment]);
 

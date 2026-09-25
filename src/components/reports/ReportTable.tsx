@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { ChevronDown, ChevronRight, ArrowUpDown } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronUp } from 'lucide-react';
 import type { ReportConfig, ReportFieldKey, PursuitStage } from '@/types';
 import type { ReportRow } from '@/lib/supabase/queries';
 import type { GroupNode } from '@/hooks/useReportEngine';
@@ -20,6 +20,9 @@ interface ReportTableProps {
     editMode?: boolean;
     onCellEdit?: (row: ReportRow, field: ReportFieldDef, rawValue: string | number | null) => void;
 }
+
+/** md+: pin the first column while wide reports scroll sideways. Opaque so scrolled cells don't show through. */
+const STICKY_FIRST_BODY = 'md:sticky md:left-0 md:z-10 md:bg-[var(--bg-primary)] md:border-r md:border-r-[var(--border)]';
 
 // ── Inline edit cell ────────────────────────────────
 function EditableCell({
@@ -248,7 +251,7 @@ export function ReportTable({
                 <td
                     key={col.key}
                     className={`flex justify-between items-center md:table-cell px-3 py-2 text-xs text-[var(--text-secondary)] border-b border-[var(--table-row-border)] ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'md:text-right tabular-nums' : ''
-                        }`}
+                        } ${ci === 0 ? STICKY_FIRST_BODY : ''}`}
                     style={ci === 0 ? { paddingLeft: `${depth * 24 + 12}px` } : undefined}
                 >
                     <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase tracking-wide mr-4">{col.label}</span>
@@ -278,7 +281,7 @@ export function ReportTable({
         elements.push(
             <tr key={`group-${path}`} className="block md:table-row bg-[var(--bg-primary)] hover:bg-[var(--table-row-border)] cursor-pointer transition-colors border border-[var(--border)] md:border-0 mb-3 md:mb-0 rounded-lg md:rounded-none overflow-hidden" onClick={() => toggleCollapse(path)}>
                 <td
-                    className="block md:table-cell px-3 py-2 text-xs font-semibold text-[var(--text-primary)] border-b border-[var(--border)]"
+                    className={`block md:table-cell px-3 py-2 text-xs font-semibold text-[var(--text-primary)] border-b border-[var(--border)] ${STICKY_FIRST_BODY}`}
                     style={{ paddingLeft: `${depth * 24 + 8}px` }}
                     colSpan={1}
                 >
@@ -321,21 +324,26 @@ export function ReportTable({
     };
 
     return (
-        <div className="overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] md:bg-transparent p-2 md:p-0">
-            <table className="w-full min-w-full md:min-w-max block md:table">
-                <thead className="hidden md:table-header-group sticky top-0 z-10">
-                    <tr className="bg-[var(--bg-primary)]">
-                        {columns.map(col => (
+        // md+: the grid scrolls inside its own frame (both axes) so the header
+        // row, the first column and the totals row stay pinned.
+        <div className="overflow-x-auto md:overflow-auto md:max-h-[calc(100vh-13rem)] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] md:bg-transparent p-2 md:p-0">
+            <table className="w-full min-w-full md:min-w-max block md:table md:border-separate md:border-spacing-0">
+                <thead className="hidden md:table-header-group">
+                    <tr>
+                        {columns.map((col, ci) => (
                             <th
                                 key={col.key}
-                                className={`px-3 py-2.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border)] whitespace-nowrap cursor-pointer hover:text-[var(--text-secondary)] transition-colors select-none ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right' : 'text-left'
+                                aria-sort={config.sortBy?.field === col.key ? (config.sortBy.direction === 'asc' ? 'ascending' : 'descending') : undefined}
+                                className={`sticky top-0 ${ci === 0 ? 'left-0 z-30' : 'z-20'} bg-[var(--bg-primary)] px-3 py-2.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border)] whitespace-nowrap cursor-pointer hover:text-[var(--text-secondary)] transition-colors select-none ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'text-right' : 'text-left'
                                     }`}
                                 onClick={() => onSort(col.key)}
                             >
                                 <span className="inline-flex items-center gap-1">
                                     {col.label}
                                     {config.sortBy?.field === col.key && (
-                                        <ArrowUpDown className="w-3 h-3 text-[var(--accent)]" />
+                                        config.sortBy.direction === 'asc'
+                                            ? <ChevronUp className="w-3 h-3 text-[var(--accent)]" />
+                                            : <ChevronDown className="w-3 h-3 text-[var(--accent)]" />
                                     )}
                                 </span>
                             </th>
@@ -354,7 +362,7 @@ export function ReportTable({
                         {columns.map((col, ci) => (
                             <td
                                 key={col.key}
-                                className={`flex justify-between items-center md:table-cell px-3 py-2 text-[11px] text-[var(--text-primary)] border-b border-[var(--border)] md:border-b-0 md:border-t-2 md:whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'md:text-right tabular-nums' : ''
+                                className={`flex justify-between items-center md:table-cell md:sticky md:bottom-0 ${ci === 0 ? 'md:left-0 md:z-30' : 'md:z-20'} md:bg-[var(--bg-elevated)] px-3 py-2 text-[11px] text-[var(--text-primary)] border-b border-[var(--border)] md:border-b-0 md:border-t-2 md:whitespace-nowrap ${col.type === 'currency' || col.type === 'number' || col.type === 'percent' ? 'md:text-right tabular-nums' : ''
                                     }`}
                             >
                                 <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase tracking-wide mr-4">{col.label}</span>

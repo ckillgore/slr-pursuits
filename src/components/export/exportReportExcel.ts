@@ -8,6 +8,8 @@ import type { ReportConfig, ReportFieldKey, PursuitStage, ReportDataSource } fro
 import type { ReportRow } from '@/lib/supabase/queries';
 import type { GroupNode } from '@/hooks/useReportEngine';
 import { REPORT_FIELD_MAP } from '@/lib/reportFields';
+import { downloadBlob } from './download';
+import { downloadFileName } from './tableExport';
 
 // ── Theme ────────────────────────────────────────────────────
 const HEADER_FILL: ExcelJS.FillPattern = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A1F2B' } };
@@ -33,6 +35,7 @@ function getNumFormat(fieldDef: { type: string; key: string }): string | undefin
         return '$#,##0';
     }
     if (fieldDef.type === 'percent') return '0.0%';
+    if (fieldDef.type === 'date') return 'mm/dd/yyyy';
     if (fieldDef.type === 'number') {
         // Match the on-screen formatters: years without a thousands separator,
         // acres to 2 dp, millage (a small decimal like 0.0215) to 4 dp.
@@ -42,6 +45,29 @@ function getNumFormat(fieldDef: { type: string; key: string }): string | undefin
         return '#,##0';
     }
     return undefined;
+}
+
+/**
+ * Cell value for Excel: numbers stay numeric and dates become real dates (so
+ * they sort, filter and sum), empty values stay truly empty.
+ */
+function toExcelValue(type: string, raw: string | number | null | undefined): string | number | Date | null {
+    if (raw === null || raw === undefined || raw === '') return null;
+    if (type === 'currency' || type === 'number' || type === 'percent') {
+        const n = typeof raw === 'number' ? raw : Number(raw);
+        return Number.isFinite(n) ? n : String(raw);
+    }
+    if (type === 'date') {
+        const str = String(raw);
+        // Keep the calendar day the app shows: a bare YYYY-MM-DD is that day;
+        // a timestamp is converted to its local day. Excel dates carry no
+        // zone, so write the day at UTC midnight.
+        const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str);
+        if (ymd) return new Date(Date.UTC(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3])));
+        const d = new Date(str);
+        return Number.isNaN(d.getTime()) ? str : new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    }
+    return raw;
 }
 
 // ── Column width by field type ───────────────────────────────
@@ -93,6 +119,14 @@ export async function exportReportToExcel(opts: ReportExcelOptions) {
     const label = sourceLabel(config.dataSource);
     const ws = wb.addWorksheet(label, {
         properties: { defaultColWidth: 14 },
+        // Print landscape for wide reports, one page across, header row repeated.
+        pageSetup: {
+            orientation: fieldDefs.length > 8 ? 'landscape' : 'portrait',
+            fitToPage: true,
+            fitToWidth: 1,
+            fitToHeight: 0,
+            printTitlesRow: '1:1',
+        },
     });
 
     // ── Column setup ─────────────────────────────────────────
@@ -111,12 +145,9 @@ export async function exportReportToExcel(opts: ReportExcelOptions) {
 
     // ── Helper: emit a data row ──────────────────────────────
     function addDataRow(row: ReportRow) {
-        const values = fieldDefs.map(fd => {
-            const raw = fd.getValue(row, stages);
-            return raw ?? '';
-        });
+        const values = fieldDefs.map(fd => toExcelValue(fd.type, fd.getValue(row, stages)));
         const xlRow = ws.addRow(values);
-        xlRow.eachCell((cell, colNum) => {
+        xlRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
             const fd = fieldDefs[colNum - 1];
             if (!fd) return;
             cell.font = DATA_FONT;
@@ -192,16 +223,11 @@ export async function exportReportToExcel(opts: ReportExcelOptions) {
     addAggRow('Total', totalAggregates, TOTAL_FILL, TOTAL_FONT, totalAggregates._count ?? undefined);
 
     // ── Freeze pane at header ────────────────────────────────
-    ws.views = [{ state: 'frozen', ySplit: 1, xSplit: 0, activeCell: 'A2' }];
+    // First column (the record name) stays visible while scrolling across.
+    ws.views = [{ state: 'frozen', ySplit: 1, xSplit: fieldDefs.length > 1 ? 1 : 0, activeCell: 'B2' }];
 
     // ── Download ─────────────────────────────────────────────
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const dateStr = new Date().toISOString().slice(0, 10);
-    a.download = `${label.replace(/\s+/g, '_')}_Report_${dateStr}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, downloadFileName(`${label}_Report`, 'xlsx'));
 }

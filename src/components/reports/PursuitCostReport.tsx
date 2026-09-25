@@ -193,7 +193,7 @@ export function PursuitCostReport() {
                     <div className="text-[10px] uppercase font-bold text-[var(--text-faint)] tracking-wider mb-1">Total Earnest Money</div>
                     <div className="text-xl sm:text-2xl font-bold text-[var(--text-primary)]">{formatCurrency(totalEarnest)}</div>
                 </div>
-                <div className="card !p-4 border-l-4 border-l-[#F59E0B]">
+                <div className="card !p-4 border-l-4 border-l-[var(--warning)]">
                     <div className="text-[10px] uppercase font-bold text-[var(--text-faint)] tracking-wider mb-1">Total Gross WIP</div>
                     <div className="text-xl sm:text-2xl font-bold text-[var(--text-primary)]">{formatCurrency(totalWip)}</div>
                 </div>
@@ -285,10 +285,10 @@ export function PursuitCostReport() {
                                             {!row.isJVSelfPursuit && <span className="text-sm text-[var(--text-muted)] truncate max-w-[200px]">{row.property_name}</span>}
                                         </div>
                                     </td>
-                                    <td className="text-right font-mono text-sm text-[var(--text-primary)]">{formatCurrency(row.earnest_money)}</td>
-                                    <td className="text-right font-mono text-sm text-[var(--text-primary)]">{formatCurrency(row.wip)}</td>
-                                    <td className="text-right font-mono text-sm text-[var(--danger)]">{formatCurrency(row.wip_contra)}</td>
-                                    <td className="text-right font-mono text-sm font-bold text-[var(--accent)]">{formatCurrency(row.net_cost)}</td>
+                                    <td className="text-right font-mono tabular-nums text-sm text-[var(--text-primary)]">{formatCurrency(row.earnest_money)}</td>
+                                    <td className="text-right font-mono tabular-nums text-sm text-[var(--text-primary)]">{formatCurrency(row.wip)}</td>
+                                    <td className="text-right font-mono tabular-nums text-sm text-[var(--danger)]">{formatCurrency(row.wip_contra)}</td>
+                                    <td className="text-right font-mono tabular-nums text-sm font-bold text-[var(--accent)]">{formatCurrency(row.net_cost)}</td>
                                     <td className="text-right">
                                         {row.pursuit ? (
                                             <Link href={`/pursuits/${row.pursuit.id}?tab=costs`} className="inline-flex items-center justify-center p-1.5 rounded-lg text-[var(--accent)] hover:bg-[var(--accent-subtle)] transition-colors" title="View Detail">
@@ -330,10 +330,10 @@ export function PursuitCostReport() {
                             <tfoot className="sticky bottom-0 bg-[var(--bg-elevated)] shadow-[0_-1px_3px_rgba(0,0,0,0.05)] border-t border-[var(--border)]">
                                 <tr>
                                     <td colSpan={2} className="font-bold text-right text-xs uppercase tracking-wider text-[var(--text-secondary)] py-3">Totals</td>
-                                    <td className="text-right font-mono font-bold text-[var(--text-primary)] text-sm">{formatCurrency(totalEarnest)}</td>
-                                    <td className="text-right font-mono font-bold text-[var(--text-primary)] text-sm">{formatCurrency(totalWip)}</td>
-                                    <td className="text-right font-mono font-bold text-[var(--danger)] text-sm">{formatCurrency(totalContra)}</td>
-                                    <td className="text-right font-mono font-bold text-[var(--accent)] text-sm">{formatCurrency(totalNet)}</td>
+                                    <td className="text-right font-mono tabular-nums font-bold text-[var(--text-primary)] text-sm">{formatCurrency(totalEarnest)}</td>
+                                    <td className="text-right font-mono tabular-nums font-bold text-[var(--text-primary)] text-sm">{formatCurrency(totalWip)}</td>
+                                    <td className="text-right font-mono tabular-nums font-bold text-[var(--danger)] text-sm">{formatCurrency(totalContra)}</td>
+                                    <td className="text-right font-mono tabular-nums font-bold text-[var(--accent)] text-sm">{formatCurrency(totalNet)}</td>
                                     <td></td>
                                 </tr>
                             </tfoot>

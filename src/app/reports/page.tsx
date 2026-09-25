@@ -32,6 +32,7 @@ import {
 } from '@/hooks/useSupabaseQueries';
 import { useReportEngine } from '@/hooks/useReportEngine';
 import { useAuth } from '@/components/AuthProvider';
+import { toast } from '@/lib/toast';
 import type { ReportConfig, ReportFieldKey, ReportTemplate, ReportDataSource } from '@/types';
 import {
     Loader2,
@@ -94,6 +95,17 @@ const DEFAULT_SALE_COMP_CONFIG: ReportConfig = {
     sortBy: undefined,
 };
 
+/** Starting config when a data source is picked or a template is cleared. */
+function defaultConfigFor(source: ReportDataSource): ReportConfig {
+    switch (source) {
+        case 'land_comps': return DEFAULT_COMP_CONFIG;
+        case 'key_dates': return DEFAULT_KEY_DATES_CONFIG;
+        case 'rent_comps': return DEFAULT_RENT_COMP_CONFIG;
+        case 'sale_comps': return DEFAULT_SALE_COMP_CONFIG;
+        default: return DEFAULT_PURSUIT_CONFIG;
+    }
+}
+
 export default function ReportsPage() {
     const { data: templates = [], isLoading: loadingTemplates } = useReportTemplates();
     const { data: stages = [] } = useStages();
@@ -135,6 +147,18 @@ export default function ReportsPage() {
     const [tabExport, setTabExport] = useState<{ build: ReportExportBuilder } | null>(null);
     const registerTabExport = useCallback((build: ReportExportBuilder | null) => {
         setTabExport(build ? { build } : null);
+    }, []);
+
+    // Deep link: /reports?source=pursuit_costs opens that tab (used by the
+    // unmapped-property drilldown's back button). Read once on mount.
+    useEffect(() => {
+        const requested = new URLSearchParams(window.location.search).get('source');
+        const known: ReportDataSource[] = ['pursuits', 'rent_comps', 'land_comps', 'predev_budgets', 'key_dates', 'sale_comps', 'pursuit_costs'];
+        if (requested && (known as string[]).includes(requested)) {
+            const source = requested as ReportDataSource;
+            setDataSource(source);
+            setConfig(defaultConfigFor(source));
+        }
     }, []);
 
     // Load template config when selected
@@ -255,44 +279,64 @@ export default function ReportsPage() {
         setSelectedTemplateId(id);
         setTemplateDropdownOpen(false);
         if (!id) {
-            setConfig(dataSource === 'land_comps' ? DEFAULT_COMP_CONFIG : DEFAULT_PURSUIT_CONFIG);
+            setConfig(defaultConfigFor(dataSource));
         }
     };
 
+    // Mutation failures used to surface only as unhandled promise rejections;
+    // keep the dialog open and say what went wrong instead.
     const handleSave = async (name: string, description: string) => {
-        if (showSaveDialog === 'save' && selectedTemplate) {
-            await updateTemplate.mutateAsync({
-                id: selectedTemplate.id,
-                updates: { name, description, config },
-            });
-        } else {
-            const created = await createTemplate.mutateAsync({
-                name,
-                description,
-                config,
-                is_shared: false,
-                created_by: user?.id ?? null,
-                is_archived: false,
-            });
-            setSelectedTemplateId(created.id);
+        try {
+            if (showSaveDialog === 'save' && selectedTemplate) {
+                await updateTemplate.mutateAsync({
+                    id: selectedTemplate.id,
+                    updates: { name, description, config },
+                });
+            } else {
+                const created = await createTemplate.mutateAsync({
+                    name,
+                    description,
+                    config,
+                    is_shared: false,
+                    created_by: user?.id ?? null,
+                    is_archived: false,
+                });
+                setSelectedTemplateId(created.id);
+            }
+            setShowSaveDialog(null);
+            toast.success(`Saved "${name}"`);
+        } catch (err) {
+            console.error('Failed to save report template:', err);
+            toast.error('Failed to save report template', err);
         }
-        setShowSaveDialog(null);
     };
 
     const handleDelete = async () => {
         if (!selectedTemplate) return;
-        await deleteTemplate.mutateAsync(selectedTemplate.id);
-        setSelectedTemplateId(null);
-        setConfig(dataSource === 'land_comps' ? DEFAULT_COMP_CONFIG : DEFAULT_PURSUIT_CONFIG);
-        setShowDeleteConfirm(false);
+        try {
+            await deleteTemplate.mutateAsync(selectedTemplate.id);
+            setSelectedTemplateId(null);
+            setConfig(defaultConfigFor(dataSource));
+            setShowDeleteConfirm(false);
+        } catch (err) {
+            console.error('Failed to delete report template:', err);
+            toast.error('Failed to delete report template', err);
+        }
     };
 
     const handleToggleShare = async () => {
         if (!selectedTemplate) return;
-        if (selectedTemplate.is_shared) {
-            await unshareTemplate.mutateAsync(selectedTemplate.id);
-        } else {
-            await shareTemplate.mutateAsync(selectedTemplate.id);
+        try {
+            if (selectedTemplate.is_shared) {
+                await unshareTemplate.mutateAsync(selectedTemplate.id);
+                toast.success('Report is now personal');
+            } else {
+                await shareTemplate.mutateAsync(selectedTemplate.id);
+                toast.success('Report shared companywide');
+            }
+        } catch (err) {
+            console.error('Failed to change report sharing:', err);
+            toast.error('Failed to change sharing', err);
         }
     };
 
@@ -437,7 +481,7 @@ export default function ReportsPage() {
                             <button
                                 onClick={() => setEditMode(!editMode)}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${editMode
-                                    ? 'bg-amber-500/15 text-amber-600'
+                                    ? 'bg-[var(--warning-bg)] text-[var(--warning)]'
                                     : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
                                     }`}
                                 title={editMode ? 'Exit edit mode' : 'Edit cells inline'}
@@ -471,12 +515,15 @@ export default function ReportsPage() {
                                     }
                                 } catch (err) {
                                     console.error('XLSX export failed:', err);
+                                    toast.error('Excel export failed', err);
+                                } finally {
+                                    setIsExportingXlsx(false);
                                 }
-                                setIsExportingXlsx(false);
                             }}
-                            disabled={isExportingXlsx || !canExport}
+                            disabled={isExportingXlsx || isExportingPdf || !canExport}
+                            aria-busy={isExportingXlsx}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-40 transition-colors"
-                            title="Export Excel"
+                            title={canExport ? 'Export Excel' : 'Nothing to export yet'}
                         >
                             {isExportingXlsx ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
                             XLSX
@@ -499,30 +546,30 @@ export default function ReportsPage() {
                                         fileName = downloadFileName(spec.fileBase, 'pdf');
                                     } else {
                                         const { ReportPDF } = await import('@/components/export/ReportPDF');
+                                        const { downloadFileName } = await import('@/components/export/tableExport');
                                         doc = <ReportPDF config={config} groupTree={groupTree} flatRows={filteredRows} isGrouped={isGrouped} totalAggregates={totalAggregates} stages={stages} />;
-                                        const dateStr = new Date().toISOString().slice(0, 10);
                                         const src = config.dataSource === 'land_comps' ? 'Land_Comps' : config.dataSource === 'rent_comps' ? 'Rent_Comps' : config.dataSource === 'sale_comps' ? 'Sale_Comps' : 'Pursuits';
-                                        fileName = `${src}_Report_${dateStr}.pdf`;
+                                        // Local date: toISOString() is UTC and names evening exports for tomorrow.
+                                        fileName = downloadFileName(`${src}_Report`, 'pdf');
                                     }
 
                                     const blob = await pdf(doc).toBlob();
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = fileName;
-                                    a.click();
-                                    URL.revokeObjectURL(url);
+                                    const { downloadBlob } = await import('@/components/export/download');
+                                    downloadBlob(blob, fileName);
                                 } catch (err) {
                                     console.error('PDF export failed:', err);
+                                    toast.error('PDF export failed', err);
+                                } finally {
+                                    setIsExportingPdf(false);
                                 }
-                                setIsExportingPdf(false);
                             }}
-                            disabled={isExportingPdf || !canExport}
+                            disabled={isExportingPdf || isExportingXlsx || !canExport}
+                            aria-busy={isExportingPdf}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-40 transition-colors"
-                            title="Export PDF"
+                            title={canExport ? 'Export PDF' : 'Nothing to export yet'}
                         >
                             {isExportingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
-                            PDF
+                            {isExportingPdf ? 'Building…' : 'PDF'}
                         </button>
 
                         {/* Share / Unshare button — visible to creator or admin/owner */}
@@ -628,7 +675,7 @@ export default function ReportsPage() {
 
                 {/* ── Read-only banner for shared templates the user can't edit ── */}
                 {selectedTemplate && selectedTemplate.is_shared && !canEditTemplate && (
-                    <div className="flex items-center gap-2 px-4 md:px-6 py-2 bg-[var(--accent-subtle)] border-b border-[#D4DEF7] text-xs text-[var(--accent)]">
+                    <div className="flex items-center gap-2 px-4 md:px-6 py-2 bg-[var(--accent-subtle)] border-b border-[var(--accent)]/20 text-xs text-[var(--accent)]">
                         <Globe className="w-3.5 h-3.5" />
                         This is a shared companywide report. You can view and use &quot;Save As&quot; to create your own copy, but only admins or owners can edit the original.
                     </div>
@@ -665,9 +712,11 @@ export default function ReportsPage() {
                                 <FileSpreadsheet className="w-12 h-12 text-[var(--border-strong)] mb-3" />
                                 <p className="text-sm text-[var(--text-muted)] mb-1">No data to display</p>
                                 <p className="text-xs text-[var(--text-faint)]">
-                                    {reportData && reportData.length > 0
+                                    {activeData && activeData.length > 0
                                         ? 'Try adjusting your filters to see results.'
-                                        : 'Create some pursuits with one-pagers to populate reports.'}
+                                        : dataSource === 'pursuits'
+                                            ? 'Create some pursuits with one-pagers to populate reports.'
+                                            : 'There are no records for this data source yet.'}
                                 </p>
                             </div>
                         ) : (
@@ -725,7 +774,7 @@ export default function ReportsPage() {
                             <button
                                 onClick={handleDelete}
                                 disabled={deleteTemplate.isPending}
-                                className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:bg-[#B91C1C] disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
+                                className="px-4 py-2 rounded-lg bg-[var(--danger)] hover:opacity-90 disabled:opacity-50 text-white text-sm font-medium transition-colors shadow-sm"
                             >
                                 {deleteTemplate.isPending ? 'Deleting...' : 'Delete'}
                             </button>

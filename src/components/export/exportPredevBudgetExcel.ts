@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { downloadBlob } from './download';
 import type { Pursuit, PredevBudget, PredevBudgetLineItem, PredevScheduleItem } from '@/types';
 
 // Formatting helpers
@@ -33,7 +34,13 @@ export async function exportPredevBudgetToExcel({
     const wb = new ExcelJS.Workbook();
     wb.creator = 'SLR Pursuits';
     const sheetName = viewMode === 'budget' ? 'Budget' : viewMode === 'forecast' ? 'Forecast' : 'Variance';
-    const ws = wb.addWorksheet(`Pre-Dev ${sheetName}`, { properties: { defaultColWidth: 14 } });
+    const ws = wb.addWorksheet(`Pre-Dev ${sheetName}`, {
+        properties: { defaultColWidth: 14 },
+        // Month matrices are wide: print landscape, one page across.
+        pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+    });
+    // Real currency cells (they still sum); zero shows as a dash like the grid.
+    const MONEY_FMT = '$#,##0;-$#,##0;"—"';
     
     // Header Style
     const HEAD_FILL: ExcelJS.FillPattern = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A1F2B' } };
@@ -92,6 +99,9 @@ export async function exportPredevBudgetToExcel({
         cell.font = HEAD_FONT;
         cell.alignment = { horizontal: 'center' };
     });
+    // Keep the header row and line-item column in view, and repeat the header on printed pages.
+    ws.views = [{ state: 'frozen', ySplit: headerRow.number, xSplit: 1, activeCell: `B${headerRow.number + 1}` }];
+    ws.pageSetup.printTitlesRow = `${headerRow.number}:${headerRow.number}`;
 
     // Write Line Items
     lineItems.forEach(li => {
@@ -110,7 +120,7 @@ export async function exportPredevBudgetToExcel({
         const dataRow = ws.addRow(trData);
         dataRow.eachCell((cell, i) => {
             cell.border = BORDER;
-            if (i > 1) cell.numFmt = '#,##0';
+            if (i > 1) cell.numFmt = MONEY_FMT;
         });
     });
 
@@ -142,7 +152,7 @@ export async function exportPredevBudgetToExcel({
 
         const uRow = ws.addRow(unAllocTr);
         uRow.font = { color: { argb: 'FFD97706' }, italic: true };
-        uRow.eachCell((cell, i) => { cell.border = BORDER; if (i > 1) cell.numFmt = '#,##0'; });
+        uRow.eachCell((cell, i) => { cell.border = BORDER; if (i > 1) cell.numFmt = MONEY_FMT; });
     }
 
     // Total row — mirrors the grid's Total row
@@ -150,16 +160,11 @@ export async function exportPredevBudgetToExcel({
     totalRow.font = { bold: true };
     totalRow.eachCell((cell, i) => {
         cell.border = { top: { style: 'medium', color: { argb: 'FF1A1F2B' } } };
-        if (i > 1) cell.numFmt = '#,##0';
+        if (i > 1) cell.numFmt = MONEY_FMT;
     });
 
     // Download
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${pursuit.name.replace(/[^a-zA-Z0-9-_]/g, '') || 'Pursuit'}_PreDev_${sheetName}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `${pursuit.name.replace(/[^a-zA-Z0-9-_]/g, '') || 'Pursuit'}_PreDev_${sheetName}.xlsx`);
 }

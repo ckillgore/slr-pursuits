@@ -238,7 +238,7 @@ export function ReportConfigPanel({ config, onChange, onClose, dataSource, data 
                             <div key={idx} className="mb-2 rounded-md border border-[var(--border)] overflow-hidden">
                                 {/* Filter header — click to expand */}
                                 <div
-                                    className="flex items-center gap-1.5 px-2.5 py-2 bg-[#F8F9FA] cursor-pointer hover:bg-[var(--table-row-border)] transition-colors"
+                                    className="flex items-center gap-1.5 px-2.5 py-2 bg-[var(--bg-elevated)] cursor-pointer hover:bg-[var(--table-row-border)] transition-colors"
                                     onClick={() => setExpandedFilter(isExpanded ? null : idx)}
                                 >
                                     <Filter className="w-3 h-3 text-[var(--text-muted)] shrink-0" />
@@ -368,7 +368,7 @@ export function ReportConfigPanel({ config, onChange, onClose, dataSource, data 
                                         onDragOver={(e) => handleDragOver(e, idx)}
                                         onDrop={(e) => handleDrop(e, idx)}
                                         onDragEnd={handleDragEnd}
-                                        className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs cursor-grab active:cursor-grabbing transition-colors ${dropTargetIdx === idx ? 'bg-[var(--accent-subtle)] border border-[var(--accent)]/30' : 'bg-[var(--bg-elevated)] border border-transparent hover:bg-[#EDEEF1]'
+                                        className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs cursor-grab active:cursor-grabbing transition-colors ${dropTargetIdx === idx ? 'bg-[var(--accent-subtle)] border border-[var(--accent)]/30' : 'bg-[var(--bg-elevated)] border border-transparent hover:bg-[var(--table-row-border)]'
                                             }`}
                                     >
                                         <GripVertical className="w-3 h-3 text-[var(--border-strong)] shrink-0" />

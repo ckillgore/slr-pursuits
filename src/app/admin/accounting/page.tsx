@@ -9,6 +9,7 @@ import { usePursuits, usePursuitAccountingEntities, useUpsertPursuitAccountingEn
 import { Plus, Loader2, Trash2 } from 'lucide-react';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
 import { YardiPropertySelect, YardiJobSelect } from '@/components/accounting/YardiEntitySelect';
+import { toast } from '@/lib/toast';
 
 export default function AccountingAdminPage() {
     const { isAdminOrOwner, isLoading: authLoading } = useAuth();
@@ -47,6 +48,16 @@ export default function AccountingAdminPage() {
     };
 
     const isLoading = pursuitsLoading || entitiesLoading;
+
+    // Reset the form on close too, so cancelling an edit doesn't leave that
+    // entity's values prefilled in the next "Link Property" dialog.
+    const closeDialog = () => {
+        setShowAdd(false);
+        setEditingEntityId(null);
+        setNewPursuitId('');
+        setNewPropertyCode('');
+        setNewJobId('');
+    };
 
     const activePursuits = pursuits.filter(p => !p.is_archived && !entities.some(e => e.pursuit_id === p.id)).sort((a, b) => a.name.localeCompare(b.name));
     
@@ -121,7 +132,9 @@ export default function AccountingAdminPage() {
                                                         <button 
                                                             onClick={() => {
                                                                 if (confirm('Are you sure you want to unlink this property?')) {
-                                                                    deleteEntity.mutate({ id: entity.id, pursuit_id: entity.pursuit_id });
+                                                                    deleteEntity.mutate({ id: entity.id, pursuit_id: entity.pursuit_id }, {
+                                                                        onError: (err) => toast.error('Failed to unlink property', err),
+                                                                    });
                                                                 }
                                                             }}
                                                             className="text-[var(--border-strong)] hover:text-[var(--danger)] transition-colors p-1"
@@ -180,7 +193,7 @@ export default function AccountingAdminPage() {
                             </div>
                         </div>
                         <div className="flex justify-end gap-3 mt-6">
-                            <button onClick={() => { setShowAdd(false); setEditingEntityId(null); }} className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors">Cancel</button>
+                            <button onClick={closeDialog} className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors">Cancel</button>
                             <button 
                                 onClick={() => {
                                     if (!newPursuitId || !newPropertyCode.trim()) return;
@@ -191,13 +204,8 @@ export default function AccountingAdminPage() {
                                         job_id: newJobId.trim() ? parseInt(newJobId.trim(), 10) : null,
                                         is_primary: editingEntity ? editingEntity.is_primary : true
                                     }, {
-                                        onSuccess: () => {
-                                            setShowAdd(false);
-                                            setEditingEntityId(null);
-                                            setNewPursuitId('');
-                                            setNewPropertyCode('');
-                                            setNewJobId('');
-                                        }
+                                        onSuccess: () => closeDialog(),
+                                        onError: (err) => toast.error('Failed to save property link', err),
                                     });
                                 }} 
                                 disabled={!newPursuitId || !newPropertyCode.trim() || upsertEntity.isPending} 

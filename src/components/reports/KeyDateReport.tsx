@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
+import { Fragment, useMemo, useState, useCallback } from 'react';
 import { useKeyDateReportData, useStages } from '@/hooks/useSupabaseQueries';
 import type { KeyDateReportRow } from '@/lib/supabase/queries';
 import { REPORT_FIELD_MAP } from '@/lib/reportFields';
@@ -14,8 +14,7 @@ import {
     ChevronDown,
     ChevronUp,
     ArrowUpDown,
-    AlertTriangle,
-    Sparkles,
+    X,
 } from 'lucide-react';
 
 const DEFAULT_COLUMNS: ReportFieldKey[] = [
@@ -26,6 +25,17 @@ const DEFAULT_COLUMNS: ReportFieldKey[] = [
 ];
 
 type SortConfig = { field: ReportFieldKey; direction: 'asc' | 'desc' } | null;
+
+function isNumeric(type: string): boolean {
+    return type === 'number' || type === 'currency' || type === 'percent';
+}
+
+/** Badge colours for days-until: this week, this month, later. */
+function urgencyClass(days: number): string {
+    if (days <= 7) return 'bg-[var(--danger-bg)] text-[var(--danger)]';
+    if (days <= 30) return 'bg-[var(--warning-bg)] text-[var(--warning)]';
+    return 'bg-[var(--accent-subtle)] text-[var(--accent)]';
+}
 
 export function KeyDateReport() {
     const { data: rows = [], isLoading } = useKeyDateReportData();
@@ -166,19 +176,25 @@ export function KeyDateReport() {
         .filter(r => r.nextDate)
         .sort((a, b) => new Date(a.nextDate!.date).getTime() - new Date(b.nextDate!.date).getTime())[0]?.nextDate;
 
-    const renderRow = (row: KeyDateReportRow) => (
-        <tr key={row.pursuit.id} className="border-b border-[var(--table-row-border)] hover:bg-[var(--bg-primary)] transition-colors">
-            {DEFAULT_COLUMNS.map(colKey => {
+    // First column stays pinned while the date columns scroll sideways.
+    const stickyFirst = (ci: number, bg: string) =>
+        ci === 0 ? `sticky left-0 z-[1] ${bg} border-r border-[var(--border)]` : '';
+
+    const renderRow = (row: KeyDateReportRow, depth = 0) => (
+        <tr key={row.pursuit.id} className="group/row hover:bg-[var(--bg-primary)] transition-colors">
+            {DEFAULT_COLUMNS.map((colKey, ci) => {
                 const field = REPORT_FIELD_MAP[colKey];
                 if (!field) return <td key={colKey} />;
                 const val = field.getKeyDateValue ? field.getKeyDateValue(row, stages) : null;
                 const formatted = field.format(val);
+                const base = `px-3 py-2 border-b border-[var(--table-row-border)] ${isNumeric(field.type) ? 'text-right' : ''} ${stickyFirst(ci, 'bg-[var(--bg-card)] group-hover/row:bg-[var(--bg-primary)]')}`;
+                const indent = ci === 0 && depth > 0 ? { paddingLeft: `${12 + depth * 16}px` } : undefined;
 
                 // Special styling for overdue count
                 if (colKey === 'kd_overdue_count' && val && Number(val) > 0) {
                     return (
-                        <td key={colKey} className="px-3 py-2">
-                            <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-[var(--danger-bg)] text-[var(--danger)]">
+                        <td key={colKey} className={base} style={indent}>
+                            <span className="text-xs font-medium tabular-nums px-1.5 py-0.5 rounded bg-[var(--danger-bg)] text-[var(--danger)]">
                                 {formatted}
                             </span>
                         </td>
@@ -189,11 +205,8 @@ export function KeyDateReport() {
                 if (colKey === 'kd_next_date_days' && val !== null) {
                     const days = Number(val);
                     return (
-                        <td key={colKey} className="px-3 py-2">
-                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${days <= 7 ? 'bg-[var(--danger-bg)] text-[var(--danger)]' :
-                                    days <= 30 ? 'bg-[#FFF8E1] text-[#CA8A04]' :
-                                        'bg-[var(--accent-subtle)] text-[var(--accent)]'
-                                }`}>
+                        <td key={colKey} className={base} style={indent}>
+                            <span className={`text-xs font-medium tabular-nums px-1.5 py-0.5 rounded ${urgencyClass(days)}`}>
                                 {days === 0 ? 'Today' : `${formatted}d`}
                             </span>
                         </td>
@@ -201,7 +214,7 @@ export function KeyDateReport() {
                 }
 
                 return (
-                    <td key={colKey} className={`px-3 py-2 text-xs ${field.type === 'text' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] font-mono tabular-nums'}`}>
+                    <td key={colKey} style={indent} className={`${base} text-xs whitespace-nowrap ${field.type === 'text' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] font-mono tabular-nums'}`}>
                         {formatted}
                     </td>
                 );
@@ -212,7 +225,7 @@ export function KeyDateReport() {
     return (
         <div>
             {/* Summary cards */}
-            <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div className="card text-center">
                     <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-1">Pursuits</p>
                     <p className="text-2xl font-bold text-[var(--text-primary)]">{filtered.length}</p>
@@ -234,11 +247,11 @@ export function KeyDateReport() {
             </div>
 
             {/* Filters */}
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3 mb-4 flex-wrap">
                 <select
                     value={groupBy}
-                    onChange={(e) => setGroupBy(e.target.value as any)}
-                    className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
+                    onChange={(e) => setGroupBy(e.target.value as 'none' | 'region' | 'stage')}
+                    className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-xs text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
                 >
                     <option value="none">No Grouping</option>
                     <option value="region">Group by Region</option>
@@ -247,23 +260,35 @@ export function KeyDateReport() {
                 <select
                     value={filterRegion}
                     onChange={(e) => setFilterRegion(e.target.value)}
-                    className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
+                    className={`px-3 py-1.5 rounded-lg border text-xs focus:border-[var(--accent)] focus:outline-none ${filterRegion
+                        ? 'bg-[var(--accent-subtle)] border-[var(--accent)]/30 text-[var(--accent)] font-medium'
+                        : 'bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-secondary)]'
+                        }`}
                 >
                     <option value="">All Regions</option>
                     {regions.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
-                <span className="ml-auto text-xs text-[var(--text-faint)]">
-                    {filtered.length} pursuit{filtered.length !== 1 ? 's' : ''}
+                {filterRegion && (
+                    <button
+                        onClick={() => setFilterRegion('')}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
+                    >
+                        <X className="w-3 h-3" />
+                        Clear filter
+                    </button>
+                )}
+                <span className="ml-auto text-xs text-[var(--text-faint)] tabular-nums">
+                    {filterRegion ? `${filtered.length} of ${rows.length}` : filtered.length} pursuit{filtered.length !== 1 ? 's' : ''}
                 </span>
             </div>
 
-            {/* Table */}
+            {/* Table — scrolls inside its frame so the header row and Pursuit column stay pinned */}
             <div className="rounded-xl border border-[var(--border)] overflow-hidden bg-[var(--bg-card)]">
-                <div className="overflow-x-auto">
-                    <table className="w-full">
+                <div className="overflow-auto max-h-[70vh]">
+                    <table className="w-full border-separate border-spacing-0">
                         <thead>
-                            <tr className="bg-[var(--bg-elevated)]">
-                                {DEFAULT_COLUMNS.map(colKey => {
+                            <tr>
+                                {DEFAULT_COLUMNS.map((colKey, ci) => {
                                     const field = REPORT_FIELD_MAP[colKey];
                                     if (!field) return <th key={colKey} />;
                                     const isSorted = sortConfig?.field === colKey;
@@ -271,9 +296,10 @@ export function KeyDateReport() {
                                         <th
                                             key={colKey}
                                             onClick={() => handleSort(colKey)}
-                                            className="px-3 py-2 text-left text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider cursor-pointer hover:text-[var(--text-secondary)] transition-colors whitespace-nowrap"
+                                            aria-sort={isSorted ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : undefined}
+                                            className={`group sticky top-0 ${ci === 0 ? 'left-0 z-20 border-r' : 'z-10'} bg-[var(--bg-elevated)] border-b border-[var(--border)] px-3 py-2 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider cursor-pointer hover:text-[var(--text-secondary)] transition-colors whitespace-nowrap ${isNumeric(field.type) ? 'text-right' : 'text-left'}`}
                                         >
-                                            <span className="flex items-center gap-1">
+                                            <span className={`inline-flex items-center gap-1 ${isNumeric(field.type) ? 'flex-row-reverse' : ''}`}>
                                                 {field.label}
                                                 {isSorted ? (
                                                     sortConfig.direction === 'asc'
@@ -290,23 +316,30 @@ export function KeyDateReport() {
                         </thead>
                         <tbody>
                             {grouped ? (
+                                // Group header and rows share the outer table so the
+                                // columns line up with the header (a nested table didn't).
                                 Array.from(grouped.entries()).map(([groupName, groupRows]) => (
-                                    <tr key={groupName}>
-                                        <td colSpan={DEFAULT_COLUMNS.length}>
-                                            <div className="px-3 py-2 bg-[var(--bg-primary)] border-b border-[var(--border)]">
+                                    <Fragment key={groupName}>
+                                        <tr>
+                                            <td className="sticky left-0 z-[1] px-3 py-2 bg-[var(--bg-primary)] border-b border-[var(--border)] whitespace-nowrap">
                                                 <span className="text-xs font-bold text-[var(--text-secondary)] uppercase">{groupName}</span>
-                                                <span className="ml-2 text-xs text-[var(--text-faint)]">({groupRows.length})</span>
-                                            </div>
-                                            <table className="w-full">
-                                                <tbody>
-                                                    {groupRows.map(renderRow)}
-                                                </tbody>
-                                            </table>
-                                        </td>
-                                    </tr>
+                                                <span className="ml-2 text-xs text-[var(--text-faint)] tabular-nums">({groupRows.length})</span>
+                                            </td>
+                                            <td colSpan={DEFAULT_COLUMNS.length - 1} className="bg-[var(--bg-primary)] border-b border-[var(--border)]" />
+                                        </tr>
+                                        {groupRows.map(r => renderRow(r, 1))}
+                                    </Fragment>
                                 ))
                             ) : (
-                                sorted.map(renderRow)
+                                sorted.map(r => renderRow(r))
+                            )}
+                            {filtered.length === 0 && (
+                                <tr>
+                                    <td colSpan={DEFAULT_COLUMNS.length} className="px-3 py-12 text-center text-xs text-[var(--text-muted)]">
+                                        No pursuits in {filterRegion || 'this region'}.{' '}
+                                        <button onClick={() => setFilterRegion('')} className="text-[var(--accent)] hover:underline">Show all regions</button>
+                                    </td>
+                                </tr>
                             )}
                         </tbody>
                     </table>
@@ -330,7 +363,7 @@ export function KeyDateReport() {
                                         <div className="flex-1 h-1.5 bg-[var(--bg-elevated)] rounded-full overflow-hidden">
                                             <div
                                                 className={`h-full rounded-full ${days <= 7 ? 'bg-[var(--danger)]' :
-                                                        days <= 30 ? 'bg-[#CA8A04]' :
+                                                        days <= 30 ? 'bg-[var(--warning)]' :
                                                             'bg-[var(--accent)]'
                                                     }`}
                                                 style={{ width: `${Math.max(5, Math.min(100, 100 - days))}%` }}
@@ -339,10 +372,7 @@ export function KeyDateReport() {
                                         <span className="text-[10px] text-[var(--text-muted)] font-mono w-28 text-right">
                                             {r.nextDate!.label}
                                         </span>
-                                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded w-12 text-center ${days <= 7 ? 'bg-[var(--danger-bg)] text-[var(--danger)]' :
-                                                days <= 30 ? 'bg-[#FFF8E1] text-[#CA8A04]' :
-                                                    'bg-[var(--accent-subtle)] text-[var(--accent)]'
-                                            }`}>
+                                        <span className={`text-[10px] font-medium tabular-nums px-1.5 py-0.5 rounded w-12 text-center ${urgencyClass(days)}`}>
                                             {days === 0 ? 'Today' : `${days}d`}
                                         </span>
                                     </div>

@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { fetchCategoryMappings } from '@/app/actions/accounting';
+import { toast } from '@/lib/toast';
 import { createClient } from '@/lib/supabase/client';
-import { Plus, Trash2, Loader2, GripVertical } from 'lucide-react';
+import { Plus, Trash2, Loader2, GripVertical, AlertTriangle, Lightbulb } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
@@ -151,9 +154,8 @@ export function BudgetDefaultsClient() {
             .from('default_predev_budget_line_items')
             .select('*')
             .order('sort_order');
-        if (!error && data) {
-            setLineItems(data);
-        }
+        if (error) toast.error('Failed to load budget defaults', error);
+        else if (data) setLineItems(data);
         setIsLoading(false);
     };
 
@@ -170,22 +172,28 @@ export function BudgetDefaultsClient() {
             .select()
             .single();
             
-        if (!error && data) {
-            setLineItems([...lineItems, data]);
-        }
+        if (error) toast.error('Failed to add line item', error);
+        else if (data) setLineItems([...lineItems, data]);
         setIsSaving(false);
     };
 
     const handleDelete = async (id: string) => {
         setIsSaving(true);
         const { error } = await supabase.from('default_predev_budget_line_items').delete().eq('id', id);
-        if (!error) setLineItems(lineItems.filter(l => l.id !== id));
+        if (error) toast.error('Failed to delete line item', error);
+        else setLineItems(lineItems.filter(l => l.id !== id));
         setIsSaving(false);
     };
 
     const handleUpdate = async (id: string, updates: Partial<DefaultLineItem>) => {
+        const previous = lineItems.find(l => l.id === id);
         setLineItems(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
-        await supabase.from('default_predev_budget_line_items').update(updates).eq('id', id);
+        const { error } = await supabase.from('default_predev_budget_line_items').update(updates).eq('id', id);
+        if (error) {
+            // Roll back so the list (and the mapping health check) shows what is actually saved.
+            if (previous) setLineItems(prev => prev.map(l => l.id === id ? previous : l));
+            toast.error('Failed to save line item', error);
+        }
     };
 
     const handleDragEnd = async (event: any) => {
@@ -218,23 +226,62 @@ export function BudgetDefaultsClient() {
             }));
             
             // Bulk upsert into Supabase to persist the order
-            await supabase.from('default_predev_budget_line_items').upsert(upsertPayload, { onConflict: 'id' });
+            const { error } = await supabase.from('default_predev_budget_line_items').upsert(upsertPayload, { onConflict: 'id' });
+            if (error) {
+                setLineItems(lineItems);
+                toast.error('Failed to save the new order', error);
+            }
             setIsSaving(false);
         }
     };
 
     // --- MAPPING HEALTH REPORT LOGIC ---
-    const allocatedPrefixes = new Set<string>();
-    lineItems.forEach(li => {
-        li.yardi_cost_groups?.forEach(code => {
-            const prefix = code.split('-')[0];
-            if (prefix) allocatedPrefixes.add(prefix);
-        });
+    // A 2-digit group is fully covered when the group code itself is mapped, or
+    // when every one of its detail codes is. Mapping a single detail code
+    // ("50-00100") leaves the rest of group 50 unallocated, so it is reported
+    // as partial rather than passing the check.
+    const { data: liveMappings } = useQuery({
+        queryKey: ['category-mappings'] as const,
+        queryFn: fetchCategoryMappings,
+        staleTime: 5 * 60 * 1000,
     });
 
-    const unallocatedCategories = Object.entries(categoryMapping).filter(([code]) => {
-        return !allocatedPrefixes.has(code);
-    });
+    const mappingHealth = useMemo(() => {
+        const mappedCodes = new Set<string>();
+        for (const li of lineItems) for (const code of li.yardi_cost_groups ?? []) mappedCodes.add(code.trim());
+
+        const detailsByGroup = new Map<string, string[]>();
+        for (const m of liveMappings ?? []) {
+            if (m.is_group_header || m.category_code.length <= 2) continue;
+            const group = m.category_code.substring(0, 2);
+            const list = detailsByGroup.get(group);
+            if (list) list.push(m.category_code);
+            else detailsByGroup.set(group, [m.category_code]);
+        }
+
+        const unmapped: [string, string][] = [];
+        const partial: { code: string; name: string; missing: string[]; mappedCount: number; knownTotal: number | null }[] = [];
+        for (const [code, name] of Object.entries(categoryMapping)) {
+            if (mappedCodes.has(code)) continue;
+            const mappedDetails = [...mappedCodes].filter(c => c.length > 2 && c.substring(0, 2) === code);
+            if (mappedDetails.length === 0) {
+                unmapped.push([code, name]);
+                continue;
+            }
+            const known = detailsByGroup.get(code);
+            if (known) {
+                const missing = known.filter(c => !mappedCodes.has(c));
+                if (missing.length === 0) continue; // every detail code mapped
+                partial.push({ code, name, missing, mappedCount: mappedDetails.length, knownTotal: known.length });
+            } else {
+                // Detail list not loaded (or unknown for this group): can't prove coverage.
+                partial.push({ code, name, missing: [], mappedCount: mappedDetails.length, knownTotal: null });
+            }
+        }
+        return { unmapped, partial };
+    }, [lineItems, liveMappings]);
+    const unallocatedCategories = mappingHealth.unmapped;
+    const partialCategories = mappingHealth.partial;
 
     if (isLoading) {
         return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-[var(--border-strong)]" /></div>;
@@ -263,15 +310,45 @@ export function BudgetDefaultsClient() {
                 {unallocatedCategories.length > 0 && (
                     <div className="bg-[var(--danger-bg)] border border-[var(--danger)] rounded-xl p-4 shadow-sm animate-in fade-in">
                         <h3 className="text-[var(--danger)] font-bold text-sm mb-2 flex items-center gap-2">
-                            ⚠️ Unallocated Cost Categories Detected ({unallocatedCategories.length})
+                            <AlertTriangle className="w-4 h-4" />
+                            Unallocated Cost Categories Detected ({unallocatedCategories.length})
                         </h3>
                         <p className="text-xs text-[var(--danger)] mb-3 opacity-90">
                             The following standard Yardi categories are missing from your default mapping.
                         </p>
                         <div className="flex flex-wrap gap-2">
                             {unallocatedCategories.map(([code, name]) => (
-                                <span key={code} className="inline-flex items-center gap-1.5 px-2 py-1 bg-white/50 text-[var(--danger)] text-xs font-semibold rounded border border-[var(--danger)]/30">
-                                    <span className="opacity-70">{code}</span> {name}
+                                <span key={code} className="inline-flex items-center gap-1.5 px-2 py-1 bg-[var(--bg-card)] text-[var(--danger)] text-xs font-semibold rounded border border-[var(--danger)]/30">
+                                    <span className="opacity-70 font-mono">{code}</span> {name}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {partialCategories.length > 0 && (
+                    <div className="bg-[var(--warning-bg)] border border-[var(--warning)]/60 rounded-xl p-4 shadow-sm animate-in fade-in">
+                        <h3 className="text-[var(--warning)] font-bold text-sm mb-2 flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4" />
+                            Partially Mapped Cost Categories ({partialCategories.length})
+                        </h3>
+                        <p className="text-xs text-[var(--warning)] mb-3 opacity-90">
+                            Only some detail codes in these groups are mapped. Yardi cost on the other codes lands in
+                            &quot;Unallocated&quot; on new budgets. Map the 2-digit group, or the remaining detail codes.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                            {partialCategories.map(p => (
+                                <span
+                                    key={p.code}
+                                    title={p.missing.length > 0 ? `Unmapped: ${p.missing.join(', ')}` : 'Detail code list unavailable; map the group code to be sure.'}
+                                    className="inline-flex items-center gap-1.5 px-2 py-1 bg-[var(--bg-card)] text-[var(--warning)] text-xs font-semibold rounded border border-[var(--warning)]/30 cursor-help"
+                                >
+                                    <span className="opacity-70 font-mono">{p.code}</span> {p.name}
+                                    <span className="font-normal opacity-80 tabular-nums">
+                                        {p.knownTotal !== null
+                                            ? `(${p.mappedCount} of ${p.knownTotal} codes)`
+                                            : `(${p.mappedCount} code${p.mappedCount !== 1 ? 's' : ''})`}
+                                    </span>
                                 </span>
                             ))}
                         </div>
@@ -318,8 +395,8 @@ export function BudgetDefaultsClient() {
                     </DndContext>
                 </div>
                 
-                <div className="p-4 bg-[var(--accent-bg)] text-[var(--accent)] rounded-lg text-sm flex items-start gap-3">
-                    <span className="shrink-0 text-xl block leading-none">💡</span>
+                <div className="p-4 bg-[var(--accent-subtle)] text-[var(--accent)] rounded-lg text-sm flex items-start gap-3">
+                    <Lightbulb className="w-5 h-5 shrink-0" />
                     <p>
                         <strong>Note on Updates:</strong> Modifications made to these defaults will only affect <strong>newly created</strong> budgets.
                     </p>

@@ -23,12 +23,13 @@ export default async function UnmappedPropertyCostsPage({ params, searchParams }
     const name = rawName || 'Unmapped Property';
 
     return (
-        <div className="flex-1 flex flex-col h-full bg-[var(--bg-main)]">
+        <div className="flex-1 flex flex-col h-full bg-[var(--bg-primary)]">
             {/* Header */}
             <div className="sticky top-0 z-10 bg-[var(--bg-primary)] border-b border-[var(--border)] px-4 sm:px-8 py-4 sm:py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                     <Link
-                        href="/reports?report=accounting"
+                        href="/reports?source=pursuit_costs"
+                        aria-label="Back to Pursuit Costs report"
                         className="inline-flex items-center justify-center p-2 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] transition-colors"
                     >
                         <ArrowLeft className="w-5 h-5" />

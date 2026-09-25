@@ -7,8 +7,11 @@
  * so the two exports can never drift apart.
  */
 
-import ExcelJS from 'exceljs';
+// Types only: the library itself is loaded inside exportTableToExcel, so the
+// PDF path (TablePDF imports the formatters below) never downloads exceljs.
+import type ExcelJS from 'exceljs';
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/constants';
+import { downloadBlob } from './download';
 
 export type ExportColumnType = 'text' | 'number' | 'currency' | 'percent' | 'date';
 export type ExportRowKind = 'data' | 'group' | 'subtotal' | 'total';
@@ -47,6 +50,8 @@ export interface TableExportSpec {
     frozenCols?: number;
     /** Summary cards reproduced above the PDF table. */
     metrics?: { label: string; value: string }[];
+    /** Footnotes printed under the table (PDF) and below the data (Excel), e.g. how a figure is computed. */
+    notes?: string[];
 }
 
 // ── Shared formatting ────────────────────────────────────────
@@ -86,23 +91,36 @@ export function alignFor(col: ExportColumn): 'left' | 'right' {
 function excelNumFmt(col: ExportColumn): string | undefined {
     const d = col.decimals ?? (col.type === 'percent' ? 1 : 0);
     const decimals = d > 0 ? `.${'0'.repeat(d)}` : '';
+    // A zero section of "—" keeps the cell numeric (it still sums) while
+    // matching the em dash the grid and PDF show for empty months.
+    const zero = col.dashOnZero ? ';"—"' : '';
     switch (col.type) {
-        case 'currency': return `$#,##0${decimals}`;
-        case 'number': return `#,##0${decimals}`;
-        case 'percent': return `0${decimals}%`;
+        case 'currency': return `$#,##0${decimals};-$#,##0${decimals}${zero}`;
+        case 'number': return `#,##0${decimals};-#,##0${decimals}${zero}`;
+        case 'percent': return `0${decimals}%;-0${decimals}%${zero}`;
         case 'date': return 'mm/dd/yyyy';
         default: return undefined;
     }
 }
 
-function columnWidth(col: ExportColumn): number {
+/** Width in characters: fits the header and, for text, the longest value, within sane bounds. */
+function columnWidth(col: ExportColumn, colIdx: number, rows: ExportRow[]): number {
     const labelLen = Math.max(col.label.length + 2, 8);
     switch (col.type) {
         case 'currency': return Math.max(labelLen, 14);
         case 'percent': return Math.max(labelLen, 10);
         case 'number': return Math.max(labelLen, 10);
         case 'date': return Math.max(labelLen, 12);
-        default: return Math.max(labelLen, 18);
+        default: {
+            let longest = 0;
+            for (const row of rows) {
+                const v = row.cells[colIdx];
+                if (v === null || v === undefined) continue;
+                const len = String(v).length + (colIdx === 0 && row.depth ? row.depth * 2 : 0);
+                if (len > longest) longest = len;
+            }
+            return Math.min(Math.max(labelLen, 14, longest + 2), 48);
+        }
     }
 }
 
@@ -132,6 +150,11 @@ const DATA_FONT: Partial<ExcelJS.Font> = { color: { argb: 'FF4A5568' }, size: 9 
 const BORDER_STYLE: Partial<ExcelJS.Borders> = {
     bottom: { style: 'thin', color: { argb: 'FFE2E5EA' } },
 };
+/** Accounting-style rule over the grand total. */
+const TOTAL_BORDER: Partial<ExcelJS.Borders> = {
+    top: { style: 'thin', color: { argb: 'FF1A1F2B' } },
+    bottom: { style: 'double', color: { argb: 'FF1A1F2B' } },
+};
 
 function styleFor(kind: ExportRowKind): { fill?: ExcelJS.FillPattern; font: Partial<ExcelJS.Font> } {
     switch (kind) {
@@ -146,15 +169,42 @@ function styleFor(kind: ExportRowKind): { fill?: ExcelJS.FillPattern; font: Part
 
 export async function exportTableToExcel(spec: TableExportSpec) {
     const { columns, rows } = spec;
+    const lastCol = Math.max(1, columns.length);
 
-    const wb = new ExcelJS.Workbook();
+    const { default: ExcelJSLib } = await import('exceljs');
+    const wb = new ExcelJSLib.Workbook();
     wb.creator = 'SLR Pursuits';
     wb.created = new Date();
 
+    // Wide matrices print landscape and one page across, with the header row
+    // repeated on every printed page.
     const ws = wb.addWorksheet(sanitizeSheetName(spec.sheetName), {
         properties: { defaultColWidth: 14 },
+        pageSetup: {
+            orientation: columns.length > 8 ? 'landscape' : 'portrait',
+            fitToPage: true,
+            fitToWidth: 1,
+            fitToHeight: 0,
+            margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3 },
+        },
     });
-    ws.columns = columns.map(col => ({ width: columnWidth(col) }));
+    ws.columns = columns.map((col, i) => ({ width: columnWidth(col, i, rows) }));
+
+    // Title block: the same context the PDF header carries (view, filters,
+    // summary figures), so a forwarded spreadsheet explains itself.
+    const addBannerLine = (text: string, font: Partial<ExcelJS.Font>) => {
+        const r = ws.addRow([text]);
+        r.font = font;
+        ws.mergeCells(r.number, 1, r.number, lastCol);
+        return r;
+    };
+    addBannerLine(spec.title, { bold: true, size: 14, color: { argb: 'FF1A1F2B' } });
+    const generated = `Generated ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    addBannerLine([spec.subtitle, generated].filter(Boolean).join(' · '), { size: 9, color: { argb: 'FF7A8599' } });
+    if (spec.metrics && spec.metrics.length > 0) {
+        addBannerLine(spec.metrics.map(m => `${m.label}: ${m.value}`).join('     '), { size: 9, bold: true, color: { argb: 'FF4A5568' } });
+    }
+    ws.addRow([]);
 
     // Header
     const headerRow = ws.addRow(columns.map(c => c.label));
@@ -164,6 +214,7 @@ export async function exportTableToExcel(spec: TableExportSpec) {
         cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
     });
     headerRow.height = 24;
+    ws.pageSetup.printTitlesRow = `${headerRow.number}:${headerRow.number}`;
 
     // Body
     for (const row of rows) {
@@ -189,6 +240,7 @@ export async function exportTableToExcel(spec: TableExportSpec) {
             if (fill) cell.fill = fill;
             cell.font = font;
             if (row.kind === 'data') cell.border = BORDER_STYLE;
+            if (row.kind === 'total') cell.border = TOTAL_BORDER;
             const nf = excelNumFmt(col);
             if (nf && typeof cell.value === 'number') cell.numFmt = nf;
             if (nf && col.type === 'date' && cell.value instanceof Date) cell.numFmt = nf;
@@ -196,22 +248,29 @@ export async function exportTableToExcel(spec: TableExportSpec) {
         });
     }
 
-    // Freeze the header plus any label columns
+    // Footnotes
+    if (spec.notes && spec.notes.length > 0) {
+        ws.addRow([]);
+        for (const note of spec.notes) {
+            const noteRow = addBannerLine(note, { italic: true, size: 8, color: { argb: 'FF7A8599' } });
+            noteRow.getCell(1).alignment = { wrapText: true, vertical: 'top' };
+            // Merged cells don't auto-grow; give a long note room to wrap.
+            const approxCharsPerLine = columns.reduce((sum, c, i) => sum + columnWidth(c, i, rows), 0);
+            noteRow.height = 12 * Math.max(1, Math.ceil(note.length / Math.max(approxCharsPerLine, 40)));
+        }
+    }
+
+    // Freeze through the header row, plus any label columns
     ws.views = [{
         state: 'frozen',
-        ySplit: 1,
+        ySplit: headerRow.number,
         xSplit: spec.frozenCols ?? 0,
-        activeCell: 'A2',
+        activeCell: `A${headerRow.number + 1}`,
     }];
 
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = downloadFileName(spec.fileBase, 'xlsx');
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, downloadFileName(spec.fileBase, 'xlsx'));
 }

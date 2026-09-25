@@ -101,6 +101,8 @@ export function ReportPDF({ config, groupTree, flatRows, isGrouped, totalAggrega
             fontFamily: 'Inter',
             fontSize,
             padding: isLandscape ? 20 : 30,
+            // Keep rows clear of the fixed footer.
+            paddingBottom: 34,
             color: colors.primary,
         },
         header: {
@@ -246,7 +248,8 @@ export function ReportPDF({ config, groupTree, flatRows, isGrouped, totalAggrega
 
     function renderGroupHeader(label: string, count: number | null | undefined) {
         allRows.push(
-            <View key={`g-${rowKey++}`} style={s.groupRow} wrap={false}>
+            // minPresenceAhead: never strand a group header at the foot of a page.
+            <View key={`g-${rowKey++}`} style={s.groupRow} wrap={false} minPresenceAhead={24}>
                 <Text style={{ ...s.groupCell, width: '100%' }}>
                     {label}{count ? ` (${count})` : ''}
                 </Text>
@@ -342,6 +345,7 @@ export function ReportPDF({ config, groupTree, flatRows, isGrouped, totalAggrega
                         <Text style={s.subtitle}>
                             {flatRows.length} records · {config.columns.length} columns
                             {config.groupBy.length > 0 && ` · Grouped by ${config.groupBy.map(k => REPORT_FIELD_MAP[k]?.label ?? k).join(', ')}`}
+                            {config.filters.length > 0 && ` · ${config.filters.length} filter${config.filters.length !== 1 ? 's' : ''} applied`}
                         </Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
@@ -375,7 +379,7 @@ export function ReportPDF({ config, groupTree, flatRows, isGrouped, totalAggrega
                         <Image src="/images/slr-logo.png" style={{ width: 50, height: 'auto' }} />
                         <Text> · {reportTitle}</Text>
                     </View>
-                    <Text>Generated {dateStr}</Text>
+                    <Text render={({ pageNumber, totalPages }) => `Generated ${dateStr} · Page ${pageNumber} of ${totalPages}`} />
                 </View>
             </Page>
         </Document>

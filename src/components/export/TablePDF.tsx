@@ -90,8 +90,17 @@ export function TablePDF({ spec }: TablePDFProps) {
             fontFamily: 'Inter',
             fontSize,
             padding: isLandscape ? 20 : 30,
+            // Keep rows clear of the fixed footer.
+            paddingBottom: 34,
             color: colors.primary,
         },
+        notes: {
+            marginTop: 8,
+            paddingTop: 4,
+            borderTopWidth: 0.5,
+            borderTopColor: colors.border,
+        },
+        noteText: { fontSize: 5.5, color: colors.muted, marginBottom: 1.5, lineHeight: 1.3 },
         header: {
             flexDirection: 'row',
             justifyContent: 'space-between',
@@ -165,6 +174,8 @@ export function TablePDF({ spec }: TablePDFProps) {
             backgroundColor: colors.totalBg,
             paddingVertical: 3,
             paddingHorizontal: 2,
+            borderTopWidth: 1,
+            borderTopColor: colors.primary,
         },
         totalCell: { fontSize: fontSize + 0.5, fontWeight: 700, color: colors.primary },
         footer: {
@@ -255,7 +266,14 @@ export function TablePDF({ spec }: TablePDFProps) {
                         {rows.map((row, rowIdx) => {
                             const st = rowStyles(row.kind);
                             return (
-                                <View key={`r-${rowIdx}`} style={st.row} wrap={false}>
+                                <View
+                                    key={`r-${rowIdx}`}
+                                    style={st.row}
+                                    wrap={false}
+                                    // A group header must not be stranded at the foot of a page
+                                    // with its rows on the next one.
+                                    minPresenceAhead={row.kind === 'group' ? 24 : undefined}
+                                >
                                     {pageCols.map((colIdx, i) => {
                                         const col = columns[colIdx];
                                         const raw = row.cells[colIdx] ?? null;
@@ -281,13 +299,22 @@ export function TablePDF({ spec }: TablePDFProps) {
                             );
                         })}
 
+                        {/* Footnotes — once, after the last row of each column chunk */}
+                        {spec.notes && spec.notes.length > 0 && (
+                            <View style={s.notes} wrap={false}>
+                                {spec.notes.map((note, i) => (
+                                    <Text key={`n-${i}`} style={s.noteText}>{note}</Text>
+                                ))}
+                            </View>
+                        )}
+
                         {/* Footer */}
                         <View style={s.footer} fixed>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                                 <Image src="/images/slr-logo.png" style={{ width: 50, height: 'auto' }} />
                                 <Text> · {spec.title}</Text>
                             </View>
-                            <Text>Generated {dateStr}</Text>
+                            <Text render={({ pageNumber, totalPages }) => `Generated ${dateStr} · Page ${pageNumber} of ${totalPages}`} />
                         </View>
                     </Page>
                 );

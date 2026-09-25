@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { 
     useAllPredevBudgets, 
@@ -8,7 +8,7 @@ import {
     useAllFundingSplits,
     useAllPortfolioJobCostAggregates
 } from '@/hooks/useSupabaseQueries';
-import type { PredevBudget, PredevBudgetLineItem, MonthlyCell, PursuitFundingPartner, PursuitFundingSplit, PursuitStage } from '@/types';
+import type { PredevBudget, PredevBudgetLineItem, PursuitFundingPartner, PursuitFundingSplit } from '@/types';
 import type { PredevBudgetReportRow } from '@/lib/supabase/queries';
 import type { YardiMonthlyCostAggregate } from '@/app/actions/accounting';
 import {
@@ -21,11 +21,12 @@ import {
     Filter,
     X,
     TrendingUp,
-    BarChart3,
     Shield,
+    Info,
+    AlertCircle,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/constants';
-import { isMonthClosed, forecastCellValue } from '@/lib/calculations/predevForecast';
+import { isMonthClosed, forecastCellValue, OPEN_MONTH_NOTE, dedupeYardiAggs } from '@/lib/calculations/predevForecast';
 import { useRegisterReportExport } from './ReportExportContext';
 import type { TableExportSpec, ExportColumn, ExportRow } from '@/components/export/tableExport';
 
@@ -42,41 +43,36 @@ function isMonthPendingClose(monthKey: string, today: Date, currentMonth: string
 }
 
 /**
- * The per-pursuit Yardi feed returns a 2-digit group rollup row ("50") next to
- * the detail rows ("50-00100") it was summed from. Summing both double counts,
- * so drop a group row whenever detail rows exist for the same group + month —
- * same rule as PredevBudgetTab. Cached per aggregate array.
+ * Deduped Yardi rows for one pursuit, bucketed by month. Buckets keep the feed's
+ * original row order, so every sum below adds the same numbers in the same
+ * order as a full scan would: totals are unchanged, the scan just skips the
+ * other months.
  */
-const dedupedAggsCache = new WeakMap<YardiMonthlyCostAggregate[], YardiMonthlyCostAggregate[]>();
-function dedupeYardiAggs(aggs: YardiMonthlyCostAggregate[]): YardiMonthlyCostAggregate[] {
-    const cached = dedupedAggsCache.get(aggs);
-    if (cached) return cached;
-    const hasDetail = new Set<string>();
-    for (const a of aggs) {
-        if (a.category_code.length > 2) hasDetail.add(`${a.category_code.substring(0, 2)}|${a.month}`);
+function indexAggsByMonth(aggs: YardiMonthlyCostAggregate[] | undefined): Map<string, YardiMonthlyCostAggregate[]> {
+    const byMonth = new Map<string, YardiMonthlyCostAggregate[]>();
+    if (!aggs || aggs.length === 0) return byMonth;
+    for (const a of dedupeYardiAggs(aggs)) {
+        const bucket = byMonth.get(a.month);
+        if (bucket) bucket.push(a);
+        else byMonth.set(a.month, [a]);
     }
-    const result = aggs.filter(a => a.category_code.length > 2 || !hasDetail.has(`${a.category_code}|${a.month}`));
-    dedupedAggsCache.set(aggs, result);
-    return result;
+    return byMonth;
 }
 
 function getYardiActual(
     li: PredevBudgetLineItem,
-    monthKey: string,
-    aggs: YardiMonthlyCostAggregate[] | undefined
+    monthRows: YardiMonthlyCostAggregate[] | undefined,
 ): number | null {
-    if (!aggs || aggs.length === 0 || !li.yardi_cost_groups || li.yardi_cost_groups.length === 0) return null;
+    if (!monthRows || monthRows.length === 0 || !li.yardi_cost_groups || li.yardi_cost_groups.length === 0) return null;
     let total = 0;
     let found = false;
 
     // Aggregates are keyed by detail code ("50-00100"). A line item may map a
     // whole 2-digit group ("50") or a specific detail code — same rule as
     // PredevBudgetTab, so the portfolio report ties to the pursuit page.
-    const rows = dedupeYardiAggs(aggs);
     for (const code of li.yardi_cost_groups) {
         const isGroup = code.length <= 2;
-        for (const a of rows) {
-            if (a.month !== monthKey) continue;
+        for (const a of monthRows) {
             if (isGroup ? a.category_code.substring(0, 2) === code : a.category_code === code) {
                 total += a.total_amount;
                 found = true;
@@ -87,84 +83,104 @@ function getYardiActual(
     return found ? total : null;
 }
 
+interface CoveredCodes {
+    groups: Set<string>;
+    codes: Set<string>;
+}
+
+/** The Yardi groups and detail codes that any of a budget's line items map. */
+function coveredCodesFor(lineItems: PredevBudgetLineItem[]): CoveredCodes {
+    const groups = new Set<string>();
+    const codes = new Set<string>();
+    for (const li of lineItems) {
+        for (const code of li.yardi_cost_groups ?? []) {
+            if (code.length <= 2) groups.add(code);
+            else codes.add(code);
+        }
+    }
+    return { groups, codes };
+}
+
 /**
  * Yardi cost for one month that no line item maps to. PredevBudgetTab shows
  * this as "Unallocated Yardi Actuals" and includes it in the pursuit total, so
  * the portfolio report must too or the two won't tie.
  */
 function unallocatedYardiForMonth(
-    budget: PredevBudget,
-    monthKey: string,
-    aggs: YardiMonthlyCostAggregate[] | undefined,
+    lineItems: PredevBudgetLineItem[],
+    covered: CoveredCodes,
+    monthRows: YardiMonthlyCostAggregate[] | undefined,
 ): number {
-    const lineItems = budget.line_items ?? [];
-    if (!aggs || aggs.length === 0 || lineItems.length === 0) return 0;
-    const coveredGroups = new Set<string>();
-    const coveredCodes = new Set<string>();
-    for (const li of lineItems) {
-        for (const code of li.yardi_cost_groups ?? []) {
-            if (code.length <= 2) coveredGroups.add(code);
-            else coveredCodes.add(code);
-        }
-    }
+    if (!monthRows || monthRows.length === 0 || lineItems.length === 0) return 0;
     let total = 0;
-    for (const a of dedupeYardiAggs(aggs)) {
-        if (a.month !== monthKey) continue;
-        if (coveredGroups.has(a.category_code.substring(0, 2)) || coveredCodes.has(a.category_code)) continue;
+    for (const a of monthRows) {
+        if (covered.groups.has(a.category_code.substring(0, 2)) || covered.codes.has(a.category_code)) continue;
         total += a.total_amount;
     }
     return total;
 }
 
-function effectiveValueForLineItem(
-    li: PredevBudgetLineItem,
-    monthKey: string,
-    aggs: YardiMonthlyCostAggregate[] | undefined,
-    today: Date
-): number {
-    const cell = li.monthly_values[monthKey] ?? { projected: 0, actual: null };
-    const closed = isMonthClosed(monthKey, today);
-    const yardiVal = getYardiActual(li, monthKey, aggs);
-    // Shared with PredevBudgetTab so the report ties to the pursuit page.
-    return forecastCellValue(cell, yardiVal, closed);
-}
-
 function pursuitMonthTotal(
-    budget: PredevBudget, 
-    monthKey: string, 
-    aggs: YardiMonthlyCostAggregate[] | undefined,
+    lineItems: PredevBudgetLineItem[],
+    covered: CoveredCodes,
+    monthKey: string,
+    monthRows: YardiMonthlyCostAggregate[] | undefined,
     today: Date,
     lineItemFilter?: Set<string>
 ): number {
-    const lineTotal = (budget.line_items ?? [])
+    // forecastCellValue is shared with PredevBudgetTab so the report ties to the pursuit page.
+    const closed = isMonthClosed(monthKey, today);
+    const lineTotal = lineItems
         .filter((li) => !lineItemFilter || lineItemFilter.has(li.label))
-        .reduce((sum, li) => sum + effectiveValueForLineItem(li, monthKey, aggs, today), 0);
+        .reduce((sum, li) => {
+            const cell = li.monthly_values[monthKey] ?? { projected: 0, actual: null };
+            return sum + forecastCellValue(cell, getYardiActual(li, monthRows), closed);
+        }, 0);
     // Unallocated spend belongs to no line item, so a line-item filter excludes it.
-    return lineItemFilter ? lineTotal : lineTotal + unallocatedYardiForMonth(budget, monthKey, aggs);
+    return lineItemFilter ? lineTotal : lineTotal + unallocatedYardiForMonth(lineItems, covered, monthRows);
+}
+
+/** Funding partners and split overrides, indexed once instead of scanned per cell. */
+interface FundingIndex {
+    partnersByPursuit: Map<string, PursuitFundingPartner[]>;
+    /** `${partner_id}|${month_key}` → the first matching override (what Array.find returned). */
+    splitByPartnerMonth: Map<string, PursuitFundingSplit>;
+}
+
+function buildFundingIndex(fundingPartners: PursuitFundingPartner[], fundingSplits: PursuitFundingSplit[]): FundingIndex {
+    const partnersByPursuit = new Map<string, PursuitFundingPartner[]>();
+    for (const p of fundingPartners) {
+        const list = partnersByPursuit.get(p.pursuit_id);
+        if (list) list.push(p);
+        else partnersByPursuit.set(p.pursuit_id, [p]);
+    }
+    const splitByPartnerMonth = new Map<string, PursuitFundingSplit>();
+    for (const s of fundingSplits) {
+        const key = `${s.partner_id}|${s.month_key}`;
+        if (!splitByPartnerMonth.has(key)) splitByPartnerMonth.set(key, s);
+    }
+    return { partnersByPursuit, splitByPartnerMonth };
 }
 
 function getSplitPct(
     pursuitId: string,
     monthKey: string,
-    fundingPartners: PursuitFundingPartner[],
-    fundingSplits: PursuitFundingSplit[],
+    funding: FundingIndex,
     viewMode: string
 ): number {
     if (viewMode === 'total') return 1;
 
-    const pursuitPartners = fundingPartners.filter(p => p.pursuit_id === pursuitId);
+    const pursuitPartners = funding.partnersByPursuit.get(pursuitId) ?? [];
     if (!pursuitPartners.length) {
         return viewMode === 'slrh' ? 1 : 0;
     }
-
-    const slrhPartner = pursuitPartners.find(p => p.is_slrh);
 
     let thirdPartySum = 0;
     const partnerPcts = new Map<string, number>();
 
     for (const p of pursuitPartners) {
         if (p.is_slrh) continue;
-        const override = fundingSplits.find(s => s.partner_id === p.id && s.month_key === monthKey);
+        const override = funding.splitByPartnerMonth.get(`${p.id}|${monthKey}`);
         const val = override ? (override.split_pct / 100) : (Math.max(0, p.default_split_pct || 0) / 100);
         partnerPcts.set(p.name, val);
         thirdPartySum += val;
@@ -182,38 +198,9 @@ function getSplitPct(
     return 1;
 }
 
-function pursuitMonthTotalAdjusted(
-    budget: PredevBudget,
-    monthKey: string,
-    aggs: YardiMonthlyCostAggregate[] | undefined,
-    today: Date,
-    fundingPartners: PursuitFundingPartner[],
-    fundingSplits: PursuitFundingSplit[],
-    fundingView: string,
-    lineItemFilter?: Set<string>
-): number {
-    const rawTotal = pursuitMonthTotal(budget, monthKey, aggs, today, lineItemFilter);
-    const pct = getSplitPct(budget.pursuit_id, monthKey, fundingPartners, fundingSplits, fundingView);
-    return rawTotal * pct;
-}
-
-function pursuitGrandTotal(
-    budget: PredevBudget,
-    monthKeys: string[],
-    aggs: YardiMonthlyCostAggregate[] | undefined,
-    today: Date,
-    fundingPartners: PursuitFundingPartner[],
-    fundingSplits: PursuitFundingSplit[],
-    fundingView: string,
-    lineItemFilter?: Set<string>
-): number {
-    return monthKeys.reduce((sum, mk) => sum + pursuitMonthTotalAdjusted(budget, mk, aggs, today, fundingPartners, fundingSplits, fundingView, lineItemFilter), 0);
-}
-
 function pursuitSnapshotTotal(
     budget: PredevBudget,
-    fundingPartners: PursuitFundingPartner[],
-    fundingSplits: PursuitFundingSplit[],
+    funding: FundingIndex,
     fundingView: string,
     lineItemFilter?: Set<string>,
 ): number {
@@ -224,11 +211,57 @@ function pursuitSnapshotTotal(
     for (const [lineItemId, lineItemMonths] of Object.entries(budget.budget_snapshot)) {
         if (lineItemFilter && !lineItemFilter.has(labelById.get(lineItemId) ?? '')) continue;
         for (const [monthKey, val] of Object.entries(lineItemMonths)) {
-            const pct = getSplitPct(budget.pursuit_id, monthKey, fundingPartners, fundingSplits, fundingView);
+            const pct = getSplitPct(budget.pursuit_id, monthKey, funding, fundingView);
             total += (val as number) * pct;
         }
     }
     return total;
+}
+
+/** Everything the grid, metrics and export need for one pursuit, computed once per input change. */
+interface PursuitCalc {
+    /** Sorted months this pursuit occupies (see getPursuitMonthKeys). */
+    monthKeys: string[];
+    monthSet: Set<string>;
+    /** Funding-adjusted forecast for each month in monthKeys. */
+    byMonth: Map<string, number>;
+    /** byMonth summed over monthKeys, in order. */
+    total: number;
+    /** byMonth summed over the closed months, in order. */
+    ltd: number;
+}
+
+function buildPursuitCalc(
+    row: PredevBudgetReportRow,
+    aggs: YardiMonthlyCostAggregate[] | undefined,
+    today: Date,
+    funding: FundingIndex,
+    fundingView: string,
+    lineItemFilter?: Set<string>,
+): PursuitCalc {
+    const monthKeys = getPursuitMonthKeys(row, aggs);
+    const aggsByMonth = indexAggsByMonth(aggs);
+    const lineItems = row.budget.line_items ?? [];
+    const covered = coveredCodesFor(lineItems);
+    const byMonth = new Map<string, number>();
+    let total = 0;
+    let ltd = 0;
+    for (const mk of monthKeys) {
+        const raw = pursuitMonthTotal(lineItems, covered, mk, aggsByMonth.get(mk), today, lineItemFilter);
+        const value = raw * getSplitPct(row.budget.pursuit_id, mk, funding, fundingView);
+        byMonth.set(mk, value);
+        total += value;
+        if (isMonthClosed(mk, today)) ltd += value;
+    }
+    return { monthKeys, monthSet: new Set(monthKeys), byMonth, total, ltd };
+}
+
+/** The day a month closes: 15 days after its last day, matching isMonthClosed. */
+function closeDateLabel(monthKey: string): string {
+    const [y, m] = monthKey.split('-').map(Number);
+    const monthEnd = new Date(y, m, 0);
+    const closes = new Date(monthEnd.getFullYear(), monthEnd.getMonth(), monthEnd.getDate() + 15);
+    return closes.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function formatMonthLabel(key: string): string {
@@ -272,6 +305,11 @@ function getForwardMonthKeys(rows: PredevBudgetReportRow[]): string[] {
  * is why the Grand Total row did not foot to the rows above it, and why a
  * pursuit like South Lamar could show real spend in no column at all. Ranging
  * both off the same set makes them reconcile by construction.
+ *
+ * Schedule-item months are included the same way PredevBudgetTab does, so a
+ * projection entered in a month that only the schedule extends to is counted
+ * in both places. This only takes effect when the rows carry
+ * `budget.schedule_items` (fetchAllPredevBudgets must select them).
  */
 function getPursuitMonthKeys(
     row: PredevBudgetReportRow,
@@ -279,6 +317,16 @@ function getPursuitMonthKeys(
 ): string[] {
     const keys = new Set(getForwardMonthKeys([row]));
     for (const agg of aggs ?? []) keys.add(agg.month);
+    for (const item of row.budget.schedule_items ?? []) {
+        if (!item.start_date) continue;
+        const [y, m] = item.start_date.substring(0, 7).split('-').map(Number);
+        const span = item.duration_weeks > 0 ? Math.max(1, Math.ceil(item.duration_weeks / 4.33)) : 1;
+        for (let i = 0; i < span; i++) {
+            const mm = ((m - 1 + i) % 12) + 1;
+            const yy = y + Math.floor((m - 1 + i) / 12);
+            keys.add(`${yy}-${String(mm).padStart(2, '0')}`);
+        }
+    }
     return Array.from(keys).sort();
 }
 
@@ -287,27 +335,43 @@ function getPursuitMonthKeys(
 type ViewMode = 'monthly' | 'annual';
 
 export function PredevBudgetReport() {
-    const { data: rowsRaw, isLoading: loadingBudgets } = useAllPredevBudgets();
-    const { data: fundingPartnersRaw, isLoading: loadingPartners } = useAllFundingPartners();
-    const { data: fundingSplitsRaw, isLoading: loadingSplits } = useAllFundingSplits();
-    const { data: yardiAggregates, isLoading: loadingAggregates } = useAllPortfolioJobCostAggregates();
+    const { data: rowsRaw, isLoading: loadingBudgets, error: budgetsError } = useAllPredevBudgets();
+    const { data: fundingPartnersRaw, isLoading: loadingPartners, error: partnersError } = useAllFundingPartners();
+    const { data: fundingSplitsRaw, isLoading: loadingSplits, error: splitsError } = useAllFundingSplits();
+    const { data: yardiAggregates, isLoading: loadingAggregates, error: aggregatesError } = useAllPortfolioJobCostAggregates();
 
     const isLoading = loadingBudgets || loadingPartners || loadingSplits || loadingAggregates;
+    const loadError = budgetsError || partnersError || splitsError || aggregatesError;
 
     const [viewMode, setViewMode] = useState<ViewMode>('monthly');
     const [groupBy, setGroupBy] = useState<'none' | 'region'>('none');
-    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-    
+    const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
     // Filters
     const [selectedLineItems, setSelectedLineItems] = useState<Set<string>>(new Set());
     const [selectedStages, setSelectedStages] = useState<Set<string>>(new Set());
     const [showFilterDropdown, setShowFilterDropdown] = useState(false);
     const [showStageDropdown, setShowStageDropdown] = useState(false);
-    
+    const stageDropdownRef = useRef<HTMLDivElement>(null);
+    const lineItemDropdownRef = useRef<HTMLDivElement>(null);
+
     const [fundingView, setFundingView] = useState<string>('total');
 
     const today = useMemo(() => new Date(), []);
-    
+
+    // Close the filter dropdowns on an outside click.
+    useEffect(() => {
+        if (!showStageDropdown && !showFilterDropdown) return;
+        const onMouseDown = (e: MouseEvent) => {
+            const target = e.target as Node;
+            if (stageDropdownRef.current?.contains(target) || lineItemDropdownRef.current?.contains(target)) return;
+            setShowStageDropdown(false);
+            setShowFilterDropdown(false);
+        };
+        document.addEventListener('mousedown', onMouseDown);
+        return () => document.removeEventListener('mousedown', onMouseDown);
+    }, [showStageDropdown, showFilterDropdown]);
+
     // Extracted Unique States for filtering
     const allStages = useMemo(() => {
         const map = new Map<string, { id: string, label: string }>();
@@ -333,36 +397,6 @@ export function PredevBudgetReport() {
         return arr;
     }, [rowsRaw, stageFilter]);
 
-    const monthKeys = useMemo(() => {
-        const keys = new Set(getForwardMonthKeys(rows));
-        // Add organically occurring Yardi dates outside budget bounds — only for
-        // pursuits still in the (stage-filtered) report, so filtered-out
-        // pursuits don't leave empty month columns behind.
-        for (const r of rows) {
-            for (const agg of yardiAggregates?.[r.pursuit.id] ?? []) {
-                keys.add(agg.month);
-            }
-        }
-        return Array.from(keys).sort();
-    }, [rows, yardiAggregates]);
-
-    // Per-pursuit month range (budget window ∪ Yardi months). Every total —
-    // row, group, column, grand — is restricted to this range so they foot.
-    const rowMonthKeys = useMemo(() => {
-        const m = new Map<string, Set<string>>();
-        for (const r of rows) m.set(r.pursuit.id, new Set(getPursuitMonthKeys(r, yardiAggregates?.[r.pursuit.id])));
-        return m;
-    }, [rows, yardiAggregates]);
-    const inRowRange = useCallback(
-        (r: PredevBudgetReportRow, mk: string) => rowMonthKeys.get(r.pursuit.id)?.has(mk) ?? false,
-        [rowMonthKeys],
-    );
-    // Split into closed (LTD) and forward
-    const closedMonths = useMemo(() => monthKeys.filter(mk => isMonthClosed(mk, today)), [monthKeys, today]);
-    const forwardMonths = useMemo(() => monthKeys.filter(mk => !isMonthClosed(mk, today)), [monthKeys, today]);
-
-    const yearGroups = useMemo(() => groupMonthsByYear(forwardMonths), [forwardMonths]);
-
     const allLineItemLabels = useMemo(() => {
         const labels = new Set<string>();
         for (const r of rows) {
@@ -374,6 +408,59 @@ export function PredevBudgetReport() {
     }, [rows]);
 
     const lineItemFilter = selectedLineItems.size > 0 ? selectedLineItems : undefined;
+    const activeFilterCount = selectedStages.size + selectedLineItems.size;
+
+    const funding = useMemo(
+        () => buildFundingIndex(fundingPartnersRaw ?? [], fundingSplitsRaw ?? []),
+        [fundingPartnersRaw, fundingSplitsRaw],
+    );
+
+    // ── Precompute ──────────────────────────────────────────────
+    // Every figure on this page (cells, row totals, group subtotals, column and
+    // grand totals, metrics, export) reads from this one pass. Each pursuit is
+    // restricted to its own month range (budget window ∪ Yardi months ∪
+    // schedule months), so rows, groups and the grand total foot by
+    // construction. Sums run in the same order the old per-cell code used.
+    const calc = useMemo(() => {
+        const byPursuit = new Map<string, PursuitCalc>();
+        const allMonths = new Set<string>();
+        for (const r of rows) {
+            const pc = buildPursuitCalc(r, yardiAggregates?.[r.pursuit.id], today, funding, fundingView, lineItemFilter);
+            byPursuit.set(r.pursuit.id, pc);
+            // Only pursuits still in the (stage-filtered) report contribute
+            // months, so filtered-out pursuits don't leave empty columns.
+            for (const mk of pc.monthKeys) allMonths.add(mk);
+        }
+        const monthKeys = Array.from(allMonths).sort();
+        const grandByMonth = new Map<string, number>();
+        for (const mk of monthKeys) {
+            grandByMonth.set(mk, rows.reduce((sum, r) => {
+                const pc = byPursuit.get(r.pursuit.id)!;
+                return pc.monthSet.has(mk) ? sum + (pc.byMonth.get(mk) ?? 0) : sum;
+            }, 0));
+        }
+        return { byPursuit, monthKeys, grandByMonth };
+    }, [rows, yardiAggregates, today, funding, fundingView, lineItemFilter]);
+
+    const monthKeys = calc.monthKeys;
+    const calcFor = useCallback((r: PredevBudgetReportRow) => calc.byPursuit.get(r.pursuit.id)!, [calc]);
+    /** Forecast for one pursuit-month, or null when the month is outside that pursuit's range. */
+    const cellValue = useCallback((r: PredevBudgetReportRow, mk: string): number | null => {
+        const pc = calc.byPursuit.get(r.pursuit.id);
+        if (!pc || !pc.monthSet.has(mk)) return null;
+        return pc.byMonth.get(mk) ?? 0;
+    }, [calc]);
+    const grandTotalByMonth = useCallback((mk: string) => calc.grandByMonth.get(mk) ?? 0, [calc]);
+
+    // Split into closed (LTD) and forward
+    const closedMonths = useMemo(() => monthKeys.filter(mk => isMonthClosed(mk, today)), [monthKeys, today]);
+    const forwardMonths = useMemo(() => monthKeys.filter(mk => !isMonthClosed(mk, today)), [monthKeys, today]);
+    const pendingMonths = useMemo(() => {
+        const current = getCurrentMonthKey();
+        return new Set(forwardMonths.filter(mk => isMonthPendingClose(mk, today, current)));
+    }, [forwardMonths, today]);
+
+    const yearGroups = useMemo(() => groupMonthsByYear(forwardMonths), [forwardMonths]);
 
     const toggleLineItemFilter = (label: string) => {
         setSelectedLineItems((prev) => {
@@ -413,8 +500,10 @@ export function PredevBudgetReport() {
         return Object.fromEntries(map);
     }, [rows, groupBy]);
 
+    // Groups start expanded; track the ones the user collapsed instead of
+    // re-expanding everything from an effect whenever the rows change.
     const toggleGroup = (key: string) => {
-        setExpandedGroups((prev) => {
+        setCollapsedGroups((prev) => {
             const next = new Set(prev);
             if (next.has(key)) next.delete(key);
             else next.add(key);
@@ -422,41 +511,26 @@ export function PredevBudgetReport() {
         });
     };
 
-    // Auto-expand FIX
-    useEffect(() => {
-        if (groupBy !== 'none') {
-            setExpandedGroups(new Set(Object.keys(groupedRows)));
-        }
-    }, [groupedRows, groupBy]);
-
-    // Fast-access references — memoized so downstream useMemo/useCallback deps stay stable
-    const fp = useMemo(() => fundingPartnersRaw ?? [], [fundingPartnersRaw]);
-    const fs = useMemo(() => fundingSplitsRaw ?? [], [fundingSplitsRaw]);
-
-    const grandTotalByMonth = (mk: string): number =>
-        (rows).reduce((sum, r) => !inRowRange(r, mk) ? sum : sum + pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
-
     const overallGrandTotal = monthKeys.reduce((sum, mk) => sum + grandTotalByMonth(mk), 0);
+    const overallGrandLtd = closedMonths.reduce((sum, mk) => sum + grandTotalByMonth(mk), 0);
 
     const portfolioMetrics = useMemo(() => {
-        const data = rows;
         let totalBudget = 0;
         let totalForecast = 0;
 
-        for (const r of data) {
-            const rMonthKeys = getPursuitMonthKeys(r, yardiAggregates?.[r.pursuit.id]);
+        for (const r of rows) {
             // A pursuit with no snapshot budgets at its forecast (zero variance).
             // Check for the snapshot explicitly — a snapshot that legitimately
             // sums to 0 (e.g. under a line-item filter) must not fall back.
-            const forecast = pursuitGrandTotal(r.budget, rMonthKeys, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
+            const forecast = calcFor(r).total;
             totalForecast += forecast;
             const hasSnapshot = !!r.budget.budget_snapshot && Object.keys(r.budget.budget_snapshot).length > 0;
-            totalBudget += hasSnapshot ? pursuitSnapshotTotal(r.budget, fp, fs, fundingView, lineItemFilter) : forecast;
+            totalBudget += hasSnapshot ? pursuitSnapshotTotal(r.budget, funding, fundingView, lineItemFilter) : forecast;
         }
-        
+
         const variance = totalForecast - totalBudget;
         return { totalBudget, totalForecast, variance, slrhObligation: totalForecast }; // Obligation is matched via fundingView dynamically
-    }, [rows, monthKeys, lineItemFilter, yardiAggregates, today, fp, fs, fundingView]);
+    }, [rows, calcFor, funding, fundingView, lineItemFilter]);
 
     // ── Export ──────────────────────────────────────────────────
     // Mirrors the grid below so the toolbar's XLSX/PDF buttons emit this tab's
@@ -464,7 +538,11 @@ export function PredevBudgetReport() {
     // included — an export is the data set, not the current viewport.
     const buildExportSpec = useCallback((): TableExportSpec => {
         const periodCols: ExportColumn[] = viewMode === 'monthly'
-            ? forwardMonths.map((mk) => ({ label: formatMonthLabel(mk), type: 'currency' as const, dashOnZero: true }))
+            ? forwardMonths.map((mk) => ({
+                label: pendingMonths.has(mk) ? `${formatMonthLabel(mk)}*` : formatMonthLabel(mk),
+                type: 'currency' as const,
+                dashOnZero: true,
+            }))
             : yearGroups.map((yg) => ({ label: yg.year, type: 'currency' as const, dashOnZero: true }));
 
         const columns: ExportColumn[] = [
@@ -476,14 +554,18 @@ export function PredevBudgetReport() {
             ...periodCols,
         ];
 
+        const periodMonths = (colIdx: number): string[] =>
+            viewMode === 'monthly' ? [forwardMonths[colIdx]] : yearGroups[colIdx].months;
+
         /** Sum a set of rows for one period column, respecting the active view. */
         const periodTotal = (groupRows: PredevBudgetReportRow[], colIdx: number): number => {
-            const months = viewMode === 'monthly' ? [forwardMonths[colIdx]] : yearGroups[colIdx].months;
+            const months = periodMonths(colIdx);
             let total = 0;
             for (const r of groupRows) {
                 for (const mk of months) {
-                    if (!inRowRange(r, mk)) continue;
-                    total += pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
+                    const v = cellValue(r, mk);
+                    if (v === null) continue;
+                    total += v;
                 }
             }
             return total;
@@ -493,12 +575,8 @@ export function PredevBudgetReport() {
 
         for (const [groupKey, groupRows] of Object.entries(groupedRows)) {
             if (groupBy === 'region') {
-                const groupTotal = groupRows.reduce((sum, r) =>
-                    sum + pursuitGrandTotal(r.budget, getPursuitMonthKeys(r, yardiAggregates?.[r.pursuit.id]), yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
-                const groupLtd = groupRows.reduce((sum, r) => {
-                    const rmk = getPursuitMonthKeys(r, yardiAggregates?.[r.pursuit.id]);
-                    return sum + pursuitGrandTotal(r.budget, closedMonths.filter(m => rmk.includes(m)), yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
-                }, 0);
+                const groupTotal = groupRows.reduce((sum, r) => sum + calcFor(r).total, 0);
+                const groupLtd = groupRows.reduce((sum, r) => sum + calcFor(r).ltd, 0);
 
                 exportRows.push({
                     kind: 'group',
@@ -514,19 +592,16 @@ export function PredevBudgetReport() {
             }
 
             for (const row of groupRows) {
-                const rmk = getPursuitMonthKeys(row, yardiAggregates?.[row.pursuit.id]);
-                const aggs = yardiAggregates?.[row.pursuit.id];
-                const lineTotal = pursuitGrandTotal(row.budget, rmk, aggs, today, fp, fs, fundingView, lineItemFilter);
-                const lineLtd = pursuitGrandTotal(row.budget, closedMonths.filter(m => rmk.includes(m)), aggs, today, fp, fs, fundingView, lineItemFilter);
+                const pc = calcFor(row);
 
                 const periodCells = periodCols.map((_, i) => {
-                    const months = viewMode === 'monthly' ? [forwardMonths[i]] : yearGroups[i].months;
-                    const inRange = months.some(mk => rmk.includes(mk));
+                    const months = periodMonths(i);
+                    const inRange = months.some(mk => pc.monthSet.has(mk));
                     if (!inRange) return null; // renders as an em dash, like the grid
-                    return months.reduce((sum, mk) =>
-                        rmk.includes(mk)
-                            ? sum + pursuitMonthTotalAdjusted(row.budget, mk, aggs, today, fp, fs, fundingView, lineItemFilter)
-                            : sum, 0);
+                    return months.reduce((sum, mk) => {
+                        const v = cellValue(row, mk);
+                        return v === null ? sum : sum + v;
+                    }, 0);
                 });
 
                 exportRows.push({
@@ -535,8 +610,8 @@ export function PredevBudgetReport() {
                         row.pursuit.name,
                         [row.pursuit.city, row.pursuit.state].filter(Boolean).join(', ') || null,
                         row.stage?.name ?? null,
-                        lineTotal,
-                        lineLtd,
+                        pc.total,
+                        pc.ltd,
                         ...periodCells,
                     ],
                     depth: groupBy === 'region' ? 1 : 0,
@@ -544,17 +619,14 @@ export function PredevBudgetReport() {
             }
         }
 
-        const grandByMonth = (mk: string) => rows.reduce((sum, r) =>
-            !inRowRange(r, mk) ? sum : sum + pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
-
         exportRows.push({
             kind: 'total',
             cells: [
                 'GRAND TOTAL',
                 null,
                 null,
-                monthKeys.reduce((sum, mk) => sum + grandByMonth(mk), 0),
-                closedMonths.reduce((sum, mk) => sum + grandByMonth(mk), 0),
+                overallGrandTotal,
+                overallGrandLtd,
                 ...periodCols.map((_, i) => periodTotal(rows, i)),
             ],
         });
@@ -592,18 +664,35 @@ export function PredevBudgetReport() {
                 { label: 'Forecast Variance', value: `${portfolioMetrics.variance > 0 ? '+' : ''}${formatCurrency(portfolioMetrics.variance, 0)}` },
                 { label: 'Overall Forecast', value: formatCurrency(portfolioMetrics.slrhObligation, 0) },
             ],
+            notes: [
+                OPEN_MONTH_NOTE,
+                ...(viewMode === 'monthly' && pendingMonths.size > 0 ? ['* Month is past but not yet closed (pending close).'] : []),
+            ],
         };
     }, [
-        viewMode, forwardMonths, yearGroups, groupedRows, groupBy, rows, monthKeys, closedMonths,
-        yardiAggregates, today, fp, fs, fundingView, lineItemFilter, stageFilter, portfolioMetrics, inRowRange,
+        viewMode, forwardMonths, pendingMonths, yearGroups, groupedRows, groupBy, rows, overallGrandTotal, overallGrandLtd,
+        cellValue, calcFor, fundingView, lineItemFilter, stageFilter, portfolioMetrics,
     ]);
 
-    useRegisterReportExport(isLoading || rows.length === 0 ? null : buildExportSpec);
+    useRegisterReportExport(isLoading || loadError || rows.length === 0 ? null : buildExportSpec);
 
     if (isLoading) {
         return (
-            <div className="flex justify-center py-24">
+            <div className="flex flex-col items-center justify-center gap-3 py-24">
                 <Loader2 className="w-8 h-8 animate-spin text-[var(--border-strong)]" />
+                <p className="text-xs text-[var(--text-muted)]">Loading budgets and Yardi actuals…</p>
+            </div>
+        );
+    }
+
+    if (loadError) {
+        return (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+                <AlertCircle className="w-12 h-12 text-[var(--danger)] mb-3 opacity-60" />
+                <p className="text-sm text-[var(--text-primary)] mb-1">Couldn&apos;t load the pre-dev report</p>
+                <p className="text-xs text-[var(--text-muted)] max-w-md">
+                    {loadError instanceof Error ? loadError.message : 'One of the budget, funding or Yardi queries failed.'} Reload the page to try again.
+                </p>
             </div>
         );
     }
@@ -619,6 +708,8 @@ export function PredevBudgetReport() {
             </div>
         );
     }
+
+    const numCell = 'text-right font-mono tabular-nums whitespace-nowrap';
 
     return (
         <div className="space-y-4">
@@ -661,7 +752,10 @@ export function PredevBudgetReport() {
                     <select
                         value={fundingView}
                         onChange={(e) => setFundingView(e.target.value)}
-                        className="px-2 py-1 rounded-md border border-[var(--border)] text-xs text-blue-600 dark:text-blue-400 font-semibold bg-[var(--bg-card)]"
+                        className={`px-2 py-1 rounded-md border text-xs font-semibold bg-[var(--bg-card)] ${fundingView !== 'total'
+                            ? 'border-[var(--accent)]/40 text-[var(--accent)]'
+                            : 'border-[var(--border)] text-[var(--text-primary)]'
+                            }`}
                     >
                         <option value="total">Total Pursuit Forecast</option>
                         <option value="slrh">SLRH Share Forecast</option>
@@ -672,12 +766,13 @@ export function PredevBudgetReport() {
                 </div>
 
                 {/* Stage Filter */}
-                <div className="relative">
+                <div className="relative" ref={stageDropdownRef}>
                     <button
                         onClick={() => {
                             setShowStageDropdown(!showStageDropdown);
                             setShowFilterDropdown(false);
                         }}
+                        aria-expanded={showStageDropdown}
                         className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors border ${stageFilter
                                 ? 'bg-[var(--accent-subtle)] border-[var(--accent)]/30 text-[var(--accent)]'
                                 : 'border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
@@ -693,7 +788,7 @@ export function PredevBudgetReport() {
                             <div className="flex items-center justify-between px-2 mb-2">
                                 <span className="text-xs font-medium text-[var(--text-primary)]">Filter by stage</span>
                                 {(stageFilter) && (
-                                    <button onClick={clearFilters} className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+                                    <button onClick={() => setSelectedStages(new Set())} className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)]">
                                         Clear
                                     </button>
                                 )}
@@ -716,12 +811,13 @@ export function PredevBudgetReport() {
                 </div>
 
                 {/* Line Item Filter */}
-                <div className="relative">
+                <div className="relative" ref={lineItemDropdownRef}>
                     <button
                         onClick={() => {
                             setShowFilterDropdown(!showFilterDropdown);
                             setShowStageDropdown(false);
                         }}
+                        aria-expanded={showFilterDropdown}
                         className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors border ${lineItemFilter
                                 ? 'bg-[var(--accent-subtle)] border-[var(--accent)]/30 text-[var(--accent)]'
                                 : 'border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
@@ -737,7 +833,7 @@ export function PredevBudgetReport() {
                             <div className="flex items-center justify-between px-2 mb-2">
                                 <span className="text-xs font-medium text-[var(--text-primary)]">Filter by category</span>
                                 {(lineItemFilter) && (
-                                    <button onClick={clearFilters} className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+                                    <button onClick={() => setSelectedLineItems(new Set())} className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)]">
                                         Clear
                                     </button>
                                 )}
@@ -758,17 +854,43 @@ export function PredevBudgetReport() {
                         </div>
                     )}
                 </div>
+
+                {activeFilterCount > 0 && (
+                    <button
+                        onClick={clearFilters}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
+                    >
+                        <X className="w-3 h-3" />
+                        Clear filters
+                    </button>
+                )}
+
+                <span className="ml-auto text-xs text-[var(--text-faint)] tabular-nums">
+                    {rows.length} of {rowsRaw.length} pursuit{rowsRaw.length !== 1 ? 's' : ''}
+                </span>
             </div>
 
-            {/* Scope note — totals below exclude pursuits whose stage is flagged
-                out of the forecast, so they won't tie to a raw budget list. */}
-            <p className="text-[11px] text-[var(--text-faint)] -mt-1">
-                Active pipeline only — pursuits in Closed, Passed, Dead or Inactive stages are excluded.
-                Adjust per stage under Admin &rsaquo; Stages.
-            </p>
+            {/* Scope and month-rule notes. Totals exclude pursuits whose stage is
+                flagged out of the forecast, so they won't tie to a raw budget
+                list; open months follow the rule in OPEN_MONTH_NOTE. */}
+            <div className="-mt-1 space-y-0.5 text-[11px] text-[var(--text-faint)]">
+                <p>
+                    Active pipeline only — pursuits in Closed, Passed, Dead or Inactive stages are excluded.
+                    Adjust per stage under Admin &rsaquo; Stages.
+                </p>
+                <p className="flex items-start gap-1.5">
+                    <Info className="w-3 h-3 mt-px shrink-0" />
+                    <span>
+                        {OPEN_MONTH_NOTE}
+                        {pendingMonths.size > 0 && (
+                            <> Months shaded <span className="px-1 rounded bg-[var(--warning)]/15 text-[var(--warning)] font-medium">amber</span> are past but not yet closed.</>
+                        )}
+                    </span>
+                </p>
+            </div>
 
             {/* Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-1">
                         <CalendarDays className="w-4 h-4 text-[var(--text-muted)]" />
@@ -776,7 +898,7 @@ export function PredevBudgetReport() {
                             Total {fundingView !== 'total' ? 'Share ' : ''}Forecast
                         </span>
                     </div>
-                    <div className="text-2xl font-bold font-mono tracking-tight text-[var(--text-primary)]">
+                    <div className="text-2xl font-bold font-mono tabular-nums tracking-tight text-[var(--text-primary)]">
                         {formatCurrency(portfolioMetrics.totalForecast, 0)}
                     </div>
                 </div>
@@ -787,7 +909,7 @@ export function PredevBudgetReport() {
                             Total {fundingView !== 'total' ? 'Share ' : ''}Budget
                         </span>
                     </div>
-                    <div className="text-2xl font-bold font-mono tracking-tight text-[var(--text-primary)]">
+                    <div className="text-2xl font-bold font-mono tabular-nums tracking-tight text-[var(--text-primary)]">
                         {formatCurrency(portfolioMetrics.totalBudget, 0)}
                     </div>
                 </div>
@@ -798,7 +920,7 @@ export function PredevBudgetReport() {
                             Forecast Variance
                         </span>
                     </div>
-                    <div className={`text-2xl font-bold font-mono tracking-tight ${portfolioMetrics.variance > 0 ? 'text-[var(--error)]' : portfolioMetrics.variance < 0 ? 'text-[var(--success)]' : 'text-[var(--text-primary)]'}`}>
+                    <div className={`text-2xl font-bold font-mono tabular-nums tracking-tight ${portfolioMetrics.variance > 0 ? 'text-[var(--danger)]' : portfolioMetrics.variance < 0 ? 'text-[var(--success)]' : 'text-[var(--text-primary)]'}`}>
                         {portfolioMetrics.variance > 0 ? '+' : ''}{formatCurrency(portfolioMetrics.variance, 0)}
                     </div>
                 </div>
@@ -807,113 +929,111 @@ export function PredevBudgetReport() {
                         <Shield className="w-24 h-24" />
                     </div>
                     <div className="flex items-center gap-2 mb-1">
-                        <Shield className="w-4 h-4 text-emerald-500" />
+                        <Shield className="w-4 h-4 text-[var(--success)]" />
                         <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                             Overall Forecast
                         </span>
                     </div>
-                    <div className="text-2xl font-bold font-mono tracking-tight text-emerald-600 dark:text-emerald-400">
+                    <div className="text-2xl font-bold font-mono tabular-nums tracking-tight text-[var(--success)]">
                         {formatCurrency(portfolioMetrics.slrhObligation, 0)}
                     </div>
                     <p className="text-[10px] text-[var(--text-secondary)] mt-1 font-medium">Dynamically filtered by Data View</p>
                 </div>
             </div>
 
-            {/* Grid */}
-            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden shadow-sm flex flex-col h-full relative">
-                <div className="overflow-x-auto flex-1 min-h-0 [scrollbar-width:thin]">
-                    <table className="w-full min-w-max text-sm border-collapse">
+            {rows.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center bg-[var(--bg-card)] border border-[var(--border)] rounded-xl">
+                    <Filter className="w-10 h-10 text-[var(--border-strong)] mb-3" />
+                    <p className="text-sm text-[var(--text-muted)] mb-1">No pursuits match the selected stages</p>
+                    <button onClick={clearFilters} className="text-xs text-[var(--accent)] hover:underline">Clear filters</button>
+                </div>
+            ) : (
+            /* Grid — scrolls both ways inside its own frame so the header row,
+               the Pursuit column and the Grand Total stay pinned. */
+            <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden shadow-sm">
+                <div className="overflow-auto max-h-[75vh] [scrollbar-width:thin]">
+                    <table className="w-full min-w-max text-sm border-separate border-spacing-0">
                         <thead>
-                            {viewMode === 'monthly' ? (
-                                <tr className="bg-[var(--bg-elevated)] border-b border-[var(--border)]">
-                                    <th className="sticky left-0 z-20 bg-[var(--bg-elevated)] text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-r border-[var(--border)] shadow-[1px_0_0_var(--border)]" style={{ minWidth: 280 }}>
-                                        Pursuit
-                                    </th>
-                                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-r border-[var(--border)]">
-                                        Total
-                                    </th>
-                                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-r border-[var(--border)] bg-[var(--bg-elevated)]">
-                                        LTD Actuals
-                                    </th>
-                                    {forwardMonths.map((mk) => {
-                                        const isPending = isMonthPendingClose(mk, today, getCurrentMonthKey());
-                                        return (
-                                            <th key={mk} className={`text-right px-3 py-2.5 text-xs font-semibold border-r border-[var(--border)] last:border-0 min-w-[80px] ${
-                                                isPending ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-b-2 border-b-amber-500/50' : 'text-[var(--text-secondary)]'
-                                            }`}>
-                                                {formatMonthLabel(mk)}
-                                            </th>
-                                        );
-                                    })}
-                                </tr>
-                            ) : (
-                                <tr className="bg-[var(--bg-elevated)] border-b border-[var(--border)]">
-                                    <th className="sticky left-0 z-20 bg-[var(--bg-elevated)] text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-r border-[var(--border)] shadow-[1px_0_0_var(--border)]" style={{ minWidth: 280 }}>
-                                        Pursuit
-                                    </th>
-                                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-r border-[var(--border)]">
-                                        Total
-                                    </th>
-                                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-r border-[var(--border)] bg-[var(--bg-elevated)]">
-                                        LTD Actuals
-                                    </th>
-                                    {yearGroups.map((yg) => (
-                                        <th key={yg.year} className="text-right px-3 py-2.5 text-xs font-semibold text-[var(--text-primary)] border-r border-[var(--border)] last:border-0 min-w-[80px]">
-                                            {yg.year}
+                            <tr>
+                                <th className="sticky left-0 top-0 z-30 bg-[var(--bg-elevated)] text-left px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-b border-r border-[var(--border)]" style={{ minWidth: 280 }}>
+                                    Pursuit
+                                </th>
+                                <th className="sticky top-0 z-20 bg-[var(--bg-elevated)] text-right px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-b border-r border-[var(--border)]">
+                                    Total
+                                </th>
+                                <th className="sticky top-0 z-20 bg-[var(--bg-elevated)] text-right px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)] border-b border-r border-[var(--border)]" title="Life-to-date: every closed month, summed">
+                                    LTD Actuals
+                                </th>
+                                {viewMode === 'monthly' ? forwardMonths.map((mk) => {
+                                    const isPending = pendingMonths.has(mk);
+                                    return (
+                                        <th
+                                            key={mk}
+                                            title={isPending
+                                                ? `Pending close (closes ${closeDateLabel(mk)}): Yardi posted to date + full projection`
+                                                : 'Open month: Yardi posted to date + full projection'}
+                                            className={`sticky top-0 z-20 text-right px-3 py-2.5 text-xs font-semibold border-b border-r border-[var(--border)] last:border-r-0 min-w-[80px] whitespace-nowrap ${
+                                                isPending
+                                                    ? 'bg-[color-mix(in_srgb,var(--warning)_14%,var(--bg-elevated))] text-[var(--warning)] border-b-2 border-b-[var(--warning)]/50'
+                                                    : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
+                                            }`}
+                                        >
+                                            {formatMonthLabel(mk)}
                                         </th>
-                                    ))}
-                                </tr>
-                            )}
+                                    );
+                                }) : yearGroups.map((yg) => (
+                                    <th key={yg.year} className="sticky top-0 z-20 bg-[var(--bg-elevated)] text-right px-3 py-2.5 text-xs font-semibold text-[var(--text-primary)] border-b border-r border-[var(--border)] last:border-r-0 min-w-[80px]">
+                                        {yg.year}
+                                    </th>
+                                ))}
+                            </tr>
                         </thead>
                         {/* Table bodies mapped per group */}
-                            {Object.entries(groupedRows).map(([groupKey, groupRows], gIdx) => {
-                                const isExpanded = groupBy === 'none' || expandedGroups.has(groupKey);
+                            {Object.entries(groupedRows).map(([groupKey, groupRows]) => {
+                                const isExpanded = groupBy === 'none' || !collapsedGroups.has(groupKey);
                                 const isRegionBlocked = groupBy === 'region';
 
                                 // Group Subtotals
-                                const groupTotal = groupRows.reduce((sum, r) => {
-                                    const mk = getPursuitMonthKeys(r, yardiAggregates?.[r.pursuit.id]);
-                                    return sum + pursuitGrandTotal(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
-                                }, 0);
-
-                                const groupLtd = groupRows.reduce((sum, r) => {
-                                    const mk = getPursuitMonthKeys(r, yardiAggregates?.[r.pursuit.id]);
-                                    return sum + pursuitGrandTotal(r.budget, closedMonths.filter(m => mk.includes(m)), yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
+                                const groupTotal = groupRows.reduce((sum, r) => sum + calcFor(r).total, 0);
+                                const groupLtd = groupRows.reduce((sum, r) => sum + calcFor(r).ltd, 0);
+                                const groupMonthTotal = (mk: string) => groupRows.reduce((sum, r) => {
+                                    const v = cellValue(r, mk);
+                                    return v === null ? sum : sum + v;
                                 }, 0);
 
                                 return (
                                     <tbody key={groupKey || 'all'} className="group-body">
                                         {isRegionBlocked && (
-                                            <tr className="bg-[var(--bg-elevated)] border-b border-[var(--border)] transition-colors hover:bg-[var(--accent-subtle)] cursor-pointer" onClick={() => toggleGroup(groupKey)}>
-                                                <td className="sticky left-0 z-10 bg-[var(--bg-elevated)] px-4 py-2 border-r border-[var(--border)] shadow-[1px_0_0_var(--border)]">
+                                            <tr className="group/grp cursor-pointer" onClick={() => toggleGroup(groupKey)} aria-expanded={isExpanded}>
+                                                <td className="sticky left-0 z-10 bg-[var(--bg-elevated)] group-hover/grp:bg-[var(--accent-subtle)] transition-colors px-4 py-2 border-b border-r border-[var(--border)]">
                                                     <div className="flex items-center gap-2">
                                                         {isExpanded ? <ChevronDown className="w-4 h-4 text-[var(--text-muted)]" /> : <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />}
                                                         <span className="font-semibold text-xs uppercase tracking-wider text-[var(--text-primary)]">{groupKey}</span>
                                                         <span className="ml-auto text-[10px] font-medium bg-[var(--bg-card)] px-1.5 py-0.5 rounded text-[var(--text-muted)] border border-[var(--border)]">
-                                                            {groupRows.length} pursuits
+                                                            {groupRows.length} pursuit{groupRows.length !== 1 ? 's' : ''}
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td className="text-right px-4 py-2 text-xs font-bold font-mono text-[var(--text-primary)] border-r border-[var(--border)]">
+                                                <td className={`${numCell} px-4 py-2 text-xs font-bold text-[var(--text-primary)] bg-[var(--bg-elevated)] group-hover/grp:bg-[var(--accent-subtle)] border-b border-r border-[var(--border)]`}>
                                                     {formatCurrency(groupTotal, 0)}
                                                 </td>
-                                                <td className="text-right px-4 py-2 text-xs font-bold font-mono text-[var(--text-primary)] border-r border-[var(--border)] bg-[var(--bg-elevated)]">
-                                                    {formatCurrency(groupLtd, 0)}
+                                                <td className={`${numCell} px-4 py-2 text-xs font-bold text-[var(--text-primary)] bg-[var(--bg-elevated)] group-hover/grp:bg-[var(--accent-subtle)] border-b border-r border-[var(--border)]`}>
+                                                    {groupLtd === 0 ? <span className="text-[var(--text-faint)]">—</span> : formatCurrency(groupLtd, 0)}
                                                 </td>
                                                 {viewMode === 'monthly' ? forwardMonths.map((mk) => {
-                                                    const mTot = groupRows.reduce((sum, r) => !inRowRange(r, mk) ? sum : sum + pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
+                                                    const mTot = groupMonthTotal(mk);
                                                     return (
-                                                        <td key={mk} className="text-right px-3 py-2 text-xs font-medium font-mono text-[var(--text-secondary)] border-r border-[var(--border)] last:border-0 bg-[var(--bg-primary)]">
+                                                        <td key={mk} className={`${numCell} px-3 py-2 text-xs font-semibold text-[var(--text-primary)] bg-[var(--bg-elevated)] group-hover/grp:bg-[var(--accent-subtle)] border-b border-r border-[var(--border)] last:border-r-0`}>
                                                             {mTot === 0 ? <span className="text-[var(--text-faint)]">—</span> : formatCurrency(mTot, 0)}
                                                         </td>
                                                     );
                                                 }) : yearGroups.map((yg) => {
                                                     let yTot = 0;
                                                     for (const mk of yg.months) {
-                                                        yTot += groupRows.reduce((sum, r) => !inRowRange(r, mk) ? sum : sum + pursuitMonthTotalAdjusted(r.budget, mk, yardiAggregates?.[r.pursuit.id], today, fp, fs, fundingView, lineItemFilter), 0);
+                                                        yTot += groupMonthTotal(mk);
                                                     }
                                                     return (
-                                                        <td key={yg.year} className="text-right px-3 py-2 text-xs font-bold font-mono text-[var(--text-primary)] border-r border-[var(--border)] last:border-0 bg-[var(--bg-primary)]">
+                                                        <td key={yg.year} className={`${numCell} px-3 py-2 text-xs font-bold text-[var(--text-primary)] bg-[var(--bg-elevated)] group-hover/grp:bg-[var(--accent-subtle)] border-b border-r border-[var(--border)] last:border-r-0`}>
                                                             {yTot === 0 ? <span className="text-[var(--text-faint)]">—</span> : formatCurrency(yTot, 0)}
                                                         </td>
                                                     );
@@ -922,13 +1042,12 @@ export function PredevBudgetReport() {
                                         )}
 
                                         {isExpanded && groupRows.map((row) => {
-                                            const rmk = getPursuitMonthKeys(row, yardiAggregates?.[row.pursuit.id]);
-                                            const lineTotal = pursuitGrandTotal(row.budget, rmk, yardiAggregates?.[row.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
-                                            const lineLtd = pursuitGrandTotal(row.budget, closedMonths.filter(m => rmk.includes(m)), yardiAggregates?.[row.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
+                                            const pc = calcFor(row);
+                                            const location = [row.pursuit.city, row.pursuit.state].filter(Boolean).join(', ');
 
                                             return (
-                                                <tr key={row.pursuit.id} className="group/row bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)] transition-colors border-b border-[var(--border)] last:border-0">
-                                                    <td className="sticky left-0 z-10 bg-inherit px-4 py-2 border-r border-[var(--border)] shadow-[1px_0_0_var(--border)] group-hover/row:shadow-[1px_0_0_var(--border)]">
+                                                <tr key={row.pursuit.id} className="group/row bg-[var(--bg-card)] hover:bg-[var(--bg-elevated)] transition-colors">
+                                                    <td className={`sticky left-0 z-10 bg-[var(--bg-card)] group-hover/row:bg-[var(--bg-elevated)] transition-colors py-2 pr-4 border-b border-r border-[var(--border)] ${isRegionBlocked ? 'pl-8' : 'pl-4'}`}>
                                                         <div className="flex flex-col gap-0.5">
                                                             <div className="flex items-center gap-1.5">
                                                                 <Link
@@ -941,37 +1060,32 @@ export function PredevBudgetReport() {
                                                                 <ExternalLink className="w-3 h-3 text-[var(--text-faint)] opacity-0 group-hover/row:opacity-100 transition-opacity flex-shrink-0" />
                                                             </div>
                                                             <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
-                                                                <span className="truncate">{row.pursuit.city}, {row.pursuit.state}</span>
-                                                                {row.stage && (
-                                                                    <>
-                                                                        <span className="w-1 h-1 rounded-full bg-[var(--border-strong)]" />
-                                                                        <span className="truncate">{row.stage.name}</span>
-                                                                    </>
-                                                                )}
+                                                                {location && <span className="truncate">{location}</span>}
+                                                                {location && row.stage && <span className="w-1 h-1 rounded-full bg-[var(--border-strong)]" />}
+                                                                {row.stage && <span className="truncate">{row.stage.name}</span>}
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    <td className="text-right px-4 py-2 font-mono text-xs font-semibold text-[var(--text-primary)] border-r border-[var(--border)]">
-                                                        {formatCurrency(lineTotal, 0)}
+                                                    <td className={`${numCell} px-4 py-2 text-xs font-semibold text-[var(--text-primary)] border-b border-r border-[var(--border)]`}>
+                                                        {formatCurrency(pc.total, 0)}
                                                     </td>
-                                                    <td className="text-right px-4 py-2 font-mono text-xs font-semibold text-[var(--text-primary)] border-r border-[var(--border)] bg-[var(--bg-elevated)]">
-                                                        {lineLtd === 0 ? <span className="text-[var(--text-faint)]">—</span> : formatCurrency(lineLtd, 0)}
+                                                    <td className={`${numCell} px-4 py-2 text-xs font-semibold text-[var(--text-primary)] border-b border-r border-[var(--border)] bg-[var(--bg-elevated)]/60`}>
+                                                        {pc.ltd === 0 ? <span className="text-[var(--text-faint)]">—</span> : formatCurrency(pc.ltd, 0)}
                                                     </td>
                                                     {viewMode === 'monthly' ? forwardMonths.map((mk) => {
-                                                        const isPending = isMonthPendingClose(mk, today, getCurrentMonthKey());
-                                                        const inRange = rmk.includes(mk);
-                                                        if (!inRange) {
+                                                        const isPending = pendingMonths.has(mk);
+                                                        const val = cellValue(row, mk);
+                                                        if (val === null) {
                                                             return (
-                                                                <td key={mk} className={`text-right px-3 py-2 text-xs font-mono font-medium text-[var(--text-faint)] border-r border-[var(--border)] last:border-0 ${isPending ? 'bg-amber-500/5' : 'bg-[var(--bg-primary)]/30'}`}>
+                                                                <td key={mk} className={`${numCell} px-3 py-2 text-xs font-medium text-[var(--text-faint)] border-b border-r border-[var(--border)] last:border-r-0 ${isPending ? 'bg-[var(--warning)]/5' : ''}`}>
                                                                     —
                                                                 </td>
                                                             );
                                                         }
-                                                        const val = pursuitMonthTotalAdjusted(row.budget, mk, yardiAggregates?.[row.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
                                                         return (
-                                                            <td key={mk} className={`text-right px-3 py-2 text-xs font-mono font-medium border-r border-[var(--border)] last:border-0 ${
-                                                                isPending ? (val > 0 ? 'text-amber-700 dark:text-amber-400 bg-amber-500/10 font-bold' : 'text-amber-700/50 dark:text-amber-400/50 bg-amber-500/5') :
-                                                                (val > 0 ? 'text-[var(--text-primary)]' : 'text-[var(--text-faint)]')
+                                                            <td key={mk} className={`${numCell} px-3 py-2 text-xs font-medium border-b border-r border-[var(--border)] last:border-r-0 ${
+                                                                isPending ? (val !== 0 ? 'text-[var(--warning)] bg-[var(--warning)]/10 font-bold' : 'text-[var(--warning)]/50 bg-[var(--warning)]/5') :
+                                                                (val !== 0 ? 'text-[var(--text-primary)]' : 'text-[var(--text-faint)]')
                                                             }`}>
                                                                 {val === 0 ? '—' : formatCurrency(val, 0)}
                                                             </td>
@@ -979,12 +1093,11 @@ export function PredevBudgetReport() {
                                                     }) : yearGroups.map((yg) => {
                                                         let yTot = 0;
                                                         for (const mk of yg.months) {
-                                                            if (rmk.includes(mk)) {
-                                                                yTot += pursuitMonthTotalAdjusted(row.budget, mk, yardiAggregates?.[row.pursuit.id], today, fp, fs, fundingView, lineItemFilter);
-                                                            }
+                                                            const v = cellValue(row, mk);
+                                                            if (v !== null) yTot += v;
                                                         }
                                                         return (
-                                                            <td key={yg.year} className={`text-right px-3 py-2 text-xs font-mono font-semibold border-r border-[var(--border)] last:border-0 ${yTot > 0 ? 'text-[var(--text-primary)]' : 'text-[var(--text-faint)]'}`}>
+                                                            <td key={yg.year} className={`${numCell} px-3 py-2 text-xs font-semibold border-b border-r border-[var(--border)] last:border-r-0 ${yTot !== 0 ? 'text-[var(--text-primary)]' : 'text-[var(--text-faint)]'}`}>
                                                                 {yTot === 0 ? '—' : formatCurrency(yTot, 0)}
                                                             </td>
                                                         );
@@ -995,23 +1108,22 @@ export function PredevBudgetReport() {
                                     </tbody>
                                 );
                             })}
-                        {/* Remove duplicate global tbody */}
                         <tfoot>
-                            <tr className="bg-[var(--text-primary)] text-[var(--bg-card)]">
-                                <td className="sticky left-0 z-10 bg-[var(--text-primary)] px-4 py-3 border-r border-[var(--text-secondary)] shadow-[1px_0_0_var(--text-secondary)]">
+                            <tr className="text-[var(--bg-card)]">
+                                <td className="sticky left-0 bottom-0 z-30 bg-[var(--text-primary)] px-4 py-3 border-r border-[var(--text-secondary)]">
                                     <span className="text-xs font-bold uppercase tracking-wider">Grand Total</span>
                                 </td>
-                                <td className="text-right px-4 py-3 font-mono text-xs font-bold border-r border-[var(--text-secondary)] text-[var(--accent-fg)]">
+                                <td className={`${numCell} sticky bottom-0 z-20 bg-[var(--text-primary)] px-4 py-3 text-xs font-bold border-r border-[var(--text-secondary)]`}>
                                     {formatCurrency(overallGrandTotal, 0)}
                                 </td>
-                                <td className="text-right px-4 py-3 font-mono text-xs font-bold border-r border-[var(--text-secondary)] text-[var(--accent-fg)] bg-white/10">
-                                    {formatCurrency(closedMonths.reduce((sum, mk) => sum + grandTotalByMonth(mk), 0), 0)}
+                                <td className={`${numCell} sticky bottom-0 z-20 bg-[var(--text-primary)] px-4 py-3 text-xs font-bold border-r border-[var(--text-secondary)]`}>
+                                    {overallGrandLtd === 0 ? '—' : formatCurrency(overallGrandLtd, 0)}
                                 </td>
                                 {viewMode === 'monthly' ? forwardMonths.map((mk) => {
                                     const mTot = grandTotalByMonth(mk);
-                                    const isPending = isMonthPendingClose(mk, today, getCurrentMonthKey());
+                                    const isPending = pendingMonths.has(mk);
                                     return (
-                                        <td key={mk} className={`text-right px-3 py-3 font-mono text-xs font-bold border-r border-[var(--text-secondary)] last:border-0 ${isPending ? 'text-amber-200' : 'text-[var(--accent-fg)]'}`}>
+                                        <td key={mk} className={`${numCell} sticky bottom-0 z-20 bg-[var(--text-primary)] px-3 py-3 text-xs font-bold border-r border-[var(--text-secondary)] last:border-r-0 ${isPending ? 'text-[color-mix(in_srgb,var(--warning)_55%,var(--bg-card))]' : ''}`}>
                                             {mTot === 0 ? '—' : formatCurrency(mTot, 0)}
                                         </td>
                                     );
@@ -1021,7 +1133,7 @@ export function PredevBudgetReport() {
                                         yTot += grandTotalByMonth(mk);
                                     }
                                     return (
-                                        <td key={yg.year} className="text-right px-3 py-3 font-mono text-xs font-bold border-r border-[var(--text-secondary)] last:border-0 text-[var(--accent-fg)]">
+                                        <td key={yg.year} className={`${numCell} sticky bottom-0 z-20 bg-[var(--text-primary)] px-3 py-3 text-xs font-bold border-r border-[var(--text-secondary)] last:border-r-0`}>
                                             {yTot === 0 ? '—' : formatCurrency(yTot, 0)}
                                         </td>
                                     );
@@ -1031,6 +1143,7 @@ export function PredevBudgetReport() {
                     </table>
                 </div>
             </div>
+            )}
         </div>
     );
 }

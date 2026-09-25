@@ -4,6 +4,7 @@
  */
 
 import ExcelJS from 'exceljs';
+import { downloadBlob } from './download';
 import type { OnePager, Pursuit, UnitMixRow } from '@/types';
 import type { CalculationResults } from '@/types';
 
@@ -193,10 +194,5 @@ export async function exportOnePagerToExcel({ onePager, pursuit, calc, productTy
     // ==================== Download ====================
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${onePager.name.replace(/[^a-zA-Z0-9-_ ]/g, '').trim() || 'One_Pager'}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `${onePager.name.replace(/[^a-zA-Z0-9-_ ]/g, '').trim() || 'One_Pager'}.xlsx`);
 }

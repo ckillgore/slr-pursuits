@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { fetchEntityGLTotals, type YardiDetailedGLSummary } from '@/app/actions/accounting';
 import { Loader2, FileText, AlertCircle, Search } from 'lucide-react';
 import { formatCurrency } from '@/lib/constants';
+import { toast } from '@/lib/toast';
 import { useRegisterReportExport } from './ReportExportContext';
 import type { TableExportSpec, ExportColumn, ExportRow } from '@/components/export/tableExport';
 
@@ -88,7 +89,7 @@ export function EntityGLReport({ propertyCode, propertyName }: EntityGLReportPro
     if (error) {
         return (
             <div className="flex flex-col items-center justify-center p-12 w-full h-full">
-                <div className="bg-[var(--danger-subtle)] text-[var(--danger)] p-4 rounded-lg flex items-center gap-3">
+                <div className="bg-[var(--danger-bg)] text-[var(--danger)] p-4 rounded-lg flex items-center gap-3">
                     <AlertCircle className="w-5 h-5 flex-shrink-0" />
                     <p className="text-sm font-medium">{error}</p>
                 </div>
@@ -125,16 +126,16 @@ export function EntityGLReport({ propertyCode, propertyName }: EntityGLReportPro
                                     <div className="flex items-center justify-between">
                                         <span className="truncate max-w-[300px]">{row.account_name}</span>
                                         <button 
-                                            className="text-xs flex items-center gap-1 text-[var(--accent)] opacity-0 group-hover:opacity-100 transition-opacity cursor-not-allowed"
+                                            className="text-xs flex items-center gap-1 text-[var(--accent)] opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity cursor-not-allowed"
                                             title="Transaction drilldown will be available once gl_transaction_details is synced from Yardi"
-                                            onClick={() => alert("Transaction details are not yet synced to the datamart for this JV.")}
+                                            onClick={() => toast.info('Transaction details are not yet synced to the datamart for this JV.')}
                                         >
                                             <Search className="w-3 h-3" />
                                             <span>Details</span>
                                         </button>
                                     </div>
                                 </td>
-                                <td className={`text-right font-mono font-medium ${row.total_amount < 0 ? 'text-[var(--danger)]' : 'text-[var(--text-primary)]'}`}>
+                                <td className={`text-right font-mono tabular-nums font-medium whitespace-nowrap ${row.total_amount < 0 ? 'text-[var(--danger)]' : 'text-[var(--text-primary)]'}`}>
                                     {formatCurrency(row.total_amount)}
                                 </td>
                             </tr>

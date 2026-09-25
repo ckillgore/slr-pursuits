@@ -4,6 +4,7 @@
  */
 
 import ExcelJS from 'exceljs';
+import { downloadBlob } from './download';
 import type { CompSummaryPDF, StockRowPDF } from './MarketStudyPDF';
 
 // Theme colors (matching the PDF/existing exports)
@@ -186,11 +187,6 @@ export async function exportMarketStudyToExcel({ pursuitName, compSummaries, sum
     // ==================== Download ====================
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
     const safeName = (pursuitName || 'Market Study').replace(/[^a-zA-Z0-9-_ ]/g, '');
-    a.download = `${safeName} - Market Study.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `${safeName} - Market Study.xlsx`);
 }

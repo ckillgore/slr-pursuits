@@ -15,6 +15,7 @@ import {
     useDeleteOnePager,
     useDeletePursuit,
     useTemplates,
+    useTaxJurisdictions,
     usePredevBudget,
     useKeyDates,
     usePursuitDriveTime,
@@ -26,7 +27,8 @@ import { hellodataKeys } from '@/hooks/useHellodataQueries';
 import { upsertPayrollRow, fetchPursuitRentComps } from '@/lib/supabase/queries';
 import { usePredevYardiAggregates, summarizePredevBudget } from '@/components/pursuits/predevYardi';
 import { toast } from '@/lib/toast';
-import { formatCurrency, formatNumber, SF_PER_ACRE, DEFAULT_ASSUMPTIONS } from '@/lib/constants';
+import { formatCurrency, formatNumber, formatPercent, SF_PER_ACRE, DEFAULT_ASSUMPTIONS } from '@/lib/constants';
+import { findTaxJurisdiction, taxJurisdictionLabel } from '@/lib/taxJurisdictions';
 import { LocationCard } from '@/components/pursuits/LocationCard';
 import CommentTrigger from '@/components/shared/CommentTrigger';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
@@ -346,6 +348,8 @@ export default function PursuitDetailPage() {
     }, [activeTab, loadingPursuit]);
 
     const { data: templates = [] } = useTemplates({ enabled: needsOnePagerDeps });
+    const { data: taxJurisdictions = [] } = useTaxJurisdictions({ enabled: needsOnePagerDeps });
+    const taxJurisdiction = pursuit ? findTaxJurisdiction(taxJurisdictions, pursuit) : undefined;
     const matchingTemplates = templates.filter(
         (t) => t.is_active && (!newProductTypeId || t.product_type_id === newProductTypeId)
     );
@@ -417,10 +421,11 @@ const handleCreateOnePager = async () => {
                 opex_capex_reserves: tpl?.default_opex_capex_reserves ?? 0,
                 mgmt_fee_pct: tpl?.default_mgmt_fee_pct ?? DEFAULT_ASSUMPTIONS.mgmt_fee_pct,
                 payroll_burden_pct: tpl?.default_payroll_burden_pct ?? DEFAULT_ASSUMPTIONS.payroll_burden_pct,
-                tax_mil_rate: tpl?.default_tax_mil_rate ?? 0,
-                tax_assessed_pct_hard: tpl?.default_tax_assessed_pct_hard ?? DEFAULT_ASSUMPTIONS.tax_assessed_pct_hard,
-                tax_assessed_pct_land: tpl?.default_tax_assessed_pct_land ?? DEFAULT_ASSUMPTIONS.tax_assessed_pct_land,
-                tax_assessed_pct_soft: tpl?.default_tax_assessed_pct_soft ?? DEFAULT_ASSUMPTIONS.tax_assessed_pct_soft,
+                // The pursuit's tax jurisdiction beats the template: rates are local, not per product
+                tax_mil_rate: taxJurisdiction?.tax_rate ?? tpl?.default_tax_mil_rate ?? 0,
+                tax_assessed_pct_hard: taxJurisdiction?.assessed_pct_hard ?? tpl?.default_tax_assessed_pct_hard ?? DEFAULT_ASSUMPTIONS.tax_assessed_pct_hard,
+                tax_assessed_pct_land: taxJurisdiction?.assessed_pct_land ?? tpl?.default_tax_assessed_pct_land ?? DEFAULT_ASSUMPTIONS.tax_assessed_pct_land,
+                tax_assessed_pct_soft: taxJurisdiction?.assessed_pct_soft ?? tpl?.default_tax_assessed_pct_soft ?? DEFAULT_ASSUMPTIONS.tax_assessed_pct_soft,
                 sensitivity_rent_steps: [-0.15, -0.10, -0.05, 0, 0.05, 0.10, 0.15],
                 sensitivity_hard_cost_steps: [-15, -10, -5, 0, 5, 10, 15],
                 sensitivity_land_cost_steps: [-2000000, -1000000, -500000, 0, 500000, 1000000, 2000000],
@@ -1321,6 +1326,11 @@ const handleCreateOnePager = async () => {
                                         )}
                                     </div>
                                 )}
+                                <p className="text-xs text-[var(--text-muted)]">
+                                    {taxJurisdiction
+                                        ? <>Property tax: <span className="font-medium text-[var(--text-secondary)]">{formatPercent(taxJurisdiction.tax_rate, 3)}</span> on file for {taxJurisdictionLabel(taxJurisdiction)}{!taxJurisdiction.is_verified && ' (unverified)'}.</>
+                                        : <>No property tax rate on file for {[pursuit.city, pursuit.county, pursuit.state].filter(Boolean).join(', ') || 'this location'} — set it on the one-pager.</>}
+                                </p>
                             </div>
                             <div className="flex justify-end gap-3 mt-6">
                                 <button onClick={() => setShowNewOnePagerDialog(false)} className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors">Cancel</button>

@@ -22,6 +22,7 @@ import {
     useDeleteUnitPremium,
     useDuplicateOnePager,
     useArchiveOnePager,
+    useTaxJurisdictions,
     queryKeys,
 } from '@/hooks/useSupabaseQueries';
 import { useCalculations } from '@/hooks/useCalculations';
@@ -41,6 +42,7 @@ import {
     calcSensitivityMatrix,
 } from '@/lib/calculations/sensitivity';
 import { formatCurrency, formatPercent, formatNumber, SF_PER_ACRE } from '@/lib/constants';
+import { findTaxJurisdiction, taxJurisdictionLabel } from '@/lib/taxJurisdictions';
 import { PrototypePicker, FloorPlanButton } from './PrototypePicker';
 import type { UnitPrototype } from '@/hooks/useUnitPrototypes';
 import type { Pursuit, OnePager, UnitPremium } from '@/types';
@@ -98,6 +100,8 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     const duplicateOnePager = useDuplicateOnePager();
     const archiveOnePager = useArchiveOnePager();
     const { data: unitPremiums = [], isLoading: loadingPremiums } = useUnitPremiums(onePager.id);
+    const { data: taxJurisdictions = [] } = useTaxJurisdictions();
+    const taxJurisdiction = findTaxJurisdiction(taxJurisdictions, pursuit);
     const upsertUnitPremium = useUpsertUnitPremium();
     const deleteUnitPremiumMutation = useDeleteUnitPremium();
 
@@ -1300,6 +1304,33 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                         <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Property Tax Detail</h3>
                         <div className="space-y-3">
                             <FieldRow label="Tax Rate" noteKey="tax_mil_rate" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.tax_mil_rate} onChange={(v) => updateField('tax_mil_rate', v)} format="percent" decimals={4} /></FieldRow>
+                            {taxJurisdiction && (() => {
+                                const j = taxJurisdiction;
+                                const matches = Math.abs(onePager.tax_mil_rate - j.tax_rate) < 0.0000005
+                                    && onePager.tax_assessed_pct_hard === j.assessed_pct_hard
+                                    && onePager.tax_assessed_pct_land === j.assessed_pct_land
+                                    && onePager.tax_assessed_pct_soft === j.assessed_pct_soft;
+                                return (
+                                    <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--text-muted)] -mt-1">
+                                        <span title={j.notes ?? undefined}>
+                                            On file for {taxJurisdictionLabel(j)}: {formatPercent(j.tax_rate, 3)} · {formatPercent(j.assessed_pct_hard, 0)}/{formatPercent(j.assessed_pct_land, 0)}/{formatPercent(j.assessed_pct_soft, 0)} assessed{!j.is_verified && ' (unverified)'}
+                                        </span>
+                                        {!matches && (
+                                            <button
+                                                onClick={() => {
+                                                    updateField('tax_mil_rate', j.tax_rate);
+                                                    updateField('tax_assessed_pct_hard', j.assessed_pct_hard);
+                                                    updateField('tax_assessed_pct_land', j.assessed_pct_land);
+                                                    updateField('tax_assessed_pct_soft', j.assessed_pct_soft);
+                                                }}
+                                                className="text-[var(--accent)] font-medium hover:underline flex-shrink-0"
+                                            >
+                                                Apply
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                             <FieldRow label="Assessed % — Hard" noteKey="tax_assessed_pct_hard" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.tax_assessed_pct_hard} onChange={(v) => updateField('tax_assessed_pct_hard', v)} format="percent" decimals={0} /></FieldRow>
                             <FieldRow label="Assessed % — Land" noteKey="tax_assessed_pct_land" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.tax_assessed_pct_land} onChange={(v) => updateField('tax_assessed_pct_land', v)} format="percent" decimals={0} /></FieldRow>
                             <FieldRow label="Assessed % — Soft" noteKey="tax_assessed_pct_soft" fieldNotes={fieldNotes} onNoteChange={updateFieldNote}><InlineInput value={onePager.tax_assessed_pct_soft} onChange={(v) => updateField('tax_assessed_pct_soft', v)} format="percent" decimals={0} /></FieldRow>

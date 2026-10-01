@@ -21,6 +21,7 @@ import type {
     PredevBudgetLineItem,
     MonthlyCell,
     KeyDateType,
+    TaxJurisdiction,
     KeyDate,
     KeyDateStatus,
     ChecklistTemplate,
@@ -1608,6 +1609,37 @@ export async function updateLineItemCostGroups(
         .single();
     if (error) throw error;
     return data as PredevBudgetLineItem;
+}
+
+// ============================================================
+// Tax Jurisdictions (Admin Lookup)
+// ============================================================
+
+export async function fetchTaxJurisdictions(): Promise<TaxJurisdiction[]> {
+    const { data, error } = await supabase
+        .from('tax_jurisdictions')
+        .select('*')
+        .order('state')
+        .order('county')
+        .order('city', { nullsFirst: true });
+    if (error) throw error;
+    return data ?? [];
+}
+
+export async function upsertTaxJurisdiction(row: Partial<TaxJurisdiction> & { id?: string }) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data, error } = await supabase
+        .from('tax_jurisdictions')
+        .upsert({ ...row, updated_by: user?.id ?? null })
+        .select()
+        .single();
+    if (error) throw error;
+    return data as TaxJurisdiction;
+}
+
+export async function deleteTaxJurisdiction(id: string) {
+    const { error } = await supabase.from('tax_jurisdictions').delete().eq('id', id);
+    if (error) throw error;
 }
 
 // ============================================================

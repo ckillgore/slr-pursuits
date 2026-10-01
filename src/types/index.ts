@@ -353,6 +353,26 @@ export interface UserSavedView {
 
 // --- Key Date Types (Admin Lookup) ---
 
+// --- Tax Jurisdictions ---
+
+export interface TaxJurisdiction {
+  id: string;
+  state: string;
+  county: string;
+  /** null = county-wide fallback */
+  city: string | null;
+  /** Same unit as OnePager.tax_mil_rate (0.02235 = 2.235%) */
+  tax_rate: number;
+  assessed_pct_hard: number;
+  assessed_pct_land: number;
+  assessed_pct_soft: number;
+  notes: string | null;
+  is_verified: boolean;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export type KeyDateCategory = 'contract' | 'pre_development';
 export type KeyDateStatus = 'upcoming' | 'completed' | 'overdue' | 'waived';
 

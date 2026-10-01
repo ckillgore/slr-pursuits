@@ -1178,6 +1178,33 @@ export function useUpdateLineItemCostGroups() {
 // ============================================================
 
 
+export function useTaxJurisdictions(options?: { enabled?: boolean }) {
+    return useQuery({
+        queryKey: ['tax-jurisdictions'] as const,
+        queryFn: queries.fetchTaxJurisdictions,
+        staleTime: REFERENCE_STALE_TIME,
+        gcTime: REFERENCE_GC_TIME,
+        enabled: options?.enabled ?? true,
+    });
+}
+
+export function useUpsertTaxJurisdiction() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (row: Partial<import('@/types').TaxJurisdiction> & { id?: string }) =>
+            queries.upsertTaxJurisdiction(row),
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['tax-jurisdictions'] }),
+    });
+}
+
+export function useDeleteTaxJurisdiction() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) => queries.deleteTaxJurisdiction(id),
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['tax-jurisdictions'] }),
+    });
+}
+
 export function useKeyDateTypes() {
     return useQuery({
         queryKey: ['key-date-types'] as const,

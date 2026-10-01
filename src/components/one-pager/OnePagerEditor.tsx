@@ -43,6 +43,7 @@ import {
 } from '@/lib/calculations/sensitivity';
 import { formatCurrency, formatPercent, formatNumber, SF_PER_ACRE } from '@/lib/constants';
 import { findTaxJurisdiction, taxJurisdictionLabel } from '@/lib/taxJurisdictions';
+import { STANDARD_PAYROLL_ROLES, normalizePayrollRole, inferUnitType } from '@/lib/standardNames';
 import { PrototypePicker, FloorPlanButton } from './PrototypePicker';
 import type { UnitPrototype } from '@/hooks/useUnitPrototypes';
 import type { Pursuit, OnePager, UnitPremium } from '@/types';
@@ -461,7 +462,9 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     const handleUnitMixChange = useCallback(
         (rowId: string, field: string, value: number | string, oldValue: unknown) => {
             pushUndo({ entity: 'unitMix', entityId: rowId, field, oldValue, newValue: value });
-            upsertUnitMixRow.mutate({ id: rowId, one_pager_id: onePager.id, [field]: value });
+            // A label that names a bedroom count ("2 BR", "Penthouse") also sets the row's type
+            const unitType = field === 'unit_type_label' && typeof value === 'string' ? inferUnitType(value) : null;
+            upsertUnitMixRow.mutate({ id: rowId, one_pager_id: onePager.id, [field]: value, ...(unitType ? { unit_type: unitType } : {}) });
 
             // Persist total_units to the one_pagers row so dashboard/overview can read it
             if (field === 'unit_count') {
@@ -1259,6 +1262,9 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                             <div className="flex items-center gap-1.5 group/note">
                                 <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Payroll Detail</h3>
                                 <FieldNoteButton fieldKey="card_payroll" note={fieldNotes['card_payroll']} onNoteChange={updateFieldNote} />
+                                <datalist id="payroll-role-options">
+                                    {STANDARD_PAYROLL_ROLES.map((role) => <option key={role} value={role} />)}
+                                </datalist>
                             </div>
                             <div className="flex gap-2">
                                 <button type="button" onClick={(e) => { e.preventDefault(); handleAddPayroll('employee'); }} className="px-3 py-1.5 rounded-lg bg-[var(--accent-subtle)] text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white transition-colors text-xs font-semibold">+ Employee</button>
@@ -1272,7 +1278,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                     const total = calcPayrollRowTotal(row, onePager.payroll_burden_pct);
                                     return (
                                         <tr key={row.id}>
-                                            <td><DebouncedTextInput value={row.role_name} onCommit={(v) => handleUpdatePayroll(row.id, 'role_name', v, row.role_name)} placeholder={row.line_type === 'employee' ? 'Role name' : 'Contract desc'} className="inline-input text-xs w-full text-left" /></td>
+                                            <td><DebouncedTextInput value={row.role_name} onCommit={(v) => handleUpdatePayroll(row.id, 'role_name', normalizePayrollRole(v), row.role_name)} list="payroll-role-options" placeholder={row.line_type === 'employee' ? 'Role name' : 'Contract desc'} className="inline-input text-xs w-full text-left" /></td>
                                             {row.line_type === 'employee' ? (
                                                 <>
                                                     <td><InlineInput value={row.headcount} onChange={(v) => handleUpdatePayroll(row.id, 'headcount', v, row.headcount)} format="number" decimals={1} className="text-xs" /></td>

@@ -13,6 +13,7 @@ import {
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/constants';
 import { ChevronLeft, Loader2 } from 'lucide-react';
 import type { OnePager } from '@/types';
+import { isOnePagerComplete } from '@/lib/onePagerStatus';
 
 type MetricRow = {
     label: string;
@@ -112,8 +113,9 @@ export default function ComparisonPage() {
     }
 
     // Find the best YOC for highlighting
-    const yocValues = activeOPs.map(op => op.calc_yoc ?? 0);
-    const bestYoc = Math.max(...yocValues);
+    // Only complete one-pagers can be "best": a $0-land placeholder isn't a real yield
+    const yocValues = activeOPs.filter(isOnePagerComplete).map(op => op.calc_yoc ?? 0);
+    const bestYoc = yocValues.length > 0 ? Math.max(...yocValues) : 0;
 
     return (
         <AppShell>

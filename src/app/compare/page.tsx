@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/constants';
 import { Loader2, X, Plus, ChevronDown } from 'lucide-react';
 import type { OnePager, Pursuit } from '@/types';
+import { isOnePagerComplete } from '@/lib/onePagerStatus';
 
 const supabase = createClient();
 
@@ -158,7 +159,8 @@ export default function CrossComparisonPage() {
     };
 
     // Find best YOC among selected
-    const yocValues = selectedOPs.map((s) => s.onePager.calc_yoc ?? 0);
+    // Only complete one-pagers can be "best": a $0-land placeholder isn't a real yield
+    const yocValues = selectedOPs.filter((s) => isOnePagerComplete(s.onePager)).map((s) => s.onePager.calc_yoc ?? 0);
     const bestYoc = yocValues.length > 0 ? Math.max(...yocValues) : 0;
 
     return (

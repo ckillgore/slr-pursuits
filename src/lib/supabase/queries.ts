@@ -3,6 +3,7 @@
  * Used by TanStack Query hooks for caching, deduplication, and optimistic updates.
  */
 import { createClient } from './client';
+import { pickPrimaryOnePager } from '@/lib/onePagerStatus';
 import type { PursuitTeamMember, ExternalTaskParty } from '@/types';
 import type {
     Pursuit,
@@ -188,9 +189,9 @@ export async function fetchPursuits(): Promise<Pursuit[]> {
             .eq('is_archived', false)
             .order('updated_at', { ascending: false })
             .order('id')),
-        fetchAllPages<{ id: string; pursuit_id: string; calc_yoc: number | null; total_units: number | null }>(() => supabase
+        fetchAllPages<{ id: string; pursuit_id: string; calc_yoc: number | null; total_units: number; hard_cost_per_nrsf: number; land_cost: number; calc_total_budget: number | null }>(() => supabase
             .from('one_pagers')
-            .select('id, pursuit_id, calc_yoc, total_units')
+            .select('id, pursuit_id, calc_yoc, total_units, hard_cost_per_nrsf, land_cost, calc_total_budget')
             .eq('is_archived', false)
             .order('id')),
     ]);
@@ -206,16 +207,9 @@ export async function fetchPursuits(): Promise<Pursuit[]> {
     return (data ?? []).map((p: any) => {
         const pursuitOps = opsByPursuit.get(p.id) || [];
         // Determine primary one-pager YOC and units
-        let primaryYoc: number | null = null;
-        let primaryUnits: number | null = null;
-        if (p.primary_one_pager_id) {
-            const primary = pursuitOps.find((op: any) => op.id === p.primary_one_pager_id);
-            primaryYoc = primary?.calc_yoc ?? null;
-            primaryUnits = primary?.total_units ?? null;
-        } else if (pursuitOps.length === 1) {
-            primaryYoc = pursuitOps[0].calc_yoc ?? null;
-            primaryUnits = pursuitOps[0].total_units ?? null;
-        }
+        const primary = pickPrimaryOnePager(p.primary_one_pager_id, pursuitOps);
+        const primaryYoc = primary?.calc_yoc ?? null;
+        const primaryUnits = primary?.total_units ?? null;
         return {
             ...p,
             stage: p.pursuit_stages,
@@ -838,17 +832,7 @@ export async function fetchReportData(): Promise<ReportRow[]> {
 
     return (pursuits ?? []).map((p: any) => {
         const pursuit = { ...p, stage: p.pursuit_stages } as Pursuit;
-        // Determine primary one-pager:
-        // 1. Explicit primary_one_pager_id
-        // 2. Auto-select if only one one-pager
-        // 3. null if none
-        const pursuitOps = opsByPursuit.get(pursuit.id) || [];
-        let primary: OnePager | null = null;
-        if (pursuit.primary_one_pager_id && opById.has(pursuit.primary_one_pager_id)) {
-            primary = opById.get(pursuit.primary_one_pager_id)!;
-        } else if (pursuitOps.length === 1) {
-            primary = pursuitOps[0];
-        }
+        const primary = pickPrimaryOnePager(pursuit.primary_one_pager_id, opsByPursuit.get(pursuit.id) || []);
         return { pursuit, onePager: primary, _source: 'pursuit' as const };
     });
 }

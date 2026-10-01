@@ -35,6 +35,7 @@ import {
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/constants';
 import type { OnePager } from '@/types';
 import { toast } from '@/lib/toast';
+import { isOnePagerComplete, pickPrimaryOnePager } from '@/lib/onePagerStatus';
 
 // ═══════════════════════════════════════════════════════════════
 // Inline Exhibit Components (self-contained, no external deps)
@@ -203,9 +204,10 @@ export default function MemoPage() {
     // Primary one-pager (or first active)
     const primaryOnePager = useMemo(() => {
         if (!pursuit) return null;
-        const primary = onePagers.find(op => op.id === pursuit.primary_one_pager_id);
-        if (primary) return primary;
-        return onePagers.filter(op => !op.is_archived)[0] ?? null;
+        // A memo needs a scenario even when the primary is ambiguous: fall back to the
+        // first complete one, then the first one
+        const active = onePagers.filter(op => !op.is_archived);
+        return pickPrimaryOnePager(pursuit.primary_one_pager_id, active) ?? active.find(isOnePagerComplete) ?? active[0] ?? null;
     }, [pursuit, onePagers]);
 
     const handleSaveMemo = (json: Record<string, unknown>, html?: string) => {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/app/api/_lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import { isOnePagerComplete, pickPrimaryOnePager } from '@/lib/onePagerStatus';
 import { buildMemoDocx, type MemoDocxData } from '@/lib/docx/docxBuilder';
 import { upstreamErrorResponse } from '@/app/api/_lib/upstream';
 
@@ -62,8 +63,9 @@ export async function POST(request: Request) {
         }
 
         // Find primary or first active one-pager
-        const primaryOnePager = onePagers?.find((op: any) => op.id === pursuit.primary_one_pager_id)
-            || (onePagers && onePagers.length > 0 ? onePagers[0] : null);
+        // Same choice as the memo page; the query is newest-first, so reverse to oldest-first
+        const active = [...(onePagers ?? [])].reverse();
+        const primaryOnePager = pickPrimaryOnePager(pursuit.primary_one_pager_id, active) ?? active.find(isOnePagerComplete) ?? active[0] ?? null;
 
         const rentComps: MemoDocxData['rentComps'] = (rentCompLinks || [])
             .filter((rc: any) => rc.property)

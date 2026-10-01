@@ -44,6 +44,7 @@ import {
 import { formatCurrency, formatPercent, formatNumber, SF_PER_ACRE } from '@/lib/constants';
 import { findTaxJurisdiction, taxJurisdictionLabel } from '@/lib/taxJurisdictions';
 import { STANDARD_PAYROLL_ROLES, normalizePayrollRole, inferUnitType } from '@/lib/standardNames';
+import { onePagerGaps } from '@/lib/onePagerStatus';
 import { PrototypePicker, FloorPlanButton } from './PrototypePicker';
 import type { UnitPrototype } from '@/hooks/useUnitPrototypes';
 import type { Pursuit, OnePager, UnitPremium } from '@/types';
@@ -637,6 +638,11 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                     <span className="text-[var(--border-strong)]" aria-hidden>/</span>
                     <OnePagerNameEditor name={onePager.name} onRename={handleRename} />
                     {productType && <span className="hidden sm:inline text-xs text-[var(--text-muted)] px-2.5 py-0.5 rounded-md bg-[var(--bg-elevated)] font-medium whitespace-nowrap">{productType.name}</span>}
+                    {onePagerGaps(onePager).length > 0 && (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-[var(--warning-bg)] text-[var(--warning)] whitespace-nowrap" title="Left out of report averages and best-yield comparisons until complete">
+                            Incomplete · no {onePagerGaps(onePager).join(', ')}
+                        </span>
+                    )}
                 </div>
 
                 {/* Actions Toolbar — secondary actions fold into "…" below xl */}

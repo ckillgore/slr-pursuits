@@ -8,6 +8,9 @@ import { useMemo } from 'react';
 import type { ReportConfig, ReportFieldKey, PursuitStage } from '@/types';
 import type { ReportRow } from '@/lib/supabase/queries';
 import { REPORT_FIELD_MAP } from '@/lib/reportFields';
+import { isOnePagerComplete } from '@/lib/onePagerStatus';
+
+const ONE_PAGER_CATEGORIES = new Set(['One-Pager', 'Returns', 'Budget', 'Revenue', 'OpEx', 'Assumptions']);
 
 // ── Tree node for grouped report ──────────────────────────────
 export interface GroupNode {
@@ -118,9 +121,13 @@ function computeAggregates(
             const mode = fieldDef.aggregation ?? (fieldDef.type === 'percent' ? 'avg' : 'sum');
             if (mode === 'none') continue;
 
+            // Incomplete one-pagers (no units / hard cost / land cost) would drag averages
+            // and inflate totals with placeholder values; their rows still display
+            const fromOnePager = ONE_PAGER_CATEGORIES.has(fieldDef.category);
             let sum = 0;
             let count = 0;
             for (const row of rows) {
+                if (fromOnePager && row.onePager && !isOnePagerComplete(row.onePager)) continue;
                 const v = fieldDef.getValue(row, stages);
                 if (v != null && v !== '' && !isNaN(Number(v))) {
                     sum += Number(v);

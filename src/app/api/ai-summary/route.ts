@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { requireAuth } from '@/app/api/_lib/auth';
 import { upstreamErrorResponse } from '@/app/api/_lib/upstream';
+import { onePagerGaps } from '@/lib/onePagerStatus';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = 'gemini-3-flash-preview';
@@ -337,6 +338,8 @@ Now write the 300-500 word summary covering ALL the categories listed above. Be 
         if (onePagers && onePagers.length > 0) {
             pass2Context.scenarios = onePagers.map((op: any) => ({
                 name: op.name,
+                // Tells the model not to treat a placeholder's yield as a real result
+                incompleteMissing: onePagerGaps(op).length > 0 ? onePagerGaps(op) : undefined,
                 productType: op.product_type?.name,
                 subProductType: op.sub_product_type?.name,
                 totalUnits: op.total_units,

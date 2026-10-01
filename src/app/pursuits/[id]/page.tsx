@@ -29,6 +29,7 @@ import { usePredevYardiAggregates, summarizePredevBudget } from '@/components/pu
 import { toast } from '@/lib/toast';
 import { formatCurrency, formatNumber, formatPercent, SF_PER_ACRE, DEFAULT_ASSUMPTIONS } from '@/lib/constants';
 import { findTaxJurisdiction, taxJurisdictionLabel } from '@/lib/taxJurisdictions';
+import { onePagerGaps, pickPrimaryOnePager } from '@/lib/onePagerStatus';
 import { LocationCard } from '@/components/pursuits/LocationCard';
 import CommentTrigger from '@/components/shared/CommentTrigger';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
@@ -685,9 +686,7 @@ const handleCreateOnePager = async () => {
                     <>
                         {/* KPI Summary Cards */}
                         {(() => {
-                            const primaryOp = pursuit.primary_one_pager_id
-                                ? onePagers.find(op => op.id === pursuit.primary_one_pager_id)
-                                : onePagers.filter(o => !o.is_archived).length === 1 ? onePagers.filter(o => !o.is_archived)[0] : null;
+                            const primaryOp = pickPrimaryOnePager(pursuit.primary_one_pager_id, onePagers.filter(o => !o.is_archived));
 
                             // Pre-dev budget totals — same Yardi-aware numbers as the Pre-Dev Budget tab
                             const budgetItems = predevBudget?.line_items || [];
@@ -1092,9 +1091,8 @@ const handleCreateOnePager = async () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {onePagers.map((op) => {
                                     const pt = op.product_type ?? productTypes.find((p) => p.id === op.product_type_id);
-                                    const isPrimary = pursuit.primary_one_pager_id
-                                        ? pursuit.primary_one_pager_id === op.id
-                                        : onePagers.filter(o => !o.is_archived).length === 1;
+                                    const isPrimary = pickPrimaryOnePager(pursuit.primary_one_pager_id, onePagers.filter(o => !o.is_archived))?.id === op.id;
+                                    const gaps = onePagerGaps(op);
                                     return (
                                         <div key={op.id} className="relative group/card">
                                             <Link href={`/pursuits/${pursuitId}/one-pagers/${op.short_id}`}>
@@ -1121,6 +1119,11 @@ const handleCreateOnePager = async () => {
                                                                 </button>
                                                             </h3>
                                                             {pt && <span className="text-xs text-[var(--text-muted)] mt-1 inline-block">{pt.name}</span>}
+                                                            {gaps.length > 0 && (
+                                                                <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[var(--warning-bg)] text-[var(--warning)] inline-block" title="Left out of report averages and best-yield comparisons until complete">
+                                                                    Incomplete · no {gaps.join(', ')}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         <div className="text-right">
                                                             <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-medium">YOC</div>

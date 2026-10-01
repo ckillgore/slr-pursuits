@@ -48,6 +48,24 @@ import type {
 const supabase = createClient();
 
 /**
+ * Save one row: update it when it exists, insert it otherwise. Editors send just
+ * the changed field ({ id, name }), and an upsert would first build an INSERT
+ * row from those fields, failing NOT NULL on every other required column.
+ * New rows created with a client-side id still insert.
+ */
+async function saveRow<T>(table: string, row: { id?: string } & Record<string, unknown>): Promise<T> {
+    const { id, ...fields } = row;
+    if (id) {
+        const { data, error } = await supabase.from(table).update(fields).eq('id', id).select();
+        if (error) throw error;
+        if (data && data.length > 0) return data[0] as T;
+    }
+    const { data, error } = await supabase.from(table).insert(row).select().single();
+    if (error) throw error;
+    return data as T;
+}
+
+/**
  * PostgREST silently caps un-ranged selects at 1000 rows (db-max-rows).
  * For portfolio-wide fetches that must return the full set, page through with
  * .range() until an empty page comes back. `build` must return a fresh query
@@ -88,12 +106,7 @@ export async function fetchStages(): Promise<PursuitStage[]> {
 }
 
 export async function upsertStage(stage: Partial<PursuitStage> & { id?: string }) {
-    const { data, error } = await supabase
-        .from('pursuit_stages')
-        .upsert(stage)
-        .select()
-        .single();
-    if (error) throw error;
+    const data = await saveRow('pursuit_stages', stage);
     return data;
 }
 
@@ -123,12 +136,7 @@ export async function fetchProductTypes(): Promise<ProductType[]> {
 export async function upsertProductType(pt: Partial<ProductType> & { id?: string }) {
     // Strip sub_product_types before upserting - it's a joined relation
     const { sub_product_types, ...payload } = pt as ProductType;
-    const { data, error } = await supabase
-        .from('product_types')
-        .upsert(payload)
-        .select()
-        .single();
-    if (error) throw error;
+    const data = await saveRow('product_types', payload);
     return data;
 }
 
@@ -568,12 +576,7 @@ export async function upsertUnitMixRows(rows: UnitMixRow[]) {
 
 export async function upsertUnitMixRow(row: Partial<UnitMixRow> & { id: string }) {
     const { total_sf, effective_monthly_rent, effective_rent_per_sf, annual_rental_revenue, ...payload } = row as UnitMixRow;
-    const { data, error } = await supabase
-        .from('one_pager_unit_mix')
-        .upsert(payload)
-        .select()
-        .single();
-    if (error) throw error;
+    const data = await saveRow('one_pager_unit_mix', payload);
     return data;
 }
 
@@ -598,12 +601,7 @@ export async function fetchPayroll(onePagerId: string): Promise<PayrollRow[]> {
 
 export async function upsertPayrollRow(row: Partial<PayrollRow> & { id?: string }) {
     const { total_comp_burdened, ...payload } = row as PayrollRow;
-    const { data, error } = await supabase
-        .from('one_pager_payroll')
-        .upsert(payload)
-        .select()
-        .single();
-    if (error) throw error;
+    const data = await saveRow('one_pager_payroll', payload);
     return data;
 }
 
@@ -627,12 +625,7 @@ export async function fetchSoftCostDetails(onePagerId: string): Promise<SoftCost
 }
 
 export async function upsertSoftCostRow(row: Partial<SoftCostDetailRow> & { id?: string }) {
-    const { data, error } = await supabase
-        .from('one_pager_soft_cost_detail')
-        .upsert(row)
-        .select()
-        .single();
-    if (error) throw error;
+    const data = await saveRow('one_pager_soft_cost_detail', row);
     return data;
 }
 
@@ -657,12 +650,7 @@ export async function fetchUnitPremiums(onePagerId: string): Promise<UnitPremium
 
 export async function upsertUnitPremium(row: Partial<UnitPremium> & { id?: string; one_pager_id: string }) {
     const { created_at, updated_at, ...payload } = row as UnitPremium;
-    const { data, error } = await supabase
-        .from('unit_premiums')
-        .upsert(payload)
-        .select()
-        .single();
-    if (error) throw error;
+    const data = await saveRow('unit_premiums', payload);
     return data;
 }
 
@@ -687,12 +675,7 @@ export async function fetchTemplates(): Promise<DataModelTemplate[]> {
 export async function upsertTemplate(template: Partial<DataModelTemplate> & { id?: string }) {
     // Strip joined relations before upserting
     const { payroll_defaults, product_type, ...row } = template as DataModelTemplate;
-    const { data, error } = await supabase
-        .from('data_model_templates')
-        .upsert(row)
-        .select()
-        .single();
-    if (error) throw error;
+    const data = await saveRow('data_model_templates', row);
     return data;
 }
 
@@ -712,12 +695,7 @@ export async function fetchPayrollDefaults(templateId: string): Promise<DataMode
 }
 
 export async function upsertPayrollDefault(row: Partial<DataModelPayrollDefault> & { id?: string; data_model_id: string }) {
-    const { data, error } = await supabase
-        .from('data_model_payroll_defaults')
-        .upsert(row)
-        .select()
-        .single();
-    if (error) throw error;
+    const data = await saveRow('data_model_payroll_defaults', row);
     return data;
 }
 
@@ -1628,13 +1606,7 @@ export async function fetchTaxJurisdictions(): Promise<TaxJurisdiction[]> {
 
 export async function upsertTaxJurisdiction(row: Partial<TaxJurisdiction> & { id?: string }) {
     const { data: { user } } = await supabase.auth.getUser();
-    const { data, error } = await supabase
-        .from('tax_jurisdictions')
-        .upsert({ ...row, updated_by: user?.id ?? null })
-        .select()
-        .single();
-    if (error) throw error;
-    return data as TaxJurisdiction;
+    return saveRow<TaxJurisdiction>('tax_jurisdictions', { ...row, updated_by: user?.id ?? null });
 }
 
 export async function deleteTaxJurisdiction(id: string) {
@@ -1657,12 +1629,7 @@ export async function fetchKeyDateTypes(): Promise<KeyDateType[]> {
 }
 
 export async function upsertKeyDateType(type: Partial<KeyDateType> & { id?: string }) {
-    const { data, error } = await supabase
-        .from('key_date_types')
-        .upsert(type)
-        .select()
-        .single();
-    if (error) throw error;
+    const data = await saveRow('key_date_types', type);
     return data;
 }
 
@@ -1888,23 +1855,13 @@ export async function fetchChecklistTemplate(id: string): Promise<ChecklistTempl
 
 export async function upsertChecklistTemplate(template: Partial<ChecklistTemplate> & { id?: string }) {
     const { phases, ...row } = template as ChecklistTemplate;
-    const { data, error } = await supabase
-        .from('checklist_templates')
-        .upsert(row)
-        .select()
-        .single();
-    if (error) throw error;
+    const data = await saveRow('checklist_templates', row);
     return data as ChecklistTemplate;
 }
 
 export async function upsertTemplatePhase(phase: Partial<ChecklistTemplatePhase> & { template_id: string }) {
     const { tasks, ...row } = phase as ChecklistTemplatePhase;
-    const { data, error } = await supabase
-        .from('checklist_template_phases')
-        .upsert(row)
-        .select()
-        .single();
-    if (error) throw error;
+    const data = await saveRow('checklist_template_phases', row);
     return data as ChecklistTemplatePhase;
 }
 
@@ -1915,12 +1872,7 @@ export async function deleteTemplatePhase(id: string) {
 
 export async function upsertTemplateTask(task: Partial<ChecklistTemplateTask> & { phase_id: string }) {
     const { checklist_items, ...row } = task as ChecklistTemplateTask;
-    const { data, error } = await supabase
-        .from('checklist_template_tasks')
-        .upsert(row)
-        .select()
-        .single();
-    if (error) throw error;
+    const data = await saveRow('checklist_template_tasks', row);
     return data as ChecklistTemplateTask;
 }
 
@@ -1930,12 +1882,7 @@ export async function deleteTemplateTask(id: string) {
 }
 
 export async function upsertTemplateChecklistItem(item: Partial<ChecklistTemplateChecklistItem> & { task_id: string }) {
-    const { data, error } = await supabase
-        .from('checklist_template_checklist_items')
-        .upsert(item)
-        .select()
-        .single();
-    if (error) throw error;
+    const data = await saveRow('checklist_template_checklist_items', item);
     return data as ChecklistTemplateChecklistItem;
 }
 

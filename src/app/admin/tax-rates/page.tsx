@@ -95,8 +95,8 @@ export default function TaxRatesPage() {
                                 <div key={j.id} className="card">
                                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                                         <div className="flex-1 min-w-[180px]">
-                                            <DebouncedTextInput value={j.city ?? ''} placeholder="County-wide" aria-label="City" onCommit={(v) => update(j.id, 'city', v.trim() || null)} className="inline-input text-sm font-semibold text-[var(--text-primary)] w-full text-left" />
-                                            <DebouncedTextInput value={j.county} aria-label="County" onCommit={(v) => { if (v.trim()) update(j.id, 'county', v.trim()); }} className="inline-input text-xs text-[var(--text-muted)] w-full text-left" />
+                                            <DebouncedTextInput value={j.city ?? ''} placeholder="County-wide" aria-label="City" onCommit={(v) => update(j.id, 'city', v.trim() || null)} className="inline-input text-sm font-semibold text-[var(--text-primary)] w-full" style={{ textAlign: 'left' }} />
+                                            <DebouncedTextInput value={j.county} aria-label="County" onCommit={(v) => { if (v.trim()) update(j.id, 'county', v.trim()); }} className="inline-input text-xs text-[var(--text-muted)] w-full" style={{ textAlign: 'left' }} />
                                         </div>
                                         <label className="text-xs text-[var(--text-muted)] flex items-center gap-1.5">
                                             Rate
@@ -120,7 +120,7 @@ export default function TaxRatesPage() {
                                             </button>
                                         </div>
                                     </div>
-                                    <DebouncedTextInput value={j.notes ?? ''} placeholder="Source / notes" aria-label="Notes" onCommit={(v) => update(j.id, 'notes', v.trim() || null)} className="inline-input text-xs text-[var(--text-muted)] w-full text-left mt-2" />
+                                    <DebouncedTextInput value={j.notes ?? ''} placeholder="Source / notes" aria-label="Notes" onCommit={(v) => update(j.id, 'notes', v.trim() || null)} className="inline-input text-xs text-[var(--text-muted)] w-full mt-2" style={{ textAlign: 'left' }} />
                                 </div>
                             ))}
                         </div>

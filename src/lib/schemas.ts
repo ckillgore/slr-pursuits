@@ -28,11 +28,11 @@ export const onePagerSchema = z.object({
     efficiency_ratio: z.number().min(0).max(1).default(0.85),
     // Revenue
     other_income_per_unit_month: z.number().min(0).default(0),
-    vacancy_rate: z.number().min(0).max(1).default(0.07),
+    vacancy_rate: z.number().min(0).max(1).default(0.05),
     // Budget
     hard_cost_per_nrsf: z.number().min(0).default(0),
     land_cost: z.number().min(0).default(0),
-    soft_cost_pct: z.number().min(0).max(1).default(0.30),
+    soft_cost_pct: z.number().min(0).max(1).default(0.23),
     use_detailed_soft_costs: z.boolean().default(false),
     // OpEx
     opex_utilities: z.number().min(0).default(0),
@@ -44,14 +44,14 @@ export const onePagerSchema = z.object({
     opex_misc: z.number().min(0).default(0),
     opex_insurance: z.number().min(0).default(0),
     opex_capex_reserves: z.number().min(0).default(0),
-    mgmt_fee_pct: z.number().min(0).max(1).default(0.03),
+    mgmt_fee_pct: z.number().min(0).max(1).default(0.0225),
     // Payroll
-    payroll_burden_pct: z.number().min(0).max(1).default(0.30),
+    payroll_burden_pct: z.number().min(0).max(1).default(0.28),
     // Property Tax
     tax_mil_rate: z.number().min(0).default(0),
-    tax_assessed_pct_hard: z.number().min(0).max(1).default(1),
+    tax_assessed_pct_hard: z.number().min(0).max(1).default(0.9),
     tax_assessed_pct_land: z.number().min(0).max(1).default(1),
-    tax_assessed_pct_soft: z.number().min(0).max(1).default(1),
+    tax_assessed_pct_soft: z.number().min(0).max(1).default(0),
 });
 
 export type OnePagerFormValues = z.infer<typeof onePagerSchema>;

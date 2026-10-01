@@ -26,7 +26,7 @@ import { hellodataKeys } from '@/hooks/useHellodataQueries';
 import { upsertPayrollRow, fetchPursuitRentComps } from '@/lib/supabase/queries';
 import { usePredevYardiAggregates, summarizePredevBudget } from '@/components/pursuits/predevYardi';
 import { toast } from '@/lib/toast';
-import { formatCurrency, formatNumber, SF_PER_ACRE } from '@/lib/constants';
+import { formatCurrency, formatNumber, SF_PER_ACRE, DEFAULT_ASSUMPTIONS } from '@/lib/constants';
 import { LocationCard } from '@/components/pursuits/LocationCard';
 import CommentTrigger from '@/components/shared/CommentTrigger';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
@@ -349,6 +349,17 @@ export default function PursuitDetailPage() {
     const matchingTemplates = templates.filter(
         (t) => t.is_active && (!newProductTypeId || t.product_type_id === newProductTypeId)
     );
+    // Preselect the template for a product type when the choice is unambiguous: the one
+    // template for this pursuit's region, else the one region-less template. When there
+    // are several (e.g. Mid Rise standard vs boutique) the user picks.
+    const defaultTemplateIdFor = (productTypeId: string) => {
+        const candidates = templates.filter((t) => t.is_active && t.product_type_id === productTypeId);
+        const region = pursuit?.region?.trim().toLowerCase();
+        const regional = region ? candidates.filter((t) => t.region?.trim().toLowerCase() === region) : [];
+        if (regional.length === 1) return regional[0].id;
+        const generic = candidates.filter((t) => !t.region?.trim());
+        return regional.length === 0 && generic.length === 1 ? generic[0].id : '';
+    };
 
     if (loadingPursuit) {
         return (
@@ -388,12 +399,12 @@ const handleCreateOnePager = async () => {
                 sub_product_type_id: newSubProductTypeId || null,
                 is_archived: false,
                 total_units: 0,
-                efficiency_ratio: tpl?.default_efficiency_ratio ?? 0.85,
+                efficiency_ratio: tpl?.default_efficiency_ratio ?? DEFAULT_ASSUMPTIONS.efficiency_ratio,
                 other_income_per_unit_month: tpl?.default_other_income_per_unit_month ?? 0,
-                vacancy_rate: tpl?.default_vacancy_rate ?? 0.07,
+                vacancy_rate: tpl?.default_vacancy_rate ?? DEFAULT_ASSUMPTIONS.vacancy_rate,
                 hard_cost_per_nrsf: tpl?.default_hard_cost_per_nrsf ?? 0,
                 land_cost: 0,
-                soft_cost_pct: tpl?.default_soft_cost_pct ?? 0.30,
+                soft_cost_pct: tpl?.default_soft_cost_pct ?? DEFAULT_ASSUMPTIONS.soft_cost_pct,
                 use_detailed_soft_costs: false,
                 opex_utilities: tpl?.default_opex_utilities ?? 0,
                 opex_repairs_maintenance: tpl?.default_opex_repairs_maintenance ?? 0,
@@ -404,12 +415,12 @@ const handleCreateOnePager = async () => {
                 opex_misc: tpl?.default_opex_misc ?? 0,
                 opex_insurance: tpl?.default_opex_insurance ?? 0,
                 opex_capex_reserves: tpl?.default_opex_capex_reserves ?? 0,
-                mgmt_fee_pct: tpl?.default_mgmt_fee_pct ?? 0.03,
-                payroll_burden_pct: tpl?.default_payroll_burden_pct ?? 0.30,
+                mgmt_fee_pct: tpl?.default_mgmt_fee_pct ?? DEFAULT_ASSUMPTIONS.mgmt_fee_pct,
+                payroll_burden_pct: tpl?.default_payroll_burden_pct ?? DEFAULT_ASSUMPTIONS.payroll_burden_pct,
                 tax_mil_rate: tpl?.default_tax_mil_rate ?? 0,
-                tax_assessed_pct_hard: tpl?.default_tax_assessed_pct_hard ?? 1,
-                tax_assessed_pct_land: tpl?.default_tax_assessed_pct_land ?? 1,
-                tax_assessed_pct_soft: tpl?.default_tax_assessed_pct_soft ?? 1,
+                tax_assessed_pct_hard: tpl?.default_tax_assessed_pct_hard ?? DEFAULT_ASSUMPTIONS.tax_assessed_pct_hard,
+                tax_assessed_pct_land: tpl?.default_tax_assessed_pct_land ?? DEFAULT_ASSUMPTIONS.tax_assessed_pct_land,
+                tax_assessed_pct_soft: tpl?.default_tax_assessed_pct_soft ?? DEFAULT_ASSUMPTIONS.tax_assessed_pct_soft,
                 sensitivity_rent_steps: [-0.15, -0.10, -0.05, 0, 0.05, 0.10, 0.15],
                 sensitivity_hard_cost_steps: [-15, -10, -5, 0, 5, 10, 15],
                 sensitivity_land_cost_steps: [-2000000, -1000000, -500000, 0, 500000, 1000000, 2000000],
@@ -1284,7 +1295,7 @@ const handleCreateOnePager = async () => {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Product Type <span className="text-[var(--danger)]">*</span></label>
-                                    <select value={newProductTypeId} onChange={(e) => { setNewProductTypeId(e.target.value); setNewSubProductTypeId(''); }} className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none">
+                                    <select value={newProductTypeId} onChange={(e) => { setNewProductTypeId(e.target.value); setNewSubProductTypeId(''); setSelectedTemplateId(defaultTemplateIdFor(e.target.value)); }} className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none">
                                         <option value="">Select product type...</option>
                                         {productTypes.filter((pt) => pt.is_active).map((pt) => <option key={pt.id} value={pt.id}>{pt.name}</option>)}
                                     </select>

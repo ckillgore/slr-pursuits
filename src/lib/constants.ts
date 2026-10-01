@@ -26,6 +26,21 @@ export const DEFAULT_RENT_STEPS = [-0.15, -0.10, -0.05, 0, 0.05, 0.10, 0.15];
 export const DEFAULT_HARD_COST_STEPS = [-15, -10, -5, 0, 5, 10, 15];
 export const DEFAULT_LAND_COST_STEPS = [-2_000_000, -1_000_000, -500_000, 0, 500_000, 1_000_000, 2_000_000];
 
+// --- Fallback Assumptions ---
+// Used when a one-pager is created without a data model template, and as the
+// starting values for a new template. Medians of SLR one-pagers as of Oct 2026;
+// product-specific standards live in the data model templates.
+export const DEFAULT_ASSUMPTIONS = {
+    efficiency_ratio: 0.85,
+    vacancy_rate: 0.05,
+    soft_cost_pct: 0.23,
+    mgmt_fee_pct: 0.0225,
+    payroll_burden_pct: 0.28,
+    tax_assessed_pct_hard: 0.90,
+    tax_assessed_pct_land: 1,
+    tax_assessed_pct_soft: 0,
+} as const;
+
 // --- Formatting Helpers ---
 // Divide-by-zero / missing inputs upstream produce NaN or Infinity; render a dash
 // instead of "$NaN" / "NaN%" / "$∞".

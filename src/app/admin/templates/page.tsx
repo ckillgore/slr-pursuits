@@ -16,7 +16,7 @@ import {
 } from '@/hooks/useSupabaseQueries';
 import type { DataModelTemplate, DataModelPayrollDefault } from '@/types';
 import { Plus, Loader2, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
-import { formatCurrency, formatPercent } from '@/lib/constants';
+import { formatCurrency, formatPercent, DEFAULT_ASSUMPTIONS } from '@/lib/constants';
 import { useMutationErrorToast } from '@/components/shared/useMutationErrorToast';
 
 export default function TemplatesPage() {
@@ -51,11 +51,11 @@ export default function TemplatesPage() {
             product_type_id: newProductTypeId,
             region: newRegion.trim() || null,
             is_active: true,
-            default_efficiency_ratio: 0.85,
+            default_efficiency_ratio: DEFAULT_ASSUMPTIONS.efficiency_ratio,
             default_other_income_per_unit_month: 0,
-            default_vacancy_rate: 0.07,
+            default_vacancy_rate: DEFAULT_ASSUMPTIONS.vacancy_rate,
             default_hard_cost_per_nrsf: 0,
-            default_soft_cost_pct: 0.30,
+            default_soft_cost_pct: DEFAULT_ASSUMPTIONS.soft_cost_pct,
             default_opex_utilities: 0,
             default_opex_repairs_maintenance: 0,
             default_opex_contract_services: 0,
@@ -65,12 +65,12 @@ export default function TemplatesPage() {
             default_opex_misc: 0,
             default_opex_insurance: 0,
             default_opex_capex_reserves: 0,
-            default_mgmt_fee_pct: 0.03,
-            default_payroll_burden_pct: 0.30,
+            default_mgmt_fee_pct: DEFAULT_ASSUMPTIONS.mgmt_fee_pct,
+            default_payroll_burden_pct: DEFAULT_ASSUMPTIONS.payroll_burden_pct,
             default_tax_mil_rate: 0,
-            default_tax_assessed_pct_hard: 1,
-            default_tax_assessed_pct_land: 1,
-            default_tax_assessed_pct_soft: 1,
+            default_tax_assessed_pct_hard: DEFAULT_ASSUMPTIONS.tax_assessed_pct_hard,
+            default_tax_assessed_pct_land: DEFAULT_ASSUMPTIONS.tax_assessed_pct_land,
+            default_tax_assessed_pct_soft: DEFAULT_ASSUMPTIONS.tax_assessed_pct_soft,
         });
         setNewName(''); setNewProductTypeId(''); setNewRegion(''); setShowAdd(false);
     };

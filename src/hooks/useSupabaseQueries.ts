@@ -23,6 +23,8 @@ export const queryKeys = {
     payroll: (onePagerId: string) => ['payroll', onePagerId] as const,
     softCosts: (onePagerId: string) => ['soft-costs', onePagerId] as const,
     unitPremiums: (onePagerId: string) => ['unit-premiums', onePagerId] as const,
+    otherIncome: (onePagerId: string) => ['other-income', onePagerId] as const,
+    onePagerVersions: (onePagerId: string) => ['one-pager-versions', onePagerId] as const,
     reportTemplates: ['report-templates'] as const,
     reportData: ['report-data'] as const,
     analyticsData: ['analytics-data'] as const,
@@ -590,6 +592,89 @@ export function useDeleteUnitPremium() {
         onSuccess: (_, { onePagerId }) => {
             qc.invalidateQueries({ queryKey: queryKeys.unitPremiums(onePagerId) });
         },
+    });
+}
+
+// ============================================================
+// Other Income (itemized)
+// ============================================================
+
+export function useOtherIncome(onePagerId: string) {
+    return useQuery({
+        queryKey: queryKeys.otherIncome(onePagerId),
+        queryFn: () => queries.fetchOtherIncome(onePagerId),
+        enabled: !!onePagerId,
+    });
+}
+
+export function useUpsertOtherIncomeRow() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (row: Partial<import('@/types').OtherIncomeRow> & { id?: string; one_pager_id: string }) =>
+            queries.upsertOtherIncomeRow(row),
+        onSuccess: (_, variables) => {
+            qc.invalidateQueries({ queryKey: queryKeys.otherIncome(variables.one_pager_id) });
+        },
+    });
+}
+
+export function useDeleteOtherIncomeRow() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id }: { id: string; onePagerId: string }) => queries.deleteOtherIncomeRow(id),
+        onSuccess: (_, { onePagerId }) => {
+            qc.invalidateQueries({ queryKey: queryKeys.otherIncome(onePagerId) });
+        },
+    });
+}
+
+// ============================================================
+// One-Pager Versions
+// ============================================================
+
+export function useOnePagerVersions(onePagerId: string, options?: { enabled?: boolean }) {
+    return useQuery({
+        queryKey: queryKeys.onePagerVersions(onePagerId),
+        queryFn: () => queries.fetchOnePagerVersions(onePagerId),
+        enabled: !!onePagerId && (options?.enabled ?? true),
+    });
+}
+
+export function useSaveOnePagerVersion() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ onePagerId, label }: { onePagerId: string; label: string }) =>
+            queries.saveOnePagerVersion(onePagerId, label),
+        onSuccess: (_, { onePagerId }) => qc.invalidateQueries({ queryKey: queryKeys.onePagerVersions(onePagerId) }),
+    });
+}
+
+export function useRestoreOnePagerVersion() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ versionId }: { versionId: string; onePagerId: string }) =>
+            queries.restoreOnePagerVersion(versionId),
+        onSuccess: (_, { onePagerId }) => {
+            // The restore rewrote the row and every child table
+            for (const key of [
+                queryKeys.onePagerVersions(onePagerId),
+                queryKeys.unitMix(onePagerId),
+                queryKeys.payroll(onePagerId),
+                queryKeys.softCosts(onePagerId),
+                queryKeys.unitPremiums(onePagerId),
+                queryKeys.otherIncome(onePagerId),
+                ['one-pager'],
+                ['one-pagers'],
+            ]) qc.invalidateQueries({ queryKey: key });
+        },
+    });
+}
+
+export function useDeleteOnePagerVersion() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id }: { id: string; onePagerId: string }) => queries.deleteOnePagerVersion(id),
+        onSuccess: (_, { onePagerId }) => qc.invalidateQueries({ queryKey: queryKeys.onePagerVersions(onePagerId) }),
     });
 }
 

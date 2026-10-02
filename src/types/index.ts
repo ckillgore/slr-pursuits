@@ -190,6 +190,42 @@ export interface SoftCostDetailRow {
 
 // --- Unit Premium ---
 
+// --- Other Income (itemized) ---
+
+export interface OtherIncomeRow {
+  id: string;
+  one_pager_id: string;
+  name: string;
+  /** Units, spaces or residents paying this line */
+  unit_count: number;
+  amount_per_month: number;
+  sort_order: number;
+  created_at?: string;
+}
+
+// --- One-Pager Versions ---
+
+export interface OnePagerVersion {
+  id: string;
+  one_pager_id: string;
+  label: string;
+  /** Full row + child rows at save time (see save_one_pager_version) */
+  snapshot: {
+    one_pager: Record<string, unknown>;
+    unit_mix: UnitMixRow[];
+    payroll: PayrollRow[];
+    soft_cost_detail: SoftCostDetailRow[];
+    unit_premiums: UnitPremium[];
+    other_income?: OtherIncomeRow[];
+  };
+  total_units: number | null;
+  calc_total_budget: number | null;
+  calc_noi: number | null;
+  calc_yoc: number | null;
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface UnitPremium {
   id: string;
   one_pager_id: string;
@@ -226,6 +262,7 @@ export interface OnePager {
   land_cost: number;
   soft_cost_pct: number;
   use_detailed_soft_costs: boolean;
+  use_detailed_other_income?: boolean;
   // OpEx ($/unit/year)
   opex_utilities: number;
   opex_repairs_maintenance: number;
@@ -267,6 +304,7 @@ export interface OnePager {
   unit_mix?: UnitMixRow[];
   payroll?: PayrollRow[];
   soft_cost_details?: SoftCostDetailRow[];
+  other_income?: OtherIncomeRow[];
   unit_premiums?: UnitPremium[];
   // Joined references
   product_type?: ProductType;

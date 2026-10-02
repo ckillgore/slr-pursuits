@@ -12,6 +12,8 @@ import {
     usePayroll,
     useSoftCostDetails,
     useUnitPremiums,
+    useOtherIncome,
+    useUpsertOtherIncomeRow,
     useUpsertUnitMixRow,
     useDeleteUnitMixRow,
     useUpsertPayrollRow,
@@ -47,6 +49,9 @@ import { STANDARD_PAYROLL_ROLES, normalizePayrollRole, inferUnitType } from '@/l
 import { onePagerGaps } from '@/lib/onePagerStatus';
 import { PrototypePicker, FloorPlanButton } from './PrototypePicker';
 import { TargetYieldCard } from './TargetYieldCard';
+import { OtherIncomeLines } from './OtherIncomeLines';
+import { VersionsPanel } from './VersionsPanel';
+import { withItemizedOtherIncome } from '@/lib/calculations/otherIncome';
 import type { UnitPrototype } from '@/hooks/useUnitPrototypes';
 import type { Pursuit, OnePager, UnitPremium } from '@/types';
 import {
@@ -66,6 +71,7 @@ import {
     X,
     Car,
     Library,
+    History,
     MoreHorizontal,
 } from 'lucide-react';
 import * as queries from '@/lib/supabase/queries';
@@ -103,6 +109,8 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     const duplicateOnePager = useDuplicateOnePager();
     const archiveOnePager = useArchiveOnePager();
     const { data: unitPremiums = [], isLoading: loadingPremiums } = useUnitPremiums(onePager.id);
+    const { data: otherIncomeRows = [], isLoading: loadingOtherIncome } = useOtherIncome(onePager.id);
+    const upsertOtherIncomeRow = useUpsertOtherIncomeRow();
     const { data: taxJurisdictions = [] } = useTaxJurisdictions();
     const taxJurisdiction = findTaxJurisdiction(taxJurisdictions, pursuit);
     const upsertUnitPremium = useUpsertUnitPremium();
@@ -129,6 +137,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     const [showAddMenu, setShowAddMenu] = useState(false);
     const addMenuRef = useRef<HTMLDivElement>(null);
     const [showMoreMenu, setShowMoreMenu] = useState(false);
+    const [showVersions, setShowVersions] = useState(false);
     const moreMenuRef = useRef<HTMLDivElement>(null);
 
     // Close the toolbar overflow menu on outside click / Escape
@@ -247,7 +256,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     }, [mergeServerRow]);
     useRealtimeOnePager(onePager.id, { queryId, onOnePagerUpdate: handleRemoteOnePager });
 
-    const { save, status: saveStatus } = useAutoSave(async (data: { id: string; updates: Partial<OnePager> }) => {
+    const { save, flush: flushSave, status: saveStatus } = useAutoSave(async (data: { id: string; updates: Partial<OnePager> }) => {
         // Clear the pending updates so subsequent edits accumulate in a fresh batch
         pendingUpdatesRef.current = {};
         let updates = data.updates;
@@ -316,9 +325,16 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
 
     const sortedUnitMix = useMemo(() => [...unitMixRows].sort((a, b) => a.sort_order - b.sort_order), [unitMixRows]);
     const sortedPayroll = useMemo(() => [...payrollRows].sort((a, b) => a.sort_order - b.sort_order), [payrollRows]);
+    const sortedOtherIncome = useMemo(() => [...otherIncomeRows].sort((a, b) => a.sort_order - b.sort_order), [otherIncomeRows]);
+    const mixUnits = useMemo(() => sortedUnitMix.reduce((sum, r) => sum + r.unit_count, 0), [sortedUnitMix]);
+    // With itemized other income, the lines set other_income_per_unit_month for every calculation
+    const effectiveOnePager = useMemo(
+        () => withItemizedOtherIncome(onePager, sortedOtherIncome, mixUnits),
+        [onePager, sortedOtherIncome, mixUnits]
+    );
 
     const calc = useCalculations({
-        onePager,
+        onePager: effectiveOnePager,
         unitMix: sortedUnitMix,
         payroll: sortedPayroll,
         softCostDetails,
@@ -334,7 +350,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     // (one step behind). This effect ensures the DB always has the latest.
     // ============================================================
     const lastSyncedCalcRef = useRef('');
-    const childDataLoading = loadingUnitMix || loadingPayroll || loadingSoftCosts || loadingPremiums;
+    const childDataLoading = loadingUnitMix || loadingPayroll || loadingSoftCosts || loadingPremiums || loadingOtherIncome;
     useEffect(() => {
         // Never sync while child rows are still loading — calc would be all zeros
         if (childDataLoading) return;
@@ -353,6 +369,8 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
             calc_yoc: calc.unlevered_yield_on_cost,
             calc_cost_per_unit: calc.cost_per_unit,
             calc_noi_per_unit: calc.noi_per_unit,
+            // Keep the stored per-unit figure equal to the itemized lines, for reports and exports
+            ...(effectiveOnePager.use_detailed_other_income ? { other_income_per_unit_month: effectiveOnePager.other_income_per_unit_month } : {}),
         };
         const key = JSON.stringify(calcSnapshot);
         if (key === lastSyncedCalcRef.current) return;
@@ -372,7 +390,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
         // Add the calc fields to the pending queue and hit the unified debouncer
         pendingUpdatesRef.current = { ...pendingUpdatesRef.current, ...calcSnapshot };
         save({ id: onePager.id, updates: { ...pendingUpdatesRef.current } });
-    }, [calc, sortedUnitMix, onePager.id, save, childDataLoading]);
+    }, [calc, sortedUnitMix, onePager.id, save, childDataLoading, effectiveOnePager.use_detailed_other_income, effectiveOnePager.other_income_per_unit_month]);
 
     // ============================================================
     // Undo/Redo System
@@ -507,6 +525,23 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
         [upsertPayrollRow, onePager.id, pushUndo]
     );
 
+    // Switching to itemized keeps the current total: an existing $/unit figure becomes the first line.
+    // Switching back keeps the total too, since the stored per-unit figure tracks the lines.
+    const handleToggleItemizedOtherIncome = () => {
+        const on = !onePager.use_detailed_other_income;
+        if (on && otherIncomeRows.length === 0 && onePager.other_income_per_unit_month > 0) {
+            upsertOtherIncomeRow.mutate({
+                id: crypto.randomUUID(),
+                one_pager_id: onePager.id,
+                name: 'Other Income',
+                unit_count: mixUnits,
+                amount_per_month: onePager.other_income_per_unit_month,
+                sort_order: 0,
+            });
+        }
+        updateField('use_detailed_other_income', on);
+    };
+
     // ============================================================
     // Duplicate & Archive
     // ============================================================
@@ -547,7 +582,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
         try {
             const { pdf } = await import('@react-pdf/renderer');
             const { OnePagerPDF } = await import('@/components/export/OnePagerPDF');
-            const doc = <OnePagerPDF onePager={onePager} pursuit={pursuit} calc={calc} productTypeName={productType?.name} unitMix={sortedUnitMix} payroll={sortedPayroll} softCostDetails={softCostDetails} unitPremiums={unitPremiums} showPayroll={true} showPropertyTax={true} />;
+            const doc = <OnePagerPDF onePager={effectiveOnePager} pursuit={pursuit} calc={calc} productTypeName={productType?.name} unitMix={sortedUnitMix} payroll={sortedPayroll} softCostDetails={softCostDetails} unitPremiums={unitPremiums} showPayroll={true} showPropertyTax={true} />;
             const blob = await pdf(doc).toBlob();
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -568,7 +603,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
         setIsExportingExcel(true);
         try {
             const { exportOnePagerToExcel } = await import('@/components/export/exportExcel');
-            await exportOnePagerToExcel({ onePager, pursuit, calc, productTypeName: productType?.name });
+            await exportOnePagerToExcel({ onePager: effectiveOnePager, pursuit, calc, productTypeName: productType?.name });
         } catch (err) {
             console.error('Excel export failed:', err);
             toast.error('Excel export failed', err);
@@ -604,23 +639,23 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
     const landCostSteps = onePager.sensitivity_land_cost_steps ?? DEFAULT_LAND_COST_STEPS;
 
     const rentSensitivity = useMemo(
-        () => sensitivityExpanded ? calcRentSensitivity(onePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, unitPremiums) : [],
-        [sensitivityExpanded, onePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, unitPremiums]
+        () => sensitivityExpanded ? calcRentSensitivity(effectiveOnePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, unitPremiums) : [],
+        [sensitivityExpanded, effectiveOnePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, unitPremiums]
     );
 
     const hardCostSensitivity = useMemo(
-        () => sensitivityExpanded ? calcHardCostSensitivity(onePager, sortedUnitMix, sortedPayroll, softCostDetails, hardCostSteps, unitPremiums) : [],
-        [sensitivityExpanded, onePager, sortedUnitMix, sortedPayroll, softCostDetails, hardCostSteps, unitPremiums]
+        () => sensitivityExpanded ? calcHardCostSensitivity(effectiveOnePager, sortedUnitMix, sortedPayroll, softCostDetails, hardCostSteps, unitPremiums) : [],
+        [sensitivityExpanded, effectiveOnePager, sortedUnitMix, sortedPayroll, softCostDetails, hardCostSteps, unitPremiums]
     );
 
     const landCostSensitivity = useMemo(
-        () => sensitivityExpanded ? calcLandCostSensitivity(onePager, sortedUnitMix, sortedPayroll, softCostDetails, landCostSteps, unitPremiums) : [],
-        [sensitivityExpanded, onePager, sortedUnitMix, sortedPayroll, softCostDetails, landCostSteps, unitPremiums]
+        () => sensitivityExpanded ? calcLandCostSensitivity(effectiveOnePager, sortedUnitMix, sortedPayroll, softCostDetails, landCostSteps, unitPremiums) : [],
+        [sensitivityExpanded, effectiveOnePager, sortedUnitMix, sortedPayroll, softCostDetails, landCostSteps, unitPremiums]
     );
 
     const sensitivityMatrix = useMemo(
-        () => sensitivityExpanded ? calcSensitivityMatrix(onePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, hardCostSteps, unitPremiums) : null,
-        [sensitivityExpanded, onePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, hardCostSteps, unitPremiums]
+        () => sensitivityExpanded ? calcSensitivityMatrix(effectiveOnePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, hardCostSteps, unitPremiums) : null,
+        [sensitivityExpanded, effectiveOnePager, sortedUnitMix, sortedPayroll, softCostDetails, rentSteps, hardCostSteps, unitPremiums]
     );
 
     if (loadingUnitMix || loadingPayroll) {
@@ -697,6 +732,9 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                         <button onClick={openDuplicateDialog} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors" title="Duplicate">
                             <Copy className="w-3.5 h-3.5" /> Duplicate
                         </button>
+                        <button onClick={() => setShowVersions(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors" title="Versions">
+                            <History className="w-3.5 h-3.5" /> Versions
+                        </button>
                     </div>
 
                     {/* Overflow menu (below xl) */}
@@ -722,6 +760,9 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                 <button role="menuitem" onClick={openDuplicateDialog} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]">
                                     <Copy className="w-3.5 h-3.5" /> Duplicate
                                 </button>
+                                <button role="menuitem" onClick={() => { setShowMoreMenu(false); setShowVersions(true); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]">
+                                    <History className="w-3.5 h-3.5" /> Versions
+                                </button>
                             </div>
                         )}
                     </div>
@@ -743,6 +784,10 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                     </span>
                 </div>
             </div>
+
+            {showVersions && (
+                <VersionsPanel onePager={onePager} flushPendingSaves={flushSave} onClose={() => setShowVersions(false)} />
+            )}
 
             {/* Main Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" style={{ gridAutoFlow: 'dense' }}>
@@ -852,17 +897,36 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                     <div className="flex items-center gap-1.5">
                                         <span className="text-xs text-[var(--text-secondary)]">Other Income</span>
                                         <FieldNoteButton fieldKey="other_income_per_unit_month" note={fieldNotes['other_income_per_unit_month']} onNoteChange={updateFieldNote} />
+                                        <button
+                                            onClick={handleToggleItemizedOtherIncome}
+                                            aria-pressed={!!onePager.use_detailed_other_income}
+                                            title={onePager.use_detailed_other_income ? 'Back to a single $/unit/month figure (keeps the current total)' : 'Itemize: parking, storage, pet rent…'}
+                                            className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${onePager.use_detailed_other_income ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'text-[var(--text-faint)] hover:text-[var(--accent)]'}`}
+                                        >
+                                            Itemize
+                                        </button>
                                     </div>
                                 </td>
                                 <td className="text-right text-xs tabular-nums text-[var(--text-secondary)]">{formatCurrency(calc.other_income)}</td>
                                 <td>
                                     <div className="flex items-center justify-end gap-0.5">
-                                        <InlineInput value={onePager.other_income_per_unit_month} onChange={(v) => updateField('other_income_per_unit_month', v)} format="currency" className="text-xs w-16" editAllMode={editAllMode} />
+                                        {onePager.use_detailed_other_income ? (
+                                            <span className="text-xs tabular-nums text-[var(--text-secondary)]" title="From the itemized lines">{formatCurrency(effectiveOnePager.other_income_per_unit_month)}</span>
+                                        ) : (
+                                            <InlineInput value={onePager.other_income_per_unit_month} onChange={(v) => updateField('other_income_per_unit_month', v)} format="currency" className="text-xs w-16" editAllMode={editAllMode} />
+                                        )}
                                         <span className="text-[9px] text-[var(--text-faint)]">/mo</span>
                                     </div>
                                 </td>
                                 <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{calc.total_nrsf > 0 ? formatCurrency(calc.other_income / calc.total_nrsf, 2) : '—'}</td>
                             </tr>
+                            {onePager.use_detailed_other_income && (
+                                <tr>
+                                    <td colSpan={4} className="pb-2">
+                                        <OtherIncomeLines onePagerId={onePager.id} rows={sortedOtherIncome} totalUnits={mixUnits} editAllMode={editAllMode} />
+                                    </td>
+                                </tr>
+                            )}
                             {/* Premiums — single summary line */}
                             {totalPremiumIncome > 0 && (
                                 <tr>
@@ -1435,7 +1499,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                 {/* ===== TARGET YIELD (full width, collapsible) ===== */}
                 <TargetYieldCard
                     pursuitId={pursuit.id}
-                    onePager={onePager}
+                    onePager={effectiveOnePager}
                     unitMix={sortedUnitMix}
                     payroll={sortedPayroll}
                     softCostDetails={softCostDetails}

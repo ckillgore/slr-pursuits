@@ -12,6 +12,8 @@ import type {
     PayrollRow,
     SoftCostDetailRow,
     UnitPremium,
+    OtherIncomeRow,
+    OnePagerVersion,
     PursuitStage,
     ProductType,
     DataModelTemplate,
@@ -401,7 +403,7 @@ export async function setOnePagerFieldNote(
 
 export async function updateOnePager(id: string, updates: Partial<OnePager>, expectedUpdatedAt?: string) {
     // Strip joined/virtual fields
-    const { unit_mix, payroll, soft_cost_details, unit_premiums, product_type, sub_product_type, ...payload } = updates as OnePager;
+    const { unit_mix, payroll, soft_cost_details, unit_premiums, other_income, product_type, sub_product_type, ...payload } = updates as OnePager;
 
     let query = supabase
         .from('one_pagers')
@@ -421,7 +423,7 @@ export async function updateOnePager(id: string, updates: Partial<OnePager>, exp
 }
 
 /** Tables holding per-one-pager child rows (keyed by one_pager_id). */
-const ONE_PAGER_CHILD_TABLES = ['one_pager_unit_mix', 'one_pager_payroll', 'one_pager_soft_cost_detail', 'unit_premiums'] as const;
+const ONE_PAGER_CHILD_TABLES = ['one_pager_unit_mix', 'one_pager_payroll', 'one_pager_soft_cost_detail', 'unit_premiums', 'one_pager_other_income'] as const;
 
 /**
  * Duplicate a one-pager: deep copies the one-pager record
@@ -430,12 +432,13 @@ const ONE_PAGER_CHILD_TABLES = ['one_pager_unit_mix', 'one_pager_payroll', 'one_
  */
 export async function duplicateOnePager(sourceId: string, newName: string): Promise<OnePager> {
     // 1. Fetch the source one-pager and its child rows in parallel
-    const [source, unitMix, payrollRows, softCosts, premiums] = await Promise.all([
+    const [source, unitMix, payrollRows, softCosts, premiums, otherIncome] = await Promise.all([
         fetchOnePager(sourceId),
         fetchUnitMix(sourceId),
         fetchPayroll(sourceId),
         fetchSoftCostDetails(sourceId),
         fetchUnitPremiums(sourceId),
+        fetchOtherIncome(sourceId),
     ]);
 
     // 2. Strip IDs, timestamps, computed, and joined fields — keep assumptions only
@@ -496,6 +499,15 @@ export async function duplicateOnePager(sourceId: string, newName: string): Prom
             }));
             const { error: upError } = await supabase.from('unit_premiums').insert(upPayload);
             if (upError) throw upError;
+        }
+
+        if (otherIncome.length > 0) {
+            const oiPayload = otherIncome.map(({ id: _rowId, one_pager_id: _opId, created_at: _ca, ...row }) => ({
+                ...row,
+                one_pager_id: newOP.id,
+            }));
+            const { error: oiError } = await supabase.from('one_pager_other_income').insert(oiPayload);
+            if (oiError) throw oiError;
         }
     } catch (childError) {
         // Rollback: delete the partially-created one-pager and any children
@@ -650,6 +662,63 @@ export async function upsertUnitPremium(row: Partial<UnitPremium> & { id?: strin
 
 export async function deleteUnitPremium(id: string) {
     const { error } = await supabase.from('unit_premiums').delete().eq('id', id);
+    if (error) throw error;
+}
+
+// ============================================================
+// Other Income (itemized)
+// ============================================================
+
+export async function fetchOtherIncome(onePagerId: string): Promise<OtherIncomeRow[]> {
+    const { data, error } = await supabase
+        .from('one_pager_other_income')
+        .select('*')
+        .eq('one_pager_id', onePagerId)
+        .order('sort_order');
+    if (error) throw error;
+    return data ?? [];
+}
+
+export async function upsertOtherIncomeRow(row: Partial<OtherIncomeRow> & { id?: string; one_pager_id: string }) {
+    const { created_at, ...payload } = row;
+    return saveRow<OtherIncomeRow>('one_pager_other_income', payload);
+}
+
+export async function deleteOtherIncomeRow(id: string) {
+    const { error } = await supabase.from('one_pager_other_income').delete().eq('id', id);
+    if (error) throw error;
+}
+
+// ============================================================
+// One-Pager Versions
+// ============================================================
+
+export async function fetchOnePagerVersions(onePagerId: string): Promise<OnePagerVersion[]> {
+    const { data, error } = await supabase
+        .from('one_pager_versions')
+        .select('*')
+        .eq('one_pager_id', onePagerId)
+        .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data ?? []) as OnePagerVersion[];
+}
+
+/** Snapshot the one-pager and its child rows as they are in the database now. */
+export async function saveOnePagerVersion(onePagerId: string, label: string): Promise<string> {
+    const { data, error } = await supabase.rpc('save_one_pager_version', { p_one_pager_id: onePagerId, p_label: label });
+    if (error) throw error;
+    return data as string;
+}
+
+/** Restore a version in one transaction; the current state is saved as a version first. */
+export async function restoreOnePagerVersion(versionId: string): Promise<string> {
+    const { data, error } = await supabase.rpc('restore_one_pager_version', { p_version_id: versionId });
+    if (error) throw error;
+    return data as string;
+}
+
+export async function deleteOnePagerVersion(id: string) {
+    const { error } = await supabase.from('one_pager_versions').delete().eq('id', id);
     if (error) throw error;
 }
 

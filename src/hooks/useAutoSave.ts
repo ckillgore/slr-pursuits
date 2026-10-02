@@ -50,7 +50,8 @@ export function useAutoSave<T>(
         }
         const pending = pendingRef.current;
         pendingRef.current = null;
-        if (pending) void run(pending.data);
+        // Resolves once the flushed save settles, for callers that must read fresh DB state
+        return pending ? run(pending.data) : Promise.resolve();
     }, [run]);
 
     const save = useCallback(

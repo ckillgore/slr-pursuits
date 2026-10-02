@@ -95,6 +95,7 @@ export function useRealtimeOnePager(onePagerId: string, options: RealtimeOnePage
             { table: 'one_pager_payroll', queryKey: queryKeys.payroll(onePagerId) },
             { table: 'one_pager_soft_cost_detail', queryKey: queryKeys.softCosts(onePagerId) },
             { table: 'unit_premiums', queryKey: queryKeys.unitPremiums(onePagerId) },
+            { table: 'one_pager_other_income', queryKey: queryKeys.otherIncome(onePagerId) },
         ];
 
         let channel = supabase

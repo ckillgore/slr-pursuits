@@ -1,8 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { AssemblageMap, parcelKey } from './AssemblageMap';
-import { useMapStyle } from './mapTheme';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { FeatureCollection, Geometry } from 'geojson';
+import { useMapboxMap, useIsDarkTheme } from '@/components/map/useMapboxMap';
+import { MapStatusOverlay } from '@/components/map/MapStatusOverlay';
+import { addLayerOnce, boundsOf, setGeoJsonData, upsertGeoJsonSource } from '@/components/map/mapHelpers';
+import { siteInkColor } from '@/components/map/mapStyle';
+import { AssemblageMap, parcelKey, sameParcel } from './AssemblageMap';
 import { isParcelForOtherLocation, type LngLat } from './locationCache';
 import { StaleLocationNotice } from './StaleLocationNotice';
 import {
@@ -32,7 +36,10 @@ import {
     Radar,
 } from 'lucide-react';
 
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
+const PARCEL_COLOR = '#F59E0B';
+const ASSEMBLAGE_COLOR = '#7C3AED';
+const BUILDING_COLOR = '#3B82F6';
+const EMPTY_FC: FeatureCollection = { type: 'FeatureCollection', features: [] };
 
 // ======================== Types ========================
 
@@ -267,13 +274,102 @@ function StatPill({ label, value, sub }: { label: string; value: string; sub?: s
     );
 }
 
+// ======================== Parcel Map ========================
+
+/**
+ * Parcel, assemblage and building footprints around the site. Mounted only
+ * once parcel data exists; later parcel / assemblage / building changes
+ * update the sources in place.
+ */
+function ParcelMap({ latitude, longitude, parcelGeometry, assemblage, buildings }: {
+    latitude: number | null;
+    longitude: number | null;
+    parcelGeometry: Geometry | null;
+    assemblage: NearbyParcel[];
+    buildings: BuildingFootprint[];
+}) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const isDark = useIsDarkTheme();
+    const hasLocation = latitude !== null && longitude !== null;
+
+    const parcelFc = useMemo<FeatureCollection>(() => parcelGeometry
+        ? { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: parcelGeometry }] }
+        : EMPTY_FC, [parcelGeometry]);
+    const assemblageFc = useMemo<FeatureCollection>(() => ({
+        type: 'FeatureCollection',
+        features: assemblage.filter(p => p.geometry).map(p => ({
+            type: 'Feature' as const,
+            properties: { address: p.address || 'Unknown', parcelNumber: p.parcelNumber || '' },
+            geometry: p.geometry,
+        })),
+    }), [assemblage]);
+    const buildingsFc = useMemo<FeatureCollection>(() => ({
+        type: 'FeatureCollection',
+        features: buildings.filter(b => b.geometry).map((b, i) => ({
+            type: 'Feature' as const,
+            properties: { footprintSF: b.footprintSF, index: i },
+            geometry: b.geometry,
+        })),
+    }), [buildings]);
+    // Latest shapes for onStyleReady (runs after the map loads)
+    const dataRef = useRef({ parcelFc, assemblageFc, buildingsFc });
+    useEffect(() => {
+        dataRef.current = { parcelFc, assemblageFc, buildingsFc };
+    }, [parcelFc, assemblageFc, buildingsFc]);
+
+    const { map, mbgl, ready, error } = useMapboxMap(containerRef, {
+        center: hasLocation ? [longitude!, latitude!] : [-96.7970, 32.7767],
+        zoom: hasLocation ? 16 : 10,
+        onStyleReady: (m) => {
+            const d = dataRef.current;
+            upsertGeoJsonSource(m, 'parcel', d.parcelFc);
+            addLayerOnce(m, { id: 'parcel-fill', type: 'fill', source: 'parcel', paint: { 'fill-color': PARCEL_COLOR, 'fill-opacity': 0.2 } });
+            addLayerOnce(m, { id: 'parcel-outline', type: 'line', source: 'parcel', paint: { 'line-color': PARCEL_COLOR, 'line-width': 2.5, 'line-opacity': 0.9 } });
+            upsertGeoJsonSource(m, 'assemblage-parcels', d.assemblageFc);
+            addLayerOnce(m, { id: 'assemblage-fill', type: 'fill', source: 'assemblage-parcels', paint: { 'fill-color': ASSEMBLAGE_COLOR, 'fill-opacity': 0.2 } });
+            addLayerOnce(m, { id: 'assemblage-outline', type: 'line', source: 'assemblage-parcels', paint: { 'line-color': ASSEMBLAGE_COLOR, 'line-width': 2, 'line-opacity': 0.8 } });
+            upsertGeoJsonSource(m, 'buildings', d.buildingsFc);
+            addLayerOnce(m, { id: 'buildings-fill', type: 'fill', source: 'buildings', paint: { 'fill-color': BUILDING_COLOR, 'fill-opacity': 0.25 } });
+            addLayerOnce(m, { id: 'buildings-outline', type: 'line', source: 'buildings', paint: { 'line-color': BUILDING_COLOR, 'line-width': 1.5, 'line-opacity': 0.7 } });
+        },
+    });
+
+    // Keep the drawn shapes current
+    useEffect(() => {
+        if (!map || !ready) return;
+        setGeoJsonData(map, 'parcel', parcelFc);
+        setGeoJsonData(map, 'assemblage-parcels', assemblageFc);
+        setGeoJsonData(map, 'buildings', buildingsFc);
+    }, [map, ready, parcelFc, assemblageFc, buildingsFc]);
+
+    // Frame the parcel plus assemblage; the first framing is instant (no fly-in)
+    const framedRef = useRef(false);
+    useEffect(() => {
+        if (!map || !mbgl || !ready) return;
+        const bounds = boundsOf(mbgl, { type: 'FeatureCollection', features: [...parcelFc.features, ...assemblageFc.features] });
+        if (!bounds) return;
+        map.fitBounds(bounds, { padding: 60, maxZoom: 18, duration: framedRef.current ? 600 : 0 });
+        framedRef.current = true;
+    }, [map, mbgl, ready, parcelFc, assemblageFc]);
+
+    // Site marker follows the location and theme
+    useEffect(() => {
+        if (!map || !mbgl || !hasLocation) return;
+        const marker = new mbgl.Marker({ color: siteInkColor(isDark) }).setLngLat([longitude!, latitude!]).addTo(map);
+        return () => { marker.remove(); };
+    }, [map, mbgl, hasLocation, latitude, longitude, isDark]);
+
+    return (
+        <div className="relative w-full h-[420px] rounded-lg overflow-hidden border border-[var(--border)]">
+            <div ref={containerRef} className="absolute inset-0" />
+            <MapStatusOverlay ready={ready} error={error} />
+        </div>
+    );
+}
+
 // ======================== Component ========================
 
 export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress, siteAreaSF, savedParcelData, onSaveParcelData, savedAssemblage, onSaveAssemblage, hideAssemblage }: PublicInfoTabProps) {
-    const mapContainerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<any>(null);
-    const mbglRef = useRef<any>(null);
-
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [parcel, setParcel] = useState<ParcelData | null>(
@@ -307,12 +403,8 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
     const [nearbySearchedRadius, setNearbySearchedRadius] = useState(200); // radius used for the displayed results
     // Session cache of nearby-parcel searches (paid Regrid calls) keyed by site + radius
     const nearbyCacheRef = useRef(new Map<string, NearbyParcel[]>());
-    const { mapStyle } = useMapStyle();
     // Where the cached parcel was looked up (absent on caches saved before location tracking)
     const [parcelQueriedAt, setParcelQueriedAt] = useState<unknown>(savedParcelData?.queriedAt ?? null);
-    // Latest assemblage for the map's initial load handler (map is NOT recreated when the selection changes)
-    const assemblageRef = useRef(assemblage);
-    assemblageRef.current = assemblage;
 
     // Track latest cache value to prevent race conditions between saves
     const latestCacheRef = useRef<Record<string, unknown>>(savedParcelData || {});
@@ -325,255 +417,6 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
     }, [onSaveParcelData]);
 
     const hasLocation = latitude !== null && longitude !== null;
-    const center: [number, number] = hasLocation
-        ? [longitude!, latitude!]
-        : [-96.7970, 32.7767];
-
-    // Initialize map AND render parcel boundary
-    // The map container only exists when parcel data is loaded (it's inside {parcel && ...})
-    // so we must init the map when parcel changes, not on mount.
-    useEffect(() => {
-        if (!MAPBOX_TOKEN || !parcel || !mapContainerRef.current) return;
-
-        // Clean up any existing map
-        if (mapRef.current) {
-            mapRef.current.remove();
-            mapRef.current = null;
-        }
-
-        let map: any;
-        let cancelled = false;
-
-        import('mapbox-gl').then((mapboxgl) => {
-            if (cancelled || !mapContainerRef.current) return;
-
-            const mbgl = mapboxgl.default || mapboxgl;
-            mbgl.accessToken = MAPBOX_TOKEN;
-            mbglRef.current = mbgl;
-
-            mapContainerRef.current.innerHTML = '';
-
-            map = new mbgl.Map({
-                container: mapContainerRef.current,
-                style: mapStyle,
-                center: hasLocation ? [longitude!, latitude!] : [-96.7970, 32.7767],
-                zoom: hasLocation ? 16 : 10,
-                interactive: true,
-            });
-
-            map.addControl(new mbgl.NavigationControl({ showCompass: false }), 'top-right');
-
-            // Add location marker
-            if (hasLocation) {
-                new mbgl.Marker({ color: '#2563EB' })
-                    .setLngLat([longitude!, latitude!])
-                    .addTo(map);
-            }
-
-            mapRef.current = map;
-
-            // Add parcel boundary on load
-            if (parcel.geometry) {
-                map.on('load', () => {
-                    if (cancelled) return;
-
-                    const geojson = {
-                        type: 'Feature' as const,
-                        properties: {},
-                        geometry: parcel.geometry,
-                    };
-
-                    map.addSource('parcel', { type: 'geojson', data: geojson });
-
-                    map.addLayer({
-                        id: 'parcel-fill',
-                        type: 'fill',
-                        source: 'parcel',
-                        paint: {
-                            'fill-color': '#F59E0B',
-                            'fill-opacity': 0.2,
-                        },
-                    });
-
-                    map.addLayer({
-                        id: 'parcel-outline',
-                        type: 'line',
-                        source: 'parcel',
-                        paint: {
-                            'line-color': '#F59E0B',
-                            'line-width': 2.5,
-                            'line-opacity': 0.9,
-                        },
-                    });
-
-                    // Render assemblage parcels on initial load
-                    const asmWithGeom = assemblageRef.current.filter(p => p.geometry);
-                    if (asmWithGeom.length > 0 && !map.getSource('assemblage-parcels')) {
-                        const asmFeatures = asmWithGeom.map(p => ({
-                            type: 'Feature' as const,
-                            properties: { address: p.address || 'Unknown', parcelNumber: p.parcelNumber || '' },
-                            geometry: p.geometry,
-                        }));
-                        map.addSource('assemblage-parcels', {
-                            type: 'geojson',
-                            data: { type: 'FeatureCollection' as const, features: asmFeatures },
-                        });
-                        map.addLayer({
-                            id: 'assemblage-fill',
-                            type: 'fill',
-                            source: 'assemblage-parcels',
-                            paint: { 'fill-color': '#7C3AED', 'fill-opacity': 0.2 },
-                        });
-                        map.addLayer({
-                            id: 'assemblage-outline',
-                            type: 'line',
-                            source: 'assemblage-parcels',
-                            paint: { 'line-color': '#7C3AED', 'line-width': 2, 'line-opacity': 0.8 },
-                        });
-                    }
-
-                    // Fit to parcel bounds (including assemblage)
-                    if (parcel.geometry.coordinates) {
-                        const bounds = new mbgl.LngLatBounds();
-                        const coords = parcel.geometry.type === 'MultiPolygon'
-                            ? parcel.geometry.coordinates.flat(2)
-                            : parcel.geometry.coordinates.flat(1);
-                        coords.forEach(([lng, lat]: number[]) => bounds.extend([lng, lat]));
-                        // Include assemblage parcel coordinates
-                        for (const ap of asmWithGeom) {
-                            const flatten = (arr: any[]): void => {
-                                for (const item of arr) {
-                                    if (typeof item[0] === 'number') bounds.extend(item as [number, number]);
-                                    else flatten(item);
-                                }
-                            };
-                            if (ap.geometry?.coordinates) flatten(ap.geometry.coordinates);
-                        }
-                        map.fitBounds(bounds, { padding: 60, duration: 800, maxZoom: 18 });
-                    }
-                });
-            }
-
-            // Add building footprints on load
-            if (buildings.length > 0) {
-                map.on('load', () => {
-                    if (cancelled) return;
-                    if (map.getSource('buildings')) return; // already added by parcel handler
-
-                    const buildingGeojson = {
-                        type: 'FeatureCollection' as const,
-                        features: buildings.map((b, i) => ({
-                            type: 'Feature' as const,
-                            properties: { footprintSF: b.footprintSF, index: i },
-                            geometry: b.geometry,
-                        })),
-                    };
-
-                    map.addSource('buildings', { type: 'geojson', data: buildingGeojson });
-
-                    map.addLayer({
-                        id: 'buildings-fill',
-                        type: 'fill',
-                        source: 'buildings',
-                        paint: {
-                            'fill-color': '#3B82F6',
-                            'fill-opacity': 0.25,
-                        },
-                    });
-
-                    map.addLayer({
-                        id: 'buildings-outline',
-                        type: 'line',
-                        source: 'buildings',
-                        paint: {
-                            'line-color': '#3B82F6',
-                            'line-width': 1.5,
-                            'line-opacity': 0.7,
-                        },
-                    });
-                });
-            }
-        });
-
-        return () => {
-            cancelled = true;
-            if (map) map.remove();
-            mapRef.current = null;
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [parcel, buildings, mapStyle]);
-
-    // Update assemblage parcels on the main map without recreating it
-    useEffect(() => {
-        const map = mapRef.current;
-        if (!map) return;
-
-        // Wait for the map to be loaded before modifying sources
-        const updateAssemblage = () => {
-            const asmWithGeom = assemblage.filter(p => p.geometry);
-            const features = asmWithGeom.map(p => ({
-                type: 'Feature' as const,
-                properties: {
-                    address: p.address || 'Unknown',
-                    parcelNumber: p.parcelNumber || '',
-                },
-                geometry: p.geometry,
-            }));
-            const geojsonData = { type: 'FeatureCollection' as const, features };
-
-            // If source exists, just update data; otherwise create source + layers
-            const existingSource = map.getSource('assemblage-parcels');
-            if (existingSource) {
-                (existingSource as any).setData(geojsonData);
-            } else if (asmWithGeom.length > 0) {
-                map.addSource('assemblage-parcels', { type: 'geojson', data: geojsonData });
-                map.addLayer({
-                    id: 'assemblage-fill',
-                    type: 'fill',
-                    source: 'assemblage-parcels',
-                    paint: { 'fill-color': '#7C3AED', 'fill-opacity': 0.2 },
-                });
-                map.addLayer({
-                    id: 'assemblage-outline',
-                    type: 'line',
-                    source: 'assemblage-parcels',
-                    paint: { 'line-color': '#7C3AED', 'line-width': 2, 'line-opacity': 0.8 },
-                });
-            }
-
-            // Re-fit bounds to include assemblage
-            if (asmWithGeom.length > 0 && parcel?.geometry?.coordinates) {
-                import('mapbox-gl').then((mbgl) => {
-                    const mgl = mbgl.default || mbgl;
-                    const bounds = new mgl.LngLatBounds();
-                    // Primary parcel coords
-                    const pCoords = parcel!.geometry.type === 'MultiPolygon'
-                        ? parcel!.geometry.coordinates.flat(2)
-                        : parcel!.geometry.coordinates.flat(1);
-                    pCoords.forEach(([lng, lat]: number[]) => bounds.extend([lng, lat]));
-                    // Assemblage coords
-                    for (const ap of asmWithGeom) {
-                        const flatten = (arr: any[]): void => {
-                            for (const item of arr) {
-                                if (typeof item[0] === 'number') bounds.extend(item as [number, number]);
-                                else flatten(item);
-                            }
-                        };
-                        if (ap.geometry?.coordinates) flatten(ap.geometry.coordinates);
-                    }
-                    if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 60, duration: 600, maxZoom: 18 });
-                });
-            }
-        };
-
-        if (map.isStyleLoaded()) {
-            updateAssemblage();
-        } else {
-            map.once('load', updateAssemblage);
-            return () => { map.off('load', updateAssemblage); };
-        }
-    }, [assemblage, parcel]);
-
     // Fetch parcel data
     const fetchParcel = useCallback(async () => {
         if (!hasLocation && !pursuitAddress) return;
@@ -684,12 +527,26 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
     });
 
     const toggleAssemblage = (np: NearbyParcel) => {
-        const key = parcelKey(np);
-        const updated = assemblage.some(a => parcelKey(a) === key)
-            ? assemblage.filter(a => parcelKey(a) !== key)
+        const updated = assemblage.some(a => sameParcel(a, np))
+            ? assemblage.filter(a => !sameParcel(a, np))
             : [...assemblage, np];
         setAssemblage(updated);
         if (onSaveAssemblage) onSaveAssemblage(updated as any);
+    };
+
+    // Assemblage parcels saved before the Oct 2026 Regrid fix have no values and use
+    // the parcel number as their id — swap in the matching fresh nearby record
+    const refreshSavedAssemblage = (fresh: NearbyParcel[]) => {
+        let changed = false;
+        const refreshed = assemblage.map((a) => {
+            const match = fresh.find((p) => sameParcel(a, p));
+            if (!match || (match.regridId === a.regridId && match.totalAssessedValue === a.totalAssessedValue)) return a;
+            changed = true;
+            return match;
+        });
+        if (!changed) return;
+        setAssemblage(refreshed);
+        if (onSaveAssemblage) onSaveAssemblage(refreshed as unknown as Record<string, unknown>[]);
     };
 
     const discoverNearby = async () => {
@@ -698,6 +555,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
         const cached = nearbyCacheRef.current.get(cacheKey);
         if (cached) {
             setNearbyParcels(cached);
+            refreshSavedAssemblage(cached);
             setNearbySearchedRadius(nearbyRadius);
             setNearbyError(null);
             setShowNearby(true);
@@ -721,6 +579,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
             const parcels: NearbyParcel[] = data.parcels || [];
             nearbyCacheRef.current.set(cacheKey, parcels);
             setNearbyParcels(parcels);
+            refreshSavedAssemblage(parcels);
             setNearbySearchedRadius(nearbyRadius);
             setShowNearby(true);
         } catch (err: any) {
@@ -846,16 +705,13 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                         {/* Map */}
                         <div className="lg:col-span-2">
-                            {MAPBOX_TOKEN ? (
-                                <div
-                                    ref={mapContainerRef}
-                                    className="w-full h-[420px] rounded-lg overflow-hidden border border-[var(--border)]"
-                                />
-                            ) : (
-                                <div className="w-full h-[420px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] flex items-center justify-center">
-                                    <p className="text-xs text-[var(--text-faint)]">Add <code className="text-[10px] bg-[var(--bg-elevated)] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env.local</p>
-                                </div>
-                            )}
+                            <ParcelMap
+                                latitude={latitude}
+                                longitude={longitude}
+                                parcelGeometry={parcel.geometry}
+                                assemblage={assemblage}
+                                buildings={buildings}
+                            />
                             {parcel.geometry && (
                                 <p className="text-[10px] text-[var(--text-faint)] mt-1.5 text-center">
                                     Parcel boundary for {parcel.details.address || pursuitName || 'location'} ·
@@ -1728,7 +1584,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                         <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
                                             {nearbyParcels.map((np) => {
                                                 const key = parcelKey(np);
-                                                const isSelected = assemblage.some(a => parcelKey(a) === key);
+                                                const isSelected = assemblage.some(a => sameParcel(a, np));
                                                 return (
                                                     <div
                                                         key={key}

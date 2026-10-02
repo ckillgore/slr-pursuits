@@ -59,28 +59,38 @@ interface NearbyParcel {
     geometry: any | null;
 }
 
+function isPersonalProperty(landUse: string | null): boolean {
+    const u = (landUse ?? '').toUpperCase();
+    return u.split(/[^A-Z]+/).includes('BPP') || u.includes('PERSONAL PROPERTY');
+}
+
 function parseNearbyParcel(feature: any): NearbyParcel {
-    const p = feature.properties?.fields || feature.properties || {};
+    const props = feature.properties || {};
+    // v2 nests the parcel columns under properties.fields (see regrid_schema.md)
+    const p = props.fields || props;
 
     return {
-        regridId: str(p.parcelnumb_no_formatting) || str(p.parcelnumb) || feature.id?.toString() || null,
-        address: str(p.address) || str(p.mail_addno && p.mail_addpre && p.mail_addstr ? `${p.mail_addno} ${p.mail_addpre} ${p.mail_addstr}`.trim() : null) || null,
-        city: str(p.situs_city) || str(p.scity) || str(p.mail_city) || null,
-        state: str(p.situs_state) || str(p.state2) || str(p.mail_state2) || null,
-        zip: str(p.situs_zip) || str(p.szip) || str(p.mail_zip) || null,
-        parcelNumber: str(p.parcelnumb) || str(p.alt_parcelnumb) || null,
+        // Regrid's stable parcel id — the same id the primary parcel uses, so it can be excluded
+        regridId: str(props.ll_uuid) || str(p.ll_uuid) || str(props.path) || feature.id?.toString() || null,
+        // Situs (site) address only — never the owner's mailing address
+        address: str(props.headline) || str(p.address) || null,
+        city: str(p.scity) || str(p.city) || null,
+        state: str(p.state2) || null,
+        zip: str(p.szip) || str(p.szip5) || null,
+        parcelNumber: str(p.parcelnumb) || str(p.parcelnumb_no_formatting) || str(p.alt_parcelnumb1) || null,
         ownerName: str(p.owner) || null,
         lotSizeSF: num(p.ll_gissqft) || num(p.ll_gisacre ? Number(p.ll_gisacre) * 43560 : null),
         lotSizeAcres: num(p.ll_gisacre) || (num(p.ll_gissqft) ? Number(p.ll_gissqft) / 43560 : null),
-        landUse: str(p.usedesc) || str(p.usecode) || null,
+        landUse: str(p.usedesc) || str(p.usecode) || str(p.lbcs_activity_desc) || null,
         zoningCode: str(p.zoning) || str(p.zoning_id) || null,
         zoningType: str(p.zoning_type) || null,
-        totalAssessedValue: num(p.assdttlval) || num(p.mktttlval) || null,
-        landValue: num(p.assdlandval) || num(p.mktlandval) || null,
-        improvementValue: num(p.assdimpval) || num(p.mktimpval) || null,
-        yearBuilt: num(p.year_built) || num(p.yearbuilt) || null,
-        lastSalePrice: num(p.saleprice) || null,
-        lastSaleDate: str(p.saledate) || null,
+        // County appraisal values: parval = total parcel value (land + improvements)
+        totalAssessedValue: num(p.parval),
+        landValue: num(p.landval),
+        improvementValue: num(p.improvval),
+        yearBuilt: num(p.yearbuilt),
+        lastSalePrice: num(p.saleprice),
+        lastSaleDate: str(p.saledate),
         geometry: feature.geometry || null,
     };
 }
@@ -109,7 +119,8 @@ export async function POST(request: Request) {
         url.searchParams.set('lat', String(latitude));
         url.searchParams.set('lon', String(longitude));
         url.searchParams.set('radius', String(Math.min(radiusMeters, 32000)));
-        url.searchParams.set('limit', '50');
+        // Dense blocks carry many personal-property accounts that are filtered out below
+        url.searchParams.set('limit', '500');
         url.searchParams.set('token', REGRID_API_KEY);
         url.searchParams.set('return_field_labels', 'true');
 
@@ -140,6 +151,9 @@ export async function POST(request: Request) {
             .filter((p: NearbyParcel) => {
                 // Exclude the primary parcel by regridId
                 if (p.regridId && excludeSet.has(p.regridId.toLowerCase())) return false;
+                // Business personal property accounts (furniture, equipment) aren't land —
+                // the main parcel lookup drops them the same way
+                if (isPersonalProperty(p.landUse)) return false;
                 return true;
             });
 

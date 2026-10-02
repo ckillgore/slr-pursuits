@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef, useDeferredValue } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { Map as MapboxMap, GeoJSONSource, MapMouseEvent, Popup as MapboxPopup } from 'mapbox-gl';
+import type { Map as MapboxMap, GeoJSONSource, MapMouseEvent } from 'mapbox-gl';
 import { AppShell } from '@/components/layout/AppShell';
 import { PursuitCard } from '@/components/pursuits/PursuitCard';
 import { SavedViewsDropdown } from '@/components/shared/SavedViewsDropdown';
@@ -13,8 +13,11 @@ import { toast } from '@/lib/toast';
 import { formatPercent } from '@/lib/constants';
 import { Search, Building2, Loader2, Map, LayoutGrid, List, MapPin, Navigation, Trash2, AlertCircle } from 'lucide-react';
 import type { Pursuit, PursuitStage, UserSavedView } from '@/types';
-
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
+import { searchPlaces, geocodeForStorage, reverseGeocode, type GeocodeResult } from '@/lib/geocoding';
+import { useMapboxMap, useIsDarkTheme } from '@/components/map/useMapboxMap';
+import { MapStatusOverlay } from '@/components/map/MapStatusOverlay';
+import { addLayerOnce, boundsOf, createPopup, setGeoJsonData, upsertGeoJsonSource } from '@/components/map/mapHelpers';
+import { siteInkColor } from '@/components/map/mapStyle';
 
 type ViewMode = 'grid' | 'map' | 'list';
 type SortBy = 'updated' | 'newest' | 'name' | 'city';
@@ -440,7 +443,7 @@ function NewPursuitDialog({ defaultStageId, onClose }: { defaultStageId: string 
   const [newRegion, setNewRegion] = useState('');
   const [addressMode, setAddressMode] = useState<'search' | 'coords'>('search');
   const [addressSearch, setAddressSearch] = useState('');
-  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<GeocodeResult[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [coordLatStr, setCoordLatStr] = useState('');
   const [coordLngStr, setCoordLngStr] = useState('');
@@ -448,11 +451,16 @@ function NewPursuitDialog({ defaultStageId, onClose }: { defaultStageId: string 
   const coordTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Only the newest geocoding request may write results (slow responses used to overwrite newer ones)
   const searchSeqRef = useRef(0);
+  const locateSeqRef = useRef(0);
   const [isGeocodingCoords, setIsGeocodingCoords] = useState(false);
+  // A picked suggestion is re-geocoded in permanent mode before it can be saved
+  const [isResolvingAddress, setIsResolvingAddress] = useState(false);
 
   useEffect(() => () => {
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     if (coordTimeoutRef.current) clearTimeout(coordTimeoutRef.current);
+    searchSeqRef.current++;
+    locateSeqRef.current++;
   }, []);
 
   const handleClose = () => { if (!createPursuit.isPending) onClose(); };
@@ -466,38 +474,54 @@ function NewPursuitDialog({ defaultStageId, onClose }: { defaultStageId: string 
     setAddressSearch(query);
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     const seq = ++searchSeqRef.current;
-    if (!query.trim() || !MAPBOX_TOKEN) { setSuggestions([]); setShowSuggestions(false); return; }
+    if (!query.trim()) { setSuggestions([]); setShowSuggestions(false); return; }
 
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&types=address,poi,place&country=US&limit=5`
-        );
-        const data = await res.json();
+        const results = await searchPlaces(query);
         if (seq !== searchSeqRef.current) return;
-        setSuggestions(data.features || []);
+        setSuggestions(results);
         setShowSuggestions(true);
       } catch { /* ignore */ }
     }, 300);
   }, []);
 
-  const selectAddressSuggestion = useCallback((feature: any) => {
-    const [lng, lat] = feature.center;
-    const context = feature.context || [];
-    const findCtx = (type: string) => context.find((c: any) => c.id?.startsWith(type))?.text || '';
+  const applyPlace = useCallback((r: GeocodeResult, fallbackAddress = '') => {
+    setNewAddress(r.address || fallbackAddress || r.name);
+    setNewCity(r.city);
+    setNewState(r.state);
+    setNewZip(r.zip);
+    setNewCounty(r.county);
+  }, []);
 
-    const parts = feature.place_name.split(',');
-    setNewAddress(parts[0]?.trim() || '');
-    setNewCity(findCtx('place') || '');
-    setNewState(findCtx('region') || '');
-    setNewZip(findCtx('postcode') || '');
-    setNewCounty(findCtx('district') || '');
-    setNewLat(lat);
-    setNewLng(lng);
-    setAddressSearch(feature.place_name);
+  // Suggestions are temporary geocodes (display only); the picked one is geocoded
+  // again in permanent mode, and only those coordinates are saved.
+  const selectAddressSuggestion = useCallback(async (suggestion: GeocodeResult) => {
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchSeqRef.current++;
+    const seq = ++locateSeqRef.current;
+    setAddressSearch(suggestion.label);
     setSuggestions([]);
     setShowSuggestions(false);
-  }, []);
+    setNewLat(null);
+    setNewLng(null);
+    setIsGeocodingCoords(false);
+    setIsResolvingAddress(true);
+    try {
+      const r = await geocodeForStorage(suggestion);
+      if (seq !== locateSeqRef.current) return;
+      if (!r) throw new Error('No permanent match');
+      applyPlace(r, suggestion.name);
+      setNewLat(r.lat);
+      setNewLng(r.lng);
+    } catch (err) {
+      if (seq !== locateSeqRef.current) return;
+      applyPlace(suggestion);
+      toast.error('Could not locate that address — the pursuit will be created without a map pin', err);
+    } finally {
+      if (seq === locateSeqRef.current) setIsResolvingAddress(false);
+    }
+  }, [applyPlace]);
 
   const applyCoords = useCallback((latStr: string, lngStr: string) => {
     const lat = parseFloat(latStr);
@@ -505,28 +529,15 @@ function NewPursuitDialog({ defaultStageId, onClose }: { defaultStageId: string 
     if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
     setNewLat(lat);
     setNewLng(lng);
-    // Reverse geocode to fill address
-    if (MAPBOX_TOKEN) {
-      setIsGeocodingCoords(true);
-      fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=address,place`)
-        .then(r => r.json())
-        .then(data => {
-          if (data.features?.length > 0) {
-            const f = data.features[0];
-            const ctx = f.context || [];
-            const findCtx = (type: string) => ctx.find((c: any) => c.id?.startsWith(type))?.text || '';
-            const parts = f.place_name.split(',');
-            setNewAddress(parts[0]?.trim() || '');
-            setNewCity(findCtx('place') || '');
-            setNewState(findCtx('region') || '');
-            setNewZip(findCtx('postcode') || '');
-            setNewCounty(findCtx('district') || '');
-          }
-        })
-        .catch(() => { })
-        .finally(() => setIsGeocodingCoords(false));
-    }
-  }, []);
+    // Reverse geocode to fill the address (permanent: it is saved with the pursuit)
+    const seq = ++locateSeqRef.current;
+    setIsResolvingAddress(false);
+    setIsGeocodingCoords(true);
+    reverseGeocode(lng, lat, { permanent: true })
+      .then((r) => { if (r && seq === locateSeqRef.current) applyPlace(r); })
+      .catch(() => { })
+      .finally(() => { if (seq === locateSeqRef.current) setIsGeocodingCoords(false); });
+  }, [applyPlace]);
 
   const handleCoordChange = (latStr: string, lngStr: string) => {
     setCoordLatStr(latStr);
@@ -542,7 +553,7 @@ function NewPursuitDialog({ defaultStageId, onClose }: { defaultStageId: string 
   };
 
   const handleCreatePursuit = async () => {
-    if (!newPursuitName.trim()) return;
+    if (!newPursuitName.trim() || isResolvingAddress) return;
     try {
       await createPursuit.mutateAsync({
         name: newPursuitName.trim(),
@@ -590,7 +601,7 @@ function NewPursuitDialog({ defaultStageId, onClose }: { defaultStageId: string 
       >
         <h2 id="new-pursuit-title" className="text-lg font-semibold text-[var(--text-primary)] mb-4">New Pursuit</h2>
         <form
-          onSubmit={(e) => { e.preventDefault(); if (!isGeocodingCoords) handleCreatePursuit(); }}
+          onSubmit={(e) => { e.preventDefault(); if (!isGeocodingCoords && !isResolvingAddress) handleCreatePursuit(); }}
           className="space-y-4"
         >
           {/* Name */}
@@ -647,7 +658,7 @@ function NewPursuitDialog({ defaultStageId, onClose }: { defaultStageId: string 
                       // Enter picks the top suggestion instead of submitting the form
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        if (showSuggestions && suggestions[0]) selectAddressSuggestion(suggestions[0]);
+                        if (showSuggestions && suggestions[0]) void selectAddressSuggestion(suggestions[0]);
                       }
                     }}
                     placeholder="Search an address or place..."
@@ -656,17 +667,22 @@ function NewPursuitDialog({ defaultStageId, onClose }: { defaultStageId: string 
                 </div>
                 {showSuggestions && suggestions.length > 0 && (
                   <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg shadow-lg overflow-hidden max-h-48 overflow-y-auto">
-                    {suggestions.map((s: any) => (
+                    {suggestions.map((s) => (
                       <button
                         type="button"
                         key={s.id}
-                        onClick={() => selectAddressSuggestion(s)}
+                        onClick={() => void selectAddressSuggestion(s)}
                         className="w-full text-left px-3 py-2.5 text-sm text-[var(--text-primary)] hover:bg-[var(--accent-subtle)] transition-colors border-b border-[var(--table-row-border)] last:border-b-0"
                       >
-                        <div className="font-medium text-xs">{s.text}</div>
-                        <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{s.place_name}</div>
+                        <div className="font-medium text-xs">{s.name}</div>
+                        <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{s.secondary}</div>
                       </button>
                     ))}
+                  </div>
+                )}
+                {isResolvingAddress && (
+                  <div className="mt-2 flex items-center gap-1.5 text-xs text-[var(--accent)]" role="status">
+                    <Loader2 className="w-3 h-3 animate-spin" aria-hidden /> Locating address...
                   </div>
                 )}
                 {/* Show selected address details */}
@@ -746,7 +762,7 @@ function NewPursuitDialog({ defaultStageId, onClose }: { defaultStageId: string 
             </button>
             <button
               type="submit"
-              disabled={!newPursuitName.trim() || createPursuit.isPending || isGeocodingCoords}
+              disabled={!newPursuitName.trim() || createPursuit.isPending || isGeocodingCoords || isResolvingAddress}
               className="px-4 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors shadow-sm"
             >
               {createPursuit.isPending ? 'Creating...' : 'Create Pursuit'}
@@ -765,13 +781,10 @@ interface DashboardMapProps {
   stages: PursuitStage[];
 }
 
-type MapStyleId = 'light' | 'satellite' | '3d';
+type BasemapChoice = 'map' | 'satellite' | '3d';
 
-const MAP_STYLES: Record<MapStyleId, { url: string; label: string }> = {
-  light: { url: 'mapbox://styles/mapbox/light-v11', label: 'Map' },
-  satellite: { url: 'mapbox://styles/mapbox/satellite-streets-v12', label: 'Satellite' },
-  '3d': { url: 'mapbox://styles/mapbox/outdoors-v12', label: '3D' },
-};
+const BASEMAP_CHOICES: Record<BasemapChoice, string> = { map: 'Map', satellite: 'Satellite', '3d': '3D' };
+const PITCH_3D = 55;
 
 const PURSUIT_SOURCE = 'pursuits';
 const CLUSTER_LAYER = 'pursuit-clusters';
@@ -781,103 +794,105 @@ const LABEL_LAYER = 'pursuit-labels';
 const FALLBACK_STAGE_COLOR = '#94A3B8';
 // Names appear once there's room for them; Mapbox drops labels that would collide.
 const LABEL_MIN_ZOOM = 11;
+const FIT_OPTIONS = { padding: 60, maxZoom: 12 };
 
 type PursuitFeatureCollection = GeoJSON.FeatureCollection<GeoJSON.Point, { shortId: string; name: string; stage: string; color: string }>;
+type PursuitProps = PursuitFeatureCollection['features'][number]['properties'];
 
 /**
  * Pursuits are drawn as a clustered GeoJSON layer instead of one DOM marker per
  * pursuit: dense metros (a dozen sites within a few miles) collapse into count
  * bubbles that expand on click, and individual sites are stage-colored dots
  * with collision-aware name labels once zoomed in. Colors are literal because
- * they paint on the Mapbox canvas, which doesn't follow the app theme.
+ * they paint on the Mapbox canvas; cluster and label inks flip with the theme.
  */
-function ensurePursuitLayers(map: MapboxMap, data: PursuitFeatureCollection) {
-  if (!map.getSource(PURSUIT_SOURCE)) {
-    map.addSource(PURSUIT_SOURCE, {
-      type: 'geojson',
-      data,
-      cluster: true,
-      clusterMaxZoom: LABEL_MIN_ZOOM,
-      clusterRadius: 44,
-    });
+function ensurePursuitLayers(map: MapboxMap, data: PursuitFeatureCollection, isDark: boolean) {
+  upsertGeoJsonSource(map, PURSUIT_SOURCE, data, { cluster: true, clusterMaxZoom: LABEL_MIN_ZOOM, clusterRadius: 44 });
+  const ink = siteInkColor(isDark);
+  const paper = siteInkColor(!isDark);
+  addLayerOnce(map, {
+    id: CLUSTER_LAYER,
+    type: 'circle',
+    source: PURSUIT_SOURCE,
+    filter: ['has', 'point_count'],
+    paint: {
+      'circle-color': ink,
+      'circle-opacity': 0.85,
+      'circle-radius': ['step', ['get', 'point_count'], 15, 5, 19, 15, 24],
+      'circle-stroke-width': 2,
+      'circle-stroke-color': paper,
+    },
+  });
+  addLayerOnce(map, {
+    id: CLUSTER_COUNT_LAYER,
+    type: 'symbol',
+    source: PURSUIT_SOURCE,
+    filter: ['has', 'point_count'],
+    layout: {
+      'text-field': ['get', 'point_count_abbreviated'],
+      'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
+      'text-size': 12,
+      'text-allow-overlap': true,
+    },
+    paint: { 'text-color': paper },
+  });
+  addLayerOnce(map, {
+    id: POINT_LAYER,
+    type: 'circle',
+    source: PURSUIT_SOURCE,
+    filter: ['!', ['has', 'point_count']],
+    paint: {
+      'circle-color': ['get', 'color'],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 6, 14, 9],
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#FFFFFF',
+    },
+  });
+  addLayerOnce(map, {
+    id: LABEL_LAYER,
+    type: 'symbol',
+    source: PURSUIT_SOURCE,
+    filter: ['!', ['has', 'point_count']],
+    minzoom: LABEL_MIN_ZOOM,
+    layout: {
+      'text-field': ['get', 'name'],
+      'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+      'text-size': 12,
+      'text-offset': [0, 1.1],
+      'text-anchor': 'top',
+      'text-max-width': 12,
+    },
+    paint: {
+      'text-color': ink,
+      'text-halo-color': paper,
+      'text-halo-width': 1.5,
+    },
+  });
+}
+
+function applyPursuitTheme(map: MapboxMap, isDark: boolean) {
+  const ink = siteInkColor(isDark);
+  const paper = siteInkColor(!isDark);
+  if (map.getLayer(CLUSTER_LAYER)) {
+    map.setPaintProperty(CLUSTER_LAYER, 'circle-color', ink);
+    map.setPaintProperty(CLUSTER_LAYER, 'circle-stroke-color', paper);
   }
-  if (!map.getLayer(CLUSTER_LAYER)) {
-    map.addLayer({
-      id: CLUSTER_LAYER,
-      type: 'circle',
-      source: PURSUIT_SOURCE,
-      filter: ['has', 'point_count'],
-      paint: {
-        'circle-color': '#1A1F2B',
-        'circle-opacity': 0.85,
-        'circle-radius': ['step', ['get', 'point_count'], 15, 5, 19, 15, 24],
-        'circle-stroke-width': 2,
-        'circle-stroke-color': '#FFFFFF',
-      },
-    });
-  }
-  if (!map.getLayer(CLUSTER_COUNT_LAYER)) {
-    map.addLayer({
-      id: CLUSTER_COUNT_LAYER,
-      type: 'symbol',
-      source: PURSUIT_SOURCE,
-      filter: ['has', 'point_count'],
-      layout: {
-        'text-field': ['get', 'point_count_abbreviated'],
-        'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
-        'text-size': 12,
-        'text-allow-overlap': true,
-      },
-      paint: { 'text-color': '#FFFFFF' },
-    });
-  }
-  if (!map.getLayer(POINT_LAYER)) {
-    map.addLayer({
-      id: POINT_LAYER,
-      type: 'circle',
-      source: PURSUIT_SOURCE,
-      filter: ['!', ['has', 'point_count']],
-      paint: {
-        'circle-color': ['get', 'color'],
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 6, 14, 9],
-        'circle-stroke-width': 2,
-        'circle-stroke-color': '#FFFFFF',
-      },
-    });
-  }
-  if (!map.getLayer(LABEL_LAYER)) {
-    map.addLayer({
-      id: LABEL_LAYER,
-      type: 'symbol',
-      source: PURSUIT_SOURCE,
-      filter: ['!', ['has', 'point_count']],
-      minzoom: LABEL_MIN_ZOOM,
-      layout: {
-        'text-field': ['get', 'name'],
-        'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
-        'text-size': 12,
-        'text-offset': [0, 1.1],
-        'text-anchor': 'top',
-        'text-max-width': 12,
-      },
-      paint: {
-        'text-color': '#1A1F2B',
-        'text-halo-color': '#FFFFFF',
-        'text-halo-width': 1.5,
-      },
-    });
+  if (map.getLayer(CLUSTER_COUNT_LAYER)) map.setPaintProperty(CLUSTER_COUNT_LAYER, 'text-color', paper);
+  if (map.getLayer(LABEL_LAYER)) {
+    map.setPaintProperty(LABEL_LAYER, 'text-color', ink);
+    map.setPaintProperty(LABEL_LAYER, 'text-halo-color', paper);
   }
 }
 
-/** Hover card content, built with DOM text nodes — names are user-entered. */
-function buildPopupContent(name: string, stage: string, color: string) {
+/** Popup content, built with DOM text nodes — names are user-entered. `onOpen` adds an "Open" link (touch). */
+function buildPopupContent({ name, stage, color }: PursuitProps, href: string, onOpen?: () => void) {
   const root = document.createElement('div');
   root.style.cssText = 'font-family:inherit;min-width:120px;';
   const title = document.createElement('div');
-  title.style.cssText = 'font-size:12px;font-weight:600;color:#1A1F2B;line-height:1.3;';
+  title.style.cssText = 'font-size:12px;font-weight:600;color:var(--text-primary);line-height:1.3;';
   title.textContent = name;
   const stageRow = document.createElement('div');
-  stageRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-top:3px;font-size:11px;color:#4A5568;';
+  stageRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-top:3px;font-size:11px;color:var(--text-muted);';
   const dot = document.createElement('span');
   dot.style.cssText = 'width:8px;height:8px;border-radius:9999px;flex-shrink:0;';
   dot.style.background = color;
@@ -885,15 +900,39 @@ function buildPopupContent(name: string, stage: string, color: string) {
   stageRow.appendChild(document.createTextNode(stage));
   root.appendChild(title);
   root.appendChild(stageRow);
+  if (onOpen) {
+    const link = document.createElement('a');
+    link.href = href;
+    link.textContent = 'Open pursuit →';
+    link.style.cssText = 'display:inline-block;margin-top:6px;padding:4px 0;font-size:12px;font-weight:600;color:var(--accent);';
+    link.addEventListener('click', (ev) => { ev.preventDefault(); onOpen(); });
+    root.appendChild(link);
+  }
   return root;
+}
+
+/** Sorted ids of the pursuits on the map — the map refits when this set changes. */
+function pursuitSetKey(data: PursuitFeatureCollection) {
+  return data.features.map((f) => f.properties.shortId).sort().join(',');
+}
+
+/** [[west, south], [east, north]] of the features, or undefined when empty */
+function featureBounds(data: PursuitFeatureCollection): [[number, number], [number, number]] | undefined {
+  if (!data.features.length) return undefined;
+  let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
+  for (const f of data.features) {
+    const [lng, lat] = f.geometry.coordinates;
+    w = Math.min(w, lng); e = Math.max(e, lng);
+    s = Math.min(s, lat); n = Math.max(n, lat);
+  }
+  return [[w, s], [e, n]];
 }
 
 function DashboardMap({ pursuits, stages }: DashboardMapProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<MapboxMap | null>(null);
-  const [activeStyle, setActiveStyle] = useState<MapStyleId>('light');
-  const appliedStyleRef = useRef<MapStyleId>('light');
+  const [basemapChoice, setBasemapChoice] = useState<BasemapChoice>('map');
+  const isDark = useIsDarkTheme();
 
   // Build stage color map
   const stageColorMap = useMemo(() => {
@@ -928,179 +967,150 @@ function DashboardMap({ pursuits, stages }: DashboardMapProps) {
   // Latest values for the long-lived map callbacks
   const geojsonRef = useRef(geojson);
   const routerRef = useRef(router);
+  const isDarkRef = useRef(isDark);
   useEffect(() => {
     geojsonRef.current = geojson;
     routerRef.current = router;
+    isDarkRef.current = isDark;
+  });
+  const hidePopupRef = useRef<(() => void) | null>(null);
+  // The set of pursuits the camera is framed on (the map opens framed on the initial set)
+  const [initialSetKey] = useState(() => pursuitSetKey(geojson));
+  const fittedKeyRef = useRef(initialSetKey);
+
+  const initialBounds = featureBounds(geojson);
+  const { map, mbgl, ready, error } = useMapboxMap(containerRef, {
+    ...(initialBounds ? { bounds: initialBounds, fitBoundsOptions: FIT_OPTIONS } : { center: [-97.7431, 32.0] as [number, number], zoom: 4 }),
+    basemap: basemapChoice === 'satellite' ? 'satellite' : 'standard',
+    show3d: basemapChoice === '3d',
+    onStyleReady: (m) => ensurePursuitLayers(m, geojsonRef.current, isDarkRef.current),
   });
 
-  // Initialize map (mapbox-gl is only downloaded when the map view is opened)
+  // Push filter changes into the existing source, and reframe when the set of pursuits changes
   useEffect(() => {
-    if (!MAPBOX_TOKEN || !containerRef.current) return;
+    if (!map || !mbgl || !ready) return;
+    setGeoJsonData(map, PURSUIT_SOURCE, geojson);
+    const key = pursuitSetKey(geojson);
+    if (key === fittedKeyRef.current) return;
+    hidePopupRef.current?.();
+    if (!geojson.features.length) return; // nothing to frame; keep the view
+    fittedKeyRef.current = key;
+    const bounds = boundsOf(mbgl, geojson);
+    if (bounds) map.fitBounds(bounds, { ...FIT_OPTIONS, duration: 600 });
+  }, [map, mbgl, ready, geojson]);
 
-    let map: MapboxMap | null = null;
-    let popup: MapboxPopup | null = null;
-    let cancelled = false;
-    import('mapbox-gl').then((mapboxgl) => {
-      if (cancelled || !containerRef.current) return;
-      const mbgl = mapboxgl.default;
-      mbgl.accessToken = MAPBOX_TOKEN;
+  // Cluster / label inks follow the theme (the basemap itself is handled by the hook)
+  useEffect(() => {
+    if (map && ready) applyPursuitTheme(map, isDark);
+  }, [map, ready, isDark]);
 
-      const initial = geojsonRef.current.features;
-      let center: [number, number] = [-97.7431, 32.0];
-      let zoom = 4;
-      if (initial.length === 1) {
-        center = initial[0].geometry.coordinates as [number, number];
-        zoom = 12;
+  // Tilt the camera for 3D, flatten it again when leaving
+  const appliedChoiceRef = useRef(basemapChoice);
+  useEffect(() => {
+    if (!map || appliedChoiceRef.current === basemapChoice) return;
+    appliedChoiceRef.current = basemapChoice;
+    if (basemapChoice === '3d') map.easeTo({ pitch: PITCH_3D, duration: 800 });
+    else if (map.getPitch() > 0) map.easeTo({ pitch: 0, duration: 500 });
+  }, [map, basemapChoice]);
+
+  // Hover card, click-through and cluster expansion
+  useEffect(() => {
+    if (!map || !mbgl || !ready) return;
+    const isTouch = window.matchMedia('(hover: none)').matches;
+    const popup = createPopup(mbgl, { offset: 10 });
+    let shownId: string | null = null;
+
+    const openPursuit = (shortId: string) => routerRef.current.push(`/pursuits/${shortId}`);
+    const show = (feature: GeoJSON.Feature) => {
+      const props = feature.properties as PursuitProps;
+      shownId = props.shortId;
+      popup
+        .setLngLat((feature.geometry as GeoJSON.Point).coordinates as [number, number])
+        .setDOMContent(buildPopupContent(props, `/pursuits/${props.shortId}`, isTouch ? () => openPursuit(props.shortId) : undefined))
+        .addTo(map);
+    };
+    const hide = () => { popup.remove(); shownId = null; };
+    hidePopupRef.current = hide;
+
+    // mousemove (not mouseenter) so sliding between adjacent dots updates the card
+    const onPointMove = (e: MapMouseEvent) => {
+      if (isTouch) return;
+      map.getCanvas().style.cursor = 'pointer';
+      const feature = e.features?.[0];
+      if (feature && feature.properties?.shortId !== shownId) show(feature);
+    };
+    const onPointLeave = () => {
+      if (isTouch) return;
+      map.getCanvas().style.cursor = '';
+      hide();
+    };
+    const onClusterEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
+    const onClusterLeave = () => { map.getCanvas().style.cursor = ''; };
+
+    // One click handler for every pursuit layer, so a dot and its overlapping label navigate once
+    const onClick = (e: MapMouseEvent) => {
+      const layers = [CLUSTER_LAYER, POINT_LAYER, LABEL_LAYER].filter((id) => map.getLayer(id));
+      const feature = layers.length ? map.queryRenderedFeatures(e.point, { layers })[0] : undefined;
+      if (!feature) {
+        if (isTouch) hide();
+        return;
       }
-
-      containerRef.current.innerHTML = '';
-      const m = new mbgl.Map({
-        container: containerRef.current,
-        style: MAP_STYLES.light.url,
-        center,
-        zoom,
-        interactive: true,
-      });
-      map = m;
-      mapRef.current = m;
-
-      m.addControl(new mbgl.NavigationControl({ showCompass: true }), 'top-right');
-      popup = new mbgl.Popup({ closeButton: false, closeOnClick: false, offset: 12 });
-
-      m.on('load', () => {
-        const features = geojsonRef.current.features;
-        if (features.length > 1) {
-          const bounds = new mbgl.LngLatBounds();
-          features.forEach((f) => bounds.extend(f.geometry.coordinates as [number, number]));
-          m.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 0 });
-        }
-      });
-
-      // Layers are (re)added on every style load — setStyle() wipes custom sources.
-      m.on('style.load', () => ensurePursuitLayers(m, geojsonRef.current));
-
-      // Layer-scoped listeners survive style swaps (they're keyed by layer id).
-      m.on('click', CLUSTER_LAYER, (e: MapMouseEvent) => {
-        const feature = e.features?.[0];
-        const clusterId = feature?.properties?.cluster_id;
-        const source = m.getSource(PURSUIT_SOURCE) as GeoJSONSource | undefined;
-        if (!feature || clusterId == null || !source) return;
+      if (feature.layer?.id === CLUSTER_LAYER) {
+        const clusterId = feature.properties?.cluster_id;
+        const source = map.getSource(PURSUIT_SOURCE) as GeoJSONSource | undefined;
+        if (clusterId == null || !source) return;
         source.getClusterExpansionZoom(clusterId, (err, expansionZoom) => {
           if (err || expansionZoom == null) return;
-          m.easeTo({ center: (feature.geometry as GeoJSON.Point).coordinates as [number, number], zoom: expansionZoom });
+          map.easeTo({ center: (feature.geometry as GeoJSON.Point).coordinates as [number, number], zoom: expansionZoom });
         });
-      });
-      const openPursuit = (e: MapMouseEvent) => {
-        const shortId = e.features?.[0]?.properties?.shortId;
-        if (shortId) routerRef.current.push(`/pursuits/${shortId}`);
-      };
-      m.on('click', POINT_LAYER, openPursuit);
-      m.on('click', LABEL_LAYER, openPursuit);
-
-      m.on('mouseenter', CLUSTER_LAYER, () => { m.getCanvas().style.cursor = 'pointer'; });
-      m.on('mouseleave', CLUSTER_LAYER, () => { m.getCanvas().style.cursor = ''; });
-      m.on('mouseenter', POINT_LAYER, (e: MapMouseEvent) => {
-        m.getCanvas().style.cursor = 'pointer';
-        const feature = e.features?.[0];
-        if (!feature || !popup) return;
-        const { name, stage, color } = feature.properties as { name: string; stage: string; color: string };
-        popup
-          .setLngLat((feature.geometry as GeoJSON.Point).coordinates as [number, number])
-          .setDOMContent(buildPopupContent(name, stage, color))
-          .addTo(m);
-      });
-      m.on('mouseleave', POINT_LAYER, () => {
-        m.getCanvas().style.cursor = '';
-        popup?.remove();
-      });
-    });
-
-    return () => {
-      cancelled = true;
-      popup?.remove();
-      map?.remove();
-      mapRef.current = null;
-    };
-  }, []);
-
-  // Push filter changes into the existing source instead of rebuilding markers
-  useEffect(() => {
-    const source = mapRef.current?.getSource(PURSUIT_SOURCE) as GeoJSONSource | undefined;
-    source?.setData(geojson);
-  }, [geojson]);
-
-  // Handle style change
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    // Avoid re-setting the same style
-    if (appliedStyleRef.current === activeStyle) return;
-    appliedStyleRef.current = activeStyle;
-
-    map.setStyle(MAP_STYLES[activeStyle].url);
-
-    map.once('style.load', () => {
-      // Pursuit layers are re-added by the persistent style.load handler
-      if (activeStyle === '3d') {
-        try {
-          if (!map.getSource('mapbox-dem')) {
-            map.addSource('mapbox-dem', {
-              type: 'raster-dem',
-              url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-              tileSize: 512,
-              maxzoom: 14,
-            });
-          }
-          map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 });
-          map.easeTo({ pitch: 45, duration: 800 });
-        } catch (e) {
-          console.warn('Terrain setup skipped:', e);
-        }
-      } else {
-        try {
-          map.setTerrain(null);
-          if (map.getPitch() > 0) {
-            map.easeTo({ pitch: 0, duration: 500 });
-          }
-        } catch { /* ok */ }
+        return;
       }
-    });
-  }, [activeStyle]);
+      const shortId = feature.properties?.shortId as string | undefined;
+      if (!shortId) return;
+      // Touch: the first tap shows the card (with an Open link); tapping the same dot again opens it
+      if (isTouch && shownId !== shortId) {
+        show(feature);
+        return;
+      }
+      openPursuit(shortId);
+    };
 
-  if (!MAPBOX_TOKEN) {
-    return (
-      <div className="w-full h-[500px] rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] flex items-center justify-center">
-        <div className="text-center">
-          <Map className="w-8 h-8 text-[var(--text-faint)] mx-auto mb-3" aria-hidden />
-          <p className="text-sm text-[var(--text-muted)]">Add <code className="text-xs bg-[var(--bg-elevated)] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env.local to enable the map view.</p>
-        </div>
-      </div>
-    );
-  }
+    map.on('mousemove', POINT_LAYER, onPointMove);
+    map.on('mouseleave', POINT_LAYER, onPointLeave);
+    map.on('mouseenter', CLUSTER_LAYER, onClusterEnter);
+    map.on('mouseleave', CLUSTER_LAYER, onClusterLeave);
+    map.on('click', onClick);
+    return () => {
+      map.off('mousemove', POINT_LAYER, onPointMove);
+      map.off('mouseleave', POINT_LAYER, onPointLeave);
+      map.off('mouseenter', CLUSTER_LAYER, onClusterEnter);
+      map.off('mouseleave', CLUSTER_LAYER, onClusterLeave);
+      map.off('click', onClick);
+      hidePopupRef.current = null;
+      popup.remove();
+    };
+  }, [map, mbgl, ready]);
 
   const legendStages = stages.filter((s) => s.is_active);
 
   return (
-    <div className="relative">
-      <div
-        ref={containerRef}
-        className="w-full h-[65vh] min-h-[420px] sm:h-[600px] rounded-xl border border-[var(--border)] overflow-hidden"
-      />
+    <div className="relative w-full h-[65vh] min-h-[420px] sm:h-[600px] rounded-xl border border-[var(--border)] overflow-hidden">
+      <div ref={containerRef} className="absolute inset-0" />
+      <MapStatusOverlay ready={ready} error={error} />
 
-      {/* Style Switcher — top-right, left of the zoom controls */}
+      {/* Basemap switcher — top-right, left of the zoom controls */}
       <div className="absolute z-10 top-4 right-14 flex bg-[var(--bg-card)]/95 backdrop-blur-sm rounded-lg border border-[var(--border)] shadow-sm overflow-hidden" role="group" aria-label="Map style">
-        {(Object.keys(MAP_STYLES) as MapStyleId[]).map((key) => (
+        {(Object.keys(BASEMAP_CHOICES) as BasemapChoice[]).map((key) => (
           <button
             key={key}
-            onClick={() => setActiveStyle(key)}
-            aria-pressed={activeStyle === key}
-            className={`px-3 py-1.5 text-[11px] font-medium transition-colors ${activeStyle === key
+            onClick={() => setBasemapChoice(key)}
+            aria-pressed={basemapChoice === key}
+            className={`px-3 py-1.5 text-[11px] font-medium transition-colors ${basemapChoice === key
               ? 'bg-[var(--accent)] text-white'
               : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
               }`}
           >
-            {MAP_STYLES[key].label}
+            {BASEMAP_CHOICES[key]}
           </button>
         ))}
       </div>

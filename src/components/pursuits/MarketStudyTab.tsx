@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Loader2, FileDown, FileSpreadsheet } from 'lucide-react';
 import { usePursuitRentComps } from '@/hooks/useHellodataQueries';
 import {
@@ -13,13 +13,15 @@ import {
 } from '@/lib/calculations/hellodataCalculations';
 import type { HellodataUnit, PursuitRentComp } from '@/types';
 import { toast } from '@/lib/toast';
-import { useMapStyle } from './mapTheme';
+import type { LngLatBoundsLike } from 'mapbox-gl';
+import { useMapboxMap } from '@/components/map/useMapboxMap';
+import { MapStatusOverlay } from '@/components/map/MapStatusOverlay';
+import { escapeHtml } from '@/components/map/mapHelpers';
 
 // ============================================================
 // Constants
 // ============================================================
 const COMP_COLORS = ['#2563EB', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 const BED_LABELS: Record<number, string> = { 0: 'Studio', 1: '1BR', 2: '2BR', 3: '3BR', 4: '4BR' };
 const BED_COLORS: Record<number, string> = { 0: '#3B82F6', 1: '#22C55E', 2: '#F59E0B', 3: '#EF4444', 4: '#8B5CF6' };
 
@@ -65,10 +67,6 @@ interface StockRow {
     isSubtotal?: boolean;
     isGrandTotal?: boolean;
     bed?: number;
-}
-
-function escapeHtml(v: unknown): string {
-    return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 // SF range bucket helpers
@@ -434,101 +432,7 @@ export default function MarketStudyTab({ pursuitId, pursuitName, compFilter = 'a
 // Embedded Map (numbered markers matching summary table)
 // ============================================================
 function StudyMap({ comps }: { comps: CompSummary[] }) {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<unknown>(null);
-    const { mapStyle } = useMapStyle('streets');
-
     const mappable = useMemo(() => comps.filter(c => c.lat && c.lon), [comps]);
-
-    const initMap = useCallback(() => {
-        if (!MAPBOX_TOKEN || !containerRef.current || mappable.length === 0) return;
-        let cancelled = false;
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        import('mapbox-gl').then((mapboxgl: any) => {
-            // Effect may have been cleaned up while the module was loading; don't create an orphan map
-            if (cancelled || !containerRef.current) return;
-            const mbgl = mapboxgl.default || mapboxgl;
-            mbgl.accessToken = MAPBOX_TOKEN;
-
-            const lats = mappable.map(c => c.lat!);
-            const lons = mappable.map(c => c.lon!);
-            const center: [number, number] = [(Math.min(...lons) + Math.max(...lons)) / 2, (Math.min(...lats) + Math.max(...lats)) / 2];
-
-            const map = new mbgl.Map({
-                container: containerRef.current!,
-                style: mapStyle,
-                center,
-                zoom: 12,
-                attributionControl: false,
-            });
-            mapRef.current = map;
-
-            map.on('load', () => {
-                if (cancelled) return;
-                if (mappable.length > 1) {
-                    const pad = 0.005;
-                    map.fitBounds(
-                        [[Math.min(...lons) - pad, Math.min(...lats) - pad], [Math.max(...lons) + pad, Math.max(...lats) + pad]],
-                        { padding: 60, maxZoom: 14 }
-                    );
-                }
-
-                mappable.forEach((c) => {
-                    // Custom numbered marker
-                    const el = document.createElement('div');
-                    el.className = 'market-study-marker';
-                    el.style.cssText = `
-                        width: 28px; height: 28px; border-radius: 50%; background: ${c.color};
-                        color: white; font-size: 12px; font-weight: 700; display: flex;
-                        align-items: center; justify-content: center; border: 2px solid white;
-                        box-shadow: 0 2px 6px rgba(0,0,0,0.3); cursor: pointer;
-                    `;
-                    el.textContent = String(c.mapNode);
-
-                    const popup = new mbgl.Popup({ offset: 20, closeButton: false, maxWidth: '240px' })
-                        .setHTML(`
-                            <div style="font-family: system-ui; padding: 4px;">
-                                <div style="font-weight: 600; font-size: 12px; margin-bottom: 2px;">${escapeHtml(c.name)}</div>
-                                <div style="font-size: 11px; color: var(--text-muted); display: grid; grid-template-columns: 1fr 1fr; gap: 1px 10px;">
-                                    <span>Units:</span><span style="font-weight: 500;">${c.unitCount}</span>
-                                    <span>Rent:</span><span style="font-weight: 500;">${fmtCur(c.marketRent)}</span>
-                                    <span>Eff:</span><span style="font-weight: 500;">${fmtCur(c.effectiveRent)}</span>
-                                    <span>Built:</span><span style="font-weight: 500;">${c.yearBuilt ?? '—'}</span>
-                                </div>
-                            </div>
-                        `);
-
-                    new mbgl.Marker({ element: el })
-                        .setLngLat([c.lon!, c.lat!])
-                        .setPopup(popup)
-                        .addTo(map);
-                });
-            });
-        });
-
-        return () => {
-            cancelled = true;
-            if (mapRef.current) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (mapRef.current as any).remove();
-                mapRef.current = null;
-            }
-        };
-    }, [mappable, mapStyle]);
-
-    useEffect(() => {
-        const cleanup = initMap();
-        return () => { if (cleanup) cleanup(); };
-    }, [initMap]);
-
-    if (!MAPBOX_TOKEN) {
-        return (
-            <div className="text-center py-12 border border-dashed border-[var(--border)] rounded-xl bg-[var(--bg-primary)]">
-                <p className="text-sm text-[var(--text-muted)]">Map requires <code className="text-[10px] bg-[var(--bg-elevated)] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code></p>
-            </div>
-        );
-    }
 
     if (mappable.length === 0) {
         return (
@@ -541,9 +445,7 @@ function StudyMap({ comps }: { comps: CompSummary[] }) {
     return (
         <div className="space-y-2">
             <h3 className="text-sm font-semibold text-[var(--text-primary)]">Comp Map</h3>
-            <div className="border border-[var(--border)] rounded-xl overflow-hidden" style={{ height: '400px' }}>
-                <div ref={containerRef} className="w-full h-full" role="img" aria-label={`Map of ${mappable.length} comp properties, numbered to match the Market Summary table`} />
-            </div>
+            <StudyMapCanvas comps={mappable} />
             <div className="flex flex-wrap gap-3 px-1">
                 {mappable.map((c, i) => (
                     <div key={i} className="flex items-center gap-1.5 text-xs">
@@ -552,6 +454,70 @@ function StudyMap({ comps }: { comps: CompSummary[] }) {
                     </div>
                 ))}
             </div>
+        </div>
+    );
+}
+
+/** Comps' extent, padded so a tight cluster isn't framed edge to edge */
+function compBounds(comps: CompSummary[]): LngLatBoundsLike {
+    const lats = comps.map(c => c.lat!);
+    const lons = comps.map(c => c.lon!);
+    const pad = 0.005;
+    return [[Math.min(...lons) - pad, Math.min(...lats) - pad], [Math.max(...lons) + pad, Math.max(...lats) + pad]];
+}
+
+function compPopupHtml(c: CompSummary): string {
+    return `
+        <div style="font-family: system-ui; padding: 4px;">
+            <div style="font-weight: 600; font-size: 12px; margin-bottom: 2px; color: var(--text-primary);">${escapeHtml(c.name)}</div>
+            <div style="font-size: 11px; color: var(--text-muted); display: grid; grid-template-columns: 1fr 1fr; gap: 1px 10px;">
+                <span>Units:</span><span style="font-weight: 500;">${c.unitCount}</span>
+                <span>Rent:</span><span style="font-weight: 500;">${fmtCur(c.marketRent)}</span>
+                <span>Eff:</span><span style="font-weight: 500;">${fmtCur(c.effectiveRent)}</span>
+                <span>Built:</span><span style="font-weight: 500;">${c.yearBuilt ?? '—'}</span>
+            </div>
+        </div>
+    `;
+}
+
+/** The map itself; mounted only when there is at least one mappable comp. Markers update in place. */
+function StudyMapCanvas({ comps }: { comps: CompSummary[] }) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const { map, mbgl, ready, error } = useMapboxMap(containerRef, comps.length > 1
+        ? { bounds: compBounds(comps), fitBoundsOptions: { padding: 60, maxZoom: 14 } }
+        : { center: [comps[0].lon!, comps[0].lat!], zoom: 12 });
+
+    // Numbered markers matching the summary table; click / tap / Enter opens the popup
+    const framedRef = useRef(false);
+    useEffect(() => {
+        if (!map || !mbgl) return;
+        const markers = comps.map((c) => {
+            const el = document.createElement('div');
+            el.className = 'market-study-marker';
+            el.style.cssText = `
+                width: 28px; height: 28px; border-radius: 50%; background: ${c.color};
+                color: white; font-size: 12px; font-weight: 700; display: flex;
+                align-items: center; justify-content: center; border: 2px solid white;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.3); cursor: pointer;
+            `;
+            el.textContent = String(c.mapNode);
+            el.setAttribute('aria-label', `${c.mapNode}. ${c.name}`);
+            const popup = new mbgl.Popup({ offset: 20, closeButton: false, maxWidth: '240px' }).setHTML(compPopupHtml(c));
+            return new mbgl.Marker({ element: el }).setLngLat([c.lon!, c.lat!]).setPopup(popup).addTo(map);
+        });
+        // The map opened framed on the first set; re-frame when the comps change
+        if (framedRef.current) {
+            if (comps.length > 1) map.fitBounds(compBounds(comps), { padding: 60, maxZoom: 14, duration: 600 });
+            else map.easeTo({ center: [comps[0].lon!, comps[0].lat!], zoom: 12, duration: 600 });
+        }
+        framedRef.current = true;
+        return () => { markers.forEach(m => m.remove()); };
+    }, [map, mbgl, comps]);
+
+    return (
+        <div className="relative border border-[var(--border)] rounded-xl overflow-hidden" style={{ height: '400px' }}>
+            <div ref={containerRef} className="absolute inset-0" role="region" aria-label={`Map of ${comps.length} comp properties, numbered to match the Market Summary table`} />
+            <MapStatusOverlay ready={ready} error={error} />
         </div>
     );
 }

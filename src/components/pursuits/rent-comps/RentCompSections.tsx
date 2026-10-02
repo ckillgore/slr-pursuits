@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import SVGChart, { ChartSeries } from './SVGChart';
 import type { HellodataUnit, HellodataConcession } from '@/types';
 import type { PropertyMetrics } from './types';
 import { getAverageAskingRent, getAverageEffectiveRent } from '@/lib/calculations/hellodataCalculations';
-import { useMapStyle } from '../mapTheme';
+import type { LngLatBoundsLike } from 'mapbox-gl';
+import { useMapboxMap } from '@/components/map/useMapboxMap';
+import { MapStatusOverlay } from '@/components/map/MapStatusOverlay';
+import { escapeHtml } from '@/components/map/mapHelpers';
 
 const COMP_COLORS = ['#2563EB', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
 
@@ -1124,130 +1127,90 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
 // ============================================================
 // Comp Map — Mapbox GL map with markers for each comp
 // ============================================================
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
+const compMarkerColor = (c: PropertyMetrics, i: number) => (c.compType === 'primary' ? COMP_COLORS[i % COMP_COLORS.length] : '#94A3B8');
 
-function escapeHtml(v: unknown): string {
-    return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/** Comps' extent, padded so a tight cluster isn't framed edge to edge */
+function compBounds(comps: PropertyMetrics[]): LngLatBoundsLike {
+    const lats = comps.map(c => c.property.lat!);
+    const lons = comps.map(c => c.property.lon!);
+    const pad = 0.005;
+    return [[Math.min(...lons) - pad, Math.min(...lats) - pad], [Math.max(...lons) + pad, Math.max(...lats) + pad]];
+}
+
+function compPopupHtml(c: PropertyMetrics): string {
+    const fmtC = (v: number | null) => v !== null ? `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—';
+    return `
+        <div style="font-family: system-ui, sans-serif; padding: 4px;">
+            <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px; color: var(--text-primary);">${escapeHtml(c.name)}</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">${escapeHtml(c.address)}</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; font-size: 11px; color: var(--text-primary);">
+                <span style="color: var(--text-muted);">Asking:</span><span style="font-weight: 500;">${fmtC(c.askingRent)}</span>
+                <span style="color: var(--text-muted);">Effective:</span><span style="font-weight: 500;">${fmtC(c.effectiveRent)}</span>
+                <span style="color: var(--text-muted);">Units:</span><span style="font-weight: 500;">${c.property.number_units ?? '—'}</span>
+                <span style="color: var(--text-muted);">Leased:</span><span style="font-weight: 500;">${c.leasedPct !== null ? c.leasedPct.toFixed(1) + '%' : '—'}</span>
+            </div>
+        </div>
+    `;
+}
+
+/** The map itself; mounted only when there is at least one mappable comp. Markers update in place. */
+function CompMapCanvas({ comps, onHover }: { comps: PropertyMetrics[]; onHover: (index: number | null) => void }) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const { map, mbgl, ready, error } = useMapboxMap(containerRef, comps.length > 1
+        ? { bounds: compBounds(comps), fitBoundsOptions: { padding: 60, maxZoom: 15 } }
+        : { center: [comps[0].property.lon!, comps[0].property.lat!], zoom: 12 });
+
+    // Markers: hover previews the popup on desktop; click / tap / Enter toggles it (and keeps it open)
+    const framedRef = useRef(false);
+    useEffect(() => {
+        if (!map || !mbgl) return;
+        const markers = comps.map((c, i) => {
+            const popup = new mbgl.Popup({ offset: 25, closeButton: false, maxWidth: '280px' }).setHTML(compPopupHtml(c));
+            const marker = new mbgl.Marker({ color: compMarkerColor(c, i), scale: 0.85 })
+                .setLngLat([c.property.lon!, c.property.lat!])
+                .setPopup(popup)
+                .addTo(map);
+            const el = marker.getElement();
+            el.style.cursor = 'pointer';
+            el.setAttribute('aria-label', `${c.name}, show details`);
+            let previewing = false;
+            el.addEventListener('mouseenter', () => {
+                onHover(i);
+                if (!popup.isOpen()) { marker.togglePopup(); previewing = true; }
+            });
+            el.addEventListener('mouseleave', () => {
+                onHover(null);
+                if (previewing && popup.isOpen()) marker.togglePopup();
+                previewing = false;
+            });
+            // Runs before the marker's own click toggle: turn a hover preview into a pinned popup
+            el.addEventListener('click', () => {
+                if (previewing) { popup.remove(); previewing = false; }
+            });
+            return marker;
+        });
+        // The map opened framed on the first set; re-frame when the comps change
+        if (framedRef.current) {
+            if (comps.length > 1) map.fitBounds(compBounds(comps), { padding: 60, maxZoom: 15, duration: 600 });
+            else map.easeTo({ center: [comps[0].property.lon!, comps[0].property.lat!], zoom: 12, duration: 600 });
+        }
+        framedRef.current = true;
+        return () => { markers.forEach(m => m.remove()); };
+    }, [map, mbgl, comps, onHover]);
+
+    return (
+        <div className="border border-[var(--border)] rounded-xl overflow-hidden relative" style={{ height: '420px' }}>
+            <div ref={containerRef} className="absolute inset-0" />
+            <MapStatusOverlay ready={ready} error={error} />
+        </div>
+    );
 }
 
 export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const mapInstanceRef = useRef<unknown>(null);
-    const markersRef = useRef<unknown[]>([]);
     const [hoveredComp, setHoveredComp] = useState<number | null>(null);
-    const { mapStyle } = useMapStyle();
 
     // Comps with valid coordinates
     const mappableComps = useMemo(() => comps.filter(c => c.property.lat && c.property.lon), [comps]);
-
-    const initMap = useCallback(() => {
-        if (!MAPBOX_TOKEN || !containerRef.current || mappableComps.length === 0) return;
-        let cancelled = false;
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        import('mapbox-gl').then((mapboxgl: any) => {
-            // Effect may have been cleaned up while the module was loading; don't create an orphan map
-            if (cancelled || !containerRef.current) return;
-            const mbgl = mapboxgl.default || mapboxgl;
-            mbgl.accessToken = MAPBOX_TOKEN;
-
-            // Compute bounds
-            const lats = mappableComps.map(c => c.property.lat!);
-            const lons = mappableComps.map(c => c.property.lon!);
-            const minLat = Math.min(...lats);
-            const maxLat = Math.max(...lats);
-            const minLon = Math.min(...lons);
-            const maxLon = Math.max(...lons);
-
-            const center: [number, number] = [(minLon + maxLon) / 2, (minLat + maxLat) / 2];
-
-            const map = new mbgl.Map({
-                container: containerRef.current!,
-                style: mapStyle,
-                center,
-                zoom: 12,
-                attributionControl: false,
-            });
-            mapInstanceRef.current = map;
-
-            map.on('load', () => {
-                if (cancelled) return;
-                // Fit to bounds with padding
-                if (mappableComps.length > 1) {
-                    const pad = 0.005;
-                    map.fitBounds(
-                        [[minLon - pad, minLat - pad], [maxLon + pad, maxLat + pad]],
-                        { padding: 60, maxZoom: 15 }
-                    );
-                }
-
-                // Add markers with popups
-                mappableComps.forEach((c, i) => {
-                    const color = c.compType === 'primary' ? COMP_COLORS[i % COMP_COLORS.length] : '#94A3B8';
-                    const fmtC = (v: number | null) => v !== null ? `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—';
-
-                    const popup = new mbgl.Popup({
-                        offset: 25,
-                        closeButton: false,
-                        maxWidth: '280px',
-                    }).setHTML(`
-                        <div style="font-family: system-ui, sans-serif; padding: 4px;">
-                            <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px; color: var(--text-primary);">${escapeHtml(c.name)}</div>
-                            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">${escapeHtml(c.address)}</div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; font-size: 11px;">
-                                <span style="color: var(--text-muted);">Asking:</span><span style="font-weight: 500;">${fmtC(c.askingRent)}</span>
-                                <span style="color: var(--text-muted);">Effective:</span><span style="font-weight: 500;">${fmtC(c.effectiveRent)}</span>
-                                <span style="color: var(--text-muted);">Units:</span><span style="font-weight: 500;">${c.property.number_units ?? '—'}</span>
-                                <span style="color: var(--text-muted);">Leased:</span><span style="font-weight: 500;">${c.leasedPct !== null ? c.leasedPct.toFixed(1) + '%' : '—'}</span>
-                            </div>
-                        </div>
-                    `);
-
-                    const marker = new mbgl.Marker({ color, scale: 0.85 })
-                        .setLngLat([c.property.lon!, c.property.lat!])
-                        .addTo(map);
-
-                    const el = marker.getElement();
-                    el.style.cursor = 'pointer';
-                    el.addEventListener('mouseenter', () => {
-                        setHoveredComp(i);
-                        popup.setLngLat([c.property.lon!, c.property.lat!]).addTo(map);
-                    });
-                    el.addEventListener('mouseleave', () => {
-                        setHoveredComp(null);
-                        popup.remove();
-                    });
-
-                    markersRef.current.push(marker);
-                });
-            });
-        });
-
-        return () => {
-            cancelled = true;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            markersRef.current.forEach((m: any) => m.remove());
-            markersRef.current = [];
-            if (mapInstanceRef.current) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (mapInstanceRef.current as any).remove();
-                mapInstanceRef.current = null;
-            }
-        };
-    }, [mappableComps, mapStyle]);
-
-    useEffect(() => {
-        const cleanup = initMap();
-        return () => { if (cleanup) cleanup(); };
-    }, [initMap]);
-
-    if (!MAPBOX_TOKEN) {
-        return (
-            <div className="text-center py-12 border border-dashed border-[var(--border)] rounded-xl bg-[var(--bg-primary)]">
-                <p className="text-sm text-[var(--text-muted)]">Map requires <code className="text-[10px] bg-[var(--bg-elevated)] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> in .env.local</p>
-            </div>
-        );
-    }
 
     if (mappableComps.length === 0) {
         return (
@@ -1261,16 +1224,14 @@ export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
         <div className="space-y-3">
             <div>
                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">Comp Map</h3>
-                <p className="text-xs text-[var(--text-muted)]">Locations of comp properties. Hover markers for details.</p>
+                <p className="text-xs text-[var(--text-muted)]">Locations of comp properties. Hover or tap markers for details.</p>
             </div>
-            <div className="border border-[var(--border)] rounded-xl overflow-hidden relative" style={{ height: '420px' }}>
-                <div ref={containerRef} className="w-full h-full" />
-            </div>
+            <CompMapCanvas comps={mappableComps} onHover={setHoveredComp} />
             {/* Legend */}
             <div className="flex flex-wrap gap-3 px-1">
                 {mappableComps.map((c, i) => (
                     <div key={i} className={`flex items-center gap-1.5 text-xs transition-opacity ${hoveredComp !== null && hoveredComp !== i ? 'opacity-40' : ''}`}>
-                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.compType === 'primary' ? COMP_COLORS[i % COMP_COLORS.length] : '#94A3B8' }} />
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: compMarkerColor(c, i) }} />
                         <span className="text-[var(--text-secondary)] truncate max-w-[140px]">{c.name}</span>
                     </div>
                 ))}

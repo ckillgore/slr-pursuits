@@ -1,10 +1,19 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/app/api/_lib/auth';
-import { createTtlCache, upstreamErrorResponse, UPSTREAM_TIMEOUT_MS } from '@/app/api/_lib/upstream';
+import { createTtlCache, upstreamErrorResponse } from '@/app/api/_lib/upstream';
 import { z } from 'zod';
 
 // ACS 5-year income is annual data; cache a county's block-group map for a day.
-const countyIncomeCache = createTtlCache<Map<string, number | null>>(24 * 60 * 60 * 1000, 100);
+const countyIncomeCache = createTtlCache<{ year: number; incomes: Map<string, number | null> }>(24 * 60 * 60 * 1000, 100);
+
+// The Census API rejects keyless requests (it redirects to a "Missing Key"
+// page). Free key: https://api.census.gov/data/key_signup.html
+const CENSUS_API_KEY = process.env.CENSUS_API_KEY || '';
+// Newest ACS 5-year release first, falling back if one isn't published yet
+const ACS_YEARS = [2024, 2023, 2022];
+// TIGERweb caps each response; page past it
+const TIGER_PAGE_SIZE = 500;
+const TIGER_MAX_FEATURES = 4000;
 
 const BodySchema = z.object({
     latitude: z.number().min(-90).max(90),
@@ -12,20 +21,23 @@ const BodySchema = z.object({
     radiusMiles: z.number().min(1).max(50).default(5),
 });
 
+class CensusUnavailableError extends Error {}
+
 /**
  * POST /api/income-heatmap
  * Returns GeoJSON FeatureCollection of Census Block Groups near a location,
- * each with median household income, using FREE Census Bureau APIs (no key needed).
+ * each with median household income, from free Census Bureau APIs (the ACS
+ * API needs a free key in CENSUS_API_KEY).
  *
  * Steps:
- *  1. FCC API → Get state/county FIPS from coordinates
- *  2. TIGERweb → Get block group geometries near the point
- *  3. Census ACS API → Get median HH income for those block groups
- *  4. Join geometry + income → return GeoJSON
+ *  1. TIGERweb → block group geometries near the point (paged)
+ *  2. Census ACS API → median HH income for every county those block groups
+ *     fall in (a radius near a county line spans several counties)
+ *  3. Join geometry + income → GeoJSON. Fails rather than returning a map with
+ *     no income at all, so the client never saves a blank heat map.
  *
  * Body: { latitude: number, longitude: number, radiusMiles?: number }
  */
-
 export async function POST(request: Request) {
     const { response: authError } = await requireAuth();
     if (authError) return authError;
@@ -38,119 +50,115 @@ export async function POST(request: Request) {
         }
         const { latitude, longitude, radiusMiles } = parsed.data;
 
-        // ─── Step 1: Get state/county FIPS from coordinates ───
-        const fips = await getFipsFromCoords(latitude, longitude);
-        if (!fips) {
-            return NextResponse.json({ error: 'Could not determine county FIPS for this location' }, { status: 404 });
+        if (!CENSUS_API_KEY) {
+            return NextResponse.json(
+                { error: 'Income data is not configured: add a free Census API key as CENSUS_API_KEY.' },
+                { status: 503 },
+            );
         }
 
-        // ─── Steps 2 + 3 in parallel: block group geometries and ACS income ───
-        // (independent of each other — both only need the FIPS codes)
-        const [bgFeatures, incomeMap] = await Promise.all([
-            getBlockGroupGeometries(latitude, longitude, radiusMiles, fips.stateFips, fips.countyFips),
-            getBlockGroupIncome(fips.stateFips, fips.countyFips),
-        ]);
-        if (!bgFeatures || bgFeatures.length === 0) {
+        // ─── Step 1: block group geometries ───
+        const bgFeatures = await getBlockGroupGeometries(latitude, longitude, radiusMiles);
+        if (bgFeatures.length === 0) {
             return NextResponse.json({ error: 'No Census Block Groups found near this location' }, { status: 404 });
         }
 
-        // ─── Step 4: Join geometry + income ───
+        // ─── Step 2: income for every county the block groups touch ───
+        const counties = [...new Set(bgFeatures.map((f) => countyKey(f.properties ?? {})).filter(Boolean))] as string[];
+        const results = await Promise.all(counties.map((key) => getCountyIncome(key).catch((err) => {
+            console.error(`[Income heatmap] ACS county ${key} failed:`, err);
+            return null;
+        })));
+        const incomeMap = new Map<string, number | null>();
+        let acsYear: number | null = null;
+        for (const r of results) {
+            if (!r) continue;
+            acsYear = Math.max(acsYear ?? 0, r.year);
+            for (const [geoId, income] of r.incomes) incomeMap.set(geoId, income);
+        }
+        const failedCounties = results.filter((r) => !r).length;
+        if (failedCounties === counties.length) {
+            throw new CensusUnavailableError('Census income data could not be loaded for any county');
+        }
+
+        // ─── Step 3: join ───
         const geojson = joinIncomeData(bgFeatures, incomeMap, latitude, longitude, radiusMiles);
 
         return NextResponse.json({
             geojson,
             blockGroupCount: geojson.features.length,
+            acsYear,
+            // Counties whose income failed to load (their block groups show as "no data")
+            failedCounties,
         });
     } catch (err: unknown) {
+        if (err instanceof CensusUnavailableError) {
+            console.error('[Income heatmap]', err.message);
+            return NextResponse.json({ error: 'Census income data is unavailable right now — try again shortly.' }, { status: 502 });
+        }
         return upstreamErrorResponse(err, 'Income heatmap', 'Failed to build income heatmap');
     }
 }
 
-// ======================== Step 1: FCC API for FIPS ========================
-
-interface FipsResult {
-    stateFips: string;
-    countyFips: string;
+/** "SSCCC" state+county code for a TIGERweb block group */
+function countyKey(props: Record<string, unknown>): string | null {
+    const geoid = String(props.GEOID ?? '');
+    if (geoid.length >= 5) return geoid.slice(0, 5);
+    const state = String(props.STATE ?? ''), county = String(props.COUNTY ?? '');
+    return state && county ? `${state}${county}` : null;
 }
 
-async function getFipsFromCoords(lat: number, lng: number): Promise<FipsResult | null> {
-    try {
-        const res = await fetch(
-            `https://geo.fcc.gov/api/census/area?lat=${lat}&lon=${lng}&format=json`,
-            { signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) }
-        );
-        const data = await res.json();
-        const result = data.results?.[0];
-        if (!result) return null;
+// ======================== Step 1: TIGERweb Block Group Geometries ========================
 
-        const stateFips = result.state_fips; // 2-digit
-        const countyFips = result.county_fips; // 5-digit (state+county)
-        // Census ACS needs just the 3-digit county code (without state prefix)
-        const countyCode = countyFips.length === 5 ? countyFips.slice(2) : countyFips;
-
-        return {
-            stateFips,
-            countyFips: countyCode,
-        };
-    } catch (err) {
-        console.error('FCC API error:', err);
-        return null;
-    }
+interface TigerFeature {
+    type: 'Feature';
+    properties?: Record<string, unknown>;
+    geometry: { type: string; coordinates: unknown } | null;
 }
 
-// ======================== Step 2: TIGERweb Block Group Geometries ========================
-
-async function getBlockGroupGeometries(
-    lat: number,
-    lng: number,
-    radiusMiles: number,
-    stateFips: string,
-    countyFips: string
-): Promise<any[]> {
-    // Calculate bounding box from radius
-    // 1 degree latitude ≈ 69 miles
+async function getBlockGroupGeometries(lat: number, lng: number, radiusMiles: number): Promise<TigerFeature[]> {
+    // Bounding box from radius: 1° latitude ≈ 69 miles; longitude shrinks with cos(lat)
     const dLat = radiusMiles / 69;
-    // 1 degree longitude ≈ 69 * cos(lat) miles
     const dLng = radiusMiles / (69 * Math.cos((lat * Math.PI) / 180));
     const bbox = `${lng - dLng},${lat - dLat},${lng + dLng},${lat + dLat}`;
 
-    // Use TIGERweb Current service — Block Groups layer
-    // Try multiple possible layer indices and service versions
+    // Current block groups (layer 10); older vintages as a fallback
     const attempts = [
         { service: 'tigerWMS_Current', layer: 10 },
         { service: 'tigerWMS_Current', layer: 12 },
         { service: 'tigerWMS_ACS2022', layer: 10 },
-        { service: 'tigerWMS_ACS2022', layer: 12 },
     ];
 
     for (const { service, layer } of attempts) {
-        const params = new URLSearchParams({
-            where: '1=1',
-            outFields: 'GEOID,STATE,COUNTY,TRACT,BLKGRP,BASENAME,NAME',
-            geometry: bbox,
-            geometryType: 'esriGeometryEnvelope',
-            spatialRel: 'esriSpatialRelIntersects',
-            inSR: '4326',
-            outSR: '4326',
-            f: 'geojson',
-            resultRecordCount: '500',
-        });
-
-        const url = `https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/${service}/MapServer/${layer}/query?${params}`;
         try {
-            const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
-            if (!res.ok) continue; // try the next layer/service
-
-            const data = await res.json();
-            if (data.error) continue;
-
-            const features = data.features || [];
-            if (features.length > 0) {
-                return features;
+            const features: TigerFeature[] = [];
+            for (let offset = 0; offset < TIGER_MAX_FEATURES; offset += TIGER_PAGE_SIZE) {
+                const params = new URLSearchParams({
+                    where: '1=1',
+                    outFields: 'GEOID,STATE,COUNTY,TRACT,BLKGRP,BASENAME,NAME',
+                    geometry: bbox,
+                    geometryType: 'esriGeometryEnvelope',
+                    spatialRel: 'esriSpatialRelIntersects',
+                    inSR: '4326',
+                    outSR: '4326',
+                    f: 'geojson',
+                    orderByFields: 'GEOID',
+                    resultOffset: String(offset),
+                    resultRecordCount: String(TIGER_PAGE_SIZE),
+                });
+                const url = `https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/${service}/MapServer/${layer}/query?${params}`;
+                const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+                if (!res.ok) break;
+                const data = await res.json();
+                if (data.error) break;
+                const page: TigerFeature[] = data.features || [];
+                features.push(...page);
+                const more = data.exceededTransferLimit || data.properties?.exceededTransferLimit || page.length === TIGER_PAGE_SIZE;
+                if (!more) break;
             }
+            if (features.length > 0) return features;
         } catch (err) {
             console.warn(`TIGERweb ${service}/${layer} failed, trying next:`, err);
-            continue;
         }
     }
 
@@ -158,91 +166,72 @@ async function getBlockGroupGeometries(
     return [];
 }
 
-// ======================== Step 3: Census ACS Income Data ========================
+// ======================== Step 2: Census ACS Income Data ========================
 
-async function getBlockGroupIncome(
-    stateFips: string,
-    countyFips: string
-): Promise<Map<string, number | null>> {
-    const key = `${stateFips}:${countyFips}`;
+async function getCountyIncome(key: string): Promise<{ year: number; incomes: Map<string, number | null> }> {
     const cached = countyIncomeCache.get(key);
     if (cached) return cached;
-    const map = await fetchBlockGroupIncome(stateFips, countyFips);
-    // Only cache a successful lookup (an empty map means the ACS call failed).
-    if (map.size > 0) countyIncomeCache.set(key, map);
-    return map;
+    const result = await fetchCountyIncome(key.slice(0, 2), key.slice(2));
+    countyIncomeCache.set(key, result);
+    return result;
 }
 
-async function fetchBlockGroupIncome(
-    stateFips: string,
-    countyFips: string
-): Promise<Map<string, number | null>> {
-    // Census ACS 5-Year: B19013_001E = Median Household Income
-    // Get all block groups in the county
-    const url = `https://api.census.gov/data/2022/acs/acs5?get=B19013_001E,NAME&for=block%20group:*&in=state:${stateFips}&in=county:${countyFips}`;
-    let res: Response;
-    let responseText: string;
-    try {
-        res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
-        responseText = await res.text();
-    } catch (err) {
-        console.error('Census ACS request failed:', err);
-        return new Map();
-    }
+async function fetchCountyIncome(stateFips: string, countyFips: string): Promise<{ year: number; incomes: Map<string, number | null> }> {
+    let lastError: unknown = null;
+    for (const year of ACS_YEARS) {
+        // B19013_001E = median household income (in that year's inflation-adjusted dollars)
+        const params = new URLSearchParams({ get: 'B19013_001E', for: 'block group:*', key: CENSUS_API_KEY });
+        const url = `https://api.census.gov/data/${year}/acs/acs5?${params}&in=state:${stateFips}&in=county:${countyFips}`;
+        try {
+            const res = await fetch(url, { signal: AbortSignal.timeout(20_000), redirect: 'manual' });
+            // A rejected/missing key redirects to an HTML page instead of returning an error status
+            if (res.status >= 300 && res.status < 400) throw new Error(`Census API redirected (HTTP ${res.status}) — check CENSUS_API_KEY`);
+            if (res.status === 404) { lastError = new Error(`ACS ${year} not published`); continue; }
+            const text = await res.text();
+            if (!res.ok) throw new Error(`Census ACS HTTP ${res.status}: ${text.slice(0, 200)}`);
+            const rows: string[][] = JSON.parse(text);
 
-    if (!res.ok) {
-        console.error(`Census ACS error: HTTP ${res.status}, body: ${responseText.slice(0, 200)}`);
-        return new Map();
-    }
-
-    let rows: string[][];
-    try {
-        rows = JSON.parse(responseText);
-    } catch {
-        console.error(`Census ACS JSON parse error. Response (first 300 chars): ${responseText.slice(0, 300)}`);
-        return new Map();
-    }
-
-    // First row is headers: [variable, NAME, state, county, tract, block group]
-    const incomeMap = new Map<string, number | null>();
-
-    for (let i = 1; i < rows.length; i++) {
-        const [incomeStr, , state, county, tract, bg] = rows[i];
-        const geoId = `${state}${county}${tract}${bg}`; // Full 12-digit GEOID
-        const income = incomeStr && incomeStr !== '-666666666' && incomeStr !== 'null'
-            ? Number(incomeStr)
-            : null;
-        if (income === null || !isNaN(income)) {
-            incomeMap.set(geoId, income);
+            // First row is headers: [B19013_001E, state, county, tract, block group]
+            const header = rows[0] ?? [];
+            const col = (name: string) => header.indexOf(name);
+            const [iIncome, iState, iCounty, iTract, iBg] = ['B19013_001E', 'state', 'county', 'tract', 'block group'].map(col);
+            const incomes = new Map<string, number | null>();
+            for (const row of rows.slice(1)) {
+                const geoId = `${row[iState]}${row[iCounty]}${row[iTract]}${row[iBg]}`;
+                const value = Number(row[iIncome]);
+                // Census encodes "not available" as large negative sentinels (-666666666, -888888888, …)
+                incomes.set(geoId, Number.isFinite(value) && value > 0 ? value : null);
+            }
+            return { year, incomes };
+        } catch (err) {
+            lastError = err;
+            if (!(err instanceof Error) || !/not published/.test(err.message)) break;
         }
     }
-
-    return incomeMap;
+    throw lastError ?? new Error('Census ACS request failed');
 }
 
-// ======================== Step 4: Join & Build GeoJSON ========================
+// ======================== Step 3: Join & Build GeoJSON ========================
 
 function joinIncomeData(
-    tigerFeatures: any[],
+    tigerFeatures: TigerFeature[],
     incomeMap: Map<string, number | null>,
     centerLat: number,
     centerLng: number,
-    radiusMiles: number
+    radiusMiles: number,
 ) {
-    const features: any[] = [];
+    const features: unknown[] = [];
 
     for (const f of tigerFeatures) {
         const props = f.properties || {};
-        const geoid = props.GEOID || '';
+        const geoid = String(props.GEOID || '');
         const income = incomeMap.get(geoid) ?? null;
 
-        // Compute centroid distance for sorting/display
+        // Centroid distance for filtering/display
         const centroid = computeCentroid(f.geometry);
-        const dist = centroid
-            ? haversineDistance(centerLat, centerLng, centroid[1], centroid[0])
-            : null;
+        const dist = centroid ? haversineDistance(centerLat, centerLng, centroid[1], centroid[0]) : null;
 
-        // Only include block groups within radius
+        // Only include block groups within the radius
         if (dist != null && dist > radiusMiles * 1.2) continue;
 
         features.push({
@@ -257,24 +246,19 @@ function joinIncomeData(
         });
     }
 
-    return {
-        type: 'FeatureCollection',
-        features,
-    };
+    return { type: 'FeatureCollection' as const, features };
 }
 
 // ======================== Geo Helpers ========================
 
-function computeCentroid(geometry: any): [number, number] | null {
+function computeCentroid(geometry: TigerFeature['geometry']): [number, number] | null {
     if (!geometry?.coordinates) return null;
 
     const points: [number, number][] = [];
-    const extract = (coords: any): void => {
-        if (typeof coords[0] === 'number') {
-            points.push(coords as [number, number]);
-        } else {
-            for (const c of coords) extract(c);
-        }
+    const extract = (coords: unknown): void => {
+        if (!Array.isArray(coords)) return;
+        if (typeof coords[0] === 'number') points.push(coords as [number, number]);
+        else for (const c of coords) extract(c);
     };
     extract(geometry.coordinates);
 

@@ -1,12 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { FeatureCollection, Geometry } from 'geojson';
+import type { Marker } from 'mapbox-gl';
 import { MapPin, Pencil, Check, X, Search } from 'lucide-react';
 import type { Pursuit } from '@/types';
 import { toast } from '@/lib/toast';
-import { useMapStyle } from './mapTheme';
+import { searchPlaces, geocodeForStorage, type GeocodeResult } from '@/lib/geocoding';
+import { useMapboxMap, useIsDarkTheme } from '@/components/map/useMapboxMap';
+import { MapStatusOverlay } from '@/components/map/MapStatusOverlay';
+import { addLayerOnce, boundsOf, setGeoJsonData, upsertGeoJsonSource } from '@/components/map/mapHelpers';
+import { siteInkColor } from '@/components/map/mapStyle';
 
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
+const PRIMARY_COLOR = '#2563EB';
+const ASSEMBLAGE_COLOR = '#7C3AED';
+const EMPTY_FC: FeatureCollection = { type: 'FeatureCollection', features: [] };
 
 interface LocationCardProps {
     pursuit: Pursuit;
@@ -15,9 +23,7 @@ interface LocationCardProps {
 
 export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
     const mapContainerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<any>(null);
-    const markerRef = useRef<any>(null);
-    const mbglRef = useRef<any>(null);
+    const markerRef = useRef<Marker | null>(null);
 
     const [isEditingAddress, setIsEditingAddress] = useState(false);
     const [editAddress, setEditAddress] = useState('');
@@ -28,162 +34,69 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
     const [editLng, setEditLng] = useState('');
 
     // Autocomplete
-    const [suggestions, setSuggestions] = useState<any[]>([]);
+    const [suggestions, setSuggestions] = useState<GeocodeResult[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const searchSeqRef = useRef(0);
     const suggestionsRef = useRef<HTMLDivElement>(null);
 
     const hasLocation = pursuit.latitude !== null && pursuit.longitude !== null;
-    const { mapStyle } = useMapStyle();
-    // Rebuild the map only when the drawn geometry changes — parcel_data also holds FMR / AI summary
-    // caches, and re-creating the map for those (a new WebGL context each time) was wasted work.
-    const primaryGeometry = (pursuit.parcel_data as any)?.parcel?.geometry ?? null;
+    const isDark = useIsDarkTheme();
+    // parcel_data also holds FMR / AI summary caches; only the geometry matters to the map
+    const primaryGeometry = (pursuit.parcel_data as { parcel?: { geometry?: Geometry } } | null)?.parcel?.geometry ?? null;
 
-    // Initialize map
-    useEffect(() => {
-        if (!MAPBOX_TOKEN || !mapContainerRef.current) return;
-
-        let map: any;
-        let cancelled = false;
-        import('mapbox-gl').then((mapboxgl) => {
-            // Guard: effect may have been cleaned up (unmount / deps change) during async import
-            if (cancelled || !mapContainerRef.current) return;
-            // @ts-ignore
-            const mbgl = mapboxgl.default || mapboxgl;
-            mbgl.accessToken = MAPBOX_TOKEN;
-            mbglRef.current = mbgl;
-
-            mapContainerRef.current.innerHTML = '';
-
-            map = new mbgl.Map({
-                container: mapContainerRef.current!,
-                style: mapStyle,
-                center: hasLocation ? [pursuit.longitude!, pursuit.latitude!] : [-97.7431, 30.2672],
-                zoom: hasLocation ? 14 : 4,
-                interactive: true,
-            });
-
-            map.addControl(new mbgl.NavigationControl({ showCompass: false }), 'top-right');
-
-            if (hasLocation) {
-                const marker = new mbgl.Marker({ color: '#2563EB' })
-                    .setLngLat([pursuit.longitude!, pursuit.latitude!])
-                    .addTo(map);
-                markerRef.current = marker;
-            }
-
-            mapRef.current = map;
-
-            // Once loaded, add parcel polygon layers
-            map.on('load', () => {
-                if (cancelled) return;
-                const bounds = new mbgl.LngLatBounds();
-                let hasParcels = false;
-
-                // Helper to extend bounds from nested coordinate arrays
-                const extendBounds = (coords: any[]) => {
-                    for (const item of coords) {
-                        if (typeof item[0] === 'number') bounds.extend(item as [number, number]);
-                        else extendBounds(item);
-                    }
-                };
-
-                // Primary parcel geometry
-                if (primaryGeometry) {
-                    map.addSource('primary-parcel', {
-                        type: 'geojson',
-                        data: { type: 'Feature', geometry: primaryGeometry, properties: {} },
-                    });
-                    map.addLayer({
-                        id: 'primary-parcel-fill',
-                        type: 'fill',
-                        source: 'primary-parcel',
-                        paint: { 'fill-color': '#2563EB', 'fill-opacity': 0.15 },
-                    });
-                    map.addLayer({
-                        id: 'primary-parcel-outline',
-                        type: 'line',
-                        source: 'primary-parcel',
-                        paint: { 'line-color': '#2563EB', 'line-width': 2 },
-                    });
-                    if (primaryGeometry.coordinates) {
-                        extendBounds(primaryGeometry.coordinates);
-                        hasParcels = true;
-                    }
-                }
-
-                // Assemblage parcels
-                const assemblage = pursuit.parcel_assemblage;
-                if (assemblage && Array.isArray(assemblage) && assemblage.length > 0) {
-                    const features = assemblage
-                        .filter((p: any) => p.geometry)
-                        .map((p: any) => ({
-                            type: 'Feature' as const,
-                            geometry: p.geometry,
-                            properties: { address: p.address || 'Unknown' },
-                        }));
-
-                    if (features.length > 0) {
-                        map.addSource('assemblage-parcels', {
-                            type: 'geojson',
-                            data: { type: 'FeatureCollection', features },
-                        });
-                        map.addLayer({
-                            id: 'assemblage-fill',
-                            type: 'fill',
-                            source: 'assemblage-parcels',
-                            paint: { 'fill-color': '#7C3AED', 'fill-opacity': 0.2 },
-                        });
-                        map.addLayer({
-                            id: 'assemblage-outline',
-                            type: 'line',
-                            source: 'assemblage-parcels',
-                            paint: { 'line-color': '#7C3AED', 'line-width': 2 },
-                        });
-                        for (const f of features) {
-                            if (f.geometry?.coordinates) {
-                                extendBounds(f.geometry.coordinates);
-                                hasParcels = true;
-                            }
-                        }
-                    }
-                }
-
-                // Fit bounds if we have parcel geometries
-                if (hasParcels && hasLocation) {
-                    bounds.extend([pursuit.longitude!, pursuit.latitude!]);
-                    if (!bounds.isEmpty()) {
-                        map.fitBounds(bounds, { padding: 40, duration: 800 });
-                    }
-                }
-            });
-        });
-
-        return () => {
-            cancelled = true;
-            if (map) map.remove();
-            mapRef.current = null;
-            markerRef.current = null;
+    const parcels = useMemo(() => {
+        const primary: FeatureCollection = primaryGeometry
+            ? { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: primaryGeometry, properties: {} }] }
+            : EMPTY_FC;
+        const list = (Array.isArray(pursuit.parcel_assemblage) ? pursuit.parcel_assemblage : []) as { geometry?: Geometry; address?: string }[];
+        const assemblage: FeatureCollection = {
+            type: 'FeatureCollection',
+            features: list.filter((p) => p.geometry).map((p) => ({ type: 'Feature' as const, geometry: p.geometry!, properties: { address: p.address || 'Unknown' } })),
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [primaryGeometry, pursuit.parcel_assemblage, mapStyle]);
+        return { primary, assemblage };
+    }, [primaryGeometry, pursuit.parcel_assemblage]);
+    const parcelsRef = useRef(parcels);
+    parcelsRef.current = parcels;
 
-    // Update marker when lat/lng changes externally
+    const { map, mbgl, ready, error } = useMapboxMap(mapContainerRef, {
+        center: hasLocation ? [pursuit.longitude!, pursuit.latitude!] : [-97.7431, 30.2672],
+        zoom: hasLocation ? 15 : 4,
+        onStyleReady: (m) => {
+            upsertGeoJsonSource(m, 'primary-parcel', parcelsRef.current.primary);
+            addLayerOnce(m, { id: 'primary-parcel-fill', type: 'fill', source: 'primary-parcel', paint: { 'fill-color': PRIMARY_COLOR, 'fill-opacity': 0.15 } });
+            addLayerOnce(m, { id: 'primary-parcel-outline', type: 'line', source: 'primary-parcel', paint: { 'line-color': PRIMARY_COLOR, 'line-width': 2 } });
+            upsertGeoJsonSource(m, 'assemblage-parcels', parcelsRef.current.assemblage);
+            addLayerOnce(m, { id: 'assemblage-fill', type: 'fill', source: 'assemblage-parcels', paint: { 'fill-color': ASSEMBLAGE_COLOR, 'fill-opacity': 0.2 } });
+            addLayerOnce(m, { id: 'assemblage-outline', type: 'line', source: 'assemblage-parcels', paint: { 'line-color': ASSEMBLAGE_COLOR, 'line-width': 2 } });
+        },
+    });
+
+    // Parcels changed: update the drawn shapes and frame them with the site
     useEffect(() => {
-        if (!mapRef.current || !hasLocation) return;
-        const map = mapRef.current;
-
-        if (markerRef.current) {
-            markerRef.current.setLngLat([pursuit.longitude!, pursuit.latitude!]);
-        } else if (mbglRef.current) {
-            // Location was set after the map was created without one
-            markerRef.current = new mbglRef.current.Marker({ color: '#2563EB' })
-                .setLngLat([pursuit.longitude!, pursuit.latitude!])
-                .addTo(map);
+        if (!map || !mbgl || !ready) return;
+        setGeoJsonData(map, 'primary-parcel', parcels.primary);
+        setGeoJsonData(map, 'assemblage-parcels', parcels.assemblage);
+        const bounds = boundsOf(mbgl, { type: 'FeatureCollection', features: [...parcels.primary.features, ...parcels.assemblage.features] });
+        if (bounds) {
+            if (hasLocation) bounds.extend([pursuit.longitude!, pursuit.latitude!]);
+            map.fitBounds(bounds, { padding: 40, duration: 600, maxZoom: 18 });
         }
-        map.flyTo({ center: [pursuit.longitude!, pursuit.latitude!], zoom: 14, duration: 1000 });
-    }, [pursuit.latitude, pursuit.longitude, hasLocation]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [map, mbgl, ready, parcels]);
+
+    // Site marker; fly to the site when its location changes after the first render
+    const lastLocationRef = useRef<string | null>(null);
+    useEffect(() => {
+        if (!map || !mbgl || !hasLocation) return;
+        const lngLat: [number, number] = [pursuit.longitude!, pursuit.latitude!];
+        markerRef.current?.remove();
+        markerRef.current = new mbgl.Marker({ color: siteInkColor(isDark) }).setLngLat(lngLat).addTo(map);
+        const key = lngLat.join(',');
+        if (lastLocationRef.current && lastLocationRef.current !== key) map.flyTo({ center: lngLat, zoom: 15, duration: 1000 });
+        lastLocationRef.current = key;
+    }, [map, mbgl, hasLocation, pursuit.latitude, pursuit.longitude, isDark]);
+    useEffect(() => () => { markerRef.current?.remove(); }, []);
 
     // Close suggestions on outside click
     useEffect(() => {
@@ -214,7 +127,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
         if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
         const seq = ++searchSeqRef.current;
 
-        if (!query.trim() || query.length < 3 || !MAPBOX_TOKEN) {
+        if (!query.trim() || query.length < 3) {
             setSuggestions([]);
             setShowSuggestions(false);
             return;
@@ -222,13 +135,10 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
 
         searchTimeoutRef.current = setTimeout(async () => {
             try {
-                const res = await fetch(
-                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&types=address,poi,place&country=US&limit=5`
-                );
-                const data = await res.json();
+                const results = await searchPlaces(query);
                 // Ignore stale responses (user kept typing, picked a suggestion, or cancelled)
                 if (seq !== searchSeqRef.current) return;
-                setSuggestions(data.features || []);
+                setSuggestions(results);
                 setShowSuggestions(true);
             } catch (err) {
                 console.error('Geocode search failed:', err);
@@ -236,70 +146,47 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
         }, 300);
     }, []);
 
-    // Select a suggestion
-    const selectSuggestion = useCallback((feature: any) => {
+    // Select a suggestion. Suggestions are temporary geocodes (display only), so the
+    // picked address is geocoded again in permanent mode before it is saved.
+    const selectSuggestion = useCallback(async (suggestion: GeocodeResult) => {
         cancelPendingSearch();
-        const [lng, lat] = feature.center;
-        const context = feature.context || [];
-        const findCtx = (type: string) => context.find((c: any) => c.id?.startsWith(type))?.text || '';
-
-        const parts = feature.place_name.split(',');
-        const address = parts[0]?.trim() || '';
-        const city = findCtx('place');
-        const state = findCtx('region');
-        const zip = findCtx('postcode');
-        const county = findCtx('district');
-
-        // Fill the form fields
-        setEditAddress(address);
-        setEditCity(city);
-        setEditState(state);
-        setEditZip(zip);
-        setEditLat(String(lat));
-        setEditLng(String(lng));
         setSuggestions([]);
         setShowSuggestions(false);
-
-        // Apply immediately
-        const updates: Partial<Pursuit> = {
-            latitude: lat,
-            longitude: lng,
-            address,
-            city,
-            state,
-            zip,
-            county: county || pursuit.county,
-        };
-        onUpdate(updates);
         setIsEditingAddress(false);
+        try {
+            const r = await geocodeForStorage(suggestion);
+            if (!r) throw new Error('No permanent match');
+            onUpdate({
+                latitude: r.lat,
+                longitude: r.lng,
+                address: r.address || suggestion.name,
+                city: r.city,
+                state: r.state,
+                zip: r.zip,
+                county: r.county || pursuit.county,
+            });
+        } catch (err) {
+            onUpdate({ address: suggestion.address || suggestion.name, city: suggestion.city, state: suggestion.state, zip: suggestion.zip });
+            toast.error('Address saved, but it could not be located — the map pin was not moved', err);
+        }
     }, [onUpdate, pursuit.county]);
 
     // Manual geocode (if user types without selecting a suggestion)
     const geocodeAddress = useCallback(async (address: string, city: string, state: string, zip: string) => {
-        if (!MAPBOX_TOKEN) return;
         const query = [address, city, state, zip].filter(Boolean).join(', ');
         if (!query.trim()) return;
         try {
-            const res = await fetch(
-                `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&types=address,place&country=US&limit=1`
-            );
-            const data = await res.json();
-            if (data.features?.length > 0) {
-                const feature = data.features[0];
-                const [lng, lat] = feature.center;
-                const context = feature.context || [];
-                const findCtx = (type: string) => context.find((c: any) => c.id?.startsWith(type))?.text || '';
-
-                const updates: Partial<Pursuit> = {
+            const r = await geocodeForStorage(query);
+            if (r) {
+                onUpdate({
                     address,
-                    city: city || findCtx('place'),
-                    state: state || findCtx('region'),
-                    zip: zip || findCtx('postcode'),
-                    county: findCtx('district') || pursuit.county,
-                    latitude: lat,
-                    longitude: lng,
-                };
-                onUpdate(updates);
+                    city: city || r.city,
+                    state: state || r.state,
+                    zip: zip || r.zip,
+                    county: r.county || pursuit.county,
+                    latitude: r.lat,
+                    longitude: r.lng,
+                });
             } else {
                 onUpdate({ address, city, state, zip });
                 toast.info('Address saved, but it could not be located — the map pin was not moved. Pick a suggestion or enter coordinates.');
@@ -422,14 +309,14 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                         {/* Autocomplete dropdown */}
                         {showSuggestions && suggestions.length > 0 && (
                             <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg shadow-lg overflow-hidden">
-                                {suggestions.map((s: any) => (
+                                {suggestions.map((s) => (
                                     <button
                                         key={s.id}
-                                        onClick={() => selectSuggestion(s)}
+                                        onClick={() => void selectSuggestion(s)}
                                         className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--accent-subtle)] transition-colors border-b border-[var(--table-row-border)] last:border-b-0"
                                     >
-                                        <div className="font-medium text-xs">{s.text}</div>
-                                        <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{s.place_name}</div>
+                                        <div className="font-medium text-xs">{s.name}</div>
+                                        <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{s.secondary}</div>
                                     </button>
                                 ))}
                             </div>
@@ -529,20 +416,10 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
             )}
 
             {/* Map */}
-            {MAPBOX_TOKEN ? (
-                <div
-                    ref={mapContainerRef}
-                    className="w-full h-56 rounded-lg overflow-hidden border border-[var(--border)]"
-                    style={{ minHeight: 224 }}
-                />
-            ) : (
-                <div className="w-full h-56 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] flex items-center justify-center">
-                    <div className="text-center">
-                        <MapPin className="w-6 h-6 text-[var(--border-strong)] mx-auto mb-2" />
-                        <p className="text-xs text-[var(--text-faint)]">Add <code className="text-[10px] bg-[var(--bg-elevated)] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env.local</p>
-                    </div>
-                </div>
-            )}
+            <div className="relative w-full h-56 rounded-lg overflow-hidden border border-[var(--border)]">
+                <div ref={mapContainerRef} className="absolute inset-0" />
+                <MapStatusOverlay ready={ready} error={error} />
+            </div>
         </div>
     );
 }

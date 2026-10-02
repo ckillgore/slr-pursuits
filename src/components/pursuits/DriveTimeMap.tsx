@@ -2,11 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Clock, Loader2, MapPin, BarChart3, AlertCircle, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
-import { useMapStyle } from './mapTheme';
+import type { Feature, FeatureCollection, Geometry } from 'geojson';
+import { useMapboxMap, useIsDarkTheme } from '@/components/map/useMapboxMap';
+import { MapStatusOverlay } from '@/components/map/MapStatusOverlay';
+import { addLayerOnce, boundsOf, setGeoJsonData, upsertGeoJsonSource } from '@/components/map/mapHelpers';
+import { siteInkColor } from '@/components/map/mapStyle';
 import { isCacheForOtherLocation, type LngLat } from './locationCache';
 import { StaleLocationNotice } from './StaleLocationNotice';
 
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
+const EMPTY_FC: FeatureCollection = { type: 'FeatureCollection', features: [] };
+/** Isochrone blue, brightened on the night preset so it reads against the dark basemap */
+const isochroneColor = (isDark: boolean): string => (isDark ? '#38BDF8' : '#007cbf');
 
 interface TapestrySegment {
     rank: number;
@@ -37,10 +43,6 @@ interface DriveTimeMapProps {
 }
 
 export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeData, onSaveDriveTimeData }: DriveTimeMapProps) {
-    const mapContainerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<any>(null);
-    const mbglRef = useRef<any>(null);
-
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [polygon, setPolygon] = useState<any>(null);
@@ -51,7 +53,6 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
     const [totalHH, setTotalHH] = useState<number | null>(null);
     const [cachedAt, setCachedAt] = useState<string | null>(null);
     const [cachedCenter, setCachedCenter] = useState<LngLat | null>(null);
-    const { mapStyle } = useMapStyle();
 
     // Local ref to always hold the latest merged cache (avoids stale closure issues)
     const localCacheRef = useRef<Record<string, DriveTimeCacheEntry>>(
@@ -67,9 +68,6 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
     }, [savedDriveTimeData]);
 
     const hasLocation = latitude !== null && longitude !== null;
-    const center: [number, number] = hasLocation
-        ? [longitude!, latitude!]
-        : [-96.7970, 32.7767]; // Dallas default
 
     // Load cached data when breakMinutes changes
     useEffect(() => {
@@ -93,119 +91,6 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
             setCachedCenter(null);
         }
     }, [breakMinutes, savedDriveTimeData]);
-
-    // Initialize Mapbox map (re-run when the container appears, i.e. once a location is set)
-    const [mapReady, setMapReady] = useState(false);
-    const markerRef = useRef<any>(null);
-    useEffect(() => {
-        if (!MAPBOX_TOKEN || !hasLocation || !mapContainerRef.current) return;
-
-        let map: any;
-        let cancelled = false;
-        import('mapbox-gl').then((mapboxgl) => {
-            if (cancelled || !mapContainerRef.current) return;
-            const mbgl = mapboxgl.default || mapboxgl;
-            mbgl.accessToken = MAPBOX_TOKEN;
-            mbglRef.current = mbgl;
-
-            mapContainerRef.current.innerHTML = '';
-
-            map = new mbgl.Map({
-                container: mapContainerRef.current,
-                style: mapStyle,
-                center,
-                zoom: 12,
-                interactive: true,
-            });
-
-            map.addControl(new mbgl.NavigationControl({ showCompass: false }), 'top-right');
-
-            // Add center marker
-            markerRef.current = new mbgl.Marker({ color: '#2563EB' })
-                .setLngLat(center)
-                .addTo(map);
-
-            mapRef.current = map;
-            map.on('load', () => { if (!cancelled) setMapReady(true); });
-        });
-
-        return () => {
-            cancelled = true;
-            if (map) map.remove();
-            mapRef.current = null;
-            markerRef.current = null;
-            setMapReady(false);
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hasLocation, mapStyle]);
-
-    // Update map center + marker when lat/lng changes
-    useEffect(() => {
-        if (!mapRef.current || !hasLocation) return;
-        markerRef.current?.setLngLat([longitude!, latitude!]);
-        mapRef.current.flyTo({ center: [longitude!, latitude!], zoom: 12, duration: 800 });
-    }, [latitude, longitude, hasLocation]);
-
-    // Render polygon on map when data changes (or clear when null)
-    useEffect(() => {
-        const map = mapRef.current;
-        if (!map || !mapReady) return;
-
-        try {
-            if (map.getLayer('isochrone-fill')) map.removeLayer('isochrone-fill');
-            if (map.getLayer('isochrone-outline')) map.removeLayer('isochrone-outline');
-            if (map.getSource('isochrone')) map.removeSource('isochrone');
-        } catch { /* ok */ }
-
-        // If polygon is null, just remove old layers and reset view
-        if (!polygon) {
-            if (hasLocation) {
-                map.flyTo({ center: [longitude!, latitude!], zoom: 12, duration: 800 });
-            }
-            return;
-        }
-
-        map.addSource('isochrone', {
-            type: 'geojson',
-            data: polygon,
-        });
-
-        map.addLayer({
-            id: 'isochrone-fill',
-            type: 'fill',
-            source: 'isochrone',
-            paint: {
-                'fill-color': '#007cbf',
-                'fill-opacity': 0.25,
-            },
-        });
-
-        map.addLayer({
-            id: 'isochrone-outline',
-            type: 'line',
-            source: 'isochrone',
-            paint: {
-                'line-color': '#007cbf',
-                'line-width': 2,
-                'line-opacity': 0.8,
-            },
-        });
-
-        // Fit map to polygon bounds (handles Polygon and MultiPolygon)
-        const mbgl = mbglRef.current;
-        const coords = polygon.geometry?.coordinates;
-        if (mbgl && coords) {
-            const bounds = new mbgl.LngLatBounds();
-            const extend = (arr: any[]): void => {
-                for (const item of arr) {
-                    if (typeof item?.[0] === 'number') bounds.extend(item as [number, number]);
-                    else if (Array.isArray(item)) extend(item);
-                }
-            };
-            extend(coords);
-            if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 40, duration: 800 });
-        }
-    }, [polygon, mapReady, hasLocation, latitude, longitude]);
 
     // Fetch isochrone
     const fetchIsochrone = useCallback(async () => {
@@ -359,16 +244,7 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Map */}
                 <div className="lg:col-span-2">
-                    {MAPBOX_TOKEN ? (
-                        <div
-                            ref={mapContainerRef}
-                            className="w-full h-[400px] rounded-lg overflow-hidden border border-[var(--border)]"
-                        />
-                    ) : (
-                        <div className="w-full h-[400px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] flex items-center justify-center">
-                            <p className="text-xs text-[var(--text-faint)]">Add <code className="text-[10px] bg-[var(--bg-elevated)] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env.local</p>
-                        </div>
-                    )}
+                    <IsochroneMap latitude={latitude!} longitude={longitude!} polygon={polygon} polygonIsCurrent={!isStale} fitKey={cachedAt} />
                     {polygon && (
                         <p className="text-[10px] text-[var(--text-faint)] mt-1.5 text-center">
                             {breakMinutes}-minute drive-time area from {pursuitName || 'location'} · Tuesday 8:00 AM
@@ -461,6 +337,92 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
                     )}
                 </div>
             </div>
+        </div>
+    );
+}
+
+/**
+ * The site and its drive-time polygon. Mounted once a location exists; the
+ * polygon and the site update in place.
+ */
+function IsochroneMap({ latitude, longitude, polygon, polygonIsCurrent, fitKey }: {
+    latitude: number;
+    longitude: number;
+    polygon: Feature | FeatureCollection | Geometry | null;
+    /** False when the polygon was generated for a previous site location */
+    polygonIsCurrent: boolean;
+    /** Identifies a generated result (its timestamp); the map frames each result once */
+    fitKey: string | null;
+}) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const isDark = useIsDarkTheme();
+    // Latest props for map callbacks and effects that must not re-run on every change
+    const latestRef = useRef({ polygon, isDark, polygonIsCurrent, fitKey, site: [longitude, latitude] as [number, number] });
+    useEffect(() => {
+        latestRef.current = { polygon, isDark, polygonIsCurrent, fitKey, site: [longitude, latitude] };
+    });
+
+    const { map, mbgl, ready, error } = useMapboxMap(containerRef, {
+        center: [longitude, latitude],
+        zoom: 12,
+        onStyleReady: (m) => {
+            const color = isochroneColor(latestRef.current.isDark);
+            upsertGeoJsonSource(m, 'isochrone', latestRef.current.polygon ?? EMPTY_FC);
+            addLayerOnce(m, { id: 'isochrone-fill', type: 'fill', source: 'isochrone', paint: { 'fill-color': color, 'fill-opacity': 0.25 } });
+            addLayerOnce(m, { id: 'isochrone-outline', type: 'line', source: 'isochrone', paint: { 'line-color': color, 'line-width': 2, 'line-opacity': 0.8 } });
+        },
+    });
+
+    // Polygon changed: redraw it, and frame it only when it belongs to the current site
+    // (a stale polygon from a previous location must not pull the camera away)
+    const settledRef = useRef(false);
+    const fittedKeyRef = useRef<string | null | undefined>(undefined);
+    useEffect(() => {
+        if (!map || !mbgl || !ready) return;
+        setGeoJsonData(map, 'isochrone', polygon ?? EMPTY_FC);
+        const first = !settledRef.current;
+        settledRef.current = true;
+        if (!polygon) {
+            fittedKeyRef.current = undefined;
+            if (!first) map.flyTo({ center: latestRef.current.site, zoom: 12, duration: 800 });
+            return;
+        }
+        // Refetched copies of the same result (new object, same data) keep the user's view
+        const { polygonIsCurrent, fitKey } = latestRef.current;
+        if (!polygonIsCurrent || fitKey === fittedKeyRef.current) return;
+        fittedKeyRef.current = fitKey;
+        const bounds = boundsOf(mbgl, polygon);
+        if (bounds) map.fitBounds(bounds, { padding: 40, duration: first ? 0 : 800 });
+    }, [map, mbgl, ready, polygon]);
+
+    // Site moved: fly to it (the polygon effect above won't refit to the old area)
+    const lastSiteRef = useRef<string | null>(null);
+    useEffect(() => {
+        if (!map) return;
+        const key = `${longitude},${latitude}`;
+        if (lastSiteRef.current && lastSiteRef.current !== key) map.flyTo({ center: [longitude, latitude], zoom: 12, duration: 800 });
+        lastSiteRef.current = key;
+    }, [map, latitude, longitude]);
+
+    // Site marker follows the location and theme
+    useEffect(() => {
+        if (!map || !mbgl) return;
+        const marker = new mbgl.Marker({ color: siteInkColor(isDark) }).setLngLat([longitude, latitude]).addTo(map);
+        return () => { marker.remove(); };
+    }, [map, mbgl, isDark, latitude, longitude]);
+
+    // Theme-dependent polygon color
+    useEffect(() => {
+        if (!map || !ready) return;
+        const color = isochroneColor(isDark);
+        if (map.getLayer('isochrone-fill')) map.setPaintProperty('isochrone-fill', 'fill-color', color);
+        if (map.getLayer('isochrone-outline')) map.setPaintProperty('isochrone-outline', 'line-color', color);
+    }, [map, ready, isDark]);
+
+    return (
+        <div className="relative w-full h-[400px] rounded-lg overflow-hidden border border-[var(--border)]">
+            <div ref={containerRef} className="absolute inset-0" />
+            <MapStatusOverlay ready={ready} error={error} />
         </div>
     );
 }

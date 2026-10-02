@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Map as MapIcon, Loader2, MapPin, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { useMapStyle, siteInkColor } from './mapTheme';
+import type { FeatureCollection } from 'geojson';
+import type { ExpressionSpecification, Map as MapboxMap, TargetFeature } from 'mapbox-gl';
+import { useMapboxMap, useIsDarkTheme } from '@/components/map/useMapboxMap';
+import { MapStatusOverlay } from '@/components/map/MapStatusOverlay';
+import { addLayerOnce, boundsOf, createPopup, escapeHtml, setGeoJsonData, upsertGeoJsonSource } from '@/components/map/mapHelpers';
+import { siteInkColor } from '@/components/map/mapStyle';
 import { isCacheForOtherLocation, type LngLat } from './locationCache';
 import { StaleLocationNotice } from './StaleLocationNotice';
-
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
 // Income color ramp: warm tones
 const INCOME_BREAKS = [30000, 45000, 60000, 75000, 90000, 120000, 150000];
@@ -24,8 +27,35 @@ const INCOME_COLORS = [
 // previously coalesced to 0 and painted as the lowest income band.
 const NO_DATA_COLOR = '#9CA3AF';
 
-function escapeHtml(str: string): string {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const EMPTY_FC: FeatureCollection = { type: 'FeatureCollection', features: [] };
+
+// Null -> 0 via to-number, then "no data"
+const INCOME_VALUE: ExpressionSpecification = ['to-number', ['get', 'medianIncome'], 0];
+const INCOME_COLOR_EXPR = [
+    'case', ['<=', INCOME_VALUE, 0], NO_DATA_COLOR,
+    ['step', INCOME_VALUE, INCOME_COLORS[0], ...INCOME_BREAKS.flatMap((b, i) => [b, INCOME_COLORS[i + 1]])],
+] as unknown as ExpressionSpecification;
+
+const HOVER: ExpressionSpecification = ['boolean', ['feature-state', 'hover'], false];
+/** Block-group borders: hairlines that read on either light preset; the hovered one in site ink */
+const outlineColor = (isDark: boolean): ExpressionSpecification =>
+    ['case', HOVER, siteInkColor(isDark), isDark ? 'rgba(232, 234, 240, 0.45)' : 'rgba(26, 31, 43, 0.35)'];
+
+function incomePopupHtml(props: Record<string, unknown> | null | undefined): string {
+    const income = props?.medianIncome;
+    const n = Number(income);
+    const label = income != null && income !== '' && n > 0 ? '$' + n.toLocaleString() : 'No data';
+    return `
+        <div style="font-family: system-ui, sans-serif; font-size: 12px; line-height: 1.5; min-width: 140px;">
+            <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">${escapeHtml(String(props?.name || props?.geoId || ''))}</div>
+            <div style="color: var(--text-secondary);">Median Income: <strong style="color: var(--text-primary);">${label}</strong></div>
+        </div>
+    `;
+}
+
+function removeInteractions(map: MapboxMap, ids: string[]) {
+    // The map may already be removed when this runs on unmount
+    for (const id of ids) { try { map.removeInteraction(id); } catch { /* map gone */ } }
 }
 
 const LEGEND_LABELS = [
@@ -62,11 +92,6 @@ export function IncomeHeatMap({
     savedIncomeData,
     onSaveIncomeData,
 }: IncomeHeatMapProps) {
-    const mapContainerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<any>(null);
-    const mbglRef = useRef<any>(null);
-    const popupRef = useRef<any>(null);
-
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [geojson, setGeojson] = useState<any>(null);
@@ -74,7 +99,6 @@ export function IncomeHeatMap({
     const [cachedAt, setCachedAt] = useState<string | null>(null);
     const [radiusMiles, setRadiusMiles] = useState(5);
     const [cachedCenter, setCachedCenter] = useState<LngLat | null>(null);
-    const { mapStyle, isDark } = useMapStyle();
 
     // Per-radius cache ref (avoids stale closure issues)
     const localCacheRef = useRef<Record<string, IncomeCacheEntry>>(
@@ -89,9 +113,6 @@ export function IncomeHeatMap({
     }, [savedIncomeData]);
 
     const hasLocation = latitude !== null && longitude !== null;
-    const center: [number, number] = hasLocation
-        ? [longitude!, latitude!]
-        : [-96.7970, 32.7767];
 
     // Load cached data when radiusMiles changes
     useEffect(() => {
@@ -111,155 +132,6 @@ export function IncomeHeatMap({
             setCachedCenter(null);
         }
     }, [radiusMiles, savedIncomeData]);
-
-    // Initialize Mapbox map (re-run when the container appears, i.e. once a location is set)
-    const [mapReady, setMapReady] = useState(false);
-    const markerRef = useRef<any>(null);
-    useEffect(() => {
-        if (!MAPBOX_TOKEN || !hasLocation || !mapContainerRef.current) return;
-
-        let map: any;
-        let cancelled = false;
-        import('mapbox-gl').then((mapboxgl) => {
-            if (cancelled || !mapContainerRef.current) return;
-            const mbgl = mapboxgl.default || mapboxgl;
-            mbgl.accessToken = MAPBOX_TOKEN;
-            mbglRef.current = mbgl;
-
-            mapContainerRef.current.innerHTML = '';
-
-            map = new mbgl.Map({
-                container: mapContainerRef.current,
-                style: mapStyle,
-                center,
-                zoom: 11,
-                interactive: true,
-            });
-
-            map.addControl(new mbgl.NavigationControl({ showCompass: false }), 'top-right');
-
-            // Site marker
-            markerRef.current = new mbgl.Marker({ color: siteInkColor(isDark) })
-                .setLngLat(center)
-                .addTo(map);
-
-            // Hover popup — registered once (layer-scoped handlers survive layer re-adds)
-            map.on('mousemove', 'income-fill', (e: any) => {
-                if (!e.features?.[0]) return;
-                map.getCanvas().style.cursor = 'pointer';
-                const props = e.features[0].properties;
-                const income = props.medianIncome;
-
-                if (popupRef.current) popupRef.current.remove();
-                popupRef.current = new mbgl.Popup({ closeButton: false, closeOnClick: false, offset: 10 })
-                    .setLngLat(e.lngLat)
-                    .setHTML(`
-                        <div style="font-family: system-ui, sans-serif; font-size: 12px; line-height: 1.5; min-width: 140px;">
-                            <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">${escapeHtml(String(props.name || props.geoId || ''))}</div>
-                            <div style="color: var(--text-secondary);">Median Income: <strong style="color: var(--text-primary);">${income != null && income !== '' && Number(income) > 0 ? '$' + Number(income).toLocaleString() : 'No data'}</strong></div>
-                        </div>
-                    `)
-                    .addTo(map);
-            });
-
-            map.on('mouseleave', 'income-fill', () => {
-                map.getCanvas().style.cursor = '';
-                if (popupRef.current) popupRef.current.remove();
-            });
-
-            mapRef.current = map;
-            map.on('load', () => { if (!cancelled) setMapReady(true); });
-        });
-
-        return () => {
-            cancelled = true;
-            if (popupRef.current) popupRef.current.remove();
-            popupRef.current = null;
-            if (map) map.remove();
-            mapRef.current = null;
-            markerRef.current = null;
-            setMapReady(false);
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hasLocation, mapStyle]);
-
-    // Update map center + marker
-    useEffect(() => {
-        if (!mapRef.current || !hasLocation) return;
-        markerRef.current?.setLngLat([longitude!, latitude!]);
-        mapRef.current.flyTo({ center: [longitude!, latitude!], zoom: 11, duration: 800 });
-    }, [latitude, longitude, hasLocation]);
-
-    // Render choropleth when geojson changes
-    useEffect(() => {
-        const map = mapRef.current;
-        const mbgl = mbglRef.current;
-        if (!map || !mbgl || !mapReady) return;
-
-        try {
-            if (map.getLayer('income-fill')) map.removeLayer('income-fill');
-            if (map.getLayer('income-outline')) map.removeLayer('income-outline');
-            if (map.getSource('income-data')) map.removeSource('income-data');
-        } catch { /* ok */ }
-        if (popupRef.current) popupRef.current.remove();
-
-        if (!geojson) {
-            if (hasLocation) {
-                map.flyTo({ center: [longitude!, latitude!], zoom: 11, duration: 800 });
-            }
-            return;
-        }
-
-        map.addSource('income-data', {
-            type: 'geojson',
-            data: geojson,
-        });
-
-        // Build the step expression for color mapping (null → 0 via to-number, then "no data")
-        const incomeValue = ['to-number', ['get', 'medianIncome'], 0];
-        const stepExpr: any[] = ['step', incomeValue, INCOME_COLORS[0]];
-        for (let i = 0; i < INCOME_BREAKS.length; i++) {
-            stepExpr.push(INCOME_BREAKS[i], INCOME_COLORS[i + 1]);
-        }
-        const colorExpr = ['case', ['<=', incomeValue, 0], NO_DATA_COLOR, stepExpr];
-
-        map.addLayer({
-            id: 'income-fill',
-            type: 'fill',
-            source: 'income-data',
-            paint: {
-                'fill-color': colorExpr,
-                'fill-opacity': 0.6,
-            },
-        });
-
-        map.addLayer({
-            id: 'income-outline',
-            type: 'line',
-            source: 'income-data',
-            paint: {
-                'line-color': '#ffffff',
-                'line-width': 0.5,
-                'line-opacity': 0.8,
-            },
-        });
-
-        // Fit to data bounds
-        const bounds = new mbgl.LngLatBounds();
-        const flatten = (arr: any[]): void => {
-            for (const item of arr) {
-                if (typeof item?.[0] === 'number') bounds.extend(item as [number, number]);
-                else if (Array.isArray(item)) flatten(item);
-            }
-        };
-        for (const f of geojson.features || []) {
-            const coords = f.geometry?.coordinates;
-            if (coords) flatten(coords);
-        }
-        if (!bounds.isEmpty()) {
-            map.fitBounds(bounds, { padding: 40, duration: 800 });
-        }
-    }, [geojson, mapReady, hasLocation, latitude, longitude]);
 
     // Fetch income data
     const fetchIncome = useCallback(async () => {
@@ -404,20 +276,11 @@ export function IncomeHeatMap({
 
             {/* Map + Legend */}
             <div className="relative">
-                {MAPBOX_TOKEN ? (
-                    <div
-                        ref={mapContainerRef}
-                        className="w-full h-[450px] rounded-lg overflow-hidden border border-[var(--border)]"
-                    />
-                ) : (
-                    <div className="w-full h-[450px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] flex items-center justify-center">
-                        <p className="text-xs text-[var(--text-faint)]">Add <code className="text-[10px] bg-[var(--bg-elevated)] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env.local</p>
-                    </div>
-                )}
+                <IncomeChoroplethMap latitude={latitude!} longitude={longitude!} geojson={geojson} geojsonIsCurrent={!isStale} fitKey={cachedAt} />
 
-                {/* Legend overlay */}
+                {/* Legend overlay: top-left, clear of the zoom control and the bottom logo / attribution */}
                 {geojson && (
-                    <div className="absolute bottom-3 left-3 bg-[var(--bg-card)]/95 backdrop-blur-sm rounded-lg shadow-sm border border-[var(--border)] p-2.5">
+                    <div className="absolute top-3 left-3 z-[1] bg-[var(--bg-card)]/95 backdrop-blur-sm rounded-lg shadow-sm border border-[var(--border)] p-2.5">
                         <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">Median HH Income</div>
                         <div className="space-y-0.5">
                             {LEGEND_LABELS.map((label, i) => (
@@ -455,6 +318,170 @@ export function IncomeHeatMap({
                     Median household income by Census Block Group within {radiusMiles} miles of {pursuitName || 'site'} · Source: Census ACS 5-Year Estimates
                 </p>
             )}
+        </div>
+    );
+}
+
+/**
+ * Block-group choropleth around the site. Mounted once a location exists;
+ * the data and the site update in place.
+ */
+function IncomeChoroplethMap({ latitude, longitude, geojson, geojsonIsCurrent, fitKey }: {
+    latitude: number;
+    longitude: number;
+    geojson: FeatureCollection | null;
+    /** False when the data was generated for a previous site location */
+    geojsonIsCurrent: boolean;
+    /** Identifies a generated result (its timestamp); the map frames each result once */
+    fitKey: string | null;
+}) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const isDark = useIsDarkTheme();
+    // Latest props for map callbacks and effects that must not re-run on every change
+    const latestRef = useRef({ geojson, isDark, geojsonIsCurrent, fitKey, site: [longitude, latitude] as [number, number] });
+    useEffect(() => {
+        latestRef.current = { geojson, isDark, geojsonIsCurrent, fitKey, site: [longitude, latitude] };
+    });
+    const hoveredRef = useRef<TargetFeature | null>(null);
+
+    const { map, mbgl, ready, error } = useMapboxMap(containerRef, {
+        center: [longitude, latitude],
+        zoom: 11,
+        onStyleReady: (m) => {
+            upsertGeoJsonSource(m, 'income-data', latestRef.current.geojson ?? EMPTY_FC, { generateId: true });
+            addLayerOnce(m, {
+                id: 'income-fill',
+                type: 'fill',
+                source: 'income-data',
+                paint: { 'fill-color': INCOME_COLOR_EXPR, 'fill-opacity': ['case', HOVER, 0.75, 0.6] },
+            });
+            addLayerOnce(m, {
+                id: 'income-outline',
+                type: 'line',
+                source: 'income-data',
+                paint: { 'line-color': outlineColor(latestRef.current.isDark), 'line-width': ['case', HOVER, 2, 0.5] },
+            });
+        },
+    });
+
+    // Hover highlight + one reusable popup; click / tap shows the same info
+    useEffect(() => {
+        if (!map || !mbgl || !ready) return;
+        const popup = createPopup(mbgl, { offset: 10 });
+        const ids = ['income-enter', 'income-move', 'income-leave', 'income-click', 'income-click-away'];
+        const hover = (feature: TargetFeature) => {
+            if (hoveredRef.current && hoveredRef.current.id !== feature.id) map.setFeatureState(hoveredRef.current, { hover: false });
+            hoveredRef.current = feature;
+            map.setFeatureState(feature, { hover: true });
+        };
+
+        map.addInteraction('income-enter', {
+            type: 'mouseenter',
+            target: { layerId: 'income-fill' },
+            handler: (e) => {
+                if (!e.feature) return;
+                hover(e.feature);
+                map.getCanvas().style.cursor = 'pointer';
+                popup.setLngLat(e.lngLat).setHTML(incomePopupHtml(e.feature.properties)).addTo(map);
+            },
+        });
+        map.addInteraction('income-move', {
+            type: 'mousemove',
+            target: { layerId: 'income-fill' },
+            handler: (e) => {
+                if (hoveredRef.current) popup.setLngLat(e.lngLat);
+                return false;
+            },
+        });
+        map.addInteraction('income-leave', {
+            type: 'mouseleave',
+            target: { layerId: 'income-fill' },
+            handler: (e) => {
+                if (e.feature) map.setFeatureState(e.feature, { hover: false });
+                // Moving straight onto a neighbouring block group may enter it before leaving this one
+                if (!hoveredRef.current || hoveredRef.current.id === e.feature?.id) {
+                    hoveredRef.current = null;
+                    map.getCanvas().style.cursor = '';
+                    popup.remove();
+                }
+                return false;
+            },
+        });
+        map.addInteraction('income-click', {
+            type: 'click',
+            target: { layerId: 'income-fill' },
+            handler: (e) => {
+                if (!e.feature) return;
+                hover(e.feature);
+                popup.setLngLat(e.lngLat).setHTML(incomePopupHtml(e.feature.properties)).addTo(map);
+            },
+        });
+        // Tap/click outside the data closes the popup (touch has no mouseleave)
+        map.addInteraction('income-click-away', {
+            type: 'click',
+            handler: () => {
+                if (hoveredRef.current) map.setFeatureState(hoveredRef.current, { hover: false });
+                hoveredRef.current = null;
+                popup.remove();
+            },
+        });
+
+        return () => {
+            removeInteractions(map, ids);
+            popup.remove();
+            hoveredRef.current = null;
+        };
+    }, [map, mbgl, ready]);
+
+    // Data changed: redraw it, and frame it only when it belongs to the current site
+    // (stale data from a previous location must not pull the camera away)
+    const settledRef = useRef(false);
+    const fittedKeyRef = useRef<string | null | undefined>(undefined);
+    useEffect(() => {
+        if (!map || !mbgl || !ready) return;
+        hoveredRef.current = null; // feature ids are regenerated by setData
+        setGeoJsonData(map, 'income-data', geojson ?? EMPTY_FC);
+        const first = !settledRef.current;
+        settledRef.current = true;
+        if (!geojson) {
+            fittedKeyRef.current = undefined;
+            if (!first) map.flyTo({ center: latestRef.current.site, zoom: 11, duration: 800 });
+            return;
+        }
+        // Refetched copies of the same result (new object, same data) keep the user's view
+        const { geojsonIsCurrent, fitKey } = latestRef.current;
+        if (!geojsonIsCurrent || fitKey === fittedKeyRef.current) return;
+        fittedKeyRef.current = fitKey;
+        const bounds = boundsOf(mbgl, geojson);
+        if (bounds) map.fitBounds(bounds, { padding: 40, duration: first ? 0 : 800 });
+    }, [map, mbgl, ready, geojson]);
+
+    // Site moved: fly to it (the data effect above won't refit to the old area)
+    const lastSiteRef = useRef<string | null>(null);
+    useEffect(() => {
+        if (!map) return;
+        const key = `${longitude},${latitude}`;
+        if (lastSiteRef.current && lastSiteRef.current !== key) map.flyTo({ center: [longitude, latitude], zoom: 11, duration: 800 });
+        lastSiteRef.current = key;
+    }, [map, latitude, longitude]);
+
+    // Site marker follows the location and theme
+    useEffect(() => {
+        if (!map || !mbgl) return;
+        const marker = new mbgl.Marker({ color: siteInkColor(isDark) }).setLngLat([longitude, latitude]).addTo(map);
+        return () => { marker.remove(); };
+    }, [map, mbgl, isDark, latitude, longitude]);
+
+    // Theme-dependent outline
+    useEffect(() => {
+        if (!map || !ready || !map.getLayer('income-outline')) return;
+        map.setPaintProperty('income-outline', 'line-color', outlineColor(isDark));
+    }, [map, ready, isDark]);
+
+    return (
+        <div className="relative w-full h-[450px] rounded-lg overflow-hidden border border-[var(--border)]">
+            <div ref={containerRef} className="absolute inset-0" />
+            <MapStatusOverlay ready={ready} error={error} />
         </div>
     );
 }

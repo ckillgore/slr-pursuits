@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useRef, useEffect, useDeferredValue } from 'react';
+import { useState, useMemo, useCallback, useRef, useDeferredValue } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/components/AuthProvider';
@@ -12,10 +12,9 @@ import {
 } from 'lucide-react';
 import type { LandComp, SaleComp, HellodataProperty } from '@/types';
 import { toast } from '@/lib/toast';
-import { useMapStyle } from '@/components/pursuits/mapTheme';
 import { landPricePerSf } from '@/components/pursuits/compDerived';
-
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
+import { CompsMap, type CompsMapPoint } from '@/components/comps/CompsMap';
+import { searchPlaces, geocodeForStorage, reverseGeocode, type GeocodeResult } from '@/lib/geocoding';
 
 function formatCurrency(val: number | null) {
     if (!val) return '—';
@@ -31,10 +30,6 @@ function formatNumber(val: number | null, decimals = 0) {
     return new Intl.NumberFormat('en-US', { maximumFractionDigits: decimals }).format(val);
 }
 
-function escapeHtml(v: unknown): string {
-    return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 /** Cards/rows rendered per "Show more" step — the all-properties rent list can reach thousands of rows */
 const PAGE_SIZE = 60;
 
@@ -44,15 +39,6 @@ function getOccupancy(p: HellodataProperty): number | null {
     if (!occ || !Array.isArray(occ) || occ.length === 0) return null;
     const latest = occ.reduce((a, o) => ((o?.as_of || '') > (a?.as_of || '') ? o : a), occ[0]);
     return latest?.leased != null ? Math.round(latest.leased * 100) : null;
-}
-
-/** Make a DOM map marker behave like a link: client-side navigation, keyboard focus + Enter */
-function bindMarkerLink(el: HTMLElement, label: string, go: () => void) {
-    el.setAttribute('role', 'link');
-    el.setAttribute('tabindex', '0');
-    el.setAttribute('aria-label', label);
-    el.addEventListener('click', go);
-    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
 }
 
 /** Keyboard/screen-reader props for a clickable card or table row that navigates */
@@ -65,6 +51,16 @@ function linkProps(label: string, go: () => void) {
         onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' && e.target === e.currentTarget) { e.preventDefault(); go(); } },
     };
 }
+
+const MAP_TABS = {
+    rent: { accentColor: '#2563EB', emptyTitle: 'No rent comps with location data' },
+    land: { accentColor: '#0D9488', emptyTitle: 'No comps with location data' },
+    sales: {
+        accentColor: '#6366F1',
+        emptyTitle: 'No sale comps with location data',
+        emptyHint: 'Add an address when creating sale comps to see them on the map',
+    },
+} as const;
 
 function ShowMore({ shown, total, onMore }: { shown: number; total: number; onMore: () => void }) {
     if (shown >= total) return null;
@@ -84,329 +80,6 @@ function ShowMore({ shown, total, onMore }: { shown: number; total: number; onMo
 /** Date-only strings ("2024-03-01") are parsed as local dates so they don't shift a day in US timezones */
 function parseDateOnly(d: string): Date {
     return /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + 'T00:00:00') : new Date(d);
-}
-
-// ======================== Comps Map ========================
-
-function CompsMap({ comps }: { comps: LandComp[] }) {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<any>(null);
-    const markersRef = useRef<any[]>([]);
-    const router = useRouter();
-    const routerRef = useRef(router);
-    routerRef.current = router;
-    const { mapStyle } = useMapStyle();
-
-    const locatedComps = useMemo(
-        () => comps.filter((c) => c.latitude != null && c.longitude != null),
-        [comps]
-    );
-
-    useEffect(() => {
-        if (!MAPBOX_TOKEN || !containerRef.current) return;
-
-        let map: any;
-        let cancelled = false;
-        import('mapbox-gl').then((mapboxgl) => {
-            // Effect may have been cleaned up while the module was loading; don't create an orphan map
-            if (cancelled || !containerRef.current) return;
-            const mbgl = mapboxgl.default || mapboxgl;
-            mbgl.accessToken = MAPBOX_TOKEN;
-
-            let center: [number, number] = [-97.7431, 32.0];
-            let zoom = 4;
-            if (locatedComps.length === 1) {
-                center = [locatedComps[0].longitude!, locatedComps[0].latitude!];
-                zoom = 12;
-            } else if (locatedComps.length > 1) {
-                const bounds = new mbgl.LngLatBounds();
-                locatedComps.forEach((c) => bounds.extend([c.longitude!, c.latitude!]));
-                center = bounds.getCenter().toArray() as [number, number];
-            }
-
-            if (containerRef.current) containerRef.current.innerHTML = '';
-
-            map = new mbgl.Map({
-                container: containerRef.current!,
-                style: mapStyle,
-                center,
-                zoom,
-                interactive: true,
-            });
-
-            map.addControl(new mbgl.NavigationControl({ showCompass: true }), 'top-right');
-            mapRef.current = map;
-
-            map.on('load', () => {
-                if (cancelled) return;
-                if (locatedComps.length > 1) {
-                    const bounds = new mbgl.LngLatBounds();
-                    locatedComps.forEach((c) => bounds.extend([c.longitude!, c.latitude!]));
-                    map.fitBounds(bounds, { padding: 60, maxZoom: 14 });
-                }
-
-                // Add markers
-                locatedComps.forEach((c) => {
-                    const priceLabel = c.sale_price ? formatCurrency(c.sale_price) : '';
-                    const el = document.createElement('div');
-                    el.style.cssText = 'cursor:pointer;display:flex;flex-direction:column;align-items:center;';
-                    el.innerHTML = `
-                        <div style="background:#0D9488;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.15);line-height:1.3;text-align:center;">
-                            ${escapeHtml(c.name)}
-                            ${priceLabel ? `<div style="font-weight:400;font-size:8px;opacity:0.85;">${priceLabel}</div>` : ''}
-                        </div>
-                        <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #0D9488;"></div>
-                    `;
-                    const marker = new mbgl.Marker({ element: el })
-                        .setLngLat([c.longitude!, c.latitude!])
-                        .addTo(map);
-                    bindMarkerLink(el, `Open ${c.name}`, () => routerRef.current.push(`/comps/${c.short_id || c.id}`));
-                    markersRef.current.push(marker);
-                });
-            });
-        });
-
-        return () => {
-            cancelled = true;
-            markersRef.current.forEach((m) => m.remove());
-            markersRef.current = [];
-            if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [locatedComps, mapStyle]);
-
-    if (locatedComps.length === 0) {
-        return (
-            <div className="flex items-center justify-center py-20 text-center">
-                <div>
-                    <MapPin className="w-8 h-8 text-[var(--border-strong)] mx-auto mb-2" />
-                    <p className="text-sm text-[var(--text-muted)]">No comps with location data</p>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="relative bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden" style={{ height: 'calc(100vh - 220px)', minHeight: 400 }}>
-            <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-        </div>
-    );
-}
-
-// ======================== Sale Comps Map ========================
-
-function SaleCompsMap({ comps }: { comps: SaleComp[] }) {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<any>(null);
-    const markersRef = useRef<any[]>([]);
-    const router = useRouter();
-    const routerRef = useRef(router);
-    routerRef.current = router;
-    const { mapStyle } = useMapStyle();
-
-    const locatedComps = useMemo(
-        () => comps.filter((c) => c.latitude != null && c.longitude != null),
-        [comps]
-    );
-
-    useEffect(() => {
-        if (!MAPBOX_TOKEN || !containerRef.current) return;
-
-        let map: any;
-        let cancelled = false;
-        import('mapbox-gl').then((mapboxgl) => {
-            // Effect may have been cleaned up while the module was loading; don't create an orphan map
-            if (cancelled || !containerRef.current) return;
-            const mbgl = mapboxgl.default || mapboxgl;
-            mbgl.accessToken = MAPBOX_TOKEN;
-
-            let center: [number, number] = [-97.7431, 32.0];
-            let zoom = 4;
-            if (locatedComps.length === 1) {
-                center = [locatedComps[0].longitude!, locatedComps[0].latitude!];
-                zoom = 12;
-            } else if (locatedComps.length > 1) {
-                const bounds = new mbgl.LngLatBounds();
-                locatedComps.forEach((c) => bounds.extend([c.longitude!, c.latitude!]));
-                center = bounds.getCenter().toArray() as [number, number];
-            }
-
-            if (containerRef.current) containerRef.current.innerHTML = '';
-
-            map = new mbgl.Map({
-                container: containerRef.current!,
-                style: mapStyle,
-                center,
-                zoom,
-                interactive: true,
-            });
-
-            map.addControl(new mbgl.NavigationControl({ showCompass: true }), 'top-right');
-            mapRef.current = map;
-
-            map.on('load', () => {
-                if (cancelled) return;
-                if (locatedComps.length > 1) {
-                    const bounds = new mbgl.LngLatBounds();
-                    locatedComps.forEach((c) => bounds.extend([c.longitude!, c.latitude!]));
-                    map.fitBounds(bounds, { padding: 60, maxZoom: 14 });
-                }
-
-                locatedComps.forEach((c) => {
-                    const txs = [...(c.sale_transactions ?? [])].sort(
-                        (a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime()
-                    );
-                    const latest = txs[0];
-                    const priceLabel = latest?.sale_price ? formatCurrency(latest.sale_price) : '';
-                    const el = document.createElement('div');
-                    el.style.cssText = 'cursor:pointer;display:flex;flex-direction:column;align-items:center;';
-                    el.innerHTML = `
-                        <div style="background:#6366F1;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.15);line-height:1.3;text-align:center;">
-                            ${escapeHtml(c.name)}
-                            ${priceLabel ? `<div style="font-weight:400;font-size:8px;opacity:0.85;">${priceLabel}</div>` : ''}
-                        </div>
-                        <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #6366F1;"></div>
-                    `;
-                    const marker = new mbgl.Marker({ element: el })
-                        .setLngLat([c.longitude!, c.latitude!])
-                        .addTo(map);
-                    bindMarkerLink(el, `Open ${c.name}`, () => routerRef.current.push(`/comps/sales/${c.short_id || c.id}`));
-                    markersRef.current.push(marker);
-                });
-            });
-        });
-
-        return () => {
-            cancelled = true;
-            markersRef.current.forEach((m) => m.remove());
-            markersRef.current = [];
-            if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [locatedComps, mapStyle]);
-
-    if (locatedComps.length === 0) {
-        return (
-            <div className="flex items-center justify-center py-20 text-center">
-                <div>
-                    <MapPin className="w-8 h-8 text-[var(--border-strong)] mx-auto mb-2" />
-                    <p className="text-sm text-[var(--text-muted)]">No sale comps with location data</p>
-                    <p className="text-xs text-[var(--text-faint)] mt-1">Add an address when creating sale comps to see them on the map</p>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="relative bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden" style={{ height: 'calc(100vh - 220px)', minHeight: 400 }}>
-            <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-        </div>
-    );
-}
-// ======================== Rent Comps Map ========================
-
-function RentCompsMap({ comps }: { comps: HellodataProperty[] }) {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<any>(null);
-    const markersRef = useRef<any[]>([]);
-    const router = useRouter();
-    const routerRef = useRef(router);
-    routerRef.current = router;
-    const { mapStyle } = useMapStyle();
-
-    const locatedComps = useMemo(
-        () => comps.filter((c) => c.lat != null && c.lon != null),
-        [comps]
-    );
-
-    useEffect(() => {
-        if (!MAPBOX_TOKEN || !containerRef.current) return;
-
-        let map: any;
-        let cancelled = false;
-        import('mapbox-gl').then((mapboxgl) => {
-            // Effect may have been cleaned up while the module was loading; don't create an orphan map
-            if (cancelled || !containerRef.current) return;
-            const mbgl = mapboxgl.default || mapboxgl;
-            mbgl.accessToken = MAPBOX_TOKEN;
-
-            let center: [number, number] = [-97.7431, 32.0];
-            let zoom = 4;
-            if (locatedComps.length === 1) {
-                center = [locatedComps[0].lon!, locatedComps[0].lat!];
-                zoom = 12;
-            } else if (locatedComps.length > 1) {
-                const bounds = new mbgl.LngLatBounds();
-                locatedComps.forEach((c) => bounds.extend([c.lon!, c.lat!]));
-                center = bounds.getCenter().toArray() as [number, number];
-            }
-
-            if (containerRef.current) containerRef.current.innerHTML = '';
-
-            map = new mbgl.Map({
-                container: containerRef.current!,
-                style: mapStyle,
-                center,
-                zoom,
-                interactive: true,
-            });
-
-            map.addControl(new mbgl.NavigationControl({ showCompass: true }), 'top-right');
-            mapRef.current = map;
-
-            map.on('load', () => {
-                if (cancelled) return;
-                if (locatedComps.length > 1) {
-                    const bounds = new mbgl.LngLatBounds();
-                    locatedComps.forEach((c) => bounds.extend([c.lon!, c.lat!]));
-                    map.fitBounds(bounds, { padding: 60, maxZoom: 14 });
-                }
-
-                locatedComps.forEach((c) => {
-                    const units = c.number_units ? `${c.number_units} units` : '';
-                    const el = document.createElement('div');
-                    el.style.cssText = 'cursor:pointer;display:flex;flex-direction:column;align-items:center;';
-                    el.innerHTML = `
-                        <div style="background:#2563EB;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.15);line-height:1.3;text-align:center;">
-                            ${escapeHtml(c.building_name || c.street_address || 'Property')}
-                            ${units ? `<div style="font-weight:400;font-size:8px;opacity:0.85;">${units}</div>` : ''}
-                        </div>
-                        <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #2563EB;"></div>
-                    `;
-                    const marker = new mbgl.Marker({ element: el })
-                        .setLngLat([c.lon!, c.lat!])
-                        .addTo(map);
-                    bindMarkerLink(el, `Open ${c.building_name || c.street_address || 'property'}`, () => routerRef.current.push(`/comps/rent/${c.id}`));
-                    markersRef.current.push(marker);
-                });
-            });
-        });
-
-        return () => {
-            cancelled = true;
-            markersRef.current.forEach((m) => m.remove());
-            markersRef.current = [];
-            if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [locatedComps, mapStyle]);
-
-    if (locatedComps.length === 0) {
-        return (
-            <div className="flex items-center justify-center py-20 text-center">
-                <div>
-                    <MapPin className="w-8 h-8 text-[var(--border-strong)] mx-auto mb-2" />
-                    <p className="text-sm text-[var(--text-muted)]">No rent comps with location data</p>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="relative bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden" style={{ height: 'calc(100vh - 220px)', minHeight: 400 }}>
-            <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-        </div>
-    );
 }
 
 // ======================== Main Page ========================
@@ -452,7 +125,8 @@ export default function CompsPage() {
     const [newLng, setNewLng] = useState<number | null>(null);
     const [addressMode, setAddressMode] = useState<'search' | 'coords'>('search');
     const [addressSearch, setAddressSearch] = useState('');
-    const [suggestions, setSuggestions] = useState<any[]>([]);
+    const [suggestions, setSuggestions] = useState<GeocodeResult[]>([]);
+    const [locating, setLocating] = useState(false);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [coordLatStr, setCoordLatStr] = useState('');
     const [coordLngStr, setCoordLngStr] = useState('');
@@ -473,7 +147,8 @@ export default function CompsPage() {
     const [saleCounty, setSaleCounty] = useState('');
     const [saleZip, setSaleZip] = useState('');
     const [saleAddressSearch, setSaleAddressSearch] = useState('');
-    const [saleSuggestions, setSaleSuggestions] = useState<any[]>([]);
+    const [saleSuggestions, setSaleSuggestions] = useState<GeocodeResult[]>([]);
+    const [saleLocating, setSaleLocating] = useState(false);
     const [showSaleSuggestions, setShowSaleSuggestions] = useState(false);
     const saleSearchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const saleSearchSeqRef = useRef(0);
@@ -529,44 +204,59 @@ export default function CompsPage() {
         return list;
     }, [saleComps, deferredSaleSearch, saleSortBy, filterState, filterCity, saleFilterPropertyType]);
 
-    // Sale comp address autocomplete
+    // Sale comp address autocomplete (temporary geocodes — display only)
     const handleSaleAddressSearch = useCallback((query: string) => {
         setSaleAddressSearch(query);
         setSaleAddress(query);
         if (saleSearchTimeoutRef.current) clearTimeout(saleSearchTimeoutRef.current);
         const seq = ++saleSearchSeqRef.current;
-        if (!query.trim() || query.length < 3 || !MAPBOX_TOKEN) {
+        if (!query.trim() || query.length < 3) {
             setSaleSuggestions([]); setShowSaleSuggestions(false); return;
         }
         saleSearchTimeoutRef.current = setTimeout(async () => {
             try {
-                const res = await fetch(
-                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&types=address,poi,place&country=US&limit=5`
-                );
-                const data = await res.json();
+                const results = await searchPlaces(query);
                 if (seq !== saleSearchSeqRef.current) return; // stale response
-                setSaleSuggestions(data.features || []);
+                setSaleSuggestions(results);
                 setShowSaleSuggestions(true);
-            } catch { /* ignore */ }
+            } catch (err) {
+                console.error('Address search failed:', err);
+            }
         }, 300);
     }, []);
 
-    const selectSaleSuggestion = useCallback((feature: any) => {
-        saleSearchSeqRef.current++;
-        const [lng, lat] = feature.center;
-        const context = feature.context || [];
-        const findCtx = (type: string) => context.find((c: any) => c.id?.startsWith(type))?.text || '';
-        const parts = feature.place_name.split(',');
-        setSaleAddress(parts[0]?.trim() || '');
-        setSaleCity(findCtx('place') || '');
-        setSaleState(findCtx('region') || '');
-        setSaleZip(findCtx('postcode') || '');
-        setSaleCounty(findCtx('district') || '');
-        setSaleLat(lat);
-        setSaleLng(lng);
-        setSaleAddressSearch(feature.place_name);
+    // The picked suggestion is geocoded again in permanent mode; only that result's coordinates are saved
+    const selectSaleSuggestion = useCallback(async (s: GeocodeResult) => {
+        if (saleSearchTimeoutRef.current) clearTimeout(saleSearchTimeoutRef.current);
+        const seq = ++saleSearchSeqRef.current;
+        setSaleAddressSearch(s.label);
         setSaleSuggestions([]);
         setShowSaleSuggestions(false);
+        setSaleLat(null);
+        setSaleLng(null);
+        setSaleLocating(true);
+        try {
+            const r = await geocodeForStorage(s);
+            if (seq !== saleSearchSeqRef.current) return;
+            if (!r) throw new Error('No permanent match');
+            setSaleAddress(r.address || r.name);
+            setSaleCity(r.city);
+            setSaleState(r.state);
+            setSaleZip(r.zip);
+            setSaleCounty(r.county);
+            setSaleLat(r.lat);
+            setSaleLng(r.lng);
+        } catch (err) {
+            if (seq !== saleSearchSeqRef.current) return;
+            setSaleAddress(s.address || s.name);
+            setSaleCity(s.city);
+            setSaleState(s.state);
+            setSaleZip(s.zip);
+            setSaleCounty(s.county);
+            toast.error('That address could not be located — the comp will be saved without map coordinates', err);
+        } finally {
+            if (seq === saleSearchSeqRef.current) setSaleLocating(false);
+        }
     }, []);
 
     const handleCreateSaleComp = async () => {
@@ -592,7 +282,7 @@ export default function CompsPage() {
             });
             setSaleName(''); setSaleAddress(''); setSaleCity(''); setSaleState(''); setSalePropertyType('');
             setSaleLat(null); setSaleLng(null); setSaleCounty(''); setSaleZip('');
-            setSaleAddressSearch(''); setSaleSuggestions([]); setShowSaleSuggestions(false);
+            setSaleAddressSearch(''); setSaleSuggestions([]); setShowSaleSuggestions(false); setSaleLocating(false);
             setShowNewSaleDialog(false);
             router.push(`/comps/sales/${created.short_id}`);
         } catch (err) {
@@ -683,6 +373,35 @@ export default function CompsPage() {
         return list;
     }, [comps, deferredSearch, sortBy, filterState, filterCity]);
 
+    const landMapPoints = useMemo<CompsMapPoint[]>(() => filtered
+        .filter((c) => c.latitude != null && c.longitude != null)
+        .map((c) => ({
+            id: c.id, lng: c.longitude!, lat: c.latitude!, title: c.name,
+            subtitle: c.sale_price ? formatCurrency(c.sale_price) : '',
+            href: `/comps/${c.short_id || c.id}`,
+        })), [filtered]);
+    const saleMapPoints = useMemo<CompsMapPoint[]>(() => filteredSaleComps
+        .filter((c) => c.latitude != null && c.longitude != null)
+        .map((c) => {
+            const latest = [...(c.sale_transactions ?? [])].sort(
+                (a, b) => new Date(b.sale_date ?? 0).getTime() - new Date(a.sale_date ?? 0).getTime()
+            )[0];
+            return {
+                id: c.id, lng: c.longitude!, lat: c.latitude!, title: c.name,
+                subtitle: latest?.sale_price ? formatCurrency(latest.sale_price) : '',
+                href: `/comps/sales/${c.short_id || c.id}`,
+            };
+        }), [filteredSaleComps]);
+    const rentMapPoints = useMemo<CompsMapPoint[]>(() => filteredRent
+        .filter((c) => c.lat != null && c.lon != null)
+        .map((c) => ({
+            id: c.id, lng: c.lon!, lat: c.lat!, title: c.building_name || c.street_address || 'Property',
+            subtitle: c.number_units ? `${c.number_units} units` : '',
+            href: `/comps/rent/${c.id}`,
+        })), [filteredRent]);
+    const mapPoints = activeSection === 'rent' ? rentMapPoints : activeSection === 'land' ? landMapPoints : saleMapPoints;
+    const sectionLoading = activeSection === 'rent' ? loadingRentComps : activeSection === 'land' ? isLoading : loadingSaleComps;
+
     // Incremental rendering: the visible count resets whenever the list identity (tab / view / filters) changes
     const listKey = [activeSection, viewMode, deferredSearch, deferredSaleSearch, deferredRentSearch, sortBy, saleSortBy,
         filterState, filterCity, saleFilterPropertyType, rentFilterState, rentFilterCity].join('|');
@@ -690,65 +409,79 @@ export default function CompsPage() {
     const visibleCount = shown.key === listKey ? shown.count : PAGE_SIZE;
     const showMore = () => setShown({ key: listKey, count: visibleCount + PAGE_SIZE });
 
-    // Address autocomplete
+    // Address autocomplete (temporary geocodes — display only)
     const handleAddressSearch = useCallback((query: string) => {
         setAddressSearch(query);
         if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
         const seq = ++searchSeqRef.current;
-        if (!query.trim() || !MAPBOX_TOKEN) { setSuggestions([]); setShowSuggestions(false); return; }
+        if (!query.trim()) { setSuggestions([]); setShowSuggestions(false); return; }
         searchTimeoutRef.current = setTimeout(async () => {
             try {
-                const res = await fetch(
-                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&types=address,poi,place&country=US&limit=5`
-                );
-                const data = await res.json();
+                const results = await searchPlaces(query);
                 if (seq !== searchSeqRef.current) return; // stale response
-                setSuggestions(data.features || []);
+                setSuggestions(results);
                 setShowSuggestions(true);
-            } catch { /* ignore */ }
+            } catch (err) {
+                console.error('Address search failed:', err);
+            }
         }, 300);
     }, []);
 
-    const selectSuggestion = useCallback((feature: any) => {
-        searchSeqRef.current++;
-        const [lng, lat] = feature.center;
-        const context = feature.context || [];
-        const findCtx = (type: string) => context.find((c: any) => c.id?.startsWith(type))?.text || '';
-        const parts = feature.place_name.split(',');
-        setNewAddress(parts[0]?.trim() || '');
-        setNewCity(findCtx('place') || '');
-        setNewState(findCtx('region') || '');
-        setNewZip(findCtx('postcode') || '');
-        setNewCounty(findCtx('district') || '');
-        setNewLat(lat);
-        setNewLng(lng);
-        setAddressSearch(feature.place_name);
+    // The picked suggestion is geocoded again in permanent mode; only that result's coordinates are saved
+    const selectSuggestion = useCallback(async (s: GeocodeResult) => {
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+        const seq = ++searchSeqRef.current;
+        setAddressSearch(s.label);
         setSuggestions([]);
         setShowSuggestions(false);
+        setNewLat(null);
+        setNewLng(null);
+        setLocating(true);
+        try {
+            const r = await geocodeForStorage(s);
+            if (seq !== searchSeqRef.current) return;
+            if (!r) throw new Error('No permanent match');
+            setNewAddress(r.address || r.name);
+            setNewCity(r.city);
+            setNewState(r.state);
+            setNewZip(r.zip);
+            setNewCounty(r.county);
+            setNewLat(r.lat);
+            setNewLng(r.lng);
+        } catch (err) {
+            if (seq !== searchSeqRef.current) return;
+            setNewAddress(s.address || s.name);
+            setNewCity(s.city);
+            setNewState(s.state);
+            setNewZip(s.zip);
+            setNewCounty(s.county);
+            toast.error('That address could not be located — the comp will be saved without map coordinates', err);
+        } finally {
+            if (seq === searchSeqRef.current) setLocating(false);
+        }
     }, []);
 
-    const applyCoords = () => {
+    // Typed coordinates are saved as-is; the address for them comes from a permanent reverse geocode
+    const applyCoords = async () => {
         const lat = parseFloat(coordLatStr);
         const lng = parseFloat(coordLngStr);
         if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
+        const seq = ++searchSeqRef.current;
         setNewLat(lat);
         setNewLng(lng);
-        if (MAPBOX_TOKEN) {
-            fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=address,place`)
-                .then(r => r.json())
-                .then(data => {
-                    if (data.features?.length > 0) {
-                        const f = data.features[0];
-                        const ctx = f.context || [];
-                        const findCtx = (type: string) => ctx.find((c: any) => c.id?.startsWith(type))?.text || '';
-                        const parts = f.place_name.split(',');
-                        setNewAddress(parts[0]?.trim() || '');
-                        setNewCity(findCtx('place') || '');
-                        setNewState(findCtx('region') || '');
-                        setNewZip(findCtx('postcode') || '');
-                        setNewCounty(findCtx('district') || '');
-                    }
-                }).catch(() => { });
+        setLocating(true);
+        try {
+            const r = await reverseGeocode(lng, lat, { permanent: true });
+            if (seq !== searchSeqRef.current || !r) return;
+            setNewAddress(r.address || r.name);
+            setNewCity(r.city);
+            setNewState(r.state);
+            setNewZip(r.zip);
+            setNewCounty(r.county);
+        } catch (err) {
+            console.error('Reverse geocode failed:', err);
+        } finally {
+            if (seq === searchSeqRef.current) setLocating(false);
         }
     };
 
@@ -757,6 +490,9 @@ export default function CompsPage() {
         setNewCounty(''); setNewZip(''); setNewLat(null); setNewLng(null);
         setAddressSearch(''); setCoordLatStr(''); setCoordLngStr('');
         setSuggestions([]); setShowSuggestions(false); setAddressMode('search');
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+        searchSeqRef.current++; // drop any in-flight geocode
+        setLocating(false);
     };
 
     const handleCreate = async () => {
@@ -1040,11 +776,6 @@ export default function CompsPage() {
                                 <ShowMore shown={Math.min(visibleCount, filteredRent.length)} total={filteredRent.length} onMore={showMore} />
                             )}
 
-                            {/* Map View */}
-                            {!loadingRentComps && viewMode === 'map' && (
-                                <RentCompsMap comps={filteredRent} />
-                            )}
-
                             {/* Empty State */}
                             {!loadingRentComps && filteredRent.length === 0 && viewMode !== 'map' && (
                                 <div className="text-center py-16">
@@ -1253,11 +984,6 @@ export default function CompsPage() {
 
                     {!isLoading && viewMode !== 'map' && (
                         <ShowMore shown={Math.min(visibleCount, filtered.length)} total={filtered.length} onMore={showMore} />
-                    )}
-
-                    {/* === MAP VIEW === */}
-                    {!isLoading && viewMode === 'map' && (
-                        <CompsMap comps={filtered} />
                     )}
 
                     {/* Empty State */}
@@ -1501,11 +1227,6 @@ export default function CompsPage() {
                             <ShowMore shown={Math.min(visibleCount, filteredSaleComps.length)} total={filteredSaleComps.length} onMore={showMore} />
                         )}
 
-                        {/* Sale Comps Map View */}
-                        {!loadingSaleComps && viewMode === 'map' && (
-                            <SaleCompsMap comps={filteredSaleComps} />
-                        )}
-
                         {!loadingSaleComps && filteredSaleComps.length === 0 && viewMode !== 'map' && (
                             <div className="flex flex-col items-center justify-center py-24 text-center">
                                 <div className="w-16 h-16 rounded-2xl bg-[var(--bg-elevated)] flex items-center justify-center mb-4">
@@ -1530,6 +1251,11 @@ export default function CompsPage() {
                             </div>
                         )}
                     </>
+                )}
+
+                {/* One map for every tab: switching tabs or filters updates it in place */}
+                {viewMode === 'map' && !sectionLoading && (
+                    <CompsMap points={mapPoints} {...MAP_TABS[activeSection]} />
                 )}
             </div>
 
@@ -1586,13 +1312,14 @@ export default function CompsPage() {
                                     />
                                     {showSuggestions && suggestions.length > 0 && (
                                         <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
-                                            {suggestions.map((s: any) => (
+                                            {suggestions.map((s) => (
                                                 <button
                                                     key={s.id}
-                                                    onClick={() => selectSuggestion(s)}
+                                                    onClick={() => void selectSuggestion(s)}
                                                     className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
                                                 >
-                                                    {s.place_name}
+                                                    <div className="font-medium text-xs">{s.name}</div>
+                                                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{s.secondary}</div>
                                                 </button>
                                             ))}
                                         </div>
@@ -1602,10 +1329,15 @@ export default function CompsPage() {
                                 <div className="flex gap-2">
                                     <input value={coordLatStr} onChange={(e) => setCoordLatStr(e.target.value)} placeholder="Latitude" className="flex-1 px-3 py-2 rounded-lg border border-[var(--border)] text-sm focus:border-[#0D9488] focus:outline-none" />
                                     <input value={coordLngStr} onChange={(e) => setCoordLngStr(e.target.value)} placeholder="Longitude" className="flex-1 px-3 py-2 rounded-lg border border-[var(--border)] text-sm focus:border-[#0D9488] focus:outline-none" />
-                                    <button onClick={applyCoords} className="px-3 py-2 rounded-lg bg-[#0D9488]/10 text-[#0D9488] text-sm font-medium hover:bg-[#0D9488]/20 transition-colors">Apply</button>
+                                    <button onClick={() => void applyCoords()} className="px-3 py-2 rounded-lg bg-[#0D9488]/10 text-[#0D9488] text-sm font-medium hover:bg-[#0D9488]/20 transition-colors">Apply</button>
                                 </div>
                             )}
 
+                            {locating && (
+                                <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+                                    <Loader2 className="w-3 h-3 animate-spin" /> Locating address…
+                                </div>
+                            )}
                             {newLat && newLng && (
                                 <div className="text-xs text-[var(--success)] bg-[var(--success-bg)] px-2.5 py-1.5 rounded-md">
                                     ✓ Location set: {newLat.toFixed(4)}, {newLng.toFixed(4)}
@@ -1618,7 +1350,7 @@ export default function CompsPage() {
                             <button onClick={() => { setShowNewDialog(false); resetForm(); }} className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors">Cancel</button>
                             <button
                                 onClick={handleCreate}
-                                disabled={!newName.trim() || createComp.isPending}
+                                disabled={!newName.trim() || createComp.isPending || locating}
                                 className="px-4 py-2 rounded-lg bg-[#0D9488] text-white text-sm font-medium hover:bg-[#0F766E] disabled:opacity-50 transition-colors"
                             >
                                 {createComp.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Comp'}
@@ -1697,19 +1429,24 @@ export default function CompsPage() {
                                 </div>
                                 {showSaleSuggestions && saleSuggestions.length > 0 && (
                                     <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
-                                        {saleSuggestions.map((s: any) => (
+                                        {saleSuggestions.map((s) => (
                                             <button
                                                 key={s.id}
-                                                onClick={() => selectSaleSuggestion(s)}
+                                                onClick={() => void selectSaleSuggestion(s)}
                                                 className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
                                             >
-                                                <div className="font-medium text-xs">{s.text}</div>
-                                                <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{s.place_name}</div>
+                                                <div className="font-medium text-xs">{s.name}</div>
+                                                <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{s.secondary}</div>
                                             </button>
                                         ))}
                                     </div>
                                 )}
                             </div>
+                            {saleLocating && (
+                                <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+                                    <Loader2 className="w-3 h-3 animate-spin" /> Locating address…
+                                </div>
+                            )}
                             {saleLat !== null && (
                                 <div className="text-xs text-[var(--success)] bg-[var(--success-bg)] px-2.5 py-1.5 rounded-md">
                                     ✓ Location set: {saleLat.toFixed(4)}, {saleLng!.toFixed(4)}
@@ -1752,7 +1489,7 @@ export default function CompsPage() {
                             <button onClick={() => setShowNewSaleDialog(false)} className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors">Cancel</button>
                             <button
                                 onClick={handleCreateSaleComp}
-                                disabled={!saleName.trim() || createSaleComp.isPending}
+                                disabled={!saleName.trim() || createSaleComp.isPending || saleLocating}
                                 className="px-4 py-2 rounded-lg bg-[var(--accent)] text-white text-sm font-medium hover:bg-[#4F46E5] disabled:opacity-50 transition-colors"
                             >
                                 {createSaleComp.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Sale Comp'}

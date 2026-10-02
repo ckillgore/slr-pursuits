@@ -16,10 +16,11 @@ import {
     ChevronLeft, Loader2, DollarSign, Calendar, Building2, Ruler,
     User, Pencil, Check, X, Plus, Trash2, TrendingUp, Hash, MapPin, Navigation, Search,
 } from 'lucide-react';
+import { searchPlaces, geocodeForStorage, reverseGeocode, type GeocodeResult } from '@/lib/geocoding';
+import { toast } from '@/lib/toast';
 import type { SaleComp, SaleTransaction } from '@/types';
 import { salePricePerUnit, salePricePerSf } from '@/components/pursuits/compDerived';
 
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
 function formatCurrency(val: number | null) {
     if (!val) return '—';
@@ -203,7 +204,7 @@ export default function SaleCompDetailPage() {
     const [editingLocation, setEditingLocation] = useState(false);
     const [locMode, setLocMode] = useState<'search' | 'coords'>('search');
     const [locSearch, setLocSearch] = useState('');
-    const [locSuggestions, setLocSuggestions] = useState<any[]>([]);
+    const [locSuggestions, setLocSuggestions] = useState<GeocodeResult[]>([]);
     const [showLocSuggestions, setShowLocSuggestions] = useState(false);
     const [locLatStr, setLocLatStr] = useState('');
     const [locLngStr, setLocLngStr] = useState('');
@@ -231,87 +232,74 @@ export default function SaleCompDetailPage() {
         deleteTx.mutate({ id: txId, saleCompId: comp.id });
     }, [comp, deleteTx]);
 
-    // Address autocomplete for location editing
+    // Address autocomplete for location editing (temporary geocodes — display only)
     const handleLocSearch = useCallback((query: string) => {
         setLocSearch(query);
         if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
         const seq = ++searchSeqRef.current;
-        if (!query.trim() || !MAPBOX_TOKEN) { setLocSuggestions([]); setShowLocSuggestions(false); return; }
+        if (!query.trim()) { setLocSuggestions([]); setShowLocSuggestions(false); return; }
         searchTimeoutRef.current = setTimeout(async () => {
             try {
-                const res = await fetch(
-                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&types=address,poi,place&country=US&limit=5`
-                );
-                const data = await res.json();
+                const results = await searchPlaces(query);
                 if (seq !== searchSeqRef.current) return; // stale response
-                setLocSuggestions(data.features || []);
+                setLocSuggestions(results);
                 setShowLocSuggestions(true);
-            } catch { /* ignore */ }
+            } catch (err) {
+                console.error('Address search failed:', err);
+            }
         }, 300);
     }, []);
 
-    const selectLocSuggestion = useCallback((feature: any) => {
+    // The picked suggestion is geocoded again in permanent mode; only that result's coordinates are saved
+    const selectLocSuggestion = useCallback(async (s: GeocodeResult) => {
         if (!comp) return;
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
         searchSeqRef.current++;
-        const [lng, lat] = feature.center;
-        const context = feature.context || [];
-        const findCtx = (type: string) => context.find((c: any) => c.id?.startsWith(type))?.text || '';
-        const parts = feature.place_name.split(',');
-        updateComp.mutate({
-            id: comp.id,
-            updates: {
-                address: parts[0]?.trim() || '',
-                city: findCtx('place') || '',
-                state: findCtx('region') || '',
-                zip: findCtx('postcode') || '',
-                county: findCtx('district') || '',
-                latitude: lat,
-                longitude: lng,
-            },
-            queryId: compId,
-        });
         setLocSearch('');
         setLocSuggestions([]);
         setShowLocSuggestions(false);
         setEditingLocation(false);
+        try {
+            const r = await geocodeForStorage(s);
+            if (!r) throw new Error('No permanent match');
+            updateComp.mutate({
+                id: comp.id,
+                updates: {
+                    address: r.address || r.name,
+                    city: r.city,
+                    state: r.state,
+                    zip: r.zip,
+                    county: r.county || comp.county,
+                    latitude: r.lat,
+                    longitude: r.lng,
+                },
+                queryId: compId,
+            });
+        } catch (err) {
+            updateComp.mutate({
+                id: comp.id,
+                updates: { address: s.address || s.name, city: s.city, state: s.state, zip: s.zip },
+                queryId: compId,
+            });
+            toast.error('Address saved, but it could not be located — the map location was not changed', err);
+        }
     }, [comp, updateComp, compId]);
 
-    const applyLocCoords = useCallback(() => {
+    // Typed coordinates are saved as-is; the address for them comes from a permanent reverse geocode
+    const applyLocCoords = useCallback(async () => {
         if (!comp) return;
         const lat = parseFloat(locLatStr);
         const lng = parseFloat(locLngStr);
         if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
-        const updates: Partial<SaleComp> = { latitude: lat, longitude: lng };
-        if (MAPBOX_TOKEN) {
-            fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=address,place`)
-                .then(r => r.json())
-                .then(data => {
-                    if (data.features?.length > 0) {
-                        const f = data.features[0];
-                        const ctx = f.context || [];
-                        const findCtx = (type: string) => ctx.find((c: any) => c.id?.startsWith(type))?.text || '';
-                        const parts = f.place_name.split(',');
-                        updateComp.mutate({
-                            id: comp.id,
-                            updates: {
-                                ...updates,
-                                address: parts[0]?.trim() || '',
-                                city: findCtx('place') || '',
-                                state: findCtx('region') || '',
-                                zip: findCtx('postcode') || '',
-                                county: findCtx('district') || '',
-                            },
-                            queryId: compId,
-                        });
-                    } else {
-                        updateComp.mutate({ id: comp.id, updates, queryId: compId });
-                    }
-                })
-                .catch(() => updateComp.mutate({ id: comp.id, updates, queryId: compId }));
-        } else {
-            updateComp.mutate({ id: comp.id, updates, queryId: compId });
-        }
         setEditingLocation(false);
+        const updates: Partial<SaleComp> = { latitude: lat, longitude: lng };
+        try {
+            const r = await reverseGeocode(lng, lat, { permanent: true });
+            if (r) Object.assign(updates, { address: r.address || r.name, city: r.city, state: r.state, zip: r.zip, county: r.county || comp.county });
+        } catch (err) {
+            console.error('Reverse geocode failed:', err);
+        }
+        updateComp.mutate({ id: comp.id, updates, queryId: compId });
     }, [comp, updateComp, locLatStr, locLngStr, compId]);
 
     // Copy before sorting — sorting in place would mutate the React Query cache
@@ -417,10 +405,10 @@ export default function SaleCompDetailPage() {
                                     </div>
                                     {showLocSuggestions && locSuggestions.length > 0 && (
                                         <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
-                                            {locSuggestions.map((s: any) => (
-                                                <button key={s.id} onClick={() => selectLocSuggestion(s)} className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]">
-                                                    <div className="font-medium text-xs">{s.text}</div>
-                                                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{s.place_name}</div>
+                                            {locSuggestions.map((s) => (
+                                                <button key={s.id} onClick={() => void selectLocSuggestion(s)} className="w-full text-left px-3 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]">
+                                                    <div className="font-medium text-xs">{s.name}</div>
+                                                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{s.secondary}</div>
                                                 </button>
                                             ))}
                                         </div>
@@ -430,7 +418,7 @@ export default function SaleCompDetailPage() {
                                 <div className="flex gap-2">
                                     <input value={locLatStr} onChange={(e) => setLocLatStr(e.target.value)} placeholder="Latitude" className="flex-1 px-3 py-2 rounded border border-[var(--border)] text-sm" />
                                     <input value={locLngStr} onChange={(e) => setLocLngStr(e.target.value)} placeholder="Longitude" className="flex-1 px-3 py-2 rounded border border-[var(--border)] text-sm" />
-                                    <button onClick={applyLocCoords} className="px-3 py-2 rounded bg-[var(--accent)] text-white text-sm font-medium">Apply</button>
+                                    <button onClick={() => void applyLocCoords()} className="px-3 py-2 rounded bg-[var(--accent)] text-white text-sm font-medium">Apply</button>
                                 </div>
                             )}
                         </div>

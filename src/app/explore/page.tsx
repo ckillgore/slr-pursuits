@@ -1,18 +1,21 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import type { Map as MapboxMap, MapMouseEvent, GeoJSONFeature } from 'mapbox-gl';
 import { AppShell } from '@/components/layout/AppShell';
 import { toast } from '@/lib/toast';
-import { useMapStyle } from '@/components/pursuits/mapTheme';
 import { useCreatePursuit, useStages, useCreateLandComp } from '@/hooks/useSupabaseQueries';
+import { searchPlaces, type GeocodeResult } from '@/lib/geocoding';
+import { useMapboxMap, useIsDarkTheme } from '@/components/map/useMapboxMap';
+import { MapStatusOverlay } from '@/components/map/MapStatusOverlay';
+import { addLayerOnce } from '@/components/map/mapHelpers';
+import type { Basemap } from '@/components/map/mapStyle';
 import {
     Search, MapPin, Loader2, X, Building2, User, DollarSign, Layers,
-    Calendar, Ruler, Home, FileText, LandPlot, Shield, Mountain, Compass,
+    Calendar, Ruler, Home, FileText, LandPlot, Shield,
     Plus, Landmark, ExternalLink, ChevronRight, Eye,
 } from 'lucide-react';
-
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
 // ======================== Types ========================
 
@@ -164,6 +167,103 @@ interface RegridLookup {
     buildings?: unknown[];
 }
 
+// ======================== Regrid parcel layers ========================
+
+const REGRID_SOURCE = 'regrid-parcels';
+const PARCEL_FILL_LAYER = 'parcels-fill';
+const PARCEL_OUTLINE_LAYER = 'parcels-outline';
+
+const BASEMAP_LABELS: Record<Basemap, string> = { standard: 'Map', satellite: 'Satellite' };
+
+/** Attributes of a Regrid parcel vector-tile feature that the tooltip and lookups read */
+interface ParcelTileProps {
+    address?: string;
+    owner?: string;
+    zoning?: string;
+    zoning_type?: string;
+    usedesc?: string;
+    ll_gisacre?: string | number;
+    ll_gissqft?: string | number;
+    parval?: string | number;
+    yearbuilt?: string | number;
+    scity?: string;
+    state2?: string;
+    szip5?: string;
+    parcelnumb?: string;
+}
+
+const toNum = (v: string | number | undefined) => (v ? parseFloat(String(v)) : null);
+
+function tooltipDataFromProps(props: ParcelTileProps): ParcelTooltipData {
+    return {
+        address: props.address || null,
+        owner: props.owner || null,
+        zoning: props.zoning || null,
+        zoningType: props.zoning_type || null,
+        usedesc: props.usedesc || null,
+        lotAcres: toNum(props.ll_gisacre),
+        lotSqft: toNum(props.ll_gissqft),
+        assessedValue: toNum(props.parval),
+        yearBuilt: props.yearbuilt ? parseInt(String(props.yearbuilt)) : null,
+        city: props.scity || null,
+        state: props.state2 || null,
+        zip: props.szip5 || null,
+        parcelNumber: props.parcelnumb || null,
+    };
+}
+
+/** Of overlapping features, the highest-value (main) property — skips business/personal property records */
+function mainParcelFeature(features: GeoJSONFeature[] | undefined): GeoJSONFeature | null {
+    if (!features?.length) return null;
+    const value = (f: GeoJSONFeature) => toNum((f.properties as ParcelTileProps | null)?.parval) ?? 0;
+    return features.reduce((best, f) => (value(f) > value(best) ? f : best), features[0]);
+}
+
+/** Parcel outline that reads on the faded day basemap, at night and on satellite */
+function parcelOutlineColor(isDark: boolean, basemap: Basemap): string {
+    return isDark || basemap === 'satellite' ? '#E2E8F0' : '#475569';
+}
+
+/** Regrid vector tiles; parcels sit in the `middle` slot so street labels stay on top. Idempotent. */
+function addRegridLayers(map: MapboxMap, outlineColor: string) {
+    if (!map.getSource(REGRID_SOURCE)) {
+        map.addSource(REGRID_SOURCE, {
+            type: 'vector',
+            tiles: [`${window.location.origin}/api/explore?z={z}&x={x}&y={y}`],
+            minzoom: 14,
+            maxzoom: 21,
+            promoteId: { parcels: 'parcelnumb' }, // Unique parcel ID for cross-tile feature-state hover
+        });
+    }
+
+    // Parcel fill — transparent by default, blue on hover
+    addLayerOnce(map, {
+        id: PARCEL_FILL_LAYER,
+        type: 'fill',
+        source: REGRID_SOURCE,
+        'source-layer': 'parcels',
+        minzoom: 14,
+        paint: {
+            'fill-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#2563EB', 'transparent'],
+            'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.15, 0],
+        },
+    });
+
+    // Parcel outlines
+    addLayerOnce(map, {
+        id: PARCEL_OUTLINE_LAYER,
+        type: 'line',
+        source: REGRID_SOURCE,
+        'source-layer': 'parcels',
+        minzoom: 14,
+        paint: {
+            'line-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#2563EB', outlineColor],
+            'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0.8],
+            'line-opacity': 0.8,
+        },
+    });
+}
+
 // ======================== Info Row ========================
 
 function InfoRow({ label, value, icon: Icon, highlight }: {
@@ -190,28 +290,20 @@ function InfoRow({ label, value, icon: Icon, highlight }: {
 
 export default function ExplorePage() {
     const router = useRouter();
-    const { mapStyle } = useMapStyle();
     // Map refs
     const mapContainerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<any>(null);
-    const mbglRef = useRef<any>(null);
-    const hoveredParcelIdRef = useRef<string | null>(null);
+    const hoveredParcelIdRef = useRef<string | number | null>(null);
     const isTouchDeviceRef = useRef(false);
 
     // Search state
     const [searchQuery, setSearchQuery] = useState('');
-    const [suggestions, setSuggestions] = useState<any[]>([]);
+    const [suggestions, setSuggestions] = useState<GeocodeResult[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const searchSeqRef = useRef(0);
 
-    // Map state
-    type MapStyleId = 'light' | 'satellite';
-    const [activeStyle, setActiveStyle] = useState<MapStyleId>('light');
-    const STYLES: Record<MapStyleId, { url: string; label: string }> = {
-        light: { url: mapStyle, label: 'Map' }, // follows the app's light/dark theme
-        satellite: { url: 'mapbox://styles/mapbox/satellite-streets-v12', label: 'Satellite' },
-    };
+    // Map state — the Map basemap follows the app's light/dark theme (handled by the map hook)
+    const [basemap, setBasemap] = useState<Basemap>('standard');
 
     // Tooltip state
     const [tooltip, setTooltip] = useState<{ x: number; y: number; data: ParcelTooltipData } | null>(null);
@@ -229,7 +321,7 @@ export default function ExplorePage() {
     const [clickedLngLat, setClickedLngLat] = useState<[number, number] | null>(null);
 
     // Mobile tap popup state (shows summary before loading full details)
-    const [mobilePopup, setMobilePopup] = useState<{ data: ParcelTooltipData; lngLat: [number, number]; props: Record<string, any> } | null>(null);
+    const [mobilePopup, setMobilePopup] = useState<{ data: ParcelTooltipData; lngLat: [number, number]; props: ParcelTileProps } | null>(null);
 
     // Create actions
     const [showCreateDialog, setShowCreateDialog] = useState<'pursuit' | 'comp' | null>(null);
@@ -305,239 +397,111 @@ export default function ExplorePage() {
             });
     }, []);
 
-    // ── Regrid tile source helper ──
-    const addRegridSource = useCallback((map: any) => {
-        if (map.getSource('regrid-parcels')) return;
+    const isDark = useIsDarkTheme();
+    const outlineColor = parcelOutlineColor(isDark, basemap);
+    const outlineColorRef = useRef(outlineColor);
+    useEffect(() => { outlineColorRef.current = outlineColor; }, [outlineColor]);
 
-        map.addSource('regrid-parcels', {
-            type: 'vector',
-            tiles: [`${window.location.origin}/api/explore?z={z}&x={x}&y={y}`],
-            minzoom: 14,
-            maxzoom: 21,
-            promoteId: { parcels: 'parcelnumb' }, // Unique parcel ID for cross-tile feature-state hover
-        });
+    // ── Map: full-screen, so plain scroll-to-zoom (no cooperative gestures) ──
+    const { map, ready, error: mapError } = useMapboxMap(mapContainerRef, {
+        center: [-96.7970, 32.7767], // Default: DFW area
+        zoom: 4,
+        basemap,
+        cooperativeGestures: false,
+        // Re-runs after a basemap switch, which clears the parcel layers (and their hover state)
+        onStyleReady: (m) => {
+            hoveredParcelIdRef.current = null;
+            addRegridLayers(m, outlineColorRef.current);
+        },
+    });
 
-        // Parcel fill — transparent by default, blue on hover
-        map.addLayer({
-            id: 'parcels-fill',
-            type: 'fill',
-            source: 'regrid-parcels',
-            'source-layer': 'parcels',
-            minzoom: 14,
-            paint: {
-                'fill-color': [
-                    'case',
-                    ['boolean', ['feature-state', 'hover'], false],
-                    '#2563EB',
-                    'transparent',
-                ],
-                'fill-opacity': [
-                    'case',
-                    ['boolean', ['feature-state', 'hover'], false],
-                    0.15,
-                    0,
-                ],
-            },
-        });
-
-        // Parcel outlines
-        map.addLayer({
-            id: 'parcels-outline',
-            type: 'line',
-            source: 'regrid-parcels',
-            'source-layer': 'parcels',
-            minzoom: 14,
-            paint: {
-                'line-color': [
-                    'case',
-                    ['boolean', ['feature-state', 'hover'], false],
-                    '#2563EB',
-                    '#94A3B8',
-                ],
-                'line-width': [
-                    'case',
-                    ['boolean', ['feature-state', 'hover'], false],
-                    2,
-                    0.5,
-                ],
-                'line-opacity': 0.7,
-            },
-        });
-    }, []);
-
-    // ── Initialize map ──
+    // Theme / basemap changes recolor the outlines in place
     useEffect(() => {
-        if (!MAPBOX_TOKEN || !mapContainerRef.current) return;
+        if (!map || !ready || !map.getLayer(PARCEL_OUTLINE_LAYER)) return;
+        map.setPaintProperty(PARCEL_OUTLINE_LAYER, 'line-color', ['case', ['boolean', ['feature-state', 'hover'], false], '#2563EB', outlineColor]);
+    }, [map, ready, outlineColor]);
 
-        let map: any;
-        let cancelled = false;
+    // ── Map listeners (layer-scoped listeners are keyed by layer id, so they survive basemap switches) ──
+    useEffect(() => {
+        if (!map || !ready) return;
+        const canvas = map.getCanvas();
 
-        import('mapbox-gl').then((mapboxgl) => {
-            if (cancelled || !mapContainerRef.current) return;
+        // Track zoom level — use 'zoom' event so pinch-to-zoom on touch devices is captured
+        const onZoom = () => setShowZoomMsg(map.getZoom() < 14);
+        onZoom();
 
-            const mbgl = mapboxgl.default || mapboxgl;
-            mbgl.accessToken = MAPBOX_TOKEN;
-            mbglRef.current = mbgl;
+        // Detect touch device
+        const onTouchStart = () => { isTouchDeviceRef.current = true; };
+        canvas.addEventListener('touchstart', onTouchStart, { once: true, passive: true });
 
-            mapContainerRef.current!.innerHTML = '';
-
-            map = new mbgl.Map({
-                container: mapContainerRef.current!,
-                style: STYLES[activeStyle].url,
-                center: [-96.7970, 32.7767], // Default: DFW area
-                zoom: 4,
-                interactive: true,
-            });
-
-            map.addControl(new mbgl.NavigationControl({ showCompass: true }), 'top-right');
-
-            map.on('load', () => {
-                if (cancelled) return;
-                addRegridSource(map);
-            });
-
-            // Track zoom level — use 'zoom' event so pinch-to-zoom on touch devices is captured
-            map.on('zoom', () => {
-                setShowZoomMsg(map.getZoom() < 14);
-            });
-
-            // Detect touch device
-            map.getCanvas().addEventListener('touchstart', () => {
-                isTouchDeviceRef.current = true;
-            }, { once: true, passive: true });
-
-            // ── Hover handlers (desktop only — touch devices use tap) ──
-            map.on('mousemove', 'parcels-fill', (e: any) => {
-                // Skip hover on touch devices
-                if (isTouchDeviceRef.current) return;
-                if (!e.features?.length) return;
-                map.getCanvas().style.cursor = 'pointer';
-
-                // Filter overlapping features for the highest-value (main) property to avoid business/personal property
-                const feature = e.features.reduce((prev: any, current: any) => {
-                    const prevVal = prev.properties?.parval ? parseFloat(prev.properties.parval) : 0;
-                    const currVal = current.properties?.parval ? parseFloat(current.properties.parval) : 0;
-                    return (currVal > prevVal) ? current : prev;
-                }, e.features[0]);
-                const props = feature.properties || {};
-
-                // Update hover state (features without a promoted parcelnumb have no id — setFeatureState would throw)
-                if (hoveredParcelIdRef.current !== null && hoveredParcelIdRef.current !== feature.id) {
-                    map.setFeatureState(
-                        { source: 'regrid-parcels', sourceLayer: 'parcels', id: hoveredParcelIdRef.current },
-                        { hover: false }
-                    );
-                    hoveredParcelIdRef.current = null;
-                }
-                if (feature.id != null) {
-                    hoveredParcelIdRef.current = feature.id;
-                    map.setFeatureState(
-                        { source: 'regrid-parcels', sourceLayer: 'parcels', id: feature.id },
-                        { hover: true }
-                    );
-                }
-
-                // Build tooltip data
-                const data: ParcelTooltipData = {
-                    address: props.address || null,
-                    owner: props.owner || null,
-                    zoning: props.zoning || null,
-                    zoningType: props.zoning_type || null,
-                    usedesc: props.usedesc || null,
-                    lotAcres: props.ll_gisacre ? parseFloat(props.ll_gisacre) : null,
-                    lotSqft: props.ll_gissqft ? parseFloat(props.ll_gissqft) : null,
-                    assessedValue: props.parval ? parseFloat(props.parval) : null,
-                    yearBuilt: props.yearbuilt ? parseInt(props.yearbuilt) : null,
-                    city: props.scity || null,
-                    state: props.state2 || null,
-                    zip: props.szip5 || null,
-                    parcelNumber: props.parcelnumb || null,
-                };
-
-                const point = { x: e.point.x, y: e.point.y };
-                if (tooltipFrameRef.current !== null) cancelAnimationFrame(tooltipFrameRef.current);
-                tooltipFrameRef.current = requestAnimationFrame(() => {
-                    tooltipFrameRef.current = null;
-                    setTooltip({ ...point, data });
-                });
-            });
-
-            map.on('mouseleave', 'parcels-fill', () => {
-                map.getCanvas().style.cursor = '';
-                if (hoveredParcelIdRef.current !== null) {
-                    map.setFeatureState(
-                        { source: 'regrid-parcels', sourceLayer: 'parcels', id: hoveredParcelIdRef.current },
-                        { hover: false }
-                    );
-                    hoveredParcelIdRef.current = null;
-                }
-                if (tooltipFrameRef.current !== null) { cancelAnimationFrame(tooltipFrameRef.current); tooltipFrameRef.current = null; }
-                setTooltip(null);
-            });
-
-            // ── Click handler ──
-            map.on('click', 'parcels-fill', (e: any) => {
-                if (!e.features?.length) return;
-                const lngLat = e.lngLat;
-                
-                // Filter overlapping features for the highest-value (main) property to avoid business/personal property
-                const bestFeature = e.features.reduce((prev: any, current: any) => {
-                    const prevVal = prev.properties?.parval ? parseFloat(prev.properties.parval) : 0;
-                    const currVal = current.properties?.parval ? parseFloat(current.properties.parval) : 0;
-                    return (currVal > prevVal) ? current : prev;
-                }, e.features[0]);
-                const props = bestFeature.properties || {};
-
-                // On touch devices, show mobile popup first instead of immediately loading details
-                if (isTouchDeviceRef.current) {
-                    const data: ParcelTooltipData = {
-                        address: props.address || null,
-                        owner: props.owner || null,
-                        zoning: props.zoning || null,
-                        zoningType: props.zoning_type || null,
-                        usedesc: props.usedesc || null,
-                        lotAcres: props.ll_gisacre ? parseFloat(props.ll_gisacre) : null,
-                        lotSqft: props.ll_gissqft ? parseFloat(props.ll_gissqft) : null,
-                        assessedValue: props.parval ? parseFloat(props.parval) : null,
-                        yearBuilt: props.yearbuilt ? parseInt(props.yearbuilt) : null,
-                        city: props.scity || null,
-                        state: props.state2 || null,
-                        zip: props.szip5 || null,
-                        parcelNumber: props.parcelnumb || null,
-                    };
-                    setMobilePopup({ data, lngLat: [lngLat.lng, lngLat.lat], props });
-                    return;
-                }
-
-                // Desktop: immediately load full details
-                setTooltip(null);
-                loadParcelDetail([lngLat.lng, lngLat.lat], props.address, props.parcelnumb);
-            });
-
-            mapRef.current = map;
-        });
-
-        return () => {
-            cancelled = true;
-            if (tooltipFrameRef.current !== null) cancelAnimationFrame(tooltipFrameRef.current);
-            if (map) map.remove();
-            mapRef.current = null;
+        const clearHover = () => {
+            if (hoveredParcelIdRef.current !== null && map.getSource(REGRID_SOURCE)) {
+                map.setFeatureState({ source: REGRID_SOURCE, sourceLayer: 'parcels', id: hoveredParcelIdRef.current }, { hover: false });
+            }
+            hoveredParcelIdRef.current = null;
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
-    // ── Handle style change ──
-    useEffect(() => {
-        const map = mapRef.current;
-        if (!map) return;
+        // ── Hover handlers (desktop only — touch devices use tap) ──
+        const onMove = (e: MapMouseEvent) => {
+            if (isTouchDeviceRef.current) return;
+            const feature = mainParcelFeature(e.features);
+            if (!feature) return;
+            canvas.style.cursor = 'pointer';
 
-        map.setStyle(STYLES[activeStyle].url);
+            // Update hover state (features without a promoted parcelnumb have no id — setFeatureState would throw)
+            if (hoveredParcelIdRef.current !== null && hoveredParcelIdRef.current !== feature.id) clearHover();
+            if (feature.id != null) {
+                hoveredParcelIdRef.current = feature.id;
+                map.setFeatureState({ source: REGRID_SOURCE, sourceLayer: 'parcels', id: feature.id }, { hover: true });
+            }
 
-        map.once('style.load', () => {
-            addRegridSource(map);
-        });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeStyle, mapStyle]);
+            const data = tooltipDataFromProps(feature.properties as ParcelTileProps);
+            const point = { x: e.point.x, y: e.point.y };
+            if (tooltipFrameRef.current !== null) cancelAnimationFrame(tooltipFrameRef.current);
+            tooltipFrameRef.current = requestAnimationFrame(() => {
+                tooltipFrameRef.current = null;
+                setTooltip({ ...point, data });
+            });
+        };
+
+        const onLeave = () => {
+            canvas.style.cursor = '';
+            clearHover();
+            if (tooltipFrameRef.current !== null) { cancelAnimationFrame(tooltipFrameRef.current); tooltipFrameRef.current = null; }
+            setTooltip(null);
+        };
+
+        // ── Click handler ──
+        const onClick = (e: MapMouseEvent) => {
+            const feature = mainParcelFeature(e.features);
+            if (!feature) return;
+            const lngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+            const props = (feature.properties || {}) as ParcelTileProps;
+
+            // On touch devices, show mobile popup first instead of immediately loading details
+            if (isTouchDeviceRef.current) {
+                setMobilePopup({ data: tooltipDataFromProps(props), lngLat, props });
+                return;
+            }
+
+            // Desktop: immediately load full details
+            setTooltip(null);
+            loadParcelDetail(lngLat, props.address, props.parcelnumb);
+        };
+
+        map.on('zoom', onZoom);
+        map.on('mousemove', PARCEL_FILL_LAYER, onMove);
+        map.on('mouseleave', PARCEL_FILL_LAYER, onLeave);
+        map.on('click', PARCEL_FILL_LAYER, onClick);
+        return () => {
+            map.off('zoom', onZoom);
+            map.off('mousemove', PARCEL_FILL_LAYER, onMove);
+            map.off('mouseleave', PARCEL_FILL_LAYER, onLeave);
+            map.off('click', PARCEL_FILL_LAYER, onClick);
+            canvas.removeEventListener('touchstart', onTouchStart);
+            if (tooltipFrameRef.current !== null) { cancelAnimationFrame(tooltipFrameRef.current); tooltipFrameRef.current = null; }
+        };
+    }, [map, ready, loadParcelDetail]);
 
     // Escape closes the parcel panel / mobile popup
     useEffect(() => {
@@ -555,7 +519,7 @@ export default function ExplorePage() {
         setSearchQuery(query);
         if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
         const seq = ++searchSeqRef.current;
-        if (!query.trim() || query.length < 3 || !MAPBOX_TOKEN) {
+        if (!query.trim() || query.length < 3) {
             setSuggestions([]);
             setShowSuggestions(false);
             return;
@@ -563,29 +527,24 @@ export default function ExplorePage() {
 
         searchTimeoutRef.current = setTimeout(async () => {
             try {
-                const res = await fetch(
-                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${MAPBOX_TOKEN}&types=address,poi,place,postcode,locality&country=US&limit=5`
-                );
-                const data = await res.json();
+                // Temporary geocoding is fine here: results only move the map, nothing is saved
+                const results = await searchPlaces(query);
                 if (seq !== searchSeqRef.current) return; // stale response
-                setSuggestions(data.features || []);
+                setSuggestions(results);
                 setShowSuggestions(true);
             } catch { /* ignore */ }
         }, 300);
     }, []);
 
-    const selectSuggestion = useCallback((feature: any) => {
+    const selectSuggestion = useCallback((s: GeocodeResult) => {
         searchSeqRef.current++;
-        const [lng, lat] = feature.center;
-        setSearchQuery(feature.place_name);
+        setSearchQuery(s.label);
         setSuggestions([]);
         setShowSuggestions(false);
-
-        const map = mapRef.current;
-        if (map) {
-            map.flyTo({ center: [lng, lat], zoom: 16, duration: 1500 });
-        }
-    }, []);
+        // Addresses zoom in close; cities / ZIPs stop where parcels first appear
+        const zoom = s.featureType === 'address' || s.featureType === 'street' ? 16 : 14;
+        map?.flyTo({ center: [s.lng, s.lat], zoom, duration: 1500 });
+    }, [map]);
 
     // Close search on outside click
     useEffect(() => {
@@ -691,12 +650,17 @@ export default function ExplorePage() {
                 {/* Mapbox controls override */}
                 <style dangerouslySetInnerHTML={{ __html: `
                     .mapboxgl-ctrl-top-right {
-                        top: 80px !important;
+                        top: 104px !important;
+                    }
+                    @media (min-width: 640px) {
+                        .mapboxgl-ctrl-top-right {
+                            top: 80px !important;
+                        }
                     }
                 ` }} />
 
-                {/* Search Bar — floating overlay */}
-                <div className="absolute top-4 left-4 z-20 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+                {/* Search Bar — floating overlay (full width on phones, the basemap toggle drops below it) */}
+                <div className="absolute top-4 left-4 right-4 sm:right-auto sm:w-full sm:max-w-md z-20" onClick={(e) => e.stopPropagation()}>
                     <div className="relative">
                         <div className="flex items-center gap-2 bg-[var(--bg-card)]/95 backdrop-blur-sm border border-[var(--border)] rounded-xl shadow-lg px-4 py-2.5">
                             <Search className="w-4 h-4 text-[var(--text-faint)] flex-shrink-0" />
@@ -716,7 +680,7 @@ export default function ExplorePage() {
                         </div>
                         {showSuggestions && suggestions.length > 0 && (
                             <div className="absolute top-full left-0 right-0 z-30 mt-1 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto">
-                                {suggestions.map((s: any) => (
+                                {suggestions.map((s) => (
                                     <button
                                         key={s.id}
                                         onClick={() => selectSuggestion(s)}
@@ -725,8 +689,8 @@ export default function ExplorePage() {
                                         <div className="flex items-start gap-2.5">
                                             <MapPin className="w-3.5 h-3.5 mt-0.5 text-[var(--text-faint)] flex-shrink-0" />
                                             <div>
-                                                <div className="text-sm font-medium text-[var(--text-primary)]">{s.text}</div>
-                                                <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{s.place_name}</div>
+                                                <div className="text-sm font-medium text-[var(--text-primary)]">{s.name}</div>
+                                                <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{s.secondary}</div>
                                             </div>
                                         </div>
                                     </button>
@@ -736,19 +700,19 @@ export default function ExplorePage() {
                     </div>
                 </div>
 
-                {/* Basemap Toggle — top-right */}
-                <div className="absolute top-4 right-4 z-20 flex bg-[var(--bg-card)]/95 backdrop-blur-sm rounded-lg border border-[var(--border)] shadow-lg overflow-hidden">
-                    {(Object.keys(STYLES) as MapStyleId[]).map((key) => (
+                {/* Basemap Toggle — top-right (below the search bar on phones) */}
+                <div className="absolute top-16 sm:top-4 right-4 z-20 flex bg-[var(--bg-card)]/95 backdrop-blur-sm rounded-lg border border-[var(--border)] shadow-lg overflow-hidden" role="group" aria-label="Basemap">
+                    {(Object.keys(BASEMAP_LABELS) as Basemap[]).map((key) => (
                         <button
                             key={key}
-                            onClick={() => setActiveStyle(key)}
-                            aria-pressed={activeStyle === key}
-                            className={`px-3 py-1.5 text-[11px] font-medium transition-colors ${activeStyle === key
+                            onClick={() => setBasemap(key)}
+                            aria-pressed={basemap === key}
+                            className={`px-3 py-1.5 text-[11px] font-medium transition-colors ${basemap === key
                                 ? 'bg-[var(--accent)] text-white'
                                 : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
                                 }`}
                         >
-                            {STYLES[key].label}
+                            {BASEMAP_LABELS[key]}
                         </button>
                     ))}
                 </div>
@@ -765,18 +729,8 @@ export default function ExplorePage() {
                 )}
 
                 {/* Map Container */}
-                {MAPBOX_TOKEN ? (
-                    <div ref={mapContainerRef} className="w-full h-full" style={{ touchAction: 'none' }} />
-                ) : (
-                    <div className="w-full h-full bg-[var(--bg-primary)] flex items-center justify-center">
-                        <div className="text-center">
-                            <Compass className="w-10 h-10 text-[var(--border-strong)] mx-auto mb-3" />
-                            <p className="text-sm text-[var(--text-muted)]">
-                                Add <code className="text-xs bg-[var(--bg-elevated)] px-1 py-0.5 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env.local
-                            </p>
-                        </div>
-                    </div>
-                )}
+                <div ref={mapContainerRef} className="absolute inset-0" style={{ touchAction: 'none' }} />
+                <MapStatusOverlay ready={ready} error={mapError} />
 
                 {/* Hover Tooltip (desktop only) */}
                 {tooltip && (

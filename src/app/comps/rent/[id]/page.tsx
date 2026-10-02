@@ -15,12 +15,12 @@ import {
 import { RentTrendsSection, BubbleChartSection, LeasingActivitySection, OccupancySection } from '@/components/pursuits/rent-comps/RentCompSections';
 import { getAverageAskingRent, getAverageEffectiveRent, filterValidUnits, HELLODATA_CACHE_TTL_DAYS } from '@/lib/calculations/hellodataCalculations';
 import { toast } from '@/lib/toast';
-import { useMapStyle } from '@/components/pursuits/mapTheme';
+import { useMapboxMap } from '@/components/map/useMapboxMap';
+import { MapStatusOverlay } from '@/components/map/MapStatusOverlay';
+import type { Marker } from 'mapbox-gl';
 import type { PropertyMetrics } from '@/components/pursuits/rent-comps/types';
 import type { HellodataUnit, HellodataProperty } from '@/types';
 
-
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
 /** Date-only strings ("2024-03-01") are parsed as local dates so they don't render as the previous day in US timezones */
 function fmtDateOnly(d: string): string {
@@ -46,36 +46,23 @@ function fmtCurrency(val: number | null | undefined) {
 
 function PropertyMap({ lat, lon, name }: { lat: number; lon: number; name: string }) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<any>(null);
-    const { mapStyle } = useMapStyle();
+    const markerRef = useRef<Marker | null>(null);
+    const { map, mbgl, ready, error } = useMapboxMap(containerRef, { center: [lon, lat], zoom: 14 });
 
     useEffect(() => {
-        if (!MAPBOX_TOKEN || !containerRef.current) return;
-        let cancelled = false;
-        import('mapbox-gl').then((mapboxgl) => {
-            // Effect may have been cleaned up while the module was loading; don't create an orphan map
-            if (cancelled || !containerRef.current) return;
-            const mbgl = mapboxgl.default || mapboxgl;
-            mbgl.accessToken = MAPBOX_TOKEN;
-            if (containerRef.current) containerRef.current.innerHTML = '';
-            const map = new mbgl.Map({
-                container: containerRef.current!,
-                style: mapStyle,
-                center: [lon, lat],
-                zoom: 14,
-                interactive: true,
-            });
-            map.addControl(new mbgl.NavigationControl({ showCompass: false }), 'top-right');
-            new mbgl.Marker({ color: '#2563EB' }).setLngLat([lon, lat]).addTo(map);
-            mapRef.current = map;
-        });
-        return () => { cancelled = true; if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [lat, lon, mapStyle]);
+        if (!map || !mbgl) return;
+        if (!markerRef.current) markerRef.current = new mbgl.Marker({ color: '#2563EB' }).setLngLat([lon, lat]).addTo(map);
+        else {
+            markerRef.current.setLngLat([lon, lat]);
+            map.jumpTo({ center: [lon, lat] });
+        }
+    }, [map, mbgl, lat, lon]);
+    useEffect(() => () => { markerRef.current?.remove(); markerRef.current = null; }, []);
 
     return (
-        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden" style={{ height: 280 }}>
-            <div ref={containerRef} style={{ width: '100%', height: '100%' }} role="img" aria-label={`Map showing ${name || 'property'} location`} />
+        <div className="relative bg-[var(--bg-card)] border border-[var(--border)] rounded-xl overflow-hidden" style={{ height: 280 }}>
+            <div ref={containerRef} className="absolute inset-0" role="region" aria-label={`Map of ${name || 'property'} location`} />
+            <MapStatusOverlay ready={ready} error={error} />
         </div>
     );
 }

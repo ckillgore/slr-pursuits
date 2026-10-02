@@ -184,8 +184,9 @@ function parseParcelResponse(feature: any): ParcelRecord {
             useCodeDescription: str(fields.usedesc),
             legalDescription: str(fields.legaldesc),
             landUse: str(fields.landuse) || str(fields.lbcs_activity_desc),
-            buildingSF: num(fields.improvarea) || num(fields.structarea) || num(fields.building_sq_ft) || num(fields.ll_bldg_footprint_sqft),
-            numberOfUnits: num(fields.noofunits) || num(fields.units),
+            // area_building is total building area; ll_bldg_footprint_sqft is only the footprint, so it's the last resort
+            buildingSF: num(fields.area_building) || num(fields.improvarea) || num(fields.structarea) || num(fields.building_sq_ft) || num(fields.ll_bldg_footprint_sqft),
+            numberOfUnits: num(fields.numunits) || num(fields.noofunits) || num(fields.units),
             numberOfBuildings: num(fields.noofbldgs) || num(fields.ll_bldg_count),
             stories: num(fields.numstories) || num(fields.stories),
             femaNriRiskRating: str(fields.fema_nri_risk_rating),
@@ -254,7 +255,7 @@ function parseParcelResponse(feature: any): ParcelRecord {
         },
         geometry: geom,
         regridId: str(props.ll_uuid) || str(props.path),
-        dataDate: str(fields.sourcedate) || str(fields.ll_updated_at),
+        dataDate: str(fields.ll_last_refresh) || str(fields.sourcedate) || str(fields.ll_updated_at),
         recordType,
     };
 }

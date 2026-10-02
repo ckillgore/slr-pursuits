@@ -10,7 +10,15 @@ const BodySchema = z.object({
     latitude: z.number().min(-90).max(90).optional(),
     longitude: z.number().min(-180).max(180).optional(),
     address: z.string().max(500).optional(),
+    /** Skip the address lookup and use the coordinates (bulk refresh: exact, cheaper) */
+    pointOnly: z.boolean().optional(),
+    /** Max parcel records per lookup — Regrid bills every record returned */
+    limit: z.number().int().min(1).max(50).optional(),
 });
+
+// Records per lookup unless the caller asks for fewer. A point or address can match
+// many stacked records (condo units, business personal property); Regrid bills each.
+const DEFAULT_RECORD_LIMIT = 10;
 
 /**
  * POST /api/regrid
@@ -106,6 +114,12 @@ interface ParcelDetails {
     // Sale History
     lastSalePrice: number | null;
     lastSaleDate: string | null;
+    lastOwnershipTransferDate: string | null;
+    // Premium: standardized land use (LBCS) and USPS vacancy
+    standardizedLandUse: string | null;
+    siteCondition: string | null;
+    uspsVacancy: string | null;
+    uspsVacancyDate: string | null;
     // Opportunity Zone & Census
     qualifiedOpportunityZone: string | null;
     censusTract: string | null;
@@ -206,6 +220,11 @@ function parseParcelResponse(feature: any): ParcelRecord {
             // Sale History
             lastSalePrice: num(fields.saleprice),
             lastSaleDate: str(fields.saledate),
+            lastOwnershipTransferDate: str(fields.last_ownership_transfer_date),
+            standardizedLandUse: str(fields.lbcs_activity_desc),
+            siteCondition: str(fields.lbcs_site_desc),
+            uspsVacancy: str(fields.usps_vacancy),
+            uspsVacancyDate: str(fields.usps_vacancy_date),
             qualifiedOpportunityZone: str(fields.qoz),
             censusTract: str(fields.census_tract),
             censusBlock: str(fields.census_block),
@@ -234,7 +253,8 @@ function parseParcelResponse(feature: any): ParcelRecord {
             minOpenSpacePct: null,
             permittedUses: [],
             conditionalUses: [],
-            zoningCodeLink: null,
+            // Premium parcel field; the separate Matched Zoning product would add limits (FAR, height…)
+            zoningCodeLink: str(fields.zoning_code_link),
             zoningLastUpdated: null,
         },
         tax: {
@@ -333,7 +353,9 @@ export async function POST(request: Request) {
         if (!parsed.success) {
             return NextResponse.json({ error: 'Invalid input', details: parsed.error.flatten() }, { status: 400 });
         }
-        const { latitude, longitude, address } = parsed.data;
+        const { latitude, longitude, address, pointOnly } = parsed.data;
+        const limit = String(parsed.data.limit ?? DEFAULT_RECORD_LIMIT);
+        let recordsReturned = 0;
 
         if (!REGRID_API_KEY) {
             return NextResponse.json(
@@ -348,9 +370,10 @@ export async function POST(request: Request) {
 
         // Strategy: try address lookup first (more accurate for specific sites)
         // then fall back to point lookup
-        if (address) {
+        if (address && !pointOnly) {
             const addrUrl = new URL(`${REGRID_BASE}/parcels/address`);
             addrUrl.searchParams.set('query', address);
+            addrUrl.searchParams.set('limit', limit);
             addrUrl.searchParams.set('token', REGRID_API_KEY);
             addrUrl.searchParams.set('return_field_labels', 'true');
 
@@ -362,6 +385,7 @@ export async function POST(request: Request) {
             if (addrRes.ok) {
                 const addrData = await addrRes.json();
                 allFeatures = addrData.parcels?.features || addrData.features || [];
+                recordsReturned += allFeatures.length;
                 zoningFeatures = addrData.zoning?.features || [];
                 buildingFeatures = addrData.buildings?.features || [];
             }
@@ -372,6 +396,7 @@ export async function POST(request: Request) {
             const ptUrl = new URL(`${REGRID_BASE}/parcels/point`);
             ptUrl.searchParams.set('lat', String(latitude));
             ptUrl.searchParams.set('lon', String(longitude));
+            ptUrl.searchParams.set('limit', limit);
             ptUrl.searchParams.set('token', REGRID_API_KEY);
             ptUrl.searchParams.set('return_field_labels', 'true');
 
@@ -383,6 +408,7 @@ export async function POST(request: Request) {
             if (ptRes.ok) {
                 const ptData = await ptRes.json();
                 allFeatures = ptData.parcels?.features || ptData.features || [];
+                recordsReturned += allFeatures.length;
                 zoningFeatures = ptData.zoning?.features || [];
                 buildingFeatures = ptData.buildings?.features || [];
             }
@@ -392,6 +418,7 @@ export async function POST(request: Request) {
             return NextResponse.json({
                 parcel: null,
                 associatedRecords: [],
+                recordsReturned,
                 message: 'No parcel found at this location',
             });
         }
@@ -446,6 +473,8 @@ export async function POST(request: Request) {
             ],
             taxSummary,
             buildings,
+            // Regrid bills per parcel record returned — surfaced for the bulk refresh
+            recordsReturned,
         });
     } catch (err: unknown) {
         return upstreamErrorResponse(err, 'Regrid', 'Parcel lookup failed');

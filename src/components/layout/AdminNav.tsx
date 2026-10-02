@@ -8,6 +8,7 @@ const ADMIN_TABS = [
     { label: 'Stages', href: '/admin/stages' },
     { label: 'Templates', href: '/admin/templates' },
     { label: 'Tax Rates', href: '/admin/tax-rates' },
+    { label: 'Parcel Data', href: '/admin/parcel-data' },
     { label: 'Key Date Types', href: '/admin/key-date-types' },
     { label: 'Checklists', href: '/admin/checklist-templates' },
     { label: 'Budget Defaults', href: '/admin/budget-defaults' },

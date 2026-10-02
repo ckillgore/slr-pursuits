@@ -123,6 +123,12 @@ interface ParcelDetails {
     // Sale History
     lastSalePrice: number | null;
     lastSaleDate: string | null;
+    // Premium fields; absent on parcels saved before Oct 2026
+    lastOwnershipTransferDate?: string | null;
+    standardizedLandUse?: string | null;
+    siteCondition?: string | null;
+    uspsVacancy?: string | null;
+    uspsVacancyDate?: string | null;
     qualifiedOpportunityZone: string | null;
     censusTract: string | null;
     censusBlock: string | null;
@@ -750,6 +756,10 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                             <InfoRow label="Units" value={parcel.details.numberOfUnits} />
                             <InfoRow label="Use Code" value={parcel.details.useCodeDescription || parcel.details.useCode} />
                             <InfoRow label="Land Use" value={parcel.details.landUse} />
+                            {parcel.details.siteCondition && <InfoRow label="Site" value={parcel.details.siteCondition} />}
+                            {parcel.details.uspsVacancy && (
+                                <InfoRow label="USPS Vacancy" value={parcel.details.uspsVacancyDate ? `${parcel.details.uspsVacancy} (as of ${formatDateStr(parcel.details.uspsVacancyDate)})` : parcel.details.uspsVacancy} />
+                            )}
                         </div>
                     </div>
 
@@ -1056,6 +1066,9 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     )}
                                     {parcel.details.lastSaleDate && (
                                         <InfoRow label="Last Sale Date" value={formatDateStr(parcel.details.lastSaleDate)} icon={Calendar} />
+                                    )}
+                                    {parcel.details.lastOwnershipTransferDate && parcel.details.lastOwnershipTransferDate !== parcel.details.lastSaleDate && (
+                                        <InfoRow label="Last Ownership Transfer" value={formatDateStr(parcel.details.lastOwnershipTransferDate)} icon={Calendar} />
                                     )}
 
                                     {/* Computed metrics */}

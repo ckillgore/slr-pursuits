@@ -282,6 +282,49 @@ export async function createPursuit(
     return { ...data, stage: data.pursuit_stages };
 }
 
+export interface ParcelRefreshTarget {
+    id: string;
+    short_id: string;
+    name: string;
+    city: string | null;
+    state: string | null;
+    latitude: number;
+    longitude: number;
+    parcel_data_updated_at: string | null;
+    has_parcel: boolean;
+}
+
+/** Active pursuits with coordinates, for the bulk parcel-data refresh. */
+export async function fetchParcelRefreshTargets(): Promise<ParcelRefreshTarget[]> {
+    const { data, error } = await supabase
+        .from('pursuits')
+        .select('id, short_id, name, city, state, latitude, longitude, parcel_data_updated_at, parcel:parcel_data->parcel->>regridId')
+        .eq('is_archived', false)
+        .not('latitude', 'is', null)
+        .not('longitude', 'is', null)
+        .order('name');
+    if (error) throw error;
+    return ((data ?? []) as unknown as (Omit<ParcelRefreshTarget, 'has_parcel'> & { parcel: string | null })[])
+        .map(({ parcel, ...p }) => ({ ...p, has_parcel: !!parcel }));
+}
+
+/**
+ * Merge a fresh Regrid lookup into a pursuit's parcel_data, keeping the other
+ * caches stored there (AI summary, FMR). FMR is cleared only if the ZIP changed.
+ */
+export async function saveRefreshedParcelData(id: string, update: Record<string, unknown> & { parcel: { details?: { zip?: string | null } } }) {
+    const { data: row, error: readError } = await supabase.from('pursuits').select('parcel_data').eq('id', id).single();
+    if (readError) throw readError;
+    const existing = (row?.parcel_data ?? {}) as Record<string, unknown> & { parcel?: { details?: { zip?: string | null } } };
+    const zipChanged = (existing.parcel?.details?.zip ?? null) !== (update.parcel.details?.zip ?? null);
+    const merged = { ...existing, ...update, ...(zipChanged ? { fmr: null } : {}) };
+    const { error } = await supabase
+        .from('pursuits')
+        .update({ parcel_data: merged, parcel_data_updated_at: new Date().toISOString() })
+        .eq('id', id);
+    if (error) throw error;
+}
+
 export async function updatePursuit(id: string, updates: Partial<Pursuit>) {
     // Strip virtual/joined fields
     const { stage, one_pagers, primary_one_pager, site_area_acres, best_yoc, primary_units, one_pager_count, ...payload } = updates as Pursuit;

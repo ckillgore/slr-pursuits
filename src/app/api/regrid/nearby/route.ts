@@ -21,6 +21,7 @@ const BodySchema = z.object({
 
 const REGRID_API_KEY = process.env.REGRID_API_KEY || '';
 const REGRID_BASE = 'https://app.regrid.com/api/v2';
+const NEARBY_RECORD_LIMIT = 50;
 
 // Sentinel values that Regrid uses for missing data
 const SENTINEL_VALUES = new Set([-5555, -9999, -1111, -9998, 5555, 9999]);
@@ -119,8 +120,10 @@ export async function POST(request: Request) {
         url.searchParams.set('lat', String(latitude));
         url.searchParams.set('lon', String(longitude));
         url.searchParams.set('radius', String(Math.min(radiusMeters, 32000)));
-        // Dense blocks carry many personal-property accounts that are filtered out below
-        url.searchParams.set('limit', '500');
+        // Regrid bills every parcel record returned (2,000/month on our plan, then
+        // $0.15 each), so keep this small — even though personal-property accounts
+        // filtered out below still count toward it
+        url.searchParams.set('limit', String(NEARBY_RECORD_LIMIT));
         url.searchParams.set('token', REGRID_API_KEY);
         url.searchParams.set('return_field_labels', 'true');
 

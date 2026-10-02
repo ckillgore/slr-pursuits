@@ -56,6 +56,7 @@ export default function TemplatesPage() {
             default_vacancy_rate: DEFAULT_ASSUMPTIONS.vacancy_rate,
             default_hard_cost_per_nrsf: 0,
             default_soft_cost_pct: DEFAULT_ASSUMPTIONS.soft_cost_pct,
+            default_carry_cost_pct: DEFAULT_ASSUMPTIONS.carry_cost_pct,
             default_opex_utilities: 0,
             default_opex_repairs_maintenance: 0,
             default_opex_contract_services: 0,
@@ -145,6 +146,7 @@ export default function TemplatesPage() {
                                                 <TemplateField label="Vacancy Rate" value={t.default_vacancy_rate} type="percent" onChange={(v) => updateField(t, 'default_vacancy_rate', Number(v))} />
                                                 <TemplateField label="Hard Cost ($/NRSF)" value={t.default_hard_cost_per_nrsf} type="currency" onChange={(v) => updateField(t, 'default_hard_cost_per_nrsf', Number(v))} />
                                                 <TemplateField label="Soft Cost (% of HC)" value={t.default_soft_cost_pct} type="percent" onChange={(v) => updateField(t, 'default_soft_cost_pct', Number(v))} />
+                                                <TemplateField label="Carry (% of total cost)" value={t.default_carry_cost_pct ?? 0} type="percent" onChange={(v) => updateField(t, 'default_carry_cost_pct', Number(v))} />
                                                 <TemplateField label="Mgmt Fee (%)" value={t.default_mgmt_fee_pct} type="percent" onChange={(v) => updateField(t, 'default_mgmt_fee_pct', Number(v))} />
                                             </div>
 

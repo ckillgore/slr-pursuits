@@ -110,6 +110,10 @@ export async function exportOnePagerToExcel({ onePager, pursuit, calc, productTy
     addMetricRow(ws, 'Land $/Unit', calc.land_cost_per_unit, '$#,##0');
     addMetricRow(ws, 'Soft Cost %', onePager.soft_cost_pct, '0.0%');
     addMetricRow(ws, 'Soft Cost (Total)', calc.soft_cost, '$#,##0');
+    if (calc.carry_cost > 0) {
+        addMetricRow(ws, 'Carry % (of total cost)', onePager.carry_cost_pct ?? 0, '0.0%');
+        addMetricRow(ws, 'Carry (Total)', calc.carry_cost, '$#,##0');
+    }
     addTotalRow(ws, 'Total Budget', calc.total_budget, '$#,##0');
     addMetricRow(ws, 'Cost / Unit', calc.cost_per_unit, '$#,##0');
     addMetricRow(ws, 'Cost / NRSF', calc.cost_per_nrsf, '$#,##0.00');

@@ -410,6 +410,7 @@ const handleCreateOnePager = async () => {
                 hard_cost_per_nrsf: tpl?.default_hard_cost_per_nrsf ?? 0,
                 land_cost: 0,
                 soft_cost_pct: tpl?.default_soft_cost_pct ?? DEFAULT_ASSUMPTIONS.soft_cost_pct,
+                carry_cost_pct: tpl?.default_carry_cost_pct ?? DEFAULT_ASSUMPTIONS.carry_cost_pct,
                 use_detailed_soft_costs: false,
                 opex_utilities: tpl?.default_opex_utilities ?? 0,
                 opex_repairs_maintenance: tpl?.default_opex_repairs_maintenance ?? 0,

@@ -9,6 +9,7 @@ export interface BudgetCalc {
     hard_cost_per_gbsf: number;
     soft_cost: number;
     soft_cost_pct_display: number;
+    carry_cost: number;
     total_budget: number;
     cost_per_unit: number;
     cost_per_nrsf: number;
@@ -26,7 +27,9 @@ export function calcBudget(
     useDetailedSoftCosts: boolean,
     softCostDetails: SoftCostDetailRow[],
     totalUnits: number,
-    siteAreaSf: number
+    siteAreaSf: number,
+    /** Carry as a share of hard + soft + land */
+    carryCostPct = 0
 ): BudgetCalc {
     const hard_cost = hardCostPerNrsf * totalNrsf;
     const hard_cost_per_gbsf = totalGbsf > 0 ? hard_cost / totalGbsf : 0;
@@ -42,7 +45,8 @@ export function calcBudget(
         soft_cost_pct_display = softCostPct;
     }
 
-    const total_budget = hard_cost + landCost + soft_cost;
+    const carry_cost = carryCostPct * (hard_cost + soft_cost + landCost);
+    const total_budget = hard_cost + landCost + soft_cost + carry_cost;
     const cost_per_unit = totalUnits > 0 ? total_budget / totalUnits : 0;
     const cost_per_nrsf = totalNrsf > 0 ? total_budget / totalNrsf : 0;
     const cost_per_gbsf = totalGbsf > 0 ? total_budget / totalGbsf : 0;
@@ -54,6 +58,7 @@ export function calcBudget(
         hard_cost_per_gbsf,
         soft_cost,
         soft_cost_pct_display,
+        carry_cost,
         total_budget,
         cost_per_unit,
         cost_per_nrsf,

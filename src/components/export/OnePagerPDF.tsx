@@ -494,6 +494,7 @@ export function OnePagerPDF({ onePager, pursuit, calc, productTypeName, unitMix,
                         <View style={s.divider} />
                         <MetricRow label="Soft Cost %" value={fmtPct(onePager.soft_cost_pct, 1)} />
                         <MetricRow label="Soft Cost (Total)" value={fmtCurrency(calc.soft_cost)} />
+                        {calc.carry_cost > 0 && <MetricRow label={`Carry (${fmtPct(onePager.carry_cost_pct ?? 0, 1)} of cost)`} value={fmtCurrency(calc.carry_cost)} />}
                         <View style={s.totalRow}>
                             <Text style={s.totalLabel}>Total Budget</Text>
                             <Text style={s.totalValue}>{fmtCurrency(calc.total_budget)}</Text>

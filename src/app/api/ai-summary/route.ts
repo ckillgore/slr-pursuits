@@ -347,6 +347,7 @@ Now write the 300-500 word summary covering ALL the categories listed above. Be 
                 hardCostPerNRSF: op.hard_cost_per_nrsf,
                 landCost: op.land_cost,
                 softCostPct: op.soft_cost_pct,
+                carryCostPctOfTotal: op.carry_cost_pct,
                 vacancyRate: op.vacancy_rate,
                 otherIncomePerUnitMonth: op.other_income_per_unit_month,
                 mgmtFeePct: op.mgmt_fee_pct,

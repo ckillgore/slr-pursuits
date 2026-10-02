@@ -75,13 +75,14 @@ export function calcRentSensitivity(
             onePager.use_detailed_soft_costs,
             softCostDetails,
             agg.total_units,
-            0 // site area not needed for sensitivity
+            0, // site area not needed for sensitivity,
+            onePager.carry_cost_pct ?? 0
         );
 
         const tax = calcPropertyTax(
             bud.hard_cost,
             onePager.land_cost,
-            bud.soft_cost,
+            bud.soft_cost + bud.carry_cost, // carry is assessed like soft cost
             onePager.tax_assessed_pct_hard,
             onePager.tax_assessed_pct_land,
             onePager.tax_assessed_pct_soft,
@@ -146,13 +147,14 @@ export function calcHardCostSensitivity(
             onePager.use_detailed_soft_costs,
             softCostDetails,
             agg.total_units,
-            0
+            0,
+            onePager.carry_cost_pct ?? 0
         );
 
         const tax = calcPropertyTax(
             bud.hard_cost,
             onePager.land_cost,
-            bud.soft_cost,
+            bud.soft_cost + bud.carry_cost, // carry is assessed like soft cost
             onePager.tax_assessed_pct_hard,
             onePager.tax_assessed_pct_land,
             onePager.tax_assessed_pct_soft,
@@ -217,13 +219,14 @@ export function calcLandCostSensitivity(
             onePager.use_detailed_soft_costs,
             softCostDetails,
             agg.total_units,
-            0
+            0,
+            onePager.carry_cost_pct ?? 0
         );
 
         const tax = calcPropertyTax(
             bud.hard_cost,
             adjustedLandCost,
-            bud.soft_cost,
+            bud.soft_cost + bud.carry_cost, // carry is assessed like soft cost
             onePager.tax_assessed_pct_hard,
             onePager.tax_assessed_pct_land,
             onePager.tax_assessed_pct_soft,
@@ -298,13 +301,14 @@ export function calcSensitivityMatrix(
                 onePager.use_detailed_soft_costs,
                 softCostDetails,
                 agg.total_units,
-                0
+                0,
+                onePager.carry_cost_pct ?? 0
             );
 
             const tax = calcPropertyTax(
                 bud.hard_cost,
                 onePager.land_cost,
-                bud.soft_cost,
+                bud.soft_cost + bud.carry_cost, // carry is assessed like soft cost
                 onePager.tax_assessed_pct_hard,
                 onePager.tax_assessed_pct_land,
                 onePager.tax_assessed_pct_soft,

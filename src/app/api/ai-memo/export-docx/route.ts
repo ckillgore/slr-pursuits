@@ -9,7 +9,7 @@ import { upstreamErrorResponse } from '@/app/api/_lib/upstream';
 // such as parcel_data and drive_time_data that we don't want to pull here).
 const PURSUIT_COLUMNS = 'id, name, address, city, state, zip, county, latitude, longitude, executive_memo, primary_one_pager_id';
 // (A single string literal, so supabase-js can still infer the row type.)
-const ONE_PAGER_COLUMNS = 'id, name, created_at, total_units, efficiency_ratio, vacancy_rate, other_income_per_unit_month, hard_cost_per_nrsf, land_cost, soft_cost_pct, mgmt_fee_pct, calc_total_nrsf, calc_total_gbsf, calc_gpr, calc_net_revenue, calc_total_budget, calc_hard_cost, calc_soft_cost, calc_total_opex, calc_noi, calc_yoc, calc_cost_per_unit, calc_noi_per_unit';
+const ONE_PAGER_COLUMNS = 'id, name, created_at, total_units, efficiency_ratio, vacancy_rate, other_income_per_unit_month, hard_cost_per_nrsf, land_cost, soft_cost_pct, mgmt_fee_pct, calc_total_nrsf, calc_total_gbsf, calc_gpr, calc_net_revenue, calc_total_budget, calc_hard_cost, calc_soft_cost, calc_carry_cost, calc_total_opex, calc_noi, calc_yoc, calc_cost_per_unit, calc_noi_per_unit';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -180,6 +180,7 @@ export async function POST(request: Request) {
                 calc_total_budget: primaryOnePager.calc_total_budget,
                 calc_hard_cost: primaryOnePager.calc_hard_cost,
                 calc_soft_cost: primaryOnePager.calc_soft_cost,
+                calc_carry_cost: primaryOnePager.calc_carry_cost ?? undefined,
                 calc_total_opex: primaryOnePager.calc_total_opex,
                 calc_noi: primaryOnePager.calc_noi,
                 calc_yoc: primaryOnePager.calc_yoc,

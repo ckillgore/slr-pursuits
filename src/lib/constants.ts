@@ -33,7 +33,9 @@ export const DEFAULT_LAND_COST_STEPS = [-2_000_000, -1_000_000, -500_000, 0, 500
 export const DEFAULT_ASSUMPTIONS = {
     efficiency_ratio: 0.85,
     vacancy_rate: 0.05,
-    soft_cost_pct: 0.23,
+    soft_cost_pct: 0.177,
+    /** Carry as a share of hard + soft + land */
+    carry_cost_pct: 0.04,
     mgmt_fee_pct: 0.0225,
     payroll_burden_pct: 0.28,
     tax_assessed_pct_hard: 0.90,

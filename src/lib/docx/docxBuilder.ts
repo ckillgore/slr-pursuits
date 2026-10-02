@@ -58,6 +58,7 @@ export interface MemoDocxData {
         calc_total_budget?: number;
         calc_hard_cost?: number;
         calc_soft_cost?: number;
+        calc_carry_cost?: number;
         calc_total_opex?: number;
         calc_noi?: number;
         calc_yoc?: number;
@@ -518,6 +519,7 @@ export async function buildMemoDocx(data: MemoDocxData): Promise<Buffer> {
             { label: 'Hard Cost (Total)', value: fmtCurrency(onePager.calc_hard_cost) },
             { label: 'Soft Cost %', value: fmtPercent(onePager.soft_cost_pct) },
             { label: 'Soft Cost (Total)', value: fmtCurrency(onePager.calc_soft_cost) },
+            ...(onePager.calc_carry_cost ? [{ label: 'Carry', value: fmtCurrency(onePager.calc_carry_cost) }] : []),
             { label: 'Land Cost', value: fmtCurrency(onePager.land_cost) },
             { label: 'Total Budget', value: fmtCurrency(onePager.calc_total_budget) },
             { label: 'Cost Per Unit', value: fmtCurrency(onePager.calc_cost_per_unit) },

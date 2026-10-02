@@ -32,6 +32,7 @@ const EMPTY_RESULTS: CalculationResults = {
     hard_cost: 0,
     hard_cost_per_gbsf: 0,
     soft_cost: 0,
+    carry_cost: 0,
     total_budget: 0,
     cost_per_unit: 0,
     cost_per_nrsf: 0,

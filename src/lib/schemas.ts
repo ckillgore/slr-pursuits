@@ -32,7 +32,8 @@ export const onePagerSchema = z.object({
     // Budget
     hard_cost_per_nrsf: z.number().min(0).default(0),
     land_cost: z.number().min(0).default(0),
-    soft_cost_pct: z.number().min(0).max(1).default(0.23),
+    soft_cost_pct: z.number().min(0).max(1).default(0.177),
+    carry_cost_pct: z.number().min(0).max(1).default(0.04),
     use_detailed_soft_costs: z.boolean().default(false),
     // OpEx
     opex_utilities: z.number().min(0).default(0),

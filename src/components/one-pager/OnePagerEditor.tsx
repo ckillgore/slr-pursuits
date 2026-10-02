@@ -364,6 +364,7 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
             calc_total_budget: calc.total_budget,
             calc_hard_cost: calc.hard_cost,
             calc_soft_cost: calc.soft_cost,
+            calc_carry_cost: calc.carry_cost,
             calc_total_opex: calc.total_opex,
             calc_noi: calc.noi,
             calc_yoc: calc.unlevered_yield_on_cost,
@@ -1203,6 +1204,21 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                                     <td className="text-right text-xs tabular-nums text-[var(--text-primary)]">{calc.soft_cost > 0 ? formatCurrency(calc.soft_cost) : '—'}</td>
                                     <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{onePager.total_units > 0 ? formatCurrency(calc.soft_cost / onePager.total_units) : '—'}</td>
                                     <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{calc.total_nrsf > 0 ? formatCurrency(calc.soft_cost / calc.total_nrsf, 2) : '—'}</td>
+                                </tr>
+                                <tr>
+                                    <td className="text-[var(--text-secondary)] text-xs font-medium">
+                                        <div className="flex items-center gap-1.5 group/note">
+                                            Carry
+                                            <FieldNoteButton fieldKey="carry_cost_pct" note={fieldNotes['carry_cost_pct']} onNoteChange={updateFieldNote} />
+                                            <span className="inline-flex items-center gap-0.5 text-[9px] text-[var(--text-faint)]" title="Construction-period interest, taxes and insurance, as a share of hard + soft + land">
+                                                <InlineInput value={onePager.carry_cost_pct ?? 0} onChange={(v) => updateField('carry_cost_pct', v)} format="percent" decimals={1} className="text-[10px] w-12" editAllMode={editAllMode} />
+                                                of cost
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td className="text-right text-xs tabular-nums text-[var(--text-primary)]">{calc.carry_cost > 0 ? formatCurrency(calc.carry_cost) : '—'}</td>
+                                    <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{calc.carry_cost > 0 && onePager.total_units > 0 ? formatCurrency(calc.carry_cost / onePager.total_units) : '—'}</td>
+                                    <td className="text-right text-xs tabular-nums text-[var(--text-muted)]">{calc.carry_cost > 0 && calc.total_nrsf > 0 ? formatCurrency(calc.carry_cost / calc.total_nrsf, 2) : '—'}</td>
                                 </tr>
                                 <tr className="total-row">
                                     <td>Total Budget</td>

@@ -27,6 +27,7 @@ const COMPARE_FIELDS: { key: string; label: string; fmt: Fmt }[] = [
     { key: 'hard_cost_per_nrsf', label: 'Hard cost $/NRSF', fmt: 'currency' },
     { key: 'land_cost', label: 'Land cost', fmt: 'currency' },
     { key: 'soft_cost_pct', label: 'Soft cost %', fmt: 'percent' },
+    { key: 'carry_cost_pct', label: 'Carry %', fmt: 'percent' },
     { key: 'vacancy_rate', label: 'Vacancy', fmt: 'percent' },
     { key: 'other_income_per_unit_month', label: 'Other income $/unit/mo', fmt: 'currency' },
     { key: 'opex_utilities', label: 'Utilities', fmt: 'currency' },

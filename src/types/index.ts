@@ -262,6 +262,8 @@ export interface OnePager {
   land_cost: number;
   soft_cost_pct: number;
   use_detailed_soft_costs: boolean;
+  /** Carry as a share of hard + soft + land */
+  carry_cost_pct?: number;
   use_detailed_other_income?: boolean;
   // OpEx ($/unit/year)
   opex_utilities: number;
@@ -293,6 +295,7 @@ export interface OnePager {
   calc_total_budget?: number;
   calc_hard_cost?: number;
   calc_soft_cost?: number;
+  calc_carry_cost?: number;
   calc_total_opex?: number;
   calc_noi?: number;
   calc_yoc?: number;
@@ -327,6 +330,7 @@ export interface DataModel {
   default_vacancy_rate: number;
   default_hard_cost_per_nrsf: number;
   default_soft_cost_pct: number;
+  default_carry_cost_pct?: number;
   default_opex_utilities: number;
   default_opex_repairs_maintenance: number;
   default_opex_contract_services: number;
@@ -508,6 +512,7 @@ export interface CalculationResults {
   hard_cost: number;
   hard_cost_per_gbsf: number;
   soft_cost: number;
+  carry_cost: number;
   total_budget: number;
   cost_per_unit: number;
   cost_per_nrsf: number;
@@ -548,6 +553,7 @@ export interface DataModelTemplate {
   default_vacancy_rate: number;
   default_hard_cost_per_nrsf: number;
   default_soft_cost_pct: number;
+  default_carry_cost_pct?: number;
   default_opex_utilities: number;
   default_opex_repairs_maintenance: number;
   default_opex_contract_services: number;
@@ -589,12 +595,12 @@ export type ReportFieldKey =
   | 'pursuit_created_at' | 'pursuit_updated_at'
   // One-pager fields
   | 'one_pager_name' | 'product_type' | 'total_units' | 'efficiency_ratio'
-  | 'vacancy_rate' | 'land_cost' | 'hard_cost_per_nrsf' | 'soft_cost_pct'
+  | 'vacancy_rate' | 'land_cost' | 'hard_cost_per_nrsf' | 'soft_cost_pct' | 'carry_cost_pct'
   | 'other_income_per_unit_month' | 'mgmt_fee_pct' | 'payroll_burden_pct'
   | 'tax_mil_rate'
   // Calculated fields
   | 'calc_total_nrsf' | 'calc_total_gbsf' | 'calc_gpr' | 'calc_net_revenue'
-  | 'calc_total_budget' | 'calc_hard_cost' | 'calc_soft_cost'
+  | 'calc_total_budget' | 'calc_hard_cost' | 'calc_soft_cost' | 'calc_carry_cost'
   | 'calc_total_opex' | 'calc_noi' | 'calc_yoc'
   | 'calc_cost_per_unit' | 'calc_noi_per_unit'
   | 'unit_avg_size' | 'opex_ratio' | 'controllable_per_unit'

@@ -73,14 +73,15 @@ export function calculateAll(input: CalculateAllInput): CalculationResults {
         onePager.use_detailed_soft_costs,
         softCostDetails,
         unitMixAgg.total_units,
-        siteAreaSf
+        siteAreaSf,
+        onePager.carry_cost_pct ?? 0
     );
 
     // Property Tax (needed before OpEx)
     const tax = calcPropertyTax(
         bud.hard_cost,
         onePager.land_cost,
-        bud.soft_cost,
+        bud.soft_cost + bud.carry_cost, // carry is assessed like soft cost
         onePager.tax_assessed_pct_hard,
         onePager.tax_assessed_pct_land,
         onePager.tax_assessed_pct_soft,
@@ -126,6 +127,7 @@ export function calculateAll(input: CalculateAllInput): CalculationResults {
         hard_cost: bud.hard_cost,
         hard_cost_per_gbsf: bud.hard_cost_per_gbsf,
         soft_cost: bud.soft_cost,
+        carry_cost: bud.carry_cost,
         total_budget: bud.total_budget,
         cost_per_unit: bud.cost_per_unit,
         cost_per_nrsf: bud.cost_per_nrsf,

@@ -193,7 +193,7 @@ function ApplyTemplateDialog({ pursuitId, onClose }: { pursuitId: string; onClos
                                     : 'border-[var(--border)] bg-[var(--bg-card)] hover:bg-[var(--bg-primary)]'}`}>
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm font-medium text-[var(--text-primary)]">{t.name}</span>
-                                    {t.is_default && <span className="text-[10px] uppercase tracking-wider font-semibold text-[var(--accent)] bg-[var(--badge-owner-bg)] px-1.5 py-0.5 rounded">Default</span>}
+                                    {t.is_default && <span className="text-[11px] uppercase tracking-wider font-semibold text-[var(--accent)] bg-[var(--badge-owner-bg)] px-1.5 py-0.5 rounded">Default</span>}
                                 </div>
                                 {t.description && <p className="text-xs text-[var(--text-muted)] mt-1 line-clamp-2">{t.description}</p>}
                             </button>
@@ -243,7 +243,7 @@ function MilestoneBar({ pursuitId, milestones }: { pursuitId: string; milestones
                             <button onClick={() => upsertMilestone.mutate({ id: m.id, is_confirmed: !m.is_confirmed, pursuit_id: pursuitId }, toastOnError(`Failed to update ${m.milestone_label}`))}
                                 aria-pressed={m.is_confirmed}
                                 title={m.is_confirmed ? 'Confirmed — click to mark as estimated' : 'Estimated — click to mark as confirmed'}
-                                className={`text-[10px] uppercase tracking-wider font-semibold self-start px-2 py-0.5 rounded-full transition-colors ${m.is_confirmed ? 'bg-[var(--success-bg)] text-[var(--success)]' : 'bg-[var(--warning-bg)] text-[var(--warning)]'}`}>
+                                className={`text-[11px] uppercase tracking-wider font-semibold self-start px-2 py-0.5 rounded-full transition-colors ${m.is_confirmed ? 'bg-[var(--success-bg)] text-[var(--success)]' : 'bg-[var(--warning-bg)] text-[var(--warning)]'}`}>
                                 {m.is_confirmed ? '✓ Confirmed' : 'Estimated'}
                             </button>
                         </div>
@@ -287,7 +287,7 @@ function TaskCard({
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                         <span className="text-sm text-[var(--text-primary)] truncate">{task.name}</span>
-                        {task.is_critical_path && <span className="flex-shrink-0 text-[9px] uppercase tracking-wider font-bold text-[var(--danger)] bg-[var(--danger-bg)] px-1 py-0.5 rounded">Critical</span>}
+                        {task.is_critical_path && <span className="flex-shrink-0 text-[11px] uppercase tracking-wider font-bold text-[var(--danger)] bg-[var(--danger-bg)] px-1 py-0.5 rounded">Critical</span>}
                     </div>
                     <div className="flex items-center gap-3 mt-0.5">
                         {task.due_date && (
@@ -303,7 +303,7 @@ function TaskCard({
                         )}
                     </div>
                 </div>
-                <span className="text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0" style={{ color: cfg.color, backgroundColor: cfg.bgColor }}>{cfg.label}</span>
+                <span className="text-[11px] px-1.5 py-0.5 rounded font-medium flex-shrink-0" style={{ color: cfg.color, backgroundColor: cfg.bgColor }}>{cfg.label}</span>
             </button>
             <button onClick={(e) => { e.stopPropagation(); onDelete(); }}
                 aria-label={`Delete task ${task.name}`}

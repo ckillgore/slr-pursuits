@@ -276,7 +276,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
     return (
         <div className="card">
             <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Location</h3>
+                <h3 className="op-card-title">Location</h3>
                 {!isEditingAddress && (
                     <button
                         onClick={startEditing}
@@ -293,7 +293,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
             {isEditingAddress ? (
                 <div className="mb-3 space-y-2" ref={suggestionsRef}>
                     <div className="relative">
-                        <label className="block text-[10px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">Street Address</label>
+                        <label className="block text-[11px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">Street Address</label>
                         <div className="relative flex items-center">
                             <Search className="absolute left-2 w-3 h-3 text-[var(--text-faint)] pointer-events-none" />
                             <input
@@ -316,7 +316,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                                         className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--accent-subtle)] transition-colors border-b border-[var(--table-row-border)] last:border-b-0"
                                     >
                                         <div className="font-medium text-xs">{s.name}</div>
-                                        <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{s.secondary}</div>
+                                        <div className="text-[11px] text-[var(--text-muted)] mt-0.5">{s.secondary}</div>
                                     </button>
                                 ))}
                             </div>
@@ -324,7 +324,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                         <div>
-                            <label className="block text-[10px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">City</label>
+                            <label className="block text-[11px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">City</label>
                             <input
                                 type="text"
                                 value={editCity}
@@ -335,7 +335,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                             />
                         </div>
                         <div>
-                            <label className="block text-[10px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">State</label>
+                            <label className="block text-[11px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">State</label>
                             <input
                                 type="text"
                                 value={editState}
@@ -346,7 +346,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                             />
                         </div>
                         <div>
-                            <label className="block text-[10px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">Zip</label>
+                            <label className="block text-[11px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">Zip</label>
                             <input
                                 type="text"
                                 value={editZip}
@@ -359,7 +359,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                         <div>
-                            <label className="block text-[10px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">Latitude</label>
+                            <label className="block text-[11px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">Latitude</label>
                             <input
                                 type="number"
                                 step="any"
@@ -371,7 +371,7 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                             />
                         </div>
                         <div>
-                            <label className="block text-[10px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">Longitude</label>
+                            <label className="block text-[11px] text-[var(--text-faint)] uppercase font-semibold mb-0.5">Longitude</label>
                             <input
                                 type="number"
                                 step="any"
@@ -404,10 +404,10 @@ export function LocationCard({ pursuit, onUpdate }: LocationCardProps) {
                     <div>
                         <div>{addressDisplay}</div>
                         {pursuit.county && (
-                            <div className="text-[10px] text-[var(--text-faint)] mt-0.5">{pursuit.county.replace(/\s+County$/i, '')} County</div>
+                            <div className="text-[11px] text-[var(--text-faint)] mt-0.5">{pursuit.county.replace(/\s+County$/i, '')} County</div>
                         )}
                         {hasLocation && (
-                            <div className="text-[10px] text-[var(--text-faint)] mt-0.5">
+                            <div className="text-[11px] text-[var(--text-faint)] mt-0.5">
                                 {pursuit.latitude!.toFixed(6)}, {pursuit.longitude!.toFixed(6)}
                             </div>
                         )}

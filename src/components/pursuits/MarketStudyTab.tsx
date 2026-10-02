@@ -319,7 +319,7 @@ export default function MarketStudyTab({ pursuitId, pursuitName, compFilter = 'a
 
             {/* ── Market Summary Table (full width) ── */}
             <div className="space-y-1.5">
-                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Market Summary</h3>
+                <h3 className="op-card-title">Market Summary</h3>
                 <div className="border border-[var(--border)] rounded-xl overflow-x-auto">
                     <table className="w-full text-[11px] min-w-[640px]">
                         <thead>
@@ -341,7 +341,7 @@ export default function MarketStudyTab({ pursuitId, pursuitName, compFilter = 'a
                                 <tr key={i} className="border-b border-[var(--table-row-border)] last:border-b-0 hover:bg-[var(--bg-primary)]">
                                     <td className="py-1 px-1.5 font-semibold text-[var(--accent)] whitespace-nowrap truncate max-w-[180px]">{c.name}</td>
                                     <td className="py-1 px-1 text-center">
-                                        <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full text-[9px] font-bold text-white" style={{ backgroundColor: c.color }}>{c.mapNode}</span>
+                                        <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full text-[11px] font-bold text-white" style={{ backgroundColor: c.color }}>{c.mapNode}</span>
                                     </td>
                                     <td className="py-1 px-1.5 text-[var(--text-secondary)]">{c.projectType}</td>
                                     <td className="py-1 px-1 text-center text-[var(--text-secondary)]">{c.yearBuilt ?? '—'}</td>
@@ -374,7 +374,7 @@ export default function MarketStudyTab({ pursuitId, pursuitName, compFilter = 'a
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
                 {/* Market Stock by Unit Type */}
                 <div className="space-y-1.5">
-                    <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Market Stock by Unit Type</h3>
+                    <h3 className="op-card-title">Market Stock by Unit Type</h3>
                     <div className="border border-[var(--border)] rounded-xl overflow-hidden">
                         <div className="overflow-auto" style={{ maxHeight: '520px' }}>
                             <table className="w-full text-[11px] min-w-[480px]">
@@ -444,12 +444,12 @@ function StudyMap({ comps }: { comps: CompSummary[] }) {
 
     return (
         <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Comp Map</h3>
+            <h3 className="op-card-title">Comp Map</h3>
             <StudyMapCanvas comps={mappable} />
             <div className="flex flex-wrap gap-3 px-1">
                 {mappable.map((c, i) => (
                     <div key={i} className="flex items-center gap-1.5 text-xs">
-                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold text-white" style={{ backgroundColor: c.color }}>{c.mapNode}</span>
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[11px] font-bold text-white" style={{ backgroundColor: c.color }}>{c.mapNode}</span>
                         <span className="text-[var(--text-secondary)] truncate max-w-[130px]">{c.name}</span>
                     </div>
                 ))}

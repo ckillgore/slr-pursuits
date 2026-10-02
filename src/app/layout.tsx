@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import '@/styles/data-ui.css';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Providers } from '@/components/Providers';
 import { Analytics } from '@vercel/analytics/next';

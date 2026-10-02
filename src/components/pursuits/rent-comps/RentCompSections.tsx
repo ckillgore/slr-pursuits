@@ -55,7 +55,7 @@ export function RentTrendsSection({ comps }: { comps: PropertyMetrics[] }) {
         <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Rent Trends</h3>
+                    <h3 className="op-card-title">Rent Trends</h3>
                     <p className="text-xs text-[var(--text-muted)]">Historical rent pricing from unit listing data.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -172,7 +172,7 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
         <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Rent vs. Size</h3>
+                    <h3 className="op-card-title">Rent vs. Size</h3>
                     <p className="text-xs text-[var(--text-muted)]">Bubble size = unit count. Click a bubble to see individual units.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -266,12 +266,12 @@ export function BubbleChartSection({ comps }: { comps: PropertyMetrics[] }) {
                         <table className="w-full text-xs min-w-[500px]">
                             <thead className="sticky top-0 bg-[var(--bg-card)] z-10">
                                 <tr className="border-b border-[var(--border)]">
-                                    <th className="text-left py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase">Floorplan</th>
-                                    <th className="text-center py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase">Bed/Bath</th>
-                                    <th className="text-right py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase">Sqft</th>
-                                    <th className="text-right py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase">Asking</th>
-                                    <th className="text-right py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase">Effective</th>
-                                    <th className="text-right py-2 px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase">$/SF</th>
+                                    <th className="text-left py-2 px-3 text-[11px] font-bold text-[var(--text-muted)] uppercase">Floorplan</th>
+                                    <th className="text-center py-2 px-3 text-[11px] font-bold text-[var(--text-muted)] uppercase">Bed/Bath</th>
+                                    <th className="text-right py-2 px-3 text-[11px] font-bold text-[var(--text-muted)] uppercase">Sqft</th>
+                                    <th className="text-right py-2 px-3 text-[11px] font-bold text-[var(--text-muted)] uppercase">Asking</th>
+                                    <th className="text-right py-2 px-3 text-[11px] font-bold text-[var(--text-muted)] uppercase">Effective</th>
+                                    <th className="text-right py-2 px-3 text-[11px] font-bold text-[var(--text-muted)] uppercase">$/SF</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -392,7 +392,7 @@ export function OccupancySection({ comps }: { comps: PropertyMetrics[] }) {
     return (
         <div className="space-y-4">
             <div>
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Occupancy Trends</h3>
+                <h3 className="op-card-title">Occupancy Trends</h3>
                 <p className="text-xs text-[var(--text-muted)]">Estimated leased % over time, derived from unit availability periods.</p>
             </div>
             <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-4 gap-3">
@@ -494,7 +494,7 @@ export function LeasingActivitySection({ comps }: { comps: PropertyMetrics[] }) 
         <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Leasing Activity</h3>
+                    <h3 className="op-card-title">Leasing Activity</h3>
                     <p className="text-xs text-[var(--text-muted)]">Estimated leases per week (units exiting market) — trailing {trailingWeeks} weeks.</p>
                 </div>
                 <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
@@ -560,7 +560,7 @@ export function ConcessionsSection({ comps }: { comps: PropertyMetrics[] }) {
     return (
         <div className="space-y-4">
             <div>
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Concession History</h3>
+                <h3 className="op-card-title">Concession History</h3>
                 <p className="text-xs text-[var(--text-muted)]">Tracked concession periods by property.</p>
             </div>
             {comps.map((c, ci) => {
@@ -574,7 +574,7 @@ export function ConcessionsSection({ comps }: { comps: PropertyMetrics[] }) {
                     <div key={ci} className="border border-[var(--border)] rounded-xl overflow-hidden">
                         <div className="px-3 sm:px-4 py-2.5 sm:py-3 bg-[var(--bg-primary)] border-b border-[var(--border)] flex flex-col sm:flex-row sm:items-center gap-1 sm:justify-between">
                             <h4 className="text-sm font-semibold text-[var(--text-primary)]">{c.name}</h4>
-                            <span className="text-[10px] text-[var(--text-faint)]">{concessions.length} concession periods tracked</span>
+                            <span className="text-[11px] text-[var(--text-faint)]">{concessions.length} concession periods tracked</span>
                         </div>
                         <div className="p-3 space-y-2">
                             {latest && (
@@ -633,7 +633,7 @@ export function FeesSection({ comps }: { comps: PropertyMetrics[] }) {
     return (
         <div className="space-y-3">
             <div>
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Fees & Other Income</h3>
+                <h3 className="op-card-title">Fees & Other Income</h3>
                 <p className="text-xs text-[var(--text-muted)]">Fee comparison across comp set — informs other income projections.</p>
             </div>
             <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
@@ -685,7 +685,7 @@ export function QualitySection({ comps }: { comps: PropertyMetrics[] }) {
             {/* Quality Scores */}
             <div className="space-y-3">
                 <div>
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Building Quality Scores</h3>
+                    <h3 className="op-card-title">Building Quality Scores</h3>
                     <p className="text-xs text-[var(--text-muted)]">AI-scored quality ratings from property photos (0-100%).</p>
                 </div>
                 <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
@@ -727,7 +727,7 @@ export function QualitySection({ comps }: { comps: PropertyMetrics[] }) {
             {/* Reviews Sentiment */}
             <div className="space-y-3">
                 <div>
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Review Sentiment</h3>
+                    <h3 className="op-card-title">Review Sentiment</h3>
                     <p className="text-xs text-[var(--text-muted)]">Positive & negative review counts by category.</p>
                 </div>
                 <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
@@ -738,7 +738,7 @@ export function QualitySection({ comps }: { comps: PropertyMetrics[] }) {
                                 {comps.map((c, i) => (
                                     <th key={i} className="text-center py-2.5 px-3 font-semibold text-[var(--accent)] min-w-[110px] truncate" colSpan={1}>
                                         {c.name}
-                                        {c.property.review_analysis?.count_reviews ? <div className="text-[10px] font-normal text-[var(--text-muted)]">{c.property.review_analysis.count_reviews} reviews · {((c.property.review_analysis.avg_score ?? 0) * 100).toFixed(0)}% positive</div> : null}
+                                        {c.property.review_analysis?.count_reviews ? <div className="text-[11px] font-normal text-[var(--text-muted)]">{c.property.review_analysis.count_reviews} reviews · {((c.property.review_analysis.avg_score ?? 0) * 100).toFixed(0)}% positive</div> : null}
                                     </th>
                                 ))}
                             </tr>
@@ -800,7 +800,7 @@ export function MarketContextSection({ comps }: { comps: PropertyMetrics[] }) {
             {/* Pricing Strategy */}
             <div className="space-y-3">
                 <div>
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Pricing Strategy</h3>
+                    <h3 className="op-card-title">Pricing Strategy</h3>
                     <p className="text-xs text-[var(--text-muted)]">Revenue management and pricing behavior intelligence.</p>
                 </div>
                 <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
@@ -832,7 +832,7 @@ export function MarketContextSection({ comps }: { comps: PropertyMetrics[] }) {
             {/* Demographics */}
             <div className="space-y-3">
                 <div>
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Demographics</h3>
+                    <h3 className="op-card-title">Demographics</h3>
                     <p className="text-xs text-[var(--text-muted)]">Census tract demographics around each property.</p>
                 </div>
                 <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
@@ -982,7 +982,7 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
         <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Estimated Rent Roll</h3>
+                    <h3 className="op-card-title">Estimated Rent Roll</h3>
                     <p className="text-xs text-[var(--text-muted)]">Unit-level rent and occupancy data from HelloData listings.</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1004,19 +1004,19 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
             {/* Quick stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-2.5">
-                    <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Total Units</div>
+                    <div className="text-[11px] text-[var(--text-muted)] uppercase tracking-wider">Total Units</div>
                     <div className="text-base font-semibold text-[var(--text-primary)]">{totalCount}</div>
                 </div>
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-2.5">
-                    <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Occupied</div>
+                    <div className="text-[11px] text-[var(--text-muted)] uppercase tracking-wider">Occupied</div>
                     <div className="text-base font-semibold text-[var(--success)]">{totalOccupied} <span className="text-xs font-normal text-[var(--text-muted)]">({totalCount > 0 ? ((totalOccupied / totalCount) * 100).toFixed(1) : 0}%)</span></div>
                 </div>
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-2.5">
-                    <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Vacant</div>
+                    <div className="text-[11px] text-[var(--text-muted)] uppercase tracking-wider">Vacant</div>
                     <div className="text-base font-semibold text-[var(--danger)]">{totalVacant}</div>
                 </div>
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-2.5">
-                    <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Avg Rent</div>
+                    <div className="text-[11px] text-[var(--text-muted)] uppercase tracking-wider">Avg Rent</div>
                     <div className="text-base font-semibold text-[var(--text-primary)]">{fmt(comp.askingRent)}</div>
                 </div>
             </div>
@@ -1100,7 +1100,7 @@ export function RentRollSection({ comps }: { comps: PropertyMetrics[] }) {
                                     <td className="py-1.5 px-2 text-center">{row.bed === null ? '—' : row.bed === 0 ? 'Studio' : `${row.bed}/${row.bath ?? '?'}`}</td>
                                     <td className="py-1.5 px-2 text-center">{row.sqft ? `${row.sqft}` : '—'}</td>
                                     <td className="py-1.5 px-2 text-center">
-                                        <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ${row.status === 'occupied' ? 'bg-[var(--success-bg)] text-[var(--success)]' :
+                                        <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[11px] font-medium ${row.status === 'occupied' ? 'bg-[var(--success-bg)] text-[var(--success)]' :
                                             row.status === 'notice' ? 'bg-[var(--warning-bg)] text-[var(--warning)]' :
                                                 'bg-[var(--danger-bg)] text-[var(--danger)]'
                                             }`}>
@@ -1223,7 +1223,7 @@ export function CompMapSection({ comps }: { comps: PropertyMetrics[] }) {
     return (
         <div className="space-y-3">
             <div>
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Comp Map</h3>
+                <h3 className="op-card-title">Comp Map</h3>
                 <p className="text-xs text-[var(--text-muted)]">Locations of comp properties. Hover or tap markers for details.</p>
             </div>
             <CompMapCanvas comps={mappableComps} onHover={setHoveredComp} />
@@ -1398,7 +1398,7 @@ export function OccupancyForecastSectionFull({ comps }: { comps: PropertyMetrics
         <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Occupancy Forecast</h3>
+                    <h3 className="op-card-title">Occupancy Forecast</h3>
                     <p className="text-xs text-[var(--text-muted)]">12-week historical context and 12-week forward projection derived from historical trend absorption.</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -1439,7 +1439,7 @@ export function OccupancyForecastSectionFull({ comps }: { comps: PropertyMetrics
                                 <td className="py-3 px-3 text-center font-bold text-[13px] border-l border-[var(--border)] tabular-nums text-[var(--text-primary)]">{Number(avgSummary.netAbs) > 0 ? '+' : ''}{avgSummary.netAbs}</td>
                                 <td className="py-3 px-3 text-center font-bold text-[13px] text-blue-600 dark:text-blue-400 tabular-nums">{avgSummary.forecast12Wk}%</td>
                                 <td className="py-3 px-4 text-center">
-                                    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] uppercase tracking-widest font-bold ${
+                                    <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] uppercase tracking-widest font-bold ${
                                         avgSummary.trend === 'Tightening' ? 'bg-[var(--success)]/10 text-[var(--success)]' :
                                         avgSummary.trend === 'Softening' ? 'bg-[var(--danger)]/10 text-[var(--danger)]' :
                                         'bg-[var(--bg-card)] text-[var(--text-secondary)] border border-[var(--border)]'
@@ -1456,7 +1456,7 @@ export function OccupancyForecastSectionFull({ comps }: { comps: PropertyMetrics
                                 <td className="py-2.5 px-3 text-center font-bold text-[13px] border-l border-[var(--border)] tabular-nums text-[var(--text-primary)]">{Number(row.netAbs) > 0 ? '+' : ''}{row.netAbs}</td>
                                 <td className="py-2.5 px-3 text-center font-bold text-[13px] text-blue-600 dark:text-blue-400 tabular-nums">{row.forecast12Wk}%</td>
                                 <td className="py-2.5 px-4 text-center">
-                                    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] uppercase tracking-widest font-bold ${
+                                    <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] uppercase tracking-widest font-bold ${
                                         row.trend === 'Tightening' ? 'bg-[var(--success)]/10 text-[var(--success)]' :
                                         row.trend === 'Softening' ? 'bg-[var(--danger)]/10 text-[var(--danger)]' :
                                         'bg-[var(--bg-elevated)] text-[var(--text-secondary)]'

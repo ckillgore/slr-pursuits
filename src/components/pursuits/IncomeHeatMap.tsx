@@ -194,7 +194,7 @@ export function IncomeHeatMap({
             <div className="card">
                 <div className="flex items-center gap-2 mb-3">
                     <MapIcon className="w-4 h-4 text-[var(--text-faint)]" />
-                    <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Income Heat Map</h3>
+                    <h3 className="op-card-title">Income Heat Map</h3>
                 </div>
                 <div className="flex items-center justify-center py-8 text-center">
                     <div>
@@ -220,18 +220,18 @@ export function IncomeHeatMap({
     return (
         <div className="card">
             {/* Header */}
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-3">
                 <div className="flex items-center gap-2">
                     <MapIcon className="w-4 h-4 text-[#D97706]" />
-                    <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Income Heat Map</h3>
+                    <h3 className="op-card-title">Income Heat Map</h3>
                     {cachedAt && !loading && (
-                        <span className="flex items-center gap-1 text-[10px] text-[var(--success)] bg-[var(--success)]/10 px-1.5 py-0.5 rounded-full font-medium">
+                        <span className="flex items-center gap-1 text-[11px] text-[var(--success)] bg-[var(--success)]/10 px-1.5 py-0.5 rounded-full font-medium">
                             <CheckCircle2 className="w-2.5 h-2.5" />
                             {blockGroupCount} block groups
                         </span>
                     )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     <select
                         value={radiusMiles}
                         onChange={(e) => setRadiusMiles(Number(e.target.value))}
@@ -259,7 +259,7 @@ export function IncomeHeatMap({
 
             {/* Cache timestamp */}
             {formattedCacheDate && !loading && (
-                <p className="text-[10px] text-[var(--text-faint)] mb-2">Last generated: {formattedCacheDate}</p>
+                <p className="text-[11px] text-[var(--text-faint)] mb-2">Last generated: {formattedCacheDate}</p>
             )}
 
             {isStale && (
@@ -281,7 +281,7 @@ export function IncomeHeatMap({
                 {/* Legend overlay: top-left, clear of the zoom control and the bottom logo / attribution */}
                 {geojson && (
                     <div className="absolute top-3 left-3 z-[1] bg-[var(--bg-card)]/95 backdrop-blur-sm rounded-lg shadow-sm border border-[var(--border)] p-2.5">
-                        <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">Median HH Income</div>
+                        <div className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">Median HH Income</div>
                         <div className="space-y-0.5">
                             {LEGEND_LABELS.map((label, i) => (
                                 <div key={i} className="flex items-center gap-1.5">
@@ -289,12 +289,12 @@ export function IncomeHeatMap({
                                         className="w-3 h-3 rounded-sm flex-shrink-0"
                                         style={{ backgroundColor: INCOME_COLORS[i] }}
                                     />
-                                    <span className="text-[10px] text-[var(--text-secondary)] tabular-nums">{label}</span>
+                                    <span className="text-[11px] text-[var(--text-secondary)] tabular-nums">{label}</span>
                                 </div>
                             ))}
                             <div className="flex items-center gap-1.5">
                                 <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: NO_DATA_COLOR }} />
-                                <span className="text-[10px] text-[var(--text-secondary)]">No data</span>
+                                <span className="text-[11px] text-[var(--text-secondary)]">No data</span>
                             </div>
                         </div>
                     </div>
@@ -306,7 +306,7 @@ export function IncomeHeatMap({
                         <div className="text-center bg-[var(--bg-card)]/80 backdrop-blur-sm rounded-xl px-6 py-4">
                             <MapIcon className="w-6 h-6 text-[#D97706] mx-auto mb-2 opacity-60" />
                             <p className="text-xs text-[var(--text-muted)]">Click &ldquo;Generate&rdquo; to create an income choropleth map</p>
-                            <p className="text-[10px] text-[var(--text-faint)] mt-1">Census Block Groups · ACS 5-Year Estimates</p>
+                            <p className="text-[11px] text-[var(--text-faint)] mt-1">Census Block Groups · ACS 5-Year Estimates</p>
                         </div>
                     </div>
                 )}
@@ -314,7 +314,7 @@ export function IncomeHeatMap({
 
             {/* Source attribution */}
             {geojson && (
-                <p className="text-[10px] text-[var(--text-faint)] mt-1.5 text-center">
+                <p className="text-[11px] text-[var(--text-faint)] mt-1.5 text-center">
                     Median household income by Census Block Group within {radiusMiles} miles of {pursuitName || 'site'} · Source: Census ACS 5-Year Estimates
                 </p>
             )}

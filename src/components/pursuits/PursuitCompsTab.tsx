@@ -285,7 +285,7 @@ function LandCompsSection({ pursuitId }: { pursuitId: string }) {
                 </div>
             ) : (
                 <div className="border border-[var(--border)] rounded-xl overflow-x-auto bg-[var(--bg-primary)] md:bg-transparent p-2 md:p-0">
-                    <table className="w-full text-[11px] min-w-full md:min-w-max block md:table">
+                    <table className="w-full text-op min-w-full md:min-w-max block md:table">
                         <thead className="hidden md:table-header-group">
                             <tr className="bg-[var(--accent)] text-white">
                                 <th className="py-1.5 px-2 text-left font-semibold">Name</th>
@@ -303,38 +303,38 @@ function LandCompsSection({ pursuitId }: { pursuitId: string }) {
                             {linkedComps.map((c: LandComp, i: number) => (
                                 <tr key={c.id} className="block md:table-row bg-[var(--bg-card)] md:bg-transparent border border-[var(--border)] md:border-b md:border-x-0 md:border-t-0 last:border-b-0 hover:bg-[var(--bg-primary)] mb-3 md:mb-0 rounded-lg md:rounded-none overflow-hidden hover:shadow-sm md:hover:shadow-none">
                                     <td className="flex justify-between items-center md:table-cell py-1.5 px-2 font-medium text-[var(--accent)] border-b border-[var(--border)] md:border-0 bg-[var(--bg-elevated)] md:bg-transparent">
-                                        <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Name</span>
+                                        <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Name</span>
                                         <Link href={`/comps/${c.short_id || c.id}`} className="hover:underline">{c.name}</Link>
                                     </td>
                                     <td className="flex justify-between items-center md:table-cell py-1.5 px-2 text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
-                                        <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Address</span>
+                                        <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Address</span>
                                         <span className="truncate max-w-[160px]">{c.address}{c.city ? `, ${c.city}` : ''}</span>
                                     </td>
                                     <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-primary)] border-b border-[var(--border)] md:border-0">
-                                        <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Acres</span>
+                                        <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Acres</span>
                                         <span>{fmtAcres(c.site_area_sf)}</span>
                                     </td>
                                     <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums font-medium text-[var(--text-primary)] border-b border-[var(--border)] md:border-0">
-                                        <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Sale Price</span>
+                                        <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Sale Price</span>
                                         <span>{fmtCur(c.sale_price)}</span>
                                     </td>
                                     <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
-                                        <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">$/SF</span>
+                                        <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">$/SF</span>
                                         {(() => {
                                             const psf = landPricePerSf(c);
                                             return <span title={psf.derived ? 'Calculated: sale price ÷ site area' : undefined}>{fmtCur(psf.value, 2)}{psf.derived ? '*' : ''}</span>;
                                         })()}
                                     </td>
                                     <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-center text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
-                                        <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Sale Date</span>
+                                        <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Sale Date</span>
                                         <span>{fmtDate(c.sale_date)}</span>
                                     </td>
                                     <td className="flex justify-between items-center md:table-cell py-1.5 px-2 text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
-                                        <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Buyer</span>
+                                        <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Buyer</span>
                                         <span>{c.buyer || '—'}</span>
                                     </td>
                                     <td className="flex justify-between items-center md:table-cell py-1.5 px-2 text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
-                                        <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Zoning</span>
+                                        <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Zoning</span>
                                         <span>{c.zoning || '—'}</span>
                                     </td>
                                     <td className="py-1.5 px-2 text-right md:text-center block md:table-cell">
@@ -355,19 +355,19 @@ function LandCompsSection({ pursuitId }: { pursuitId: string }) {
                                     <tr className="block md:table-row bg-[var(--bg-elevated)] font-semibold border-t border-[var(--border)] mt-4 md:mt-0 rounded-lg md:rounded-none">
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 text-[var(--text-primary)] border-b border-[var(--border)] md:border-0">
                                             <span>Total / Avg</span>
-                                            <span className="md:hidden text-[var(--text-muted)] text-[10px]">{linkedComps.length} comps</span>
+                                            <span className="md:hidden text-[var(--text-muted)] text-[11px]">{linkedComps.length} comps</span>
                                         </td>
-                                        <td className="hidden md:table-cell py-1.5 px-2 text-[var(--text-muted)] text-[10px]">{linkedComps.length} comps</td>
+                                        <td className="hidden md:table-cell py-1.5 px-2 text-[var(--text-muted)] text-[11px]">{linkedComps.length} comps</td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-primary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Acres</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Acres</span>
                                             <span>{totalAcres > 0 ? totalAcres.toFixed(2) : '—'}</span>
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-primary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Avg Price</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Avg Price</span>
                                             <span>{fmtCur(avgPrice)}</span>
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Avg $/SF</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Avg $/SF</span>
                                             <span>{fmtCur(avgPsf, 2)}</span>
                                         </td>
                                         <td className="hidden md:table-cell py-1.5 px-2"></td>
@@ -380,7 +380,7 @@ function LandCompsSection({ pursuitId }: { pursuitId: string }) {
                         </tbody>
                     </table>
                     {linkedComps.some((c: LandComp) => landPricePerSf(c).derived) && (
-                        <p className="px-2 py-1.5 text-[10px] text-[var(--text-faint)]">* Calculated from sale price ÷ site area (no $/SF entered)</p>
+                        <p className="px-2 py-1.5 text-[11px] text-[var(--text-faint)]">* Calculated from sale price ÷ site area (no $/SF entered)</p>
                     )}
                 </div>
             )}
@@ -592,7 +592,7 @@ function SaleCompsSection({ pursuitId }: { pursuitId: string }) {
                 </div>
             ) : (
                 <div className="border border-[var(--border)] rounded-xl overflow-x-auto bg-[var(--bg-primary)] md:bg-transparent p-2 md:p-0">
-                    <table className="w-full text-[11px] min-w-full md:min-w-max block md:table">
+                    <table className="w-full text-op min-w-full md:min-w-max block md:table">
                         <thead className="hidden md:table-header-group">
                             <tr className="bg-[var(--accent)] text-white">
                                 <th className="py-1.5 px-2 text-left font-semibold">Name</th>
@@ -614,46 +614,46 @@ function SaleCompsSection({ pursuitId }: { pursuitId: string }) {
                                 return (
                                     <tr key={c.id} className="block md:table-row bg-[var(--bg-card)] md:bg-transparent border border-[var(--border)] md:border-b md:border-x-0 md:border-t-0 last:border-b-0 hover:bg-[var(--bg-primary)] mb-3 md:mb-0 rounded-lg md:rounded-none overflow-hidden hover:shadow-sm md:hover:shadow-none">
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 font-medium text-[var(--accent)] border-b border-[var(--border)] md:border-0 bg-[var(--bg-elevated)] md:bg-transparent">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Name</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Name</span>
                                             <Link href={`/comps/sales/${c.short_id || c.id}`} className="hover:underline">{c.name}</Link>
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Address</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Address</span>
                                             <span className="truncate max-w-[140px]">{c.address}{c.city ? `, ${c.city}` : ''}</span>
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Type</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Type</span>
                                             <span>{c.property_type || '—'}</span>
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-center text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Built</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Built</span>
                                             <span>{c.year_built ?? '—'}</span>
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-primary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Units</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Units</span>
                                             <span>{fmtNum(c.total_units)}</span>
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">SF</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">SF</span>
                                             <span>{fmtNum(c.total_sf)}</span>
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-center text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Sale Date</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Sale Date</span>
                                             <span>{fmtDate(tx?.sale_date)}</span>
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums font-medium text-[var(--text-primary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Sale Price</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Sale Price</span>
                                             <span>{fmtCur(tx?.sale_price)}</span>
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">$/Unit</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">$/Unit</span>
                                             {(() => {
                                                 const ppu = tx ? salePricePerUnit(tx, c) : null;
                                                 return <span title={ppu?.derived ? 'Calculated: sale price ÷ total units' : undefined}>{fmtCur(ppu?.value)}{ppu?.derived ? '*' : ''}</span>;
                                             })()}
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Cap Rate</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Cap Rate</span>
                                             <span>{tx?.cap_rate ? `${(tx.cap_rate * 100).toFixed(2)}%` : '—'}</span>
                                         </td>
                                         <td className="py-1.5 px-2 text-right md:text-center block md:table-cell">
@@ -683,33 +683,33 @@ function SaleCompsSection({ pursuitId }: { pursuitId: string }) {
                                     <tr className="block md:table-row bg-[var(--bg-elevated)] font-semibold border-t border-[var(--border)] mt-4 md:mt-0 rounded-lg md:rounded-none">
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 text-[var(--text-primary)] border-b border-[var(--border)] md:border-0">
                                             <span>Total / Avg</span>
-                                            <span className="md:hidden text-[var(--text-muted)] text-[10px]">{linkedComps.length} comps</span>
+                                            <span className="md:hidden text-[var(--text-muted)] text-[11px]">{linkedComps.length} comps</span>
                                         </td>
-                                        <td className="hidden md:table-cell py-1.5 px-2 text-[var(--text-muted)] text-[10px]">{linkedComps.length} comps</td>
+                                        <td className="hidden md:table-cell py-1.5 px-2 text-[var(--text-muted)] text-[11px]">{linkedComps.length} comps</td>
                                         <td className="hidden md:table-cell py-1.5 px-2"></td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-center tabular-nums text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Avg Built</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Avg Built</span>
                                             <span>{avgYearBuilt ?? '—'}</span>
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-primary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Units</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Units</span>
                                             <span>{fmtNum(totalUnits)}</span>
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">SF</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">SF</span>
                                             <span>{fmtNum(totalSf)}</span>
                                         </td>
                                         <td className="hidden md:table-cell py-1.5 px-2"></td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-primary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Avg Price</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Avg Price</span>
                                             <span>{fmtCur(avgPrice)}</span>
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Avg $/Unit</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Avg $/Unit</span>
                                             <span>{fmtCur(avgPpu)}</span>
                                         </td>
                                         <td className="flex justify-between items-center md:table-cell py-1.5 px-2 md:text-right tabular-nums text-[var(--text-secondary)] border-b border-[var(--border)] md:border-0">
-                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[10px] uppercase">Avg Cap</span>
+                                            <span className="md:hidden font-semibold text-[var(--text-muted)] text-[11px] uppercase">Avg Cap</span>
                                             <span>{avgCap ? `${(avgCap * 100).toFixed(2)}%` : '—'}</span>
                                         </td>
                                         <td className="hidden md:table-cell py-1.5 px-2"></td>
@@ -719,7 +719,7 @@ function SaleCompsSection({ pursuitId }: { pursuitId: string }) {
                         </tbody>
                     </table>
                     {linkedComps.some((c: SaleComp) => { const t = getLatestTx(c); return !!t && salePricePerUnit(t, c).derived; }) && (
-                        <p className="px-2 py-1.5 text-[10px] text-[var(--text-faint)]">* Calculated from sale price ÷ total units (no $/unit entered)</p>
+                        <p className="px-2 py-1.5 text-[11px] text-[var(--text-faint)]">* Calculated from sale price ÷ total units (no $/unit entered)</p>
                     )}
                 </div>
             )}

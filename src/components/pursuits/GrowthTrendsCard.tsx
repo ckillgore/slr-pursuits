@@ -73,8 +73,8 @@ export function GrowthTrendsCard({ pursuit }: GrowthTrendsCardProps) {
         <div className="card">
             <div className="flex flex-wrap items-center gap-1.5 mb-3">
                 <Activity className="w-3.5 h-3.5 text-[var(--success)]" />
-                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Growth Trends & Market Indicators</h3>
-                <span className="text-[9px] text-[var(--text-faint)] ml-auto">Census Block Group · ESRI via Regrid</span>
+                <h3 className="op-card-title">Growth Trends & Market Indicators</h3>
+                <span className="text-[11px] text-[var(--text-faint)] ml-auto">Census Block Group · ESRI via Regrid</span>
             </div>
 
             {/* Growth CAGR Grid */}
@@ -83,7 +83,7 @@ export function GrowthTrendsCard({ pursuit }: GrowthTrendsCardProps) {
                 <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--table-row-border)]">
                     <div className="flex items-center gap-1.5 mb-1">
                         <Users className="w-3 h-3 text-[var(--text-muted)]" />
-                        <span className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Pop. Growth (5yr)</span>
+                        <span className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Pop. Growth (5yr)</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <span className={`text-lg font-bold tabular-nums ${cagrColor(d.populationGrowthPast5)}`}>
@@ -91,14 +91,14 @@ export function GrowthTrendsCard({ pursuit }: GrowthTrendsCardProps) {
                         </span>
                         <CagrIcon val={d.populationGrowthPast5} />
                     </div>
-                    <span className="text-[9px] text-[var(--text-faint)]">CAGR (trailing)</span>
+                    <span className="text-[11px] text-[var(--text-faint)]">CAGR (trailing)</span>
                 </div>
 
                 {/* Population Growth Next 5 */}
                 <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--table-row-border)]">
                     <div className="flex items-center gap-1.5 mb-1">
                         <Users className="w-3 h-3 text-[var(--text-muted)]" />
-                        <span className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Pop. Forecast (5yr)</span>
+                        <span className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Pop. Forecast (5yr)</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <span className={`text-lg font-bold tabular-nums ${cagrColor(d.populationGrowthNext5)}`}>
@@ -106,14 +106,14 @@ export function GrowthTrendsCard({ pursuit }: GrowthTrendsCardProps) {
                         </span>
                         <CagrIcon val={d.populationGrowthNext5} />
                     </div>
-                    <span className="text-[9px] text-[var(--text-faint)]">CAGR (projected)</span>
+                    <span className="text-[11px] text-[var(--text-faint)]">CAGR (projected)</span>
                 </div>
 
                 {/* Housing Growth Past 5 */}
                 <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--table-row-border)]">
                     <div className="flex items-center gap-1.5 mb-1">
                         <Home className="w-3 h-3 text-[var(--text-muted)]" />
-                        <span className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Housing Growth (5yr)</span>
+                        <span className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Housing Growth (5yr)</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <span className={`text-lg font-bold tabular-nums ${cagrColor(d.housingGrowthPast5)}`}>
@@ -121,14 +121,14 @@ export function GrowthTrendsCard({ pursuit }: GrowthTrendsCardProps) {
                         </span>
                         <CagrIcon val={d.housingGrowthPast5} />
                     </div>
-                    <span className="text-[9px] text-[var(--text-faint)]">CAGR (trailing)</span>
+                    <span className="text-[11px] text-[var(--text-faint)]">CAGR (trailing)</span>
                 </div>
 
                 {/* Housing Growth Next 5 */}
                 <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--table-row-border)]">
                     <div className="flex items-center gap-1.5 mb-1">
                         <Home className="w-3 h-3 text-[var(--text-muted)]" />
-                        <span className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Housing Forecast (5yr)</span>
+                        <span className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Housing Forecast (5yr)</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <span className={`text-lg font-bold tabular-nums ${cagrColor(d.housingGrowthNext5)}`}>
@@ -136,14 +136,14 @@ export function GrowthTrendsCard({ pursuit }: GrowthTrendsCardProps) {
                         </span>
                         <CagrIcon val={d.housingGrowthNext5} />
                     </div>
-                    <span className="text-[9px] text-[var(--text-faint)]">CAGR (projected)</span>
+                    <span className="text-[11px] text-[var(--text-faint)]">CAGR (projected)</span>
                 </div>
 
                 {/* Income Growth Next 5 */}
                 <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--table-row-border)]">
                     <div className="flex items-center gap-1.5 mb-1">
                         <DollarSign className="w-3 h-3 text-[var(--text-muted)]" />
-                        <span className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Income Forecast (5yr)</span>
+                        <span className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Income Forecast (5yr)</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <span className={`text-lg font-bold tabular-nums ${cagrColor(d.householdIncomeGrowthNext5)}`}>
@@ -151,26 +151,26 @@ export function GrowthTrendsCard({ pursuit }: GrowthTrendsCardProps) {
                         </span>
                         <CagrIcon val={d.householdIncomeGrowthNext5} />
                     </div>
-                    <span className="text-[9px] text-[var(--text-faint)]">Median HH Income CAGR</span>
+                    <span className="text-[11px] text-[var(--text-faint)]">Median HH Income CAGR</span>
                 </div>
 
                 {/* Housing Affordability Index */}
                 <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--table-row-border)]">
                     <div className="flex items-center gap-1.5 mb-1">
                         <Activity className="w-3 h-3 text-[var(--text-muted)]" />
-                        <span className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Affordability Index</span>
+                        <span className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Affordability Index</span>
                     </div>
                     <div className="flex items-baseline gap-1.5">
                         <span className={`text-lg font-bold tabular-nums ${haiColor(d.housingAffordabilityIndex)}`}>
                             {fmt(d.housingAffordabilityIndex, 0)}
                         </span>
                         {d.housingAffordabilityIndex != null && (
-                            <span className={`text-[10px] font-medium ${haiColor(d.housingAffordabilityIndex)}`}>
+                            <span className={`text-[11px] font-medium ${haiColor(d.housingAffordabilityIndex)}`}>
                                 {haiLabel(d.housingAffordabilityIndex)}
                             </span>
                         )}
                     </div>
-                    <span className="text-[9px] text-[var(--text-faint)]">100 = balanced · &gt;100 = affordable</span>
+                    <span className="text-[11px] text-[var(--text-faint)]">100 = balanced · &gt;100 = affordable</span>
                 </div>
             </div>
 

@@ -66,14 +66,14 @@ export function PursuitCard({ pursuit, stages, onDelete }: PursuitCardProps) {
                 {/* Metrics */}
                 <div className="grid grid-cols-3 gap-3 mt-4 pt-3 border-t border-[var(--table-row-border)]">
                     <div>
-                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-medium">Units</div>
+                        <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-medium">Units</div>
                         <div className="flex items-center gap-1.5 mt-1">
                             <FileText className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                             <span className="text-sm font-semibold text-[var(--text-primary)]">{pursuit.primary_units ?? '—'}</span>
                         </div>
                     </div>
                     <div>
-                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-medium">YOC</div>
+                        <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-medium">YOC</div>
                         <div className="flex items-center gap-1.5 mt-1">
                             <TrendingUp className="w-3.5 h-3.5 text-[var(--success)]" />
                             <span className="text-sm font-bold text-[var(--success)]">
@@ -82,7 +82,7 @@ export function PursuitCard({ pursuit, stages, onDelete }: PursuitCardProps) {
                         </div>
                     </div>
                     <div>
-                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-medium">Updated</div>
+                        <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-medium">Updated</div>
                         <div className="flex items-center gap-1.5 mt-1">
                             <Calendar className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                             <span className="text-xs text-[var(--text-muted)]">

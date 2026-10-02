@@ -239,7 +239,7 @@ export function UnallocatedMappingDialog({
                                                             className="w-full bg-[var(--bg-primary)] border border-[var(--accent)] rounded-md px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none shadow-sm"
                                                         />
                                                         {newLabelMatches && (
-                                                            <p className="text-[10px] text-[var(--text-muted)] mt-1">
+                                                            <p className="text-[11px] text-[var(--text-muted)] mt-1">
                                                                 A line item named &ldquo;{newLabelMatches.label}&rdquo; already exists — the code will be added to it.
                                                             </p>
                                                         )}

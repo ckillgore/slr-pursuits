@@ -339,26 +339,26 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
         <div className="space-y-6 animate-fade-in">
             {/* GL Summary Top Level */}
             <div className="card p-5">
-                <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
+                <h3 className="op-card-title mb-3 flex items-center gap-2">
                     <DollarSign className="w-4 h-4 text-[var(--accent)]" />
                     Overall Pursuit Cost Summary
                 </h3>
                 {glData ? (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                         <div>
-                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Earnest Money</div>
+                            <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Earnest Money</div>
                             <div className="text-xl font-bold text-[var(--text-primary)]">{formatCurrency(glData.earnest_money)}</div>
                         </div>
                         <div>
-                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Gross WIP</div>
+                            <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Gross WIP</div>
                             <div className="text-xl font-bold text-[var(--text-primary)]">{formatCurrency(glData.wip)}</div>
                         </div>
                         <div>
-                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Contra WIP</div>
+                            <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Contra WIP</div>
                             <div className="text-xl font-bold text-[var(--danger)]">{formatCurrency(glData.wip_contra)}</div>
                         </div>
                         <div className="pt-2 md:pt-0 md:pl-6 md:border-l border-[var(--border)]">
-                            <div className="text-[10px] text-[var(--accent)] uppercase tracking-wider font-bold mb-1">Net Pursuit Cost</div>
+                            <div className="text-[11px] text-[var(--accent)] uppercase tracking-wider font-bold mb-1">Net Pursuit Cost</div>
                             <div className="text-2xl font-bold text-[var(--accent)]">{formatCurrency(glData.net_cost)}</div>
                         </div>
                     </div>
@@ -371,7 +371,7 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
             {sortedMatrixRows.length > 0 && (
                 <div className="card !p-0 overflow-hidden flex flex-col">
                     <div className="bg-[var(--bg-elevated)] border-b border-[var(--border)] px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                        <h3 className="op-card-title flex items-center gap-2">
                             <BarChart3 className="w-4 h-4 text-[var(--text-muted)]" />
                             Job Cost Rollup
                         </h3>
@@ -428,10 +428,10 @@ export function PursuitCostsTab({ pursuitId, unmappedPropertyCode, unmappedName 
             {/* Job Costs Detail */}
             <div className="card !p-0 overflow-hidden flex flex-col">
                 <div className="bg-[var(--bg-elevated)] border-b border-[var(--border)] px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                    <h3 className="op-card-title flex items-center gap-2">
                         <SlidersHorizontal className="w-4 h-4 text-[var(--text-muted)]" />
                         Job Cost Transactions
-                        <span className="text-[10px] bg-[var(--bg-card)] text-[var(--text-muted)] border border-[var(--border)] px-1.5 py-0.5 rounded-full ml-1">
+                        <span className="text-[11px] bg-[var(--bg-card)] text-[var(--text-muted)] border border-[var(--border)] px-1.5 py-0.5 rounded-full ml-1">
                             {processedTx.length}
                         </span>
                     </h3>

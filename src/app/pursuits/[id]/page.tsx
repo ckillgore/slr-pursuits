@@ -561,19 +561,19 @@ const handleCreateOnePager = async () => {
 
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6 mb-6 pt-4 border-t border-[var(--table-row-border)]">
                     <div>
-                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Site Area (SF)</div>
-                            <OptionalNumberInput value={pursuit.site_area_sf} onCommit={(val) => handleUpdatePursuit({ site_area_sf: val })} ariaLabel="Site area (SF)" className="text-lg font-semibold" />
+                            <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Site Area (SF)</div>
+                            <OptionalNumberInput value={pursuit.site_area_sf} onCommit={(val) => handleUpdatePursuit({ site_area_sf: val })} ariaLabel="Site area (SF)" className="text-base font-semibold text-[var(--text-primary)]" />
                         </div>
                         <div>
-                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Site Area (Acres)</div>
-                            <div className="text-lg font-semibold text-[var(--text-secondary)] px-1.5">{pursuit.site_area_sf > 0 ? formatNumber(pursuit.site_area_sf / SF_PER_ACRE, 2) : '—'}</div>
+                            <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Site Area (Acres)</div>
+                            <div className="text-base font-semibold text-[var(--text-primary)] px-1.5 py-0.5 tabular-nums">{pursuit.site_area_sf > 0 ? formatNumber(pursuit.site_area_sf / SF_PER_ACRE, 2) : '—'}</div>
                         </div>
                         <div>
-                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Region</div>
-                            <DebouncedTextInput value={pursuit.region || ''} onCommit={(v) => handleUpdatePursuit({ region: v })} placeholder="e.g., DFW" aria-label="Region"className="inline-input text-sm text-[var(--text-secondary)] w-full" style={{ textAlign: 'left' }} />
+                            <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Region</div>
+                            <DebouncedTextInput value={pursuit.region || ''} onCommit={(v) => handleUpdatePursuit({ region: v })} placeholder="e.g., DFW" aria-label="Region" className="inline-input text-base font-semibold text-[var(--text-primary)] w-full" style={{ textAlign: 'left' }} />
                         </div>
                         <div>
-                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Created</div>
+                            <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Created</div>
                             <input
                                 type="date"
                                 value={pursuit.created_at ? toLocalDateInput(pursuit.created_at) : ''}
@@ -583,12 +583,12 @@ const handleCreateOnePager = async () => {
                                     }
                                 }}
                                 aria-label="Created date"
-                                className="inline-input text-sm text-[var(--text-muted)] w-full cursor-pointer"
+                                className="inline-input quiet-date text-base font-semibold text-[var(--text-primary)] w-full cursor-pointer tabular-nums"
                                 style={{ textAlign: 'left' }}
                             />
                         </div>
                         <div>
-                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Stage Since</div>
+                            <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Stage Since</div>
                             <input
                                 type="date"
                                 value={pursuit.stage_changed_at ? toLocalDateInput(pursuit.stage_changed_at) : ''}
@@ -598,7 +598,7 @@ const handleCreateOnePager = async () => {
                                     }
                                 }}
                                 aria-label="In current stage since"
-                                className="inline-input text-sm text-[var(--text-muted)] w-full cursor-pointer"
+                                className="inline-input quiet-date text-base font-semibold text-[var(--text-primary)] w-full cursor-pointer tabular-nums"
                                 style={{ textAlign: 'left' }}
                             />
                         </div>
@@ -645,7 +645,7 @@ const handleCreateOnePager = async () => {
                                 >
                                     {t.label}
                                     {activeOnePagers > 0 && (
-                                        <span className="ml-1.5 text-[10px] bg-[var(--accent-subtle)] text-[var(--accent)] px-1.5 py-0.5 rounded-full font-medium">
+                                        <span className="ml-1.5 text-[11px] bg-[var(--accent-subtle)] text-[var(--accent)] px-1.5 py-0.5 rounded-full font-medium">
                                             {activeOnePagers}
                                         </span>
                                     )}
@@ -720,9 +720,9 @@ const handleCreateOnePager = async () => {
                                     >
                                         <div className="flex items-center gap-1.5 mb-3">
                                             <FileText className="w-3.5 h-3.5 text-[var(--accent)]" />
-                                            <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Primary Scenario</h3>
+                                            <h3 className="op-card-title">Primary Scenario</h3>
                                             {primaryOp && (
-                                                <span className="text-[9px] bg-[var(--warning-bg)] text-[var(--warning)] px-1.5 py-0.5 rounded-full font-medium ml-auto truncate max-w-[60%]">
+                                                <span className="text-[11px] bg-[var(--warning-bg)] text-[var(--warning)] px-1.5 py-0.5 rounded-full font-medium ml-auto truncate max-w-[60%]">
                                                     <Star className="w-2.5 h-2.5 inline fill-current -mt-px" /> {primaryOp.name}
                                                 </span>
                                             )}
@@ -741,23 +741,23 @@ const handleCreateOnePager = async () => {
                                         ) : primaryOp ? (
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div>
-                                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Units</div>
+                                                    <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Units</div>
                                                     <div className="text-xl font-bold text-[var(--text-primary)]">{primaryOp.total_units || '—'}</div>
                                                 </div>
                                                 <div>
-                                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">YOC</div>
+                                                    <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">YOC</div>
                                                     <div className="text-xl font-bold text-[var(--success)]">{primaryOp.calc_yoc ? `${(primaryOp.calc_yoc * 100).toFixed(2)}%` : '—'}</div>
                                                 </div>
                                                 <div>
-                                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Total Budget</div>
+                                                    <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Total Budget</div>
                                                     <div className="text-sm font-semibold text-[var(--text-primary)]">{primaryOp.calc_total_budget ? formatCurrency(primaryOp.calc_total_budget, 0) : '—'}</div>
                                                 </div>
                                                 <div>
-                                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">NOI</div>
+                                                    <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">NOI</div>
                                                     <div className="text-sm font-semibold text-[var(--text-primary)]">{primaryOp.calc_noi ? formatCurrency(primaryOp.calc_noi, 0) : '—'}</div>
                                                 </div>
                                                 <div className="col-span-2 pt-2 border-t border-[var(--table-row-border)]">
-                                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Cost / Unit</div>
+                                                    <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Cost / Unit</div>
                                                     <div className="text-sm font-semibold text-[var(--text-primary)]">{primaryOp.calc_cost_per_unit ? formatCurrency(primaryOp.calc_cost_per_unit, 0) : '—'}</div>
                                                 </div>
                                             </div>
@@ -778,9 +778,9 @@ const handleCreateOnePager = async () => {
                                     <div className="card">
                                         <div className="flex items-center gap-1.5 mb-3">
                                             <DollarSign className="w-3.5 h-3.5 text-[var(--success)]" />
-                                            <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Pre-Dev Budget</h3>
+                                            <h3 className="op-card-title">Pre-Dev Budget</h3>
                                             {predevSummary && budgetItems.length > 0 && (
-                                                <button onClick={() => selectTab('predev')} className="ml-auto text-[10px] text-[var(--accent)] hover:underline">
+                                                <button onClick={() => selectTab('predev')} className="ml-auto text-[11px] text-[var(--accent)] hover:underline">
                                                     View budget →
                                                 </button>
                                             )}
@@ -789,13 +789,13 @@ const handleCreateOnePager = async () => {
                                             <div className="space-y-3">
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <div>
-                                                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold" title={predevSummary.hasSnapshot ? 'Snapshotted original budget' : 'No snapshot yet — current projected values'}>
+                                                        <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold" title={predevSummary.hasSnapshot ? 'Snapshotted original budget' : 'No snapshot yet — current projected values'}>
                                                             {predevSummary.hasSnapshot ? 'Original Budget' : 'Budget (draft)'}
                                                         </div>
                                                         <div className="text-xl font-bold text-[var(--text-primary)]">{formatCurrency(predevSummary.totalBudget, 0)}</div>
                                                     </div>
                                                     <div>
-                                                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold" title="Yardi actuals for closed months plus the remaining projection">Forecast</div>
+                                                        <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold" title="Yardi actuals for closed months plus the remaining projection">Forecast</div>
                                                         <div className="text-xl font-bold text-[var(--accent)]">
                                                             {predevYardi.isLoading
                                                                 ? <span className="inline-flex items-center gap-1 text-sm font-normal text-[var(--text-faint)]"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…</span>
@@ -804,17 +804,17 @@ const handleCreateOnePager = async () => {
                                                     </div>
                                                 </div>
                                                 <div className="pt-2 border-t border-[var(--table-row-border)]">
-                                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Forecast vs Budget</div>
+                                                    <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Forecast vs Budget</div>
                                                     {predevYardi.isLoading ? (
                                                         <div className="text-xs text-[var(--text-faint)]">Waiting for Yardi actuals…</div>
                                                     ) : (
                                                         <div className={`text-sm font-semibold flex items-center gap-1 ${predevSummary.totalVariance > 0 ? 'text-[var(--danger)]' : 'text-[var(--success)]'}`}>
                                                             {predevSummary.totalVariance > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                                                             {formatCurrency(Math.abs(predevSummary.totalVariance), 0)}
-                                                            <span className="text-[10px] font-normal text-[var(--text-muted)] ml-1">{predevSummary.totalVariance > 0 ? 'over' : 'under'}</span>
+                                                            <span className="text-[11px] font-normal text-[var(--text-muted)] ml-1">{predevSummary.totalVariance > 0 ? 'over' : 'under'}</span>
                                                         </div>
                                                     )}
-                                                    <div className="text-[10px] text-[var(--text-faint)] mt-1">
+                                                    <div className="text-[11px] text-[var(--text-faint)] mt-1">
                                                         {predevYardi.isError
                                                             ? 'Yardi actuals unavailable — forecast uses entered values only'
                                                             : !predevYardi.isLoading && predevSummary.yardiTotal > 0
@@ -840,9 +840,9 @@ const handleCreateOnePager = async () => {
                                     <div className="card">
                                         <div className="flex items-center gap-1.5 mb-3">
                                             <Calendar className="w-3.5 h-3.5 text-[var(--accent)]" />
-                                            <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Key Dates</h3>
+                                            <h3 className="op-card-title">Key Dates</h3>
                                             {overdueDates.length > 0 && (
-                                                <span className="text-[9px] bg-[var(--danger)]/10 text-[var(--danger)] px-1.5 py-0.5 rounded-full font-medium ml-auto">
+                                                <span className="text-[11px] bg-[var(--danger)]/10 text-[var(--danger)] px-1.5 py-0.5 rounded-full font-medium ml-auto">
                                                     {overdueDates.length} overdue
                                                 </span>
                                             )}
@@ -851,7 +851,7 @@ const handleCreateOnePager = async () => {
                                             <div className="space-y-3">
                                                 {nextDate ? (
                                                     <div>
-                                                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Next Upcoming</div>
+                                                        <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Next Upcoming</div>
                                                         <div className="text-sm font-semibold text-[var(--text-primary)] mt-0.5">
                                                             {nextDate.key_date_type?.name || nextDate.custom_label || 'Date'}
                                                         </div>
@@ -860,24 +860,24 @@ const handleCreateOnePager = async () => {
                                                             <span className="text-xs text-[var(--text-secondary)]">
                                                                 {parseLocalDate(nextDate.date_value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                                             </span>
-                                                            <span className="text-[10px] text-[var(--text-muted)]">
+                                                            <span className="text-[11px] text-[var(--text-muted)]">
                                                                 ({Math.round((parseLocalDate(nextDate.date_value).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))} days)
                                                             </span>
                                                         </div>
                                                     </div>
                                                 ) : (
                                                     <div>
-                                                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Next Upcoming</div>
+                                                        <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Next Upcoming</div>
                                                         <div className="text-xs text-[var(--text-muted)] mt-0.5">No upcoming dates</div>
                                                     </div>
                                                 )}
                                                 <div className="grid grid-cols-2 gap-3 pt-2 border-t border-[var(--table-row-border)]">
                                                     <div>
-                                                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Total Dates</div>
+                                                        <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Total Dates</div>
                                                         <div className="text-sm font-semibold text-[var(--text-primary)]">{keyDates.length}</div>
                                                     </div>
                                                     <div>
-                                                        <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Completed</div>
+                                                        <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Completed</div>
                                                         <div className="text-sm font-semibold text-[var(--success)]">{keyDates.filter(kd => kd.status === 'completed').length}</div>
                                                     </div>
                                                 </div>
@@ -901,7 +901,7 @@ const handleCreateOnePager = async () => {
                         {/* Location + Notes side by side */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
                             <div className="card">
-                                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Pursuit Notes</h3>
+                                <h3 className="op-card-title mb-3">Pursuit Notes</h3>
                                 <RichTextEditor
                                     content={pursuit.exec_summary}
                                     onChange={(json) => handleUpdatePursuit({ exec_summary: json })}
@@ -917,9 +917,9 @@ const handleCreateOnePager = async () => {
                             <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-center gap-1.5">
                                     <Sparkles className="w-3.5 h-3.5 text-[#8B5CF6]" />
-                                    <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">AI Site Assessment</h3>
+                                    <h3 className="op-card-title">AI Site Assessment</h3>
                                     {onePagers.length > 0 && (
-                                        <span className="text-[9px] bg-[#8B5CF6]/10 text-[#8B5CF6] px-1.5 py-0.5 rounded-full font-medium">
+                                        <span className="text-[11px] bg-[#8B5CF6]/10 text-[#8B5CF6] px-1.5 py-0.5 rounded-full font-medium">
                                             {onePagers.length} scenario{onePagers.length !== 1 ? 's' : ''} included
                                         </span>
                                     )}
@@ -928,7 +928,7 @@ const handleCreateOnePager = async () => {
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={generateSummary}
-                                            className="flex items-center gap-1 text-[10px] text-[#8B5CF6] hover:text-[#7C3AED] font-medium transition-colors"
+                                            className="flex items-center gap-1 text-[11px] text-[#8B5CF6] hover:text-[#7C3AED] font-medium transition-colors"
                                         >
                                             <RefreshCw className="w-3 h-3" /> Regenerate
                                         </button>
@@ -944,7 +944,7 @@ const handleCreateOnePager = async () => {
                                                     },
                                                 } as any);
                                             }}
-                                            className="flex items-center gap-1 text-[10px] text-[var(--text-faint)] hover:text-[var(--danger)] font-medium transition-colors"
+                                            className="flex items-center gap-1 text-[11px] text-[var(--text-faint)] hover:text-[var(--danger)] font-medium transition-colors"
                                         >
                                             <X className="w-3 h-3" /> Clear
                                         </button>
@@ -961,7 +961,7 @@ const handleCreateOnePager = async () => {
                                 <div className="flex items-center gap-2 py-4 text-sm text-[var(--danger)]" role="alert">
                                     <AlertCircle className="w-4 h-4" />
                                     <span>{aiError}</span>
-                                    <button onClick={generateSummary} className="ml-auto text-[10px] text-[var(--accent)] hover:underline">Retry</button>
+                                    <button onClick={generateSummary} className="ml-auto text-[11px] text-[var(--accent)] hover:underline">Retry</button>
                                 </div>
                             ) : aiSummary ? (
                                 <div className="max-h-[500px] overflow-y-auto">
@@ -1053,7 +1053,7 @@ const handleCreateOnePager = async () => {
                                         <Sparkles className="w-4 h-4" />
                                         Generate Site Assessment
                                     </button>
-                                    <p className="text-[10px] text-[var(--text-faint)] mt-2">
+                                    <p className="text-[11px] text-[var(--text-faint)] mt-2">
                                         Powered by Gemini · Analyzes parcel, zoning, tax, FMR, demographics{onePagers.length > 0 ? ' & scenarios' : ''}
                                     </p>
                                 </div>
@@ -1121,20 +1121,20 @@ const handleCreateOnePager = async () => {
                                                             </h3>
                                                             {pt && <span className="text-xs text-[var(--text-muted)] mt-1 inline-block">{pt.name}</span>}
                                                             {gaps.length > 0 && (
-                                                                <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[var(--warning-bg)] text-[var(--warning)] inline-block" title="Left out of report averages and best-yield comparisons until complete">
+                                                                <span className="ml-2 text-[11px] font-semibold px-1.5 py-0.5 rounded bg-[var(--warning-bg)] text-[var(--warning)] inline-block" title="Left out of report averages and best-yield comparisons until complete">
                                                                     Incomplete · no {gaps.join(', ')}
                                                                 </span>
                                                             )}
                                                         </div>
                                                         <div className="text-right">
-                                                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-medium">YOC</div>
+                                                            <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-medium">YOC</div>
                                                             <div className="text-lg font-bold text-[var(--success)]">{op.calc_yoc ? `${(op.calc_yoc * 100).toFixed(2)}%` : '—'}</div>
                                                         </div>
                                                     </div>
                                                     <div className="grid grid-cols-3 gap-3 mt-4 pt-3 border-t border-[var(--table-row-border)]">
-                                                        <div><div className="text-[10px] text-[var(--text-faint)] font-medium uppercase">Units</div><div className="text-sm font-semibold text-[var(--text-primary)]">{op.total_units || '—'}</div></div>
-                                                        <div><div className="text-[10px] text-[var(--text-faint)] font-medium uppercase">Budget</div><div className="text-sm font-semibold text-[var(--text-primary)]">{op.calc_total_budget ? formatCurrency(op.calc_total_budget, 0) : '—'}</div></div>
-                                                        <div><div className="text-[10px] text-[var(--text-faint)] font-medium uppercase">NOI</div><div className="text-sm font-semibold text-[var(--text-primary)]">{op.calc_noi ? formatCurrency(op.calc_noi, 0) : '—'}</div></div>
+                                                        <div><div className="text-[11px] text-[var(--text-faint)] font-medium uppercase">Units</div><div className="text-sm font-semibold text-[var(--text-primary)]">{op.total_units || '—'}</div></div>
+                                                        <div><div className="text-[11px] text-[var(--text-faint)] font-medium uppercase">Budget</div><div className="text-sm font-semibold text-[var(--text-primary)]">{op.calc_total_budget ? formatCurrency(op.calc_total_budget, 0) : '—'}</div></div>
+                                                        <div><div className="text-[11px] text-[var(--text-faint)] font-medium uppercase">NOI</div><div className="text-sm font-semibold text-[var(--text-primary)]">{op.calc_noi ? formatCurrency(op.calc_noi, 0) : '—'}</div></div>
                                                     </div>
                                                 </div>
                                             </Link>
@@ -1326,7 +1326,7 @@ const handleCreateOnePager = async () => {
                                             {matchingTemplates.map((t) => <option key={t.id} value={t.id}>{t.name}{t.region ? ` (${t.region})` : ''}</option>)}
                                         </select>
                                         {selectedTemplateId && (
-                                            <p className="text-[10px] text-[var(--text-muted)] mt-1">Template defaults will be applied to the new one-pager.</p>
+                                            <p className="text-[11px] text-[var(--text-muted)] mt-1">Template defaults will be applied to the new one-pager.</p>
                                         )}
                                     </div>
                                 )}

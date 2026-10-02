@@ -205,6 +205,12 @@ interface PublicInfoTabProps {
 
 // ======================== Helpers ========================
 
+/** County records come in as "dallas" or "DALLAS"; show "Dallas" */
+function titleCase(v: string | null | undefined): string | null {
+    if (!v) return null;
+    return v.toLowerCase().replace(/(^|[\s-])([a-z])/g, (_m: string, sep: string, c: string) => sep + c.toUpperCase());
+}
+
 function formatCurrency(val: number | null): string {
     if (val === null || val === undefined) return '—';
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
@@ -258,11 +264,11 @@ function InfoRow({ label, value, icon: Icon, highlight, subtext }: {
         <div className="flex items-start gap-3 py-2 border-b border-[var(--bg-elevated)] last:border-0">
             {Icon && <Icon className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${highlight ? 'text-[var(--accent)]' : 'text-[var(--text-faint)]'}`} />}
             <div className="flex-1 min-w-0">
-                <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">{label}</div>
+                <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">{label}</div>
                 <div className={`text-sm ${highlight ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'} ${displayValue.length > 60 ? 'text-xs leading-relaxed' : ''}`}>
                     {displayValue}
                 </div>
-                {subtext && <div className="text-[10px] text-[var(--text-faint)] mt-0.5">{subtext}</div>}
+                {subtext && <div className="text-[11px] text-[var(--text-faint)] mt-0.5">{subtext}</div>}
             </div>
         </div>
     );
@@ -273,9 +279,9 @@ function InfoRow({ label, value, icon: Icon, highlight, subtext }: {
 function StatPill({ label, value, sub }: { label: string; value: string; sub?: string }) {
     return (
         <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-center">
-            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-0.5">{label}</div>
+            <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-0.5">{label}</div>
             <div className="text-base font-bold text-[var(--text-primary)]">{value}</div>
-            {sub && <div className="text-[10px] text-[var(--text-muted)]">{sub}</div>}
+            {sub && <div className="text-[11px] text-[var(--text-muted)]">{sub}</div>}
         </div>
     );
 }
@@ -600,7 +606,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
             <div className="card">
                 <div className="flex items-center gap-2 mb-3">
                     <Building2 className="w-4 h-4 text-[var(--text-faint)]" />
-                    <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Public Information</h3>
+                    <h3 className="op-card-title">Public Information</h3>
                 </div>
                 <div className="flex items-center justify-center py-12 text-center">
                     <div>
@@ -618,7 +624,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Building2 className="w-4 h-4 text-[#F59E0B]" />
-                    <h2 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider">Public Parcel Information</h2>
+                    <h2 className="text-lg font-semibold text-[var(--text-primary)]">Public Parcel Information</h2>
                 </div>
                 <button
                     onClick={fetchParcel}
@@ -719,7 +725,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                 buildings={buildings}
                             />
                             {parcel.geometry && (
-                                <p className="text-[10px] text-[var(--text-faint)] mt-1.5 text-center">
+                                <p className="text-[11px] text-[var(--text-faint)] mt-1.5 text-center">
                                     Parcel boundary for {parcel.details.address || pursuitName || 'location'} ·
                                     {parcel.details.parcelNumber && ` Parcel #${parcel.details.parcelNumber}`}
                                     {parcel.dataDate && ` · Updated ${parcel.dataDate}`}
@@ -731,11 +737,11 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                         <div className="card max-h-[460px] overflow-y-auto">
                             <div className="flex items-center gap-1.5 mb-3">
                                 <Home className="w-3.5 h-3.5 text-[#F59E0B]" />
-                                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Property Details</h3>
+                                <h3 className="op-card-title">Property Details</h3>
                             </div>
                             <InfoRow label="Address" value={parcel.details.address} icon={MapPin} highlight />
-                            <InfoRow label="City / State / ZIP" value={[parcel.details.city, parcel.details.state, parcel.details.zip].filter(Boolean).join(', ') || null} />
-                            <InfoRow label="County" value={parcel.details.county} />
+                            <InfoRow label="City / State / ZIP" value={[titleCase(parcel.details.city), parcel.details.state, parcel.details.zip].filter(Boolean).join(', ') || null} />
+                            <InfoRow label="County" value={titleCase(parcel.details.county)} />
                             <InfoRow label="Parcel #" value={parcel.details.parcelNumber} icon={FileText} highlight />
                             <InfoRow
                                 label={assemblage.length > 0 ? 'Lot Size (combined)' : 'Lot Size'}
@@ -770,18 +776,18 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                             <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-center gap-1.5">
                                     <Layers className="w-3.5 h-3.5 text-[#8B5CF6]" />
-                                    <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Zoning & Development</h3>
+                                    <h3 className="op-card-title">Zoning & Development</h3>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     {parcel.zoning.zoningCodeLink && (
                                         <a href={parcel.zoning.zoningCodeLink} target="_blank" rel="noopener noreferrer"
-                                            className="flex items-center gap-1 text-[10px] text-[var(--accent)] hover:underline">
+                                            className="flex items-center gap-1 text-[11px] text-[var(--accent)] hover:underline">
                                             View Code <ExternalLink className="w-2.5 h-2.5" />
                                         </a>
                                     )}
                                     <button
                                         onClick={() => setShowZoningModal(true)}
-                                        className="flex items-center gap-1 text-[10px] text-[#8B5CF6] hover:text-[#7C3AED] font-medium transition-colors"
+                                        className="flex items-center gap-1 text-[11px] text-[#8B5CF6] hover:text-[#7C3AED] font-medium transition-colors"
                                     >
                                         <Info className="w-2.5 h-2.5" /> Details
                                     </button>
@@ -806,29 +812,29 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     {/* Development Standards */}
                                     {(parcel.zoning.maxBuildingHeightFt || parcel.zoning.maxFAR || parcel.zoning.maxDensityPerAcre) && (
                                         <div className="mt-3 p-2.5 rounded-lg bg-[#8B5CF6]/5 border border-[#8B5CF6]/15">
-                                            <div className="text-[10px] text-[#8B5CF6] uppercase tracking-wider font-semibold mb-2">Development Standards</div>
+                                            <div className="text-[11px] text-[#8B5CF6] uppercase tracking-wider font-semibold mb-2">Development Standards</div>
                                             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                                                 {parcel.zoning.maxBuildingHeightFt && (
                                                     <div>
-                                                        <div className="text-[10px] text-[var(--text-muted)]">Max Height</div>
+                                                        <div className="text-[11px] text-[var(--text-muted)]">Max Height</div>
                                                         <div className="text-sm font-semibold text-[var(--text-primary)]">{parcel.zoning.maxBuildingHeightFt} ft</div>
                                                     </div>
                                                 )}
                                                 {parcel.zoning.maxFAR && (
                                                     <div>
-                                                        <div className="text-[10px] text-[var(--text-muted)]">Max FAR</div>
+                                                        <div className="text-[11px] text-[var(--text-muted)]">Max FAR</div>
                                                         <div className="text-sm font-semibold text-[var(--text-primary)]">{parcel.zoning.maxFAR}</div>
                                                     </div>
                                                 )}
                                                 {parcel.zoning.maxDensityPerAcre && (
                                                     <div>
-                                                        <div className="text-[10px] text-[var(--text-muted)]">Max Density</div>
+                                                        <div className="text-[11px] text-[var(--text-muted)]">Max Density</div>
                                                         <div className="text-sm font-semibold text-[var(--text-primary)]">{parcel.zoning.maxDensityPerAcre} DU/ac</div>
                                                     </div>
                                                 )}
                                                 {parcel.zoning.maxCoveragePct && (
                                                     <div>
-                                                        <div className="text-[10px] text-[var(--text-muted)]">Max Coverage</div>
+                                                        <div className="text-[11px] text-[var(--text-muted)]">Max Coverage</div>
                                                         <div className="text-sm font-semibold text-[var(--text-primary)]">{parcel.zoning.maxCoveragePct}%</div>
                                                     </div>
                                                 )}
@@ -839,18 +845,18 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     {/* Setbacks */}
                                     {(parcel.zoning.minFrontSetbackFt || parcel.zoning.minRearSetbackFt || parcel.zoning.minSideSetbackFt) && (
                                         <div className="mt-2 p-2.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--table-row-border)]">
-                                            <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-semibold mb-1.5">Setbacks</div>
+                                            <div className="text-[11px] text-[var(--text-muted)] uppercase tracking-wider font-semibold mb-1.5">Setbacks</div>
                                             <div className="grid grid-cols-3 gap-2 text-center">
                                                 <div>
-                                                    <div className="text-[10px] text-[var(--text-faint)]">Front</div>
+                                                    <div className="text-[11px] text-[var(--text-faint)]">Front</div>
                                                     <div className="text-xs font-semibold text-[var(--text-secondary)]">{parcel.zoning.minFrontSetbackFt ? `${parcel.zoning.minFrontSetbackFt} ft` : '—'}</div>
                                                 </div>
                                                 <div>
-                                                    <div className="text-[10px] text-[var(--text-faint)]">Side</div>
+                                                    <div className="text-[11px] text-[var(--text-faint)]">Side</div>
                                                     <div className="text-xs font-semibold text-[var(--text-secondary)]">{parcel.zoning.minSideSetbackFt ? `${parcel.zoning.minSideSetbackFt} ft` : '—'}</div>
                                                 </div>
                                                 <div>
-                                                    <div className="text-[10px] text-[var(--text-faint)]">Rear</div>
+                                                    <div className="text-[11px] text-[var(--text-faint)]">Rear</div>
                                                     <div className="text-xs font-semibold text-[var(--text-secondary)]">{parcel.zoning.minRearSetbackFt ? `${parcel.zoning.minRearSetbackFt} ft` : '—'}</div>
                                                 </div>
                                             </div>
@@ -860,15 +866,15 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     {/* Permitted Uses — compact summary */}
                                     {parcel.zoning.permittedUses && parcel.zoning.permittedUses.length > 0 && (
                                         <div className="mt-2">
-                                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Permitted Uses</div>
+                                            <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Permitted Uses</div>
                                             <div className="flex flex-wrap gap-1">
                                                 {parcel.zoning.permittedUses.slice(0, 6).map((use, i) => (
-                                                    <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] capitalize">{use}</span>
+                                                    <span key={i} className="text-[11px] px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] capitalize">{use}</span>
                                                 ))}
                                                 {parcel.zoning.permittedUses.length > 6 && (
                                                     <button
                                                         onClick={() => setShowZoningModal(true)}
-                                                        className="text-[10px] px-1.5 py-0.5 text-[#8B5CF6] hover:text-[#7C3AED] font-medium transition-colors"
+                                                        className="text-[11px] px-1.5 py-0.5 text-[#8B5CF6] hover:text-[#7C3AED] font-medium transition-colors"
                                                     >
                                                         +{parcel.zoning.permittedUses.length - 6} more →
                                                     </button>
@@ -878,7 +884,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     )}
 
                                     <div className="mt-3 p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--table-row-border)]">
-                                        <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
+                                        <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
                                             Zoning data sourced from local jurisdiction records. Always verify with the local planning department before making development decisions.
                                         </p>
                                     </div>
@@ -888,7 +894,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     <div>
                                         <Layers className="w-5 h-5 text-[var(--border-strong)] mx-auto mb-2" />
                                         <p className="text-xs text-[var(--text-faint)]">No zoning data available</p>
-                                        <p className="text-[10px] text-[var(--border-strong)] mt-1">Check local planning department</p>
+                                        <p className="text-[11px] text-[var(--border-strong)] mt-1">Check local planning department</p>
                                     </div>
                                 </div>
                             )}
@@ -919,7 +925,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     {/* Raw Description */}
                                     {parcel.zoning.rawDescription && (
                                         <div className="mb-4">
-                                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Raw Zoning Description (Local Source)</div>
+                                            <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Raw Zoning Description (Local Source)</div>
                                             <p className="text-sm text-[var(--text-secondary)] leading-relaxed bg-[var(--bg-primary)] border border-[var(--table-row-border)] rounded-lg p-3">{parcel.zoning.rawDescription}</p>
                                         </div>
                                     )}
@@ -927,7 +933,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     {/* Standardized Description */}
                                     {parcel.zoning.description && (
                                         <div className="mb-4">
-                                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Standardized Description</div>
+                                            <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Standardized Description</div>
                                             <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{parcel.zoning.description}</p>
                                         </div>
                                     )}
@@ -935,10 +941,10 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     {/* Permitted Uses — full list */}
                                     {parcel.zoning.permittedUses && parcel.zoning.permittedUses.length > 0 && (
                                         <div className="mb-4">
-                                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1.5">Permitted Uses ({parcel.zoning.permittedUses.length})</div>
+                                            <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1.5">Permitted Uses ({parcel.zoning.permittedUses.length})</div>
                                             <div className="flex flex-wrap gap-1">
                                                 {parcel.zoning.permittedUses.map((use, i) => (
-                                                    <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] capitalize">{use}</span>
+                                                    <span key={i} className="text-[11px] px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] capitalize">{use}</span>
                                                 ))}
                                             </div>
                                         </div>
@@ -947,10 +953,10 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     {/* Conditional / Special Permitted Uses */}
                                     {parcel.zoning.conditionalUses && parcel.zoning.conditionalUses.length > 0 && (
                                         <div className="mb-4">
-                                            <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1.5">Conditional / Special Uses ({parcel.zoning.conditionalUses.length})</div>
+                                            <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1.5">Conditional / Special Uses ({parcel.zoning.conditionalUses.length})</div>
                                             <div className="flex flex-wrap gap-1">
                                                 {parcel.zoning.conditionalUses.map((use, i) => (
-                                                    <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--warning-bg)] text-[var(--warning)] capitalize">{use}</span>
+                                                    <span key={i} className="text-[11px] px-1.5 py-0.5 rounded bg-[var(--warning-bg)] text-[var(--warning)] capitalize">{use}</span>
                                                 ))}
                                             </div>
                                         </div>
@@ -982,7 +988,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
 
                                     {/* Disclaimer */}
                                     <div className="mt-4 p-2.5 rounded-md bg-[var(--bg-primary)] border border-[var(--table-row-border)]">
-                                        <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
+                                        <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
                                             Zoning data sourced from local jurisdiction records via Zoneomics. Always verify with the local planning department before making development decisions.
                                         </p>
                                     </div>
@@ -994,28 +1000,28 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                         <div className="card">
                             <div className="flex items-center gap-1.5 mb-3">
                                 <DollarSign className="w-3.5 h-3.5 text-[var(--success)]" />
-                                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Tax & Valuation</h3>
+                                <h3 className="op-card-title">Tax & Valuation</h3>
                             </div>
 
                             {/* Site-wide tax summary (if multiple records) */}
                             {taxSummary && (taxSummary.realPropertyCount > 1 || taxSummary.personalPropertyCount > 0) && (
                                 <div className="mb-3 p-2.5 rounded-lg bg-[var(--success)]/5 border border-[var(--success)]/15">
-                                    <div className="text-[10px] text-[var(--success)] uppercase tracking-wider font-semibold mb-1.5">Site-Wide Total ({taxSummary.realPropertyCount} real property + {taxSummary.personalPropertyCount} BPP records)</div>
+                                    <div className="text-[11px] text-[var(--success)] uppercase tracking-wider font-semibold mb-1.5">Site-Wide Total ({taxSummary.realPropertyCount} real property + {taxSummary.personalPropertyCount} BPP records)</div>
                                     <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                                         <div>
-                                            <div className="text-[10px] text-[var(--text-muted)]">Total Real Property</div>
+                                            <div className="text-[11px] text-[var(--text-muted)]">Total Real Property</div>
                                             <div className="text-sm font-bold text-[var(--text-primary)]">{formatCurrency(taxSummary.totalRealPropertyValue)}</div>
                                         </div>
                                         <div>
-                                            <div className="text-[10px] text-[var(--text-muted)]">Total Personal Property</div>
+                                            <div className="text-[11px] text-[var(--text-muted)]">Total Personal Property</div>
                                             <div className="text-sm font-bold text-[var(--text-primary)]">{formatCurrency(taxSummary.totalPersonalPropertyValue)}</div>
                                         </div>
                                         <div>
-                                            <div className="text-[10px] text-[var(--text-muted)]">Land Value</div>
+                                            <div className="text-[11px] text-[var(--text-muted)]">Land Value</div>
                                             <div className="text-xs font-semibold text-[var(--text-secondary)]">{formatCurrency(taxSummary.totalLandValue)}</div>
                                         </div>
                                         <div>
-                                            <div className="text-[10px] text-[var(--text-muted)]">Improvements</div>
+                                            <div className="text-[11px] text-[var(--text-muted)]">Improvements</div>
                                             <div className="text-xs font-semibold text-[var(--text-secondary)]">{formatCurrency(taxSummary.totalImprovementValue)}</div>
                                         </div>
                                     </div>
@@ -1025,7 +1031,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                             {/* Primary record details */}
                             {parcel.tax.totalValue || parcel.tax.taxAmount ? (
                                 <>
-                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">
+                                    <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">
                                         Primary Record · {parcel.details.useCodeDescription || 'Real Property'}
                                     </div>
                                     <InfoRow
@@ -1081,22 +1087,22 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                         if (totalLand <= 0 || totalSF <= 0) return null;
                                         return (
                                             <div className="mt-3 p-2.5 rounded-lg bg-[var(--success)]/5 border border-[var(--success)]/15">
-                                                <div className="text-[10px] text-[var(--success)] uppercase tracking-wider font-semibold mb-1">
+                                                <div className="text-[11px] text-[var(--success)] uppercase tracking-wider font-semibold mb-1">
                                                     Computed Metrics{assemblage.length > 0 ? ' (combined)' : ''}
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-2">
                                                     <div>
-                                                        <div className="text-[10px] text-[var(--text-muted)]">Land $/SF</div>
+                                                        <div className="text-[11px] text-[var(--text-muted)]">Land $/SF</div>
                                                         <div className="text-sm font-semibold text-[var(--success)]">{formatCurrency(totalLand / totalSF)}</div>
                                                     </div>
                                                     <div>
-                                                        <div className="text-[10px] text-[var(--text-muted)]">Land $/Acre</div>
+                                                        <div className="text-[11px] text-[var(--text-muted)]">Land $/Acre</div>
                                                         <div className="text-sm font-semibold text-[var(--success)]">{totalAc > 0 ? formatCurrency(totalLand / totalAc) : '—'}</div>
                                                     </div>
                                                 </div>
                                                 {totalTax > 0 && totalVal > 0 && (
                                                     <div className="mt-1.5">
-                                                        <div className="text-[10px] text-[var(--text-muted)]">Effective Tax Rate</div>
+                                                        <div className="text-[11px] text-[var(--text-muted)]">Effective Tax Rate</div>
                                                         <div className="text-sm font-semibold text-[var(--success)]">{((totalTax / totalVal) * 100).toFixed(2)}%</div>
                                                     </div>
                                                 )}
@@ -1119,7 +1125,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     <button
                                         onClick={() => setShowAssociated(!showAssociated)}
                                         aria-expanded={showAssociated}
-                                        className="flex items-center gap-1 text-[10px] text-[var(--accent)] hover:text-[#1D4ED8] font-medium uppercase tracking-wider"
+                                        className="flex items-center gap-1 text-[11px] text-[var(--accent)] hover:text-[#1D4ED8] font-medium uppercase tracking-wider"
                                     >
                                         {showAssociated ? '▾' : '▸'} {associatedRecords.length} Associated Record{associatedRecords.length !== 1 ? 's' : ''}
                                     </button>
@@ -1128,7 +1134,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                             {associatedRecords.map((rec, i) => (
                                                 <div key={i} className="p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--table-row-border)]">
                                                     <div className="flex items-center justify-between mb-1">
-                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${rec.recordType === 'personal_property'
+                                                        <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${rec.recordType === 'personal_property'
                                                             ? 'bg-[var(--warning-bg)] text-[var(--warning)] border border-[var(--warning)]/30'
                                                             : 'bg-[var(--accent-subtle)] text-[var(--accent)] border border-[var(--accent)]/30'
                                                             }`}>
@@ -1137,11 +1143,11 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                                         <span className="text-xs font-semibold text-[var(--text-primary)]">{formatCurrency(rec.tax.totalValue)}</span>
                                                     </div>
                                                     <div className="text-[11px] text-[var(--text-secondary)] font-medium">{rec.owner.name}</div>
-                                                    <div className="text-[10px] text-[var(--text-faint)]">
+                                                    <div className="text-[11px] text-[var(--text-faint)]">
                                                         {rec.details.useCodeDescription} · #{rec.details.parcelNumber}
                                                     </div>
                                                     {rec.tax.landValue !== null && rec.tax.landValue > 0 && (
-                                                        <div className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                                                        <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
                                                             Land: {formatCurrency(rec.tax.landValue)} · Imp: {formatCurrency(rec.tax.improvementValue)}
                                                         </div>
                                                     )}
@@ -1157,7 +1163,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                         <div className="card">
                             <div className="flex items-center gap-1.5 mb-3">
                                 <User className="w-3.5 h-3.5 text-[#DC6B3F]" />
-                                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Ownership</h3>
+                                <h3 className="op-card-title">Ownership</h3>
                             </div>
                             {parcel.owner.name ? (
                                 <>
@@ -1188,7 +1194,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                             {/* Legal Description */}
                             {parcel.details.legalDescription && (
                                 <div className="mt-3 pt-3 border-t border-[var(--table-row-border)]">
-                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Legal Description</div>
+                                    <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1">Legal Description</div>
                                     <p className="text-[11px] text-[var(--text-muted)] leading-relaxed break-words">{parcel.details.legalDescription}</p>
                                 </div>
                             )}
@@ -1201,7 +1207,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                         <div className="card">
                             <div className="flex items-center gap-1.5 mb-3">
                                 <Shield className="w-3.5 h-3.5 text-[var(--accent)]" />
-                                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">FEMA Risk & Hazard</h3>
+                                <h3 className="op-card-title">FEMA Risk & Hazard</h3>
                             </div>
                             {parcel.details.femaNriRiskRating ? (
                                 <>
@@ -1217,7 +1223,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                         <InfoRow label="Flood Zone" value={`${parcel.details.femaFloodZone}${parcel.details.femaFloodZoneSubtype ? ` (${parcel.details.femaFloodZoneSubtype})` : ''}`} />
                                     )}
                                     <div className="mt-2 p-2 rounded-md bg-[var(--bg-primary)] border border-[var(--table-row-border)]">
-                                        <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
+                                        <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
                                             The FEMA NRI rates community risk based on expected annual loss from 18 natural hazards including flooding, hurricanes, earthquakes, and wildfires.
                                         </p>
                                     </div>
@@ -1236,24 +1242,24 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                         <div className="card">
                             <div className="flex items-center gap-1.5 mb-3">
                                 <Mountain className="w-3.5 h-3.5 text-[var(--success)]" />
-                                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Elevation & Buildings</h3>
+                                <h3 className="op-card-title">Elevation & Buildings</h3>
                             </div>
 
                             {/* Elevation */}
                             {(parcel.details.highestElevation || parcel.details.lowestElevation) ? (
                                 <div className="mb-3 p-2.5 rounded-lg bg-[var(--success)]/5 border border-[var(--success)]/15">
-                                    <div className="text-[10px] text-[var(--success)] uppercase tracking-wider font-semibold mb-1.5">Elevation (ft above sea level)</div>
+                                    <div className="text-[11px] text-[var(--success)] uppercase tracking-wider font-semibold mb-1.5">Elevation (ft above sea level)</div>
                                     <div className="grid grid-cols-3 gap-2 text-center">
                                         <div>
-                                            <div className="text-[10px] text-[var(--text-muted)]">Low</div>
+                                            <div className="text-[11px] text-[var(--text-muted)]">Low</div>
                                             <div className="text-sm font-semibold text-[var(--text-primary)]">{parcel.details.lowestElevation ? `${parcel.details.lowestElevation} ft` : '—'}</div>
                                         </div>
                                         <div>
-                                            <div className="text-[10px] text-[var(--text-muted)]">High</div>
+                                            <div className="text-[11px] text-[var(--text-muted)]">High</div>
                                             <div className="text-sm font-semibold text-[var(--text-primary)]">{parcel.details.highestElevation ? `${parcel.details.highestElevation} ft` : '—'}</div>
                                         </div>
                                         <div>
-                                            <div className="text-[10px] text-[var(--text-muted)]">Change</div>
+                                            <div className="text-[11px] text-[var(--text-muted)]">Change</div>
                                             <div className="text-sm font-semibold text-[var(--text-primary)]">
                                                 {parcel.details.highestElevation && parcel.details.lowestElevation
                                                     ? `${(parcel.details.highestElevation - parcel.details.lowestElevation).toFixed(1)} ft`
@@ -1267,14 +1273,14 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                             {/* Building footprint summary */}
                             {buildings.length > 0 && (
                                 <div>
-                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1.5">Building Footprints</div>
+                                    <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-1.5">Building Footprints</div>
                                     <div className="grid grid-cols-2 gap-2 mb-2">
                                         <div>
-                                            <div className="text-[10px] text-[var(--text-muted)]">Buildings</div>
+                                            <div className="text-[11px] text-[var(--text-muted)]">Buildings</div>
                                             <div className="text-sm font-semibold text-[var(--text-primary)]">{buildings.length}</div>
                                         </div>
                                         <div>
-                                            <div className="text-[10px] text-[var(--text-muted)]">Total Footprint</div>
+                                            <div className="text-[11px] text-[var(--text-muted)]">Total Footprint</div>
                                             <div className="text-sm font-semibold text-[var(--text-primary)]">{formatNumber(buildings.reduce((sum, b) => sum + b.footprintSF, 0))} SF</div>
                                         </div>
                                     </div>
@@ -1301,7 +1307,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                         <div className="card">
                             <div className="flex items-center gap-1.5 mb-3">
                                 <BadgeDollarSign className="w-3.5 h-3.5 text-[#7C3AED]" />
-                                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Opportunity Zone & Census</h3>
+                                <h3 className="op-card-title">Opportunity Zone & Census</h3>
                             </div>
 
                             {/* QOZ Status Badge */}
@@ -1355,7 +1361,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                         <div className="card">
                             <div className="flex items-center gap-1.5 mb-3">
                                 <Home className="w-3.5 h-3.5 text-[#0369A1]" />
-                                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">HUD Fair Market Rents</h3>
+                                <h3 className="op-card-title">HUD Fair Market Rents</h3>
                             </div>
                             {fmrLoading ? (
                                 <div className="flex items-center justify-center py-6">
@@ -1364,7 +1370,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                 </div>
                             ) : fmrData ? (
                                 <>
-                                    <div className="text-[10px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-2">
+                                    <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold mb-2">
                                         {fmrData.areaName} · FY {fmrData.year}
                                     </div>
 
@@ -1405,14 +1411,14 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     </div>
 
                                     <div className="mt-2 flex items-center justify-between">
-                                        <p className="text-[10px] text-[var(--text-faint)]">
+                                        <p className="text-[11px] text-[var(--text-faint)]">
                                             {fmrData.zipRents ? 'Small Area FMR (SAFMR) — ZIP-level' : 'Metro area level'}
                                         </p>
                                         <a
                                             href="https://www.huduser.gov/portal/datasets/fmr.html"
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="flex items-center gap-1 text-[10px] text-[var(--accent)] hover:text-[#1D4ED8] font-medium"
+                                            className="flex items-center gap-1 text-[11px] text-[var(--accent)] hover:text-[#1D4ED8] font-medium"
                                         >
                                             <ExternalLink className="w-2.5 h-2.5" /> HUD Data
                                         </a>
@@ -1423,7 +1429,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     <div>
                                         <Home className="w-5 h-5 text-[var(--border-strong)] mx-auto mb-2" />
                                         <p className="text-xs text-[var(--text-faint)]">No FMR data available</p>
-                                        <p className="text-[10px] text-[var(--text-faint)] mt-1">
+                                        <p className="text-[11px] text-[var(--text-faint)] mt-1">
                                             {parcel.details.zip ? `HUD returned no rents for ZIP ${parcel.details.zip}` : 'Parcel has no ZIP code to look up'}
                                         </p>
                                     </div>
@@ -1435,7 +1441,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                         <div className="card">
                             <div className="flex items-center gap-1.5 mb-3">
                                 <MapPin className="w-3.5 h-3.5 text-[#16A34A]" />
-                                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Walk Score</h3>
+                                <h3 className="op-card-title">Walk Score</h3>
                             </div>
                             {walkScoreUrl ? (
                                 <div className="flex flex-col items-center justify-center py-6">
@@ -1449,7 +1455,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                         View Walk Score, Transit Score & Bike Score
                                         <ExternalLink className="w-3.5 h-3.5" />
                                     </a>
-                                    <p className="text-[10px] text-[var(--text-faint)] mt-2">
+                                    <p className="text-[11px] text-[var(--text-faint)] mt-2">
                                         {parcel.details.address}{parcel.details.city ? `, ${parcel.details.city}` : ''}{parcel.details.state ? `, ${parcel.details.state}` : ''}
                                     </p>
                                 </div>
@@ -1461,7 +1467,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     </div>
                                 </div>
                             )}
-                            <div className="mt-1 text-[10px] text-[var(--border-strong)] text-center">
+                            <div className="mt-1 text-[11px] text-[var(--border-strong)] text-center">
                                 Powered by Walk Score®
                             </div>
                         </div>
@@ -1472,9 +1478,9 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-3">
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <Layers className="w-4 h-4 text-[#7C3AED]" />
-                                    <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Land Assemblage</h3>
+                                    <h3 className="op-card-title">Land Assemblage</h3>
                                     {assemblage.length > 0 && (
-                                        <span className="flex items-center gap-1 text-[10px] text-[var(--success)] bg-[var(--success)]/10 px-1.5 py-0.5 rounded-full font-medium">
+                                        <span className="flex items-center gap-1 text-[11px] text-[var(--success)] bg-[var(--success)]/10 px-1.5 py-0.5 rounded-full font-medium">
                                             <CheckCircle2 className="w-2.5 h-2.5" />
                                             {assemblage.length} parcel{assemblage.length !== 1 ? 's' : ''} selected
                                         </span>
@@ -1517,22 +1523,22 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                             {/* Assemblage Summary Banner */}
                             {assemblage.length > 0 && (
                                 <div className="bg-[#7C3AED]/5 border border-[#7C3AED]/20 rounded-lg p-3 mb-3">
-                                    <div className="text-[10px] font-bold text-[#7C3AED] uppercase tracking-wider mb-2">Assemblage Summary</div>
+                                    <div className="text-[11px] font-bold text-[#7C3AED] uppercase tracking-wider mb-2">Assemblage Summary</div>
                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                         <div>
-                                            <div className="text-[10px] text-[var(--text-muted)]">Parcels</div>
+                                            <div className="text-[11px] text-[var(--text-muted)]">Parcels</div>
                                             <div className="text-sm font-bold text-[var(--text-primary)]">{assemblage.length + 1}</div>
-                                            <div className="text-[9px] text-[var(--text-faint)]">incl. primary</div>
+                                            <div className="text-[11px] text-[var(--text-faint)]">incl. primary</div>
                                         </div>
                                         <div>
-                                            <div className="text-[10px] text-[var(--text-muted)]">Combined Site Area</div>
+                                            <div className="text-[11px] text-[var(--text-muted)]">Combined Site Area</div>
                                             <div className="text-sm font-bold text-[var(--text-primary)]">
                                                 {formatNumber(
                                                     (sfOf(parcel?.details?.lotSizeSF, parcel?.details?.lotSizeAcres) || siteAreaSF || 0) +
                                                     assemblage.reduce((s, p) => s + sfOf(p.lotSizeSF, p.lotSizeAcres), 0)
                                                 )} SF
                                             </div>
-                                            <div className="text-[9px] text-[var(--text-faint)]">
+                                            <div className="text-[11px] text-[var(--text-faint)]">
                                                 {((
                                                     (sfOf(parcel?.details?.lotSizeSF, parcel?.details?.lotSizeAcres) || siteAreaSF || 0) +
                                                     assemblage.reduce((s, p) => s + sfOf(p.lotSizeSF, p.lotSizeAcres), 0)
@@ -1540,7 +1546,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                             </div>
                                         </div>
                                         <div>
-                                            <div className="text-[10px] text-[var(--text-muted)]">Total Assessed Value</div>
+                                            <div className="text-[11px] text-[var(--text-muted)]">Total Assessed Value</div>
                                             <div className="text-sm font-bold text-[var(--text-primary)]">
                                                 {formatCurrency(
                                                     (parcel?.tax?.totalValue || 0) +
@@ -1549,7 +1555,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                             </div>
                                         </div>
                                         <div>
-                                            <div className="text-[10px] text-[var(--text-muted)]">Total Land Value</div>
+                                            <div className="text-[11px] text-[var(--text-muted)]">Total Land Value</div>
                                             <div className="text-sm font-bold text-[var(--text-primary)]">
                                                 {formatCurrency(
                                                     (parcel?.tax?.landValue || 0) +
@@ -1561,9 +1567,9 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
 
                                     {/* Selected parcel chips */}
                                     <div className="flex flex-wrap gap-1.5 mt-3 pt-2 border-t border-[#7C3AED]/10">
-                                        <div className="text-[10px] px-2 py-1 rounded-md bg-[var(--text-primary)] text-[var(--bg-card)] font-medium">Primary: {parcel?.details?.address || 'Current site'}</div>
+                                        <div className="text-[11px] px-2 py-1 rounded-md bg-[var(--text-primary)] text-[var(--bg-card)] font-medium">Primary: {parcel?.details?.address || 'Current site'}</div>
                                         {assemblage.map((ap) => (
-                                            <div key={parcelKey(ap)} className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-[#7C3AED]/10 text-[#7C3AED] font-medium">
+                                            <div key={parcelKey(ap)} className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md bg-[#7C3AED]/10 text-[#7C3AED] font-medium">
                                                 {ap.address || ap.parcelNumber || 'Unknown'}
                                                 <button
                                                     onClick={() => toggleAssemblage(ap)}
@@ -1581,7 +1587,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                             {/* Nearby parcel results — map + list */}
                             {showNearby && nearbyParcels.length > 0 && (
                                 <div>
-                                    <div className="text-[10px] text-[var(--text-faint)] mb-2">{nearbyParcels.length} nearby parcels found within {nearbySearchedRadius}m · Click parcels on the map or list to select</div>
+                                    <div className="text-[11px] text-[var(--text-faint)] mb-2">{nearbyParcels.length} nearby parcels found within {nearbySearchedRadius}m · Click parcels on the map or list to select</div>
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                                         {/* Interactive Map */}
                                         <AssemblageMap
@@ -1618,15 +1624,15 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                                                     {np.address || np.parcelNumber || 'Unknown Parcel'}
                                                                 </span>
                                                                 {np.parcelNumber && np.address && (
-                                                                    <span className="text-[10px] text-[var(--text-faint)] flex-shrink-0">APN: {np.parcelNumber}</span>
+                                                                    <span className="text-[11px] text-[var(--text-faint)] flex-shrink-0">APN: {np.parcelNumber}</span>
                                                                 )}
                                                             </div>
                                                             <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
-                                                                {np.ownerName && <span className="text-[10px] text-[var(--text-muted)]"><User className="w-2.5 h-2.5 inline mr-0.5" />{np.ownerName}</span>}
-                                                                {np.lotSizeSF != null && np.lotSizeSF > 0 && <span className="text-[10px] text-[var(--text-muted)]"><Ruler className="w-2.5 h-2.5 inline mr-0.5" />{formatNumber(np.lotSizeSF)} SF ({acOf(np.lotSizeSF, np.lotSizeAcres).toFixed(2)} ac)</span>}
-                                                                {np.totalAssessedValue != null && np.totalAssessedValue > 0 && <span className="text-[10px] text-[var(--text-muted)]"><DollarSign className="w-2.5 h-2.5 inline mr-0.5" />{formatCurrency(np.totalAssessedValue)}</span>}
-                                                                {np.landUse && <span className="text-[10px] text-[var(--text-muted)]"><FileText className="w-2.5 h-2.5 inline mr-0.5" />{np.landUse}</span>}
-                                                                {np.zoningCode && <span className="text-[10px] text-[var(--text-muted)]"><Shield className="w-2.5 h-2.5 inline mr-0.5" />{np.zoningCode}</span>}
+                                                                {np.ownerName && <span className="text-[11px] text-[var(--text-muted)]"><User className="w-2.5 h-2.5 inline mr-0.5" />{np.ownerName}</span>}
+                                                                {np.lotSizeSF != null && np.lotSizeSF > 0 && <span className="text-[11px] text-[var(--text-muted)]"><Ruler className="w-2.5 h-2.5 inline mr-0.5" />{formatNumber(np.lotSizeSF)} SF ({acOf(np.lotSizeSF, np.lotSizeAcres).toFixed(2)} ac)</span>}
+                                                                {np.totalAssessedValue != null && np.totalAssessedValue > 0 && <span className="text-[11px] text-[var(--text-muted)]"><DollarSign className="w-2.5 h-2.5 inline mr-0.5" />{formatCurrency(np.totalAssessedValue)}</span>}
+                                                                {np.landUse && <span className="text-[11px] text-[var(--text-muted)]"><FileText className="w-2.5 h-2.5 inline mr-0.5" />{np.landUse}</span>}
+                                                                {np.zoningCode && <span className="text-[11px] text-[var(--text-muted)]"><Shield className="w-2.5 h-2.5 inline mr-0.5" />{np.zoningCode}</span>}
                                                             </div>
                                                         </div>
                                                         <div className="flex-shrink-0 ml-3">
@@ -1653,7 +1659,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                                     <div className="text-center">
                                         <Radar className="w-5 h-5 text-[var(--border-strong)] mx-auto mb-2" />
                                         <p className="text-xs text-[var(--text-faint)]">No nearby parcels found within {nearbySearchedRadius}m</p>
-                                        <p className="text-[10px] text-[var(--border-strong)] mt-0.5">Try increasing the search radius</p>
+                                        <p className="text-[11px] text-[var(--border-strong)] mt-0.5">Try increasing the search radius</p>
                                     </div>
                                 </div>
                             )}
@@ -1670,7 +1676,7 @@ export function PublicInfoTab({ latitude, longitude, pursuitName, pursuitAddress
                     )}
 
                     {/* Data source footer */}
-                    <div className="flex items-center justify-between text-[10px] text-[var(--border-strong)] pt-2">
+                    <div className="flex items-center justify-between text-[11px] text-[var(--border-strong)] pt-2">
                         <span>
                             Data provided by Regrid · Sourced from county assessor records
                             {parcel.dataDate && ` · Last updated: ${parcel.dataDate}`}

@@ -33,7 +33,7 @@ export default function CommentTrigger({ entityType, entityId, className }: Comm
                 <MessageSquare className="w-4 h-4" />
                 <span className="hidden sm:inline">Comments</span>
                 {comments.length > 0 && (
-                    <span className="text-[10px] bg-[var(--accent)] text-white min-w-[16px] h-4 flex items-center justify-center rounded-full px-1 font-bold">
+                    <span className="text-[11px] bg-[var(--accent)] text-white min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1 font-bold">
                         {comments.length}
                     </span>
                 )}

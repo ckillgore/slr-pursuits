@@ -535,7 +535,7 @@ function SearchPanel({
     return (
         <div className="border border-[var(--border)] rounded-xl bg-[var(--bg-card)] p-4 shadow-sm animate-fade-in">
             <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Search HelloData Properties</h3>
+                <h3 className="op-card-title">Search HelloData Properties</h3>
                 <button onClick={onClose} aria-label="Close search" className="p-1 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-muted)]"><X className="w-4 h-4" /></button>
             </div>
             <div className="relative">
@@ -689,22 +689,22 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
                     <tr className="border-b-2 border-[var(--border)] bg-[var(--bg-primary)]">
                         <th className="text-left py-3 px-4 font-semibold text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10 min-w-[140px]"></th>
                         <th className="text-center py-3 px-3 font-semibold text-[var(--text-muted)] min-w-[100px]" title="Simple average: every property counts equally, regardless of size">
-                            <div className="text-[10px] uppercase tracking-wider">Comp Avg</div>
-                            <div className="text-[10px] text-[var(--text-faint)]">Simple · {comps.length} properties</div>
+                            <div className="text-[11px] uppercase tracking-wider">Comp Avg</div>
+                            <div className="text-[11px] text-[var(--text-faint)]">Simple · {comps.length} properties</div>
                         </th>
                         <th className="text-center py-3 px-3 font-semibold text-[var(--text-muted)] min-w-[100px]" title="Weighted by each property's total unit count; properties without a unit count are excluded">
-                            <div className="text-[10px] uppercase tracking-wider">Unit-Wtd Avg</div>
-                            <div className="text-[10px] text-[var(--text-faint)]">{compWtd.count} properties · {fmtNum(compWtd.totalUnits)} units</div>
+                            <div className="text-[11px] uppercase tracking-wider">Unit-Wtd Avg</div>
+                            <div className="text-[11px] text-[var(--text-faint)]">{compWtd.count} properties · {fmtNum(compWtd.totalUnits)} units</div>
                         </th>
                         {comps.map((c) => (
                             <th key={c.propertyId} className="text-center py-3 px-3 min-w-[140px]">
                                 <div className="text-sm font-semibold text-[var(--accent)] truncate">{c.name}</div>
-                                <div className="text-[10px] text-[var(--text-muted)] truncate">{c.property.street_address}</div>
+                                <div className="text-[11px] text-[var(--text-muted)] truncate">{c.property.street_address}</div>
                                 <div className="flex items-center justify-center gap-2 mt-1">
                                     <button
                                         onClick={() => onToggleType(c.propertyId, c.compType)}
                                         aria-label={`${c.name}: ${c.compType} comp — switch to ${c.compType === 'primary' ? 'secondary' : 'primary'}`}
-                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${c.compType === 'primary'
+                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium transition-colors ${c.compType === 'primary'
                                             ? 'bg-[var(--warning-bg)] text-[var(--warning)] hover:bg-[var(--warning)]/20'
                                             : 'bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:bg-[var(--border)]'
                                             }`}
@@ -716,7 +716,7 @@ function CompOverviewGrid({ comps, onRemove, onToggleType }: { comps: PropertyMe
                                     <button
                                         onClick={() => onRemove(c.property.id)}
                                         aria-label={`Remove ${c.name} from comps`}
-                                        className="text-[10px] text-[var(--danger)] hover:underline"
+                                        className="text-[11px] text-[var(--danger)] hover:underline"
                                     >
                                         remove
                                     </button>
@@ -794,7 +794,7 @@ function UnitBreakdownSection({ comps, bedTypes }: { comps: PropertyMetrics[]; b
                             <div className="p-3">
                                 <div className="flex items-center justify-between mb-2">
                                     <h4 className="text-sm font-semibold text-[var(--text-primary)]">{bedLabel(bed)}</h4>
-                                    <span className="text-[10px] text-[var(--text-faint)]">Trailing 1 Month</span>
+                                    <span className="text-[11px] text-[var(--text-faint)]">Trailing 1 Month</span>
                                 </div>
                                 <div className="space-y-1.5 text-xs">
                                     <div className="flex justify-between"><span className="text-[var(--text-muted)]"># Listings</span><span className="font-medium text-[var(--text-primary)]">{allUnits.length}</span></div>
@@ -917,7 +917,7 @@ function PropertyRankingsSection({ comps, bedTypes }: { comps: PropertyMetrics[]
         <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Property Rankings</h3>
+                    <h3 className="op-card-title">Property Rankings</h3>
                     <p className="text-xs text-[var(--text-muted)]">Compare rents by bedroom count across your comp set.</p>
                 </div>
                 <select
@@ -994,70 +994,77 @@ function RankingColumn({ comps, bed, metric }: { comps: PropertyMetrics[]; bed: 
 // SECTION 4: Amenities Comparison Grid
 // ============================================================
 
+/** HelloData amenity keys ("24_hour_maintenance") → "24-hour maintenance" */
+const AMENITY_WORDS: Record<string, string> = { ada: 'ADA', ev: 'EV', wifi: 'Wi-Fi', tv: 'TV', bbq: 'BBQ', hvac: 'HVAC', usb: 'USB', hd: 'HD', '24': '24-hour' };
+function amenityLabel(key: string): string {
+    const words = key.replace(/24_hour/g, '24').split(/[_\s]+/).filter(Boolean).map((w) => AMENITY_WORDS[w.toLowerCase()] ?? w.toLowerCase());
+    const text = words.join(' ');
+    return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * Which comps offer each amenity. Amenities run down the side (there can be 60+)
+ * and comps across the top, most widely offered first — it used to be the other
+ * way round, a table thousands of pixels wide headed by raw keys.
+ */
 function AmenitiesGrid({ comps }: { comps: PropertyMetrics[] }) {
     const [type, setType] = useState<'building' | 'unit'>('building');
 
-    // Collect all unique amenities across all properties
-    const allAmenities = useMemo(() => {
-        const set = new Set<string>();
-        comps.forEach(c => {
-            const list = (type === 'building' ? c.property.building_amenities : c.property.unit_amenities) || [];
-            list.forEach(a => set.add(a));
-        });
-        return [...set].sort();
+    const rows = useMemo(() => {
+        const has = comps.map((c) => new Set((type === 'building' ? c.property.building_amenities : c.property.unit_amenities) || []));
+        const all = new Set<string>();
+        has.forEach((set) => set.forEach((a) => all.add(a)));
+        return [...all]
+            .map((key) => ({ key, label: amenityLabel(key), offered: has.map((set) => set.has(key)) }))
+            .map((r) => ({ ...r, count: r.offered.filter(Boolean).length }))
+            .sort((x, y) => y.count - x.count || x.label.localeCompare(y.label));
     }, [comps, type]);
 
     return (
         <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-                        {type === 'building' ? 'Building' : 'Unit'} Amenities
-                    </h3>
-                    <p className="text-xs text-[var(--text-muted)]">Benchmark amenities against competitors.</p>
+                    <h3 className="op-card-title">{type === 'building' ? 'Building' : 'Unit'} Amenities</h3>
+                    <p className="op-hint mt-0.5">Which comps offer each amenity, most common first.</p>
                 </div>
                 <select
                     value={type}
-                    onChange={e => setType(e.target.value as 'building' | 'unit')}
+                    onChange={(e) => setType(e.target.value as 'building' | 'unit')}
+                    aria-label="Amenity type"
                     className="text-xs border border-[var(--border)] rounded-lg px-3 py-1.5 text-[var(--text-secondary)] bg-[var(--bg-card)]"
                 >
                     <option value="building">Building Amenities</option>
                     <option value="unit">Unit Amenities</option>
                 </select>
             </div>
-            {allAmenities.length === 0 ? (
+            {rows.length === 0 ? (
                 <p className="text-sm text-[var(--text-muted)] text-center py-8">No amenity data available</p>
             ) : (
                 <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
                     <table className="w-full text-xs">
                         <thead>
                             <tr className="border-b border-[var(--border)] bg-[var(--bg-primary)]">
-                                <th className="text-left py-2.5 px-4 font-semibold text-[var(--text-secondary)] sticky left-0 bg-[var(--bg-primary)] z-10 min-w-[140px]">
-                                    {type === 'building' ? 'Building' : 'Unit'} Amenities
-                                </th>
-                                {allAmenities.map(a => (
-                                    <th key={a} className="text-center py-2.5 px-2 font-medium text-[var(--text-muted)] min-w-[80px] max-w-[120px]">
-                                        <span className="block truncate text-[10px]">{a}</span>
+                                <th className="text-left py-2.5 px-4 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] sticky left-0 bg-[var(--bg-primary)] z-10 min-w-[200px]">Amenity</th>
+                                <th className="text-right py-2.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] whitespace-nowrap">Offered by</th>
+                                {comps.map((c) => (
+                                    <th key={c.propertyId} title={c.name} className="py-2.5 px-2 text-center text-[11px] font-medium text-[var(--text-secondary)] min-w-[88px] max-w-[120px]">
+                                        <span className="block truncate">{c.name}</span>
                                     </th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody>
-                            {comps.map((c, i) => {
-                                const amenities = (type === 'building' ? c.property.building_amenities : c.property.unit_amenities) || [];
-                                return (
-                                    <tr key={c.propertyId} className={`border-b border-[var(--bg-elevated)] ${i % 2 === 0 ? 'bg-[var(--bg-card)]' : 'bg-[var(--bg-primary)]'}`}>
-                                        <td className="py-2 px-4 font-medium text-[var(--accent)] sticky left-0 bg-inherit z-10 truncate">{c.name}</td>
-                                        {allAmenities.map(a => (
-                                            <td key={a} className="py-2 px-2 text-center">
-                                                {amenities.includes(a) ? (
-                                                    <Check className="w-4 h-4 text-[var(--success)] mx-auto" aria-label="Yes" />
-                                                ) : null}
-                                            </td>
-                                        ))}
-                                    </tr>
-                                );
-                            })}
+                            {rows.map((r) => (
+                                <tr key={r.key} className="border-b border-[var(--table-row-border)] last:border-0 hover:bg-[var(--bg-elevated)]">
+                                    <td className="py-1.5 px-4 text-[var(--text-primary)] sticky left-0 bg-[var(--bg-card)] z-10 whitespace-nowrap">{r.label}</td>
+                                    <td className="py-1.5 px-3 text-right tabular-nums text-[var(--text-muted)] whitespace-nowrap">{r.count} of {comps.length}</td>
+                                    {r.offered.map((yes, i) => (
+                                        <td key={comps[i].propertyId} className="py-1.5 px-2 text-center">
+                                            {yes ? <Check className="w-4 h-4 text-[var(--success)] mx-auto" aria-label="Yes" /> : <span className="text-[var(--border-strong)]" aria-label="No">·</span>}
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>

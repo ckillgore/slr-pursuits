@@ -99,10 +99,10 @@ export function DemographicsCard({ pursuit, onUpdate }: DemographicsCardProps) {
     return (
         <div className="card">
             <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Demographics</h3>
+                <h3 className="op-card-title">Demographics</h3>
                 <div className="flex items-center gap-2">
                     {lastUpdated && (
-                        <span className="text-[10px] text-[var(--text-faint)]">Updated {lastUpdated}</span>
+                        <span className="text-[11px] text-[var(--text-faint)]">Updated {lastUpdated}</span>
                     )}
                     <button
                         onClick={handleRefresh}
@@ -205,9 +205,9 @@ function RingTable({ rings }: { rings: Record<string, any> }) {
             <table className="w-full text-xs min-w-[320px]">
                 <thead>
                     <tr className="border-b border-[var(--border)]">
-                        <th className="text-left text-[10px] font-semibold text-[var(--text-faint)] uppercase tracking-wider py-2 pr-3">Metric</th>
+                        <th className="text-left text-[11px] font-semibold text-[var(--text-faint)] uppercase tracking-wider py-2 pr-3">Metric</th>
                         {available.map((r) => (
-                            <th key={r} className="text-right text-[10px] font-semibold text-[var(--text-faint)] uppercase tracking-wider py-2 px-2 whitespace-nowrap">
+                            <th key={r} className="text-right text-[11px] font-semibold text-[var(--text-faint)] uppercase tracking-wider py-2 px-2 whitespace-nowrap">
                                 {r.replace('mi', ' Mile')}
                             </th>
                         ))}
@@ -228,7 +228,7 @@ function RingTable({ rings }: { rings: Record<string, any> }) {
                     ))}
                 </tbody>
             </table>
-            <p className="text-[10px] text-[var(--text-faint)] mt-2">Source: ESRI ArcGIS GeoEnrichment · US Census Bureau ACS</p>
+            <p className="text-[11px] text-[var(--text-faint)] mt-2">Source: ESRI ArcGIS GeoEnrichment · US Census Bureau ACS</p>
         </div>
     );
 }
@@ -240,7 +240,7 @@ function BlockGroupView({ data }: { data: Record<string, any> }) {
         <div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
                 <div>
-                    <div className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-1 mt-1">Population & Income</div>
+                    <div className="text-[11px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-1 mt-1">Population & Income</div>
                     <MetricRow icon={Users} label="Population" value={fmt(data.population)} highlight />
                     <MetricRow icon={Users} label="Median Age" value={fmt(data.median_age, 1)} />
                     <MetricRow icon={DollarSign} label="Median HH Income" value={fmtCurr(data.median_household_income)} highlight />
@@ -248,7 +248,7 @@ function BlockGroupView({ data }: { data: Record<string, any> }) {
                     <MetricRow icon={DollarSign} label="Households" value={fmt(data.number_of_households)} />
                 </div>
                 <div>
-                    <div className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-1 mt-1">Housing</div>
+                    <div className="text-[11px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-1 mt-1">Housing</div>
                     <MetricRow icon={Home} label="Median Rent" value={fmtCurr(data.median_rent)} highlight />
                     <MetricRow icon={Home} label="Median Home Value" value={fmtCurr(data.median_home_value)} />
                     <MetricRow icon={Home} label="Renter Occupied" value={fmtPct(data.renter_occupied_pct)} highlight />
@@ -259,7 +259,7 @@ function BlockGroupView({ data }: { data: Record<string, any> }) {
             </div>
             {/* Race/Ethnicity */}
             <div className="mt-2 pt-2 border-t border-[var(--border)]">
-                <div className="text-[10px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-1">Race & Ethnicity</div>
+                <div className="text-[11px] font-bold text-[var(--text-faint)] uppercase tracking-wider mb-1">Race & Ethnicity</div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
                         { label: 'White', value: fmtPct(data.race_white_pct) },
@@ -269,13 +269,13 @@ function BlockGroupView({ data }: { data: Record<string, any> }) {
                     ].map((item) => (
                         <div key={item.label} className="text-center">
                             <div className="text-sm font-semibold text-[var(--text-primary)] tabular-nums">{item.value}</div>
-                            <div className="text-[10px] text-[var(--text-faint)]">{item.label}</div>
+                            <div className="text-[11px] text-[var(--text-faint)]">{item.label}</div>
                         </div>
                     ))}
                 </div>
             </div>
             {data._formatted_address && (
-                <p className="text-[10px] text-[var(--text-faint)] mt-2">
+                <p className="text-[11px] text-[var(--text-faint)] mt-2">
                     Census {data._geography || 'block group'} · {data._formatted_address}
                     {data._survey_years ? ` · ACS ${data._survey_years}` : ''}
                 </p>

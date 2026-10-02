@@ -1051,7 +1051,7 @@ export function PredevBudgetReport() {
                                                         <div className="flex flex-col gap-0.5">
                                                             <div className="flex items-center gap-1.5">
                                                                 <Link
-                                                                    href={`/pursuits/${row.pursuit.short_id}/predev`}
+                                                                    href={`/pursuits/${row.pursuit.short_id}?tab=predev`}
                                                                     className="font-medium text-[var(--accent)] hover:underline truncate"
                                                                     title={row.pursuit.name}
                                                                 >

@@ -140,11 +140,11 @@ function AIReviewModal({
                                     <div className="flex items-center gap-2">
                                         <span className="text-sm font-medium text-[var(--text-primary)]">{d.label}</span>
                                         {d.matched_type !== 'custom' && (
-                                            <span className="text-[9px] bg-[var(--bg-elevated)] text-[var(--text-muted)] px-1.5 py-0.5 rounded font-mono">
+                                            <span className="text-[11px] bg-[var(--bg-elevated)] text-[var(--text-muted)] px-1.5 py-0.5 rounded font-mono">
                                                 {d.matched_type}
                                             </span>
                                         )}
-                                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${d.confidence >= 0.8 ? 'bg-[var(--success-bg)] text-[var(--success)]' :
+                                        <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${d.confidence >= 0.8 ? 'bg-[var(--success-bg)] text-[var(--success)]' :
                                                 d.confidence >= 0.5 ? 'bg-[var(--warning-bg)] text-[var(--warning)]' :
                                                     'bg-[var(--danger-bg)] text-[var(--danger)]'
                                             }`}>
@@ -152,10 +152,10 @@ function AIReviewModal({
                                         </span>
                                     </div>
                                     {d.contract_reference && (
-                                        <span className="text-[10px] text-[var(--text-muted)] font-mono">{d.contract_reference}</span>
+                                        <span className="text-[11px] text-[var(--text-muted)] font-mono">{d.contract_reference}</span>
                                     )}
                                     {d.context_snippet && (
-                                        <p className="text-[10px] text-[var(--text-faint)] mt-0.5 italic truncate">"{d.context_snippet}"</p>
+                                        <p className="text-[11px] text-[var(--text-faint)] mt-0.5 italic truncate">"{d.context_snippet}"</p>
                                     )}
                                 </div>
                                 <input
@@ -353,7 +353,7 @@ function TimelineView({ dates, types }: { dates: KeyDate[]; types: KeyDateType[]
 
     return (
         <div className="mt-6 pt-4 border-t border-[var(--table-row-border)]">
-            <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4">Timeline</h4>
+            <h4 className="op-card-title mb-3">Timeline</h4>
             <div className="relative h-16 bg-[var(--bg-primary)] rounded-lg overflow-visible px-4">
                 {/* Track line */}
                 <div className="absolute top-1/2 left-4 right-4 h-0.5 bg-[var(--border)] -translate-y-1/2" />
@@ -362,7 +362,7 @@ function TimelineView({ dates, types }: { dates: KeyDate[]; types: KeyDateType[]
                     className="absolute top-0 bottom-0 w-0.5 bg-[var(--danger)]/40"
                     style={{ left: `calc(${todayPct}% + 16px - 1px)` }}
                 >
-                    <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[8px] text-[var(--danger)] font-medium whitespace-nowrap">
+                    <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[11px] text-[var(--danger)] font-medium whitespace-nowrap">
                         Today
                     </span>
                 </div>
@@ -383,7 +383,7 @@ function TimelineView({ dates, types }: { dates: KeyDate[]; types: KeyDateType[]
                                 style={{ backgroundColor: color }}
                             />
                             <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 opacity-0 group-hover/dot:opacity-100 group-focus-within/dot:opacity-100 transition-opacity pointer-events-none z-10">
-                                <div className="bg-[var(--text-primary)] text-[var(--bg-card)] text-[9px] px-2 py-1 rounded whitespace-nowrap shadow-lg">
+                                <div className="bg-[var(--text-primary)] text-[var(--bg-card)] text-[11px] px-2 py-1 rounded whitespace-nowrap shadow-lg">
                                     {getDateLabel(kd)} — {formatDate(kd.date_value)}
                                 </div>
                             </div>
@@ -657,7 +657,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
                         aria-expanded={!collapsedCategories.has(group.category)}
                         className="flex items-center justify-between w-full mb-2"
                     >
-                        <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                        <h3 className="op-card-title">
                             {group.label}
                             <span className="ml-2 text-[var(--text-faint)] font-normal">({group.dates.length})</span>
                         </h3>
@@ -717,7 +717,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
 
                                             {/* Days until badge */}
                                             {kd.status === 'upcoming' && (
-                                                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${days <= 7 ? 'bg-[var(--danger-bg)] text-[var(--danger)]' :
+                                                <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded ${days <= 7 ? 'bg-[var(--danger-bg)] text-[var(--danger)]' :
                                                         days <= 30 ? 'bg-[var(--warning-bg)] text-[var(--warning)]' :
                                                             'bg-[var(--accent-subtle)] text-[var(--accent)]'
                                                     }`}>
@@ -727,7 +727,7 @@ export function KeyDatesTab({ pursuitId }: KeyDatesTabProps) {
 
                                             {/* Status badge */}
                                             <span
-                                                className="text-[9px] font-medium px-1.5 py-0.5 rounded"
+                                                className="text-[11px] font-medium px-1.5 py-0.5 rounded"
                                                 style={{ backgroundColor: statusCfg.bgColor, color: statusCfg.color }}
                                             >
                                                 {statusCfg.label}

@@ -1,0 +1,100 @@
+/* ============================================================
+   Data UI — the type scale for cards across the app
+   ============================================================
+   Card titles and column heads: 11px caps (.op-card-title)
+   Labels, figures and inputs:   the body size (.text-op) — 12px, 13px from 1536px
+   Hints and footnotes:          11px (.op-hint)
+   Nothing in a card is smaller than 11px.
+   Wide tables scroll inside .op-scroll, which bleeds to the card edge. */
+:root {
+  --op-body: 12px;
+  --op-card-pad: 16px;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --op-card-pad: 20px;
+  }
+}
+
+@media (min-width: 1536px) {
+  :root {
+    --op-body: 13px;
+  }
+}
+
+.text-op {
+  font-size: var(--op-body);
+  line-height: 1.4;
+}
+
+.op-card-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Bleeds to the card edge so a wide table scrolls without being cut off */
+.op-scroll {
+  overflow-x: auto;
+  margin-inline: calc(-1 * var(--op-card-pad));
+  padding-inline: var(--op-card-pad);
+}
+
+/* A soft shadow on whichever side has more to scroll to (the card-coloured
+   covers scroll with the content and hide each shadow at its end) */
+.op-scroll {
+  background:
+    linear-gradient(to right, var(--bg-card) 40%, transparent) left center / 28px 100% no-repeat local,
+    linear-gradient(to left, var(--bg-card) 40%, transparent) right center / 28px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.12), transparent) left center / 10px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.12), transparent) right center / 10px 100% no-repeat scroll;
+}
+
+/* Small toggle next to a label ("Itemize", "23% HC") */
+.op-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 5px;
+  white-space: nowrap;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.op-chip:hover {
+  color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.op-chip-on,
+.op-chip-on:hover {
+  color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+/* Hints and footnotes inside cards */
+.op-hint {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+
+/* Date fields shown as values: the calendar icon appears on hover or focus */
+.quiet-date::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.quiet-date:hover::-webkit-calendar-picker-indicator,
+.quiet-date:focus::-webkit-calendar-picker-indicator {
+  opacity: 0.6;
+}

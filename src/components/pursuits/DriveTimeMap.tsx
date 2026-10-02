@@ -157,7 +157,7 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
             <div className="card">
                 <div className="flex items-center gap-2 mb-3">
                     <Clock className="w-4 h-4 text-[var(--text-faint)]" />
-                    <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Drive-Time Analysis</h3>
+                    <h3 className="op-card-title">Drive-Time Analysis</h3>
                 </div>
                 <div className="flex items-center justify-center py-8 text-center">
                     <div>
@@ -183,18 +183,18 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
     return (
         <div className="card">
             {/* Header */}
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-3">
                 <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-[#007cbf]" />
-                    <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Drive-Time Analysis</h3>
+                    <h3 className="op-card-title">Drive-Time Analysis</h3>
                     {cachedAt && !loading && !isStale && (
-                        <span className="flex items-center gap-1 text-[10px] text-[var(--success)] bg-[var(--success)]/10 px-1.5 py-0.5 rounded-full font-medium">
+                        <span className="flex items-center gap-1 text-[11px] text-[var(--success)] bg-[var(--success)]/10 px-1.5 py-0.5 rounded-full font-medium">
                             <CheckCircle2 className="w-2.5 h-2.5" />
                             Cached
                         </span>
                     )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     {/* Break minutes selector */}
                     <select
                         value={breakMinutes}
@@ -225,7 +225,7 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
 
             {/* Cached timestamp */}
             {formattedCacheDate && !loading && (
-                <p className="text-[10px] text-[var(--text-faint)] mb-2">Last generated: {formattedCacheDate}</p>
+                <p className="text-[11px] text-[var(--text-faint)] mb-2">Last generated: {formattedCacheDate}</p>
             )}
 
             {isStale && (
@@ -246,7 +246,7 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
                 <div className="lg:col-span-2">
                     <IsochroneMap latitude={latitude!} longitude={longitude!} polygon={polygon} polygonIsCurrent={!isStale} fitKey={cachedAt} />
                     {polygon && (
-                        <p className="text-[10px] text-[var(--text-faint)] mt-1.5 text-center">
+                        <p className="text-[11px] text-[var(--text-faint)] mt-1.5 text-center">
                             {breakMinutes}-minute drive-time area from {pursuitName || 'location'} · Tuesday 8:00 AM
                         </p>
                     )}
@@ -263,13 +263,13 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
                             >
                                 <div className="flex items-center gap-1.5">
                                     <BarChart3 className="w-3.5 h-3.5 text-[#007cbf]" />
-                                    <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Tapestry Segments</span>
+                                    <span className="op-card-title">Tapestry Segments</span>
                                 </div>
                                 {showDetails ? <ChevronUp className="w-3.5 h-3.5 text-[var(--text-faint)]" /> : <ChevronDown className="w-3.5 h-3.5 text-[var(--text-faint)]" />}
                             </button>
 
                             {/* Context label */}
-                            <p className="text-[10px] text-[var(--text-muted)] mb-2 leading-relaxed">
+                            <p className="text-[11px] text-[var(--text-muted)] mb-2 leading-relaxed">
                                 Top lifestyle segments within the <span className="font-semibold text-[var(--text-secondary)]">{breakMinutes}-min drive-time</span> area
                                 {totalPop != null && totalHH != null && (
                                     <span> · {totalPop.toLocaleString()} people · {totalHH.toLocaleString()} households</span>
@@ -289,21 +289,21 @@ export function DriveTimeMap({ latitude, longitude, pursuitName, savedDriveTimeD
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="flex-1 min-w-0">
                                                     {i === 0 && (
-                                                        <span className="inline-block text-[8px] font-bold text-[#007cbf] uppercase tracking-wider bg-[#007cbf]/10 px-1.5 py-0.5 rounded mb-1">
+                                                        <span className="inline-block text-[11px] font-bold text-[#007cbf] uppercase tracking-wider bg-[#007cbf]/10 px-1.5 py-0.5 rounded mb-1">
                                                             Dominant
                                                         </span>
                                                     )}
                                                     <div className="text-xs font-semibold text-[var(--text-primary)] truncate">{seg.name}</div>
-                                                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                                                    <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
                                                         {seg.code} · {seg.lifestyleGroup || 'N/A'}
                                                     </div>
                                                     {seg.medianAge != null && seg.medianAge > 0 && (
-                                                        <div className="text-[10px] text-[var(--text-faint)] mt-0.5">Median Age: {seg.medianAge.toFixed(1)}</div>
+                                                        <div className="text-[11px] text-[var(--text-faint)] mt-0.5">Median Age: {seg.medianAge.toFixed(1)}</div>
                                                     )}
                                                 </div>
                                                 <div className="text-right flex-shrink-0">
                                                     <div className="text-sm font-bold text-[#007cbf]">{seg.householdPct}%</div>
-                                                    <div className="text-[10px] text-[var(--text-faint)]">{seg.householdCount.toLocaleString()} HH</div>
+                                                    <div className="text-[11px] text-[var(--text-faint)]">{seg.householdCount.toLocaleString()} HH</div>
                                                 </div>
                                             </div>
                                             <div className="mt-2 h-1.5 bg-[var(--table-row-border)] rounded-full overflow-hidden">

@@ -197,7 +197,7 @@ export function CostCodeMappingDialog({ lineItem, otherLineItems = [], pursuitId
                         <h2 id="cost-code-mapping-title" className="text-sm font-semibold text-[var(--text-primary)]">
                             Map Cost Groups
                         </h2>
-                        <p className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                        <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
                             <span className="font-medium text-[var(--accent)]">{lineItem.label}</span> — Select which Yardi cost groups or codes roll up into this line item. Each code can be mapped to only one line item.
                         </p>
                     </div>
@@ -221,7 +221,7 @@ export function CostCodeMappingDialog({ lineItem, otherLineItems = [], pursuitId
                         />
                     </div>
                     {droppedRedundant.length > 0 && (
-                        <p className="mt-2 text-[10px] text-[var(--warning)]">
+                        <p className="mt-2 text-[11px] text-[var(--warning)]">
                             Removed {droppedRedundant.join(', ')} — already included via {droppedRedundant.length === 1 ? 'its group' : 'their groups'}, so {droppedRedundant.length === 1 ? 'it was' : 'they were'} being counted twice. Save to apply.
                         </p>
                     )}
@@ -234,7 +234,7 @@ export function CostCodeMappingDialog({ lineItem, otherLineItems = [], pursuitId
                                     ? (g ? g.name : `Group ${code}`)
                                     : (detailByCode.get(code)?.category_name ?? code);
                                 return (
-                                    <span key={code} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${isGroup ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'bg-[var(--badge-owner-bg)] text-[var(--badge-owner-text)]'}`}>
+                                    <span key={code} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${isGroup ? 'bg-[var(--accent-subtle)] text-[var(--accent)]' : 'bg-[var(--badge-owner-bg)] text-[var(--badge-owner-text)]'}`}>
                                         <span className="font-mono">{code}</span> · {label}
                                         <button onClick={() => toggleCode(code)} aria-label={`Remove ${code}`} className="hover:text-[var(--danger)]">
                                             <X className="w-2.5 h-2.5" />
@@ -283,17 +283,17 @@ export function CostCodeMappingDialog({ lineItem, otherLineItems = [], pursuitId
                                                 {isGroupSelected && <Check className="w-3 h-3 text-white" />}
                                                 {hasPartialSelection && <div className="w-2 h-0.5 bg-white rounded" />}
                                             </button>
-                                            <span className="text-[10px] font-mono text-[var(--text-faint)] w-6 shrink-0">{g.code}</span>
+                                            <span className="text-[11px] font-mono text-[var(--text-faint)] w-6 shrink-0">{g.code}</span>
                                             <span className="text-xs text-[var(--text-primary)] flex-1 truncate">{g.name}</span>
                                             {groupConflict && (
-                                                <span className="text-[9px] text-[var(--text-faint)] italic truncate max-w-[120px]" title={`Already mapped to "${groupConflict.label}"`}>
+                                                <span className="text-[11px] text-[var(--text-faint)] italic truncate max-w-[120px]" title={`Already mapped to "${groupConflict.label}"`}>
                                                     in {groupConflict.label}
                                                 </span>
                                             )}
                                             {hasPartialSelection && (
-                                                <span className="text-[9px] text-[var(--accent)] font-medium">{detailSelectedCount} code{detailSelectedCount !== 1 ? 's' : ''}</span>
+                                                <span className="text-[11px] text-[var(--accent)] font-medium">{detailSelectedCount} code{detailSelectedCount !== 1 ? 's' : ''}</span>
                                             )}
-                                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${costGroupBadge(g.costGroup)}`}>
+                                            <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${costGroupBadge(g.costGroup)}`}>
                                                 {g.costGroup}
                                             </span>
                                             {g.details.length > 0 && (
@@ -324,13 +324,13 @@ export function CostCodeMappingDialog({ lineItem, otherLineItems = [], pursuitId
                                                             >
                                                                 {(isDetailSelected || isIncludedViaGroup) && <Check className="w-2.5 h-2.5 text-white" />}
                                                             </button>
-                                                            <span className="font-mono text-[var(--text-faint)] w-16 shrink-0 text-[10px]">{d.category_code}</span>
-                                                            <span className="text-[var(--text-secondary)] truncate text-[10px]">{d.category_name}</span>
+                                                            <span className="font-mono text-[var(--text-faint)] w-16 shrink-0 text-[11px]">{d.category_code}</span>
+                                                            <span className="text-[var(--text-secondary)] truncate text-[11px]">{d.category_name}</span>
                                                             {isIncludedViaGroup && (
-                                                                <span className="text-[8px] text-[var(--text-faint)] ml-auto italic">via group</span>
+                                                                <span className="text-[11px] text-[var(--text-faint)] ml-auto italic">via group</span>
                                                             )}
                                                             {detailConflict && (
-                                                                <span className="text-[8px] text-[var(--text-faint)] ml-auto italic truncate max-w-[120px]">in {detailConflict.label}</span>
+                                                                <span className="text-[11px] text-[var(--text-faint)] ml-auto italic truncate max-w-[120px]">in {detailConflict.label}</span>
                                                             )}
                                                         </div>
                                                     );
@@ -353,7 +353,7 @@ export function CostCodeMappingDialog({ lineItem, otherLineItems = [], pursuitId
 
                 {/* Footer */}
                 <div className="flex items-center justify-between px-5 py-3 border-t border-[var(--border)]">
-                    <span className="text-[10px] text-[var(--text-faint)]">
+                    <span className="text-[11px] text-[var(--text-faint)]">
                         {(() => {
                             const groups = Array.from(selectedGroups).filter(c => c.length <= 2).length;
                             const details = Array.from(selectedGroups).filter(c => c.length > 2).length;

@@ -46,6 +46,7 @@ import { findTaxJurisdiction, taxJurisdictionLabel } from '@/lib/taxJurisdiction
 import { STANDARD_PAYROLL_ROLES, normalizePayrollRole, inferUnitType } from '@/lib/standardNames';
 import { onePagerGaps } from '@/lib/onePagerStatus';
 import { PrototypePicker, FloorPlanButton } from './PrototypePicker';
+import { TargetYieldCard } from './TargetYieldCard';
 import type { UnitPrototype } from '@/hooks/useUnitPrototypes';
 import type { Pursuit, OnePager, UnitPremium } from '@/types';
 import {
@@ -1430,6 +1431,17 @@ export function OnePagerEditor({ pursuit, onePager, queryId }: OnePagerEditorPro
                             </table>
                         </div>
                 </div>
+
+                {/* ===== TARGET YIELD (full width, collapsible) ===== */}
+                <TargetYieldCard
+                    pursuitId={pursuit.id}
+                    onePager={onePager}
+                    unitMix={sortedUnitMix}
+                    payroll={sortedPayroll}
+                    softCostDetails={softCostDetails}
+                    unitPremiums={unitPremiums}
+                    currentYoc={calc.unlevered_yield_on_cost}
+                />
 
                 {/* ===== SENSITIVITY ANALYSIS (full width, collapsible) ===== */}
                 <div className="lg:col-span-3">

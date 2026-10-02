@@ -1,0 +1,155 @@
+/* ============================================================
+   One-pager — one type scale for every card
+   ============================================================
+   Card titles and column heads 11px caps; every label, figure and input at
+   the body size (12px, 13px on wide screens); hints 11px. Cards don't clip
+   (so note popovers and menus can escape them); wide tables scroll inside
+   .op-scroll instead. */
+.one-pager {
+  --op-body: 12px;
+  --op-card-pad: 16px;
+}
+
+@media (min-width: 640px) {
+  .one-pager {
+    --op-card-pad: 20px;
+  }
+}
+
+@media (min-width: 1536px) {
+  .one-pager {
+    --op-body: 13px;
+  }
+}
+
+.one-pager .card {
+  overflow: visible;
+}
+
+.text-op {
+  font-size: var(--op-body);
+  line-height: 1.4;
+}
+
+.op-card-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Bleeds to the card edge so a wide table scrolls without being cut off */
+.op-scroll {
+  overflow-x: auto;
+  margin-inline: calc(-1 * var(--op-card-pad));
+  padding-inline: var(--op-card-pad);
+}
+
+/* A soft shadow on whichever side has more to scroll to (the card-coloured
+   covers scroll with the content and hide each shadow at its end) */
+.op-scroll {
+  background:
+    linear-gradient(to right, var(--bg-card) 40%, transparent) left center / 28px 100% no-repeat local,
+    linear-gradient(to left, var(--bg-card) 40%, transparent) right center / 28px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.12), transparent) left center / 10px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.12), transparent) right center / 10px 100% no-repeat scroll;
+}
+
+.one-pager .data-table {
+  font-size: var(--op-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.one-pager .data-table thead th {
+  font-size: 11px;
+  padding: 6px;
+}
+
+.one-pager .data-table tbody td {
+  padding: 5px 6px;
+  white-space: nowrap;
+}
+
+.one-pager .data-table tbody tr.total-row td {
+  font-size: var(--op-body);
+}
+
+/* Text in the first and last columns lines up with the card title; the row
+   hover tint runs a little past it on both sides */
+.one-pager .data-table {
+  width: calc(100% + 12px);
+  margin-inline: -6px;
+}
+
+.one-pager .data-table tbody tr:hover {
+  background: transparent;
+}
+
+.one-pager .data-table tbody tr:hover td {
+  background: var(--bg-elevated);
+}
+
+.one-pager .data-table tbody tr:hover td:first-child {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+.one-pager .data-table tbody tr:hover td:last-child {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+/* Click-to-edit numbers match the text around them */
+.one-pager [data-inline-input] {
+  font-size: var(--op-body);
+}
+
+/* Small toggle next to a label ("Itemize", "23% HC") */
+.op-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 5px;
+  white-space: nowrap;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.op-chip:hover {
+  color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.op-chip-on,
+.op-chip-on:hover {
+  color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+/* A line under a group of rows, lighter than a total */
+.one-pager .data-table tbody tr.op-subtotal td {
+  border-top: 1px solid var(--border);
+}
+
+/* Rows that hold a nested editor don't take the hover tint */
+.one-pager .data-table tbody tr.op-nohover:hover td {
+  background: transparent;
+}
+
+/* Hints and footnotes inside cards */
+.op-hint {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+
+/* Row labels: the first column always reads left (some heads had no alignment and centred) */
+.one-pager .data-table thead th:first-child {
+  text-align: left;
+}

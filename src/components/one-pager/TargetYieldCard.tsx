@@ -1,8 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
 import { InlineInput } from './InlineInput';
+import { CollapsibleSection } from './CollapsibleSection';
 import { usePursuitRentComps } from '@/hooks/useHellodataQueries';
 import { solveForTargetYoc } from '@/lib/calculations/solve';
 import { getAverageEffectivePsf } from '@/lib/calculations/hellodataCalculations';
@@ -49,29 +49,24 @@ export function TargetYieldCard({ pursuitId, onePager, unitMix, payroll, softCos
     const rentPsf = solved?.currentRentPsf ?? 0;
 
     return (
-        <div className="lg:col-span-3">
-            <button
-                onClick={() => setExpanded(!expanded)}
-                className="card w-full flex items-center justify-between cursor-pointer hover:shadow-md transition-shadow"
-            >
-                <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-2">
-                    {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                    Target Yield &amp; Rent Check
-                </h3>
-                <span className="text-xs text-[var(--text-faint)]">{expanded ? 'Click to collapse' : 'Solve for rent, land and hard cost'}</span>
-            </button>
-
-            {expanded && solved && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4 animate-fade-in">
+        <CollapsibleSection
+            title="Target Yield & Rent Check"
+            summary={expanded ? `Solving for ${formatPercent(targetYoc)} yield on cost` : 'Solve for rent, land and hard cost'}
+            expanded={expanded}
+            onToggle={() => setExpanded(!expanded)}
+        >
+            {solved && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div className="card">
-                        <div className="flex items-center justify-between mb-3">
-                            <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">To reach</h4>
-                            <div className="flex items-center gap-2 text-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                            <h4 className="op-card-title">To reach</h4>
+                            <div className="flex items-center gap-2">
                                 <InlineInput value={targetYoc} onChange={setTargetYoc} format="percent" decimals={2} className="w-20 font-semibold" />
-                                <span className="text-xs text-[var(--text-muted)]">yield on cost (now {formatPercent(currentYoc)})</span>
+                                <span className="text-op text-[var(--text-muted)] whitespace-nowrap">yield on cost (now {formatPercent(currentYoc)})</span>
                             </div>
                         </div>
-                        <p className="text-[11px] text-[var(--text-faint)] mb-3">Each answer changes one input and holds the rest, including property tax moving with land and hard cost.</p>
+                        <p className="op-hint mb-3">Each answer changes one input and holds the rest, including property tax moving with land and hard cost.</p>
+                        <div className="op-scroll">
                         <table className="data-table">
                             <thead><tr><th>Change only</th><th className="text-right">Needed</th><th className="text-right">Now</th><th className="text-right">Change</th></tr></thead>
                             <tbody>
@@ -95,32 +90,33 @@ export function TargetYieldCard({ pursuitId, onePager, unitMix, payroll, softCos
                                 </tr>
                             </tbody>
                         </table>
-                        {onePager.total_units <= 0 && <p className="text-xs text-[var(--warning)] mt-2">Add a unit mix to solve.</p>}
+                        </div>
+                        {onePager.total_units <= 0 && <p className="text-op text-[var(--warning)] mt-2">Add a unit mix to solve.</p>}
                     </div>
 
                     <div className="card">
-                        <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Rent vs. comps</h4>
+                        <h4 className="op-card-title mb-3">Rent vs. comps</h4>
                         {loadingComps ? (
-                            <p className="text-sm text-[var(--text-muted)]">Loading rent comps…</p>
+                            <p className="text-op text-[var(--text-muted)]">Loading rent comps…</p>
                         ) : comps.psf === null ? (
-                            <p className="text-sm text-[var(--text-muted)]">No rent comps with unit pricing on this pursuit yet. Add them on the pursuit&apos;s Rent Comps tab.</p>
+                            <p className="text-op text-[var(--text-muted)]">No rent comps with unit pricing on this pursuit yet. Add them on the pursuit&apos;s Rent Comps tab.</p>
                         ) : (
                             <>
                                 <div className="grid grid-cols-3 gap-3">
                                     <div>
-                                        <div className="text-[10px] text-[var(--text-faint)] uppercase font-medium">This one-pager</div>
+                                        <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">This one-pager</div>
                                         <div className="text-lg font-bold tabular-nums">{rentPsf > 0 ? formatCurrency(rentPsf, 2) : '—'}</div>
                                     </div>
                                     <div>
-                                        <div className="text-[10px] text-[var(--text-faint)] uppercase font-medium">Comps (effective)</div>
+                                        <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Comps (effective)</div>
                                         <div className="text-lg font-bold tabular-nums">{formatCurrency(comps.psf, 2)}</div>
                                     </div>
                                     <div>
-                                        <div className="text-[10px] text-[var(--text-faint)] uppercase font-medium">Premium</div>
+                                        <div className="text-[11px] text-[var(--text-faint)] uppercase tracking-wider font-semibold">Premium</div>
                                         <div className={`text-lg font-bold tabular-nums ${rentPsf / comps.psf - 1 > 0.25 ? 'text-[var(--warning)]' : ''}`}>{rentPsf > 0 ? signedPct(rentPsf / comps.psf - 1) : '—'}</div>
                                     </div>
                                 </div>
-                                <p className="text-[11px] text-[var(--text-faint)] mt-3">
+                                <p className="op-hint mt-3">
                                     Unit-weighted effective rent across {comps.count} primary comp{comps.count === 1 ? '' : 's'}. New product usually earns a premium; above 25% is highlighted so it&apos;s a deliberate call.
                                 </p>
                             </>
@@ -128,6 +124,6 @@ export function TargetYieldCard({ pursuitId, onePager, unitMix, payroll, softCos
                     </div>
                 </div>
             )}
-        </div>
+        </CollapsibleSection>
     );
 }

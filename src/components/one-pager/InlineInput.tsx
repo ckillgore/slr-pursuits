@@ -146,6 +146,7 @@ export function InlineInput({
         return (
             <input
                 ref={inputRef}
+                data-inline-input
                 type="number"
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
@@ -169,6 +170,7 @@ export function InlineInput({
     return (
         <button
             onClick={startEditing}
+            data-inline-input
             disabled={disabled}
             className={cn(
                 'w-full px-1.5 py-0.5 rounded text-[var(--text-primary)] tabular-nums text-xs transition-colors',

@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
-import { AdminNav } from '@/components/layout/AdminNav';
 import { usePursuits, usePursuitAccountingEntities, useUpsertPursuitAccountingEntity, useDeletePursuitAccountingEntity } from '@/hooks/useSupabaseQueries';
 import { Plus, Loader2, Trash2 } from 'lucide-react';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
@@ -66,9 +64,8 @@ export default function AccountingAdminPage() {
     const editingEntity = entities.find(e => e.id === editingEntityId);
 
     return (
-        <AppShell>
+        <>
             <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-                <AdminNav />
 
                 <div className="flex items-center justify-between mb-6">
                     <div>
@@ -217,6 +214,6 @@ export default function AccountingAdminPage() {
                     </div>
                 </div>
             )}
-        </AppShell>
+        </>
     );
 }

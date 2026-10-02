@@ -1,11 +1,9 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { useTaxJurisdictions, useUpsertTaxJurisdiction, useDeleteTaxJurisdiction } from '@/hooks/useSupabaseQueries';
-import { AdminNav } from '@/components/layout/AdminNav';
 import { Plus, Loader2, Trash2 } from 'lucide-react';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
 import { InlineInput } from '@/components/one-pager/InlineInput';
@@ -65,9 +63,8 @@ export default function TaxRatesPage() {
     const unverified = jurisdictions.filter((j) => !j.is_verified).length;
 
     return (
-        <AppShell>
+        <>
             <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-                <AdminNav />
                 <div className="flex items-start justify-between gap-4 mb-6">
                     <div>
                         <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)]">Property Tax Rates</h1>
@@ -164,6 +161,6 @@ export default function TaxRatesPage() {
                     </div>
                 )}
             </div>
-        </AppShell>
+        </>
     );
 }

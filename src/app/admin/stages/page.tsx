@@ -1,11 +1,9 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { useStages, useUpsertStage } from '@/hooks/useSupabaseQueries';
-import { AdminNav } from '@/components/layout/AdminNav';
 import { Plus, ChevronUp, ChevronDown, Loader2 } from 'lucide-react';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
 import { ColorInput } from '@/components/shared/ColorInput';
@@ -48,9 +46,8 @@ export default function StagesPage() {
     };
 
     return (
-        <AppShell>
+        <>
             <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-                <AdminNav />
                 <div className="flex items-start justify-between gap-4 mb-6">
                     <div>
                         <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)]">Pursuit Stages</h1>
@@ -108,6 +105,6 @@ export default function StagesPage() {
                     </div>
                 )}
             </div>
-        </AppShell>
+        </>
     );
 }

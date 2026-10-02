@@ -25,6 +25,8 @@ interface AuthContextType {
     /** Whether we had a session that was lost (user can't interact but isn't on /login) */
     isSessionLost: boolean;
     signOut: () => Promise<void>;
+    /** Re-reads the signed-in person's profile (after they edit it) */
+    refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -36,6 +38,7 @@ const AuthContext = createContext<AuthContextType>({
     isAdminOrOwner: false,
     isSessionLost: false,
     signOut: async () => { },
+    refreshProfile: async () => { },
 });
 
 export function useAuth() {
@@ -339,12 +342,41 @@ export function AuthProvider({
         }
     }, [profile, signOut]);
 
+    // Presence: "last active" for the admin Users page. Sessions refresh silently
+    // for weeks, so sign-in time says little; this records actual use — on load,
+    // when the tab comes back into view, and every few minutes while it's open.
+    const userId = user?.id;
+    useEffect(() => {
+        if (!userId) return;
+        let last = 0;
+        const touch = () => {
+            if (document.visibilityState !== 'visible' || Date.now() - last < 60_000) return;
+            last = Date.now();
+            void supabase.rpc('touch_presence').then(({ error }: { error: { message: string } | null }) => {
+                if (error) console.warn('[Auth] touch_presence failed:', error.message);
+            });
+        };
+        touch();
+        const interval = setInterval(touch, 5 * 60_000);
+        document.addEventListener('visibilitychange', touch);
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', touch);
+        };
+    }, [userId, supabase]);
+
+    const refreshProfile = useCallback(async () => {
+        if (!userId) return;
+        const p = await fetchProfile(userId);
+        if (p) setProfile(p);
+    }, [userId, fetchProfile]);
+
     const isOwner = profile?.role === 'owner';
     const isAdmin = profile?.role === 'admin';
     const isAdminOrOwner = isOwner || isAdmin;
 
     return (
-        <AuthContext.Provider value={{ user, profile, isLoading, isOwner, isAdmin, isAdminOrOwner, isSessionLost, signOut }}>
+        <AuthContext.Provider value={{ user, profile, isLoading, isOwner, isAdmin, isAdminOrOwner, isSessionLost, signOut, refreshProfile }}>
             {children}
         </AuthContext.Provider>
     );

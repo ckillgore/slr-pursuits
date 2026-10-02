@@ -2,15 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Building2, Settings, Plus, LayoutDashboard, BarChart3, FileSpreadsheet, TrendingUp, Menu, X, LogOut, ChevronDown, Users, Landmark, Compass, KeyRound, Bell, Moon, Sun, CheckSquare, type LucideIcon } from 'lucide-react';
+import { Building2, Settings, Plus, LayoutDashboard, BarChart3, FileSpreadsheet, TrendingUp, Menu, X, LogOut, ChevronDown, Landmark, Compass, Bell, Moon, Sun, CheckSquare, UserCog, type LucideIcon } from 'lucide-react';
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useAuth } from '@/components/AuthProvider';
-import { createClient } from '@/lib/supabase/client';
 import { 
     useMyMentionCount, 
     useMyIncompleteTaskCount 
 } from '@/hooks/useSupabaseQueries';
 import { useThemeStore } from '@/store/useThemeStore';
+import { avatarColor } from '@/components/admin/ActivityFeed';
 
 // Primary sections, shared by the desktop bar and the mobile menu.
 const NAV_ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
@@ -43,7 +43,7 @@ interface AppShellProps {
 
 export function AppShell({ children, onNewPursuit }: AppShellProps) {
     const pathname = usePathname();
-    const { profile, isAdminOrOwner, isOwner, isSessionLost, signOut } = useAuth();
+    const { profile, isAdminOrOwner, isSessionLost, signOut } = useAuth();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
@@ -52,70 +52,53 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
     const theme = useThemeStore(s => s.theme);
     const toggleTheme = useThemeStore(s => s.toggleTheme);
 
-    // Change password state
-    const [showPasswordModal, setShowPasswordModal] = useState(false);
-    const [newPassword, setNewPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    const [passwordError, setPasswordError] = useState<string | null>(null);
-    const [passwordSuccess, setPasswordSuccess] = useState(false);
-    const [passwordLoading, setPasswordLoading] = useState(false);
+    const menuButtonRef = useRef<HTMLButtonElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
 
-    const handleChangePassword = async () => {
-        setPasswordError(null);
-        if (newPassword.length < 6) {
-            setPasswordError('Password must be at least 6 characters.');
-            return;
-        }
-        if (newPassword !== confirmPassword) {
-            setPasswordError('Passwords do not match.');
-            return;
-        }
-        setPasswordLoading(true);
-        try {
-            const supabase = createClient();
-            const { error } = await supabase.auth.updateUser({ password: newPassword });
-            if (error) {
-                setPasswordError(error.message);
-            } else {
-                setPasswordSuccess(true);
-                setTimeout(() => {
-                    setShowPasswordModal(false);
-                    setNewPassword('');
-                    setConfirmPassword('');
-                    setPasswordSuccess(false);
-                }, 1500);
-            }
-        } catch (err: any) {
-            setPasswordError(err.message || 'Failed to update password.');
-        } finally {
-            setPasswordLoading(false);
-        }
-    };
+    // Any navigation closes the menus
+    const [menuPath, setMenuPath] = useState(pathname);
+    if (menuPath !== pathname) {
+        setMenuPath(pathname);
+        setUserMenuOpen(false);
+        setMobileMenuOpen(false);
+    }
 
-    // Close user menu on outside click; Escape closes menus and the password dialog
+    // Account menu: an outside press or Escape closes it; focus moves into it on open
     useEffect(() => {
-        const handleClick = (e: MouseEvent) => {
-            if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
-                setUserMenuOpen(false);
-            }
+        if (!userMenuOpen) return;
+        const items = () => [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+        items()[0]?.focus();
+        const onPointerDown = (e: PointerEvent) => {
+            if (!userMenuRef.current?.contains(e.target as Node)) setUserMenuOpen(false);
         };
-        const handleKey = (e: KeyboardEvent) => {
+        const onKey = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
                 setUserMenuOpen(false);
-                setMobileMenuOpen(false);
-                setShowPasswordModal(false);
-                setNewPassword('');
-                setConfirmPassword('');
-                setPasswordError(null);
+                menuButtonRef.current?.focus();
+            } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const list = items();
+                const i = list.indexOf(document.activeElement as HTMLElement);
+                list[(i + (e.key === 'ArrowDown' ? 1 : list.length - 1)) % list.length]?.focus();
+            } else if (e.key === 'Tab') {
+                setUserMenuOpen(false);
             }
         };
-        document.addEventListener('mousedown', handleClick);
-        document.addEventListener('keydown', handleKey);
+        document.addEventListener('pointerdown', onPointerDown);
+        document.addEventListener('keydown', onKey);
         return () => {
-            document.removeEventListener('mousedown', handleClick);
-            document.removeEventListener('keydown', handleKey);
+            document.removeEventListener('pointerdown', onPointerDown);
+            document.removeEventListener('keydown', onKey);
         };
-    }, []);
+    }, [userMenuOpen]);
+
+    // Escape also closes the mobile menu
+    useEffect(() => {
+        if (!mobileMenuOpen) return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMobileMenuOpen(false); };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [mobileMenuOpen]);
 
     const initials = profile?.full_name
         ? profile.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -138,6 +121,8 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
     const isNavActive = (href: string) => href === '/' ? (pathname === '/' || isSection('/pursuits')) : isSection(href);
     const isAdminActive = isSection('/admin');
     const taskBadgeLabel = `${pendingTaskCount} open task${pendingTaskCount === 1 ? '' : 's'}`;
+
+    const menuItemClass = 'w-full flex items-center gap-2 px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] focus:bg-[var(--bg-elevated)] outline-none transition-colors';
 
     // Desktop bar: icon-only links from lg (1024px), labels from xl (1280px).
     // The fully labelled bar needs ~1250px, so below lg everything lives in the menu.
@@ -195,7 +180,7 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                         {/* Desktop Admin (owner/admin only) */}
                         {isAdminOrOwner && (
                             <Link
-                                href="/admin/product-types"
+                                href="/admin"
                                 className={`hidden lg:flex ${navLinkClass(isAdminActive)}`}
                                 aria-current={isAdminActive ? 'page' : undefined}
                                 title="Admin"
@@ -259,57 +244,57 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                         {/* Desktop User Avatar + Dropdown */}
                         <div className="hidden lg:block relative" ref={userMenuRef}>
                             <button
-                                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                                ref={menuButtonRef}
+                                onClick={() => setUserMenuOpen((o) => !o)}
                                 aria-haspopup="menu"
                                 aria-expanded={userMenuOpen}
-                                aria-label="User menu"
+                                aria-controls="account-menu"
+                                aria-label="Account menu"
                                 className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full hover:bg-[var(--bg-elevated)] transition-colors"
                             >
-                                <div className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-xs font-bold text-white">
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: profile ? avatarColor(profile.id) : 'var(--accent)' }}>
                                     {initials}
                                 </div>
-                                <ChevronDown className="w-3.5 h-3.5 text-[var(--text-faint)]" />
+                                <ChevronDown className={`w-3.5 h-3.5 text-[var(--text-faint)] transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
                             </button>
 
                             {userMenuOpen && (
-                                <div className="absolute right-0 top-full mt-1 w-64 bg-[var(--bg-card)] border border-[var(--border)] rounded-xl shadow-xl py-2 animate-fade-in" style={{ boxShadow: 'var(--shadow-dropdown)' }}>
-                                    <div className="px-4 py-2 border-b border-[var(--table-row-border)]">
-                                        <div className="text-sm font-semibold text-[var(--text-primary)]">{profile?.full_name || 'User'}</div>
-                                        <div className="text-xs text-[var(--text-muted)]">{profile?.email}</div>
-                                        <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${roleBadgeColor}`}>
-                                            {roleBadge}
-                                        </span>
+                                <div
+                                    id="account-menu"
+                                    ref={menuRef}
+                                    role="menu"
+                                    aria-label="Account"
+                                    className="absolute right-0 top-full mt-2 w-64 z-[60] bg-[var(--bg-card)] border border-[var(--border)] rounded-xl py-1.5 animate-fade-in"
+                                    style={{ boxShadow: 'var(--shadow-dropdown)' }}
+                                >
+                                    <div className="px-4 py-2.5 border-b border-[var(--table-row-border)] mb-1">
+                                        <div className="text-sm font-semibold text-[var(--text-primary)] truncate">{profile?.full_name || 'User'}</div>
+                                        <div className="text-xs text-[var(--text-muted)] truncate">{profile?.email}</div>
+                                        {roleBadge && (
+                                            <span className={`inline-block mt-1.5 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${roleBadgeColor}`}>
+                                                {roleBadge}
+                                            </span>
+                                        )}
                                     </div>
-                                    {isOwner && (
-                                        <Link
-                                            href="/admin/users"
-                                            className="flex items-center gap-2 px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
-                                            onClick={() => setUserMenuOpen(false)}
-                                        >
-                                            <Users className="w-4 h-4" />
-                                            Manage Users
+                                    <Link href="/settings" role="menuitem" className={menuItemClass}>
+                                        <UserCog className="w-4 h-4" /> Account settings
+                                    </Link>
+                                    {isAdminOrOwner && (
+                                        <Link href="/admin" role="menuitem" className={menuItemClass}>
+                                            <Settings className="w-4 h-4" /> Admin
                                         </Link>
                                     )}
-                                    <button
-                                        onClick={() => { setUserMenuOpen(false); setShowPasswordModal(true); }}
-                                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
-                                    >
-                                        <KeyRound className="w-4 h-4" />
-                                        Change Password
-                                    </button>
-                                    <button
-                                        onClick={toggleTheme}
-                                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
-                                    >
+                                    <button role="menuitem" onClick={toggleTheme} className={menuItemClass}>
                                         {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-                                        {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+                                        {theme === 'light' ? 'Dark mode' : 'Light mode'}
                                     </button>
+                                    <div className="border-t border-[var(--table-row-border)] my-1" />
                                     <button
+                                        role="menuitem"
                                         onClick={() => { setUserMenuOpen(false); signOut(); }}
-                                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-colors"
+                                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[var(--danger)] hover:bg-[var(--danger-bg)] focus:bg-[var(--danger-bg)] outline-none transition-colors"
                                     >
-                                        <LogOut className="w-4 h-4" />
-                                        Sign Out
+                                        <LogOut className="w-4 h-4" /> Sign out
                                     </button>
                                 </div>
                             )}
@@ -343,17 +328,11 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                         {isAdminOrOwner && (
                             <>
                                 <div className="border-t border-[var(--border)] my-2" />
-                                <Link href="/admin/product-types" className={mobileNavLinkClass(isAdminActive && pathname !== '/admin/users')} onClick={() => setMobileMenuOpen(false)}>
+                                <Link href="/admin" className={mobileNavLinkClass(isAdminActive)} aria-current={isAdminActive ? 'page' : undefined}>
                                     <Settings className="w-5 h-5" />
                                     Admin
                                 </Link>
                             </>
-                        )}
-                        {isOwner && (
-                            <Link href="/admin/users" className={mobileNavLinkClass(pathname === '/admin/users')} onClick={() => setMobileMenuOpen(false)}>
-                                <Users className="w-5 h-5" />
-                                Manage Users
-                            </Link>
                         )}
                         <div className="border-t border-[var(--border)] my-2" />
                         {/* Mobile user info */}
@@ -361,13 +340,10 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                             <div className="text-sm font-semibold text-[var(--text-primary)]">{profile?.full_name || 'User'}</div>
                             <div className="text-xs text-[var(--text-muted)]">{profile?.email}</div>
                         </div>
-                        <button
-                            onClick={() => { setMobileMenuOpen(false); setShowPasswordModal(true); }}
-                            className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
-                        >
-                            <KeyRound className="w-5 h-5" />
-                            Change Password
-                        </button>
+                        <Link href="/settings" className={mobileNavLinkClass(isSection('/settings'))}>
+                            <UserCog className="w-5 h-5" />
+                            Account settings
+                        </Link>
                         <button
                             onClick={toggleTheme}
                             className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
@@ -405,68 +381,6 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
             <main className="flex-1">
                 {children}
             </main>
-
-            {/* Change Password Modal */}
-            {showPasswordModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'var(--bg-overlay)', backdropFilter: 'blur(4px)' }}>
-                    <div role="dialog" aria-modal="true" aria-labelledby="change-password-title" className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm animate-fade-in mx-4" style={{ boxShadow: 'var(--shadow-dropdown)' }}>
-                        <h2 id="change-password-title" className="text-lg font-semibold text-[var(--text-primary)] mb-1">Change Password</h2>
-                        <p className="text-xs text-[var(--text-muted)] mb-5">Enter your new password below.</p>
-
-                        {passwordSuccess ? (
-                            <div className="py-6 text-center">
-                                <div className="w-10 h-10 rounded-full bg-[var(--success-bg)] flex items-center justify-center mx-auto mb-3">
-                                    <span className="text-[var(--success)] text-lg">✓</span>
-                                </div>
-                                <p className="text-sm font-medium text-[var(--success)]">Password updated!</p>
-                            </div>
-                        ) : (
-                            <>
-                                <label htmlFor="new-password" className="block text-xs font-medium text-[var(--text-secondary)] mb-1">New Password</label>
-                                <input
-                                    id="new-password"
-                                    type="password"
-                                    autoComplete="new-password"
-                                    autoFocus
-                                    value={newPassword}
-                                    onChange={(e) => setNewPassword(e.target.value)}
-                                    placeholder="Min 6 characters"
-                                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] mb-3 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 focus:border-[var(--accent)]"
-                                />
-                                <label htmlFor="confirm-password" className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Confirm Password</label>
-                                <input
-                                    id="confirm-password"
-                                    type="password"
-                                    autoComplete="new-password"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    placeholder="Re-enter password"
-                                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] mb-4 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20 focus:border-[var(--accent)]"
-                                    onKeyDown={(e) => e.key === 'Enter' && handleChangePassword()}
-                                />
-                                {passwordError && (
-                                    <p role="alert" className="text-xs text-[var(--danger)] mb-3">{passwordError}</p>
-                                )}
-                                <div className="flex justify-end gap-3">
-                                    <button
-                                        onClick={() => { setShowPasswordModal(false); setNewPassword(''); setConfirmPassword(''); setPasswordError(null); }}
-                                        className="px-4 py-2 rounded-lg text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={handleChangePassword}
-                                        disabled={passwordLoading}
-                                        className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 transition-colors"
-                                    >
-                                        {passwordLoading ? 'Updating...' : 'Update Password'}
-                                    </button>
-                                </div>
-                            </>
-                        )}
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

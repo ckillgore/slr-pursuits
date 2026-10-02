@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, RefreshCw, Square, CheckCircle2, AlertTriangle, MinusCircle } from 'lucide-react';
-import { AppShell } from '@/components/layout/AppShell';
-import { AdminNav } from '@/components/layout/AdminNav';
 import { useAuth } from '@/components/AuthProvider';
 import { fetchParcelRefreshTargets, saveRefreshedParcelData, type ParcelRefreshTarget } from '@/lib/supabase/queries';
 import { formatNumber } from '@/lib/constants';
@@ -118,9 +116,8 @@ export default function ParcelDataAdminPage() {
     const counts = Object.values(results).reduce((c, r) => ({ ...c, [r.status]: (c[r.status] ?? 0) + 1 }), {} as Record<RowResult['status'], number>);
 
     return (
-        <AppShell>
+        <>
             <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-                <AdminNav />
                 <div className="mb-6">
                     <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)]">Parcel Data</h1>
                     <p className="text-sm text-[var(--text-muted)] mt-1">
@@ -276,6 +273,6 @@ export default function ParcelDataAdminPage() {
                     </div>
                 )}
             </div>
-        </AppShell>
+        </>
     );
 }

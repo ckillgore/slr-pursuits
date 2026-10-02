@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AppShell } from '@/components/layout/AppShell';
-import { AdminNav } from '@/components/layout/AdminNav';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { useChecklistTemplates, useUpsertChecklistTemplate } from '@/hooks/useSupabaseQueries';
@@ -39,9 +37,8 @@ export default function ChecklistTemplatesPage() {
     }, []);
 
     return (
-        <AppShell>
+        <>
             <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-                <AdminNav />
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)]">Checklist Templates</h1>
@@ -162,6 +159,6 @@ export default function ChecklistTemplatesPage() {
                     </div>
                 </div>
             )}
-        </AppShell>
+        </>
     );
 }

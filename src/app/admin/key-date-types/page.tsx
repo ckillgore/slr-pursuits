@@ -1,11 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { useKeyDateTypes, useUpsertKeyDateType } from '@/hooks/useSupabaseQueries';
-import { AdminNav } from '@/components/layout/AdminNav';
 import { Plus, Loader2 } from 'lucide-react';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
 import { ColorInput } from '@/components/shared/ColorInput';
@@ -48,9 +46,8 @@ export default function KeyDateTypesPage() {
     const predevTypes = types.filter(t => t.category === 'pre_development').sort((a, b) => a.sort_order - b.sort_order);
 
     return (
-        <AppShell>
+        <>
             <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-                <AdminNav />
                 <div className="flex items-center justify-between mb-6">
                     <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)]">Key Date Types</h1>
                     <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-sm font-medium transition-colors shadow-sm">
@@ -135,6 +132,6 @@ export default function KeyDateTypesPage() {
                     </div>
                 )}
             </div>
-        </AppShell>
+        </>
     );
 }

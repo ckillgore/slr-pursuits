@@ -2,10 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { DebouncedTextInput } from '@/components/shared/DebouncedTextInput';
-import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
-import { AdminNav } from '@/components/layout/AdminNav';
 import {
     useTemplates,
     useUpsertTemplate,
@@ -81,9 +79,8 @@ export default function TemplatesPage() {
     };
 
     return (
-        <AppShell>
+        <>
             <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-                <AdminNav />
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)]">Data Model Templates</h1>
@@ -258,7 +255,7 @@ export default function TemplatesPage() {
                     </div>
                 </div>
             )}
-        </AppShell>
+        </>
     );
 }
 

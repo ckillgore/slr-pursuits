@@ -6,10 +6,8 @@ import { fetchCategoryMappings } from '@/app/actions/accounting';
 import { toast } from '@/lib/toast';
 import { createClient } from '@/lib/supabase/client';
 import { Plus, Trash2, Loader2, GripVertical, AlertTriangle, Lightbulb } from 'lucide-react';
-import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
-import { AdminNav } from '@/components/layout/AdminNav';
 import { YardiCategorySelect } from './YardiCategorySelect';
 import categoryMappingRaw from '../../../../category-mapping.json';
 
@@ -288,9 +286,8 @@ export function BudgetDefaultsClient() {
     }
 
     return (
-        <AppShell>
+        <>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-                <AdminNav />
 
                 <div className="flex justify-between items-center bg-[var(--bg-card)] p-6 rounded-2xl border border-[var(--border)] shadow-sm">
                     <div>
@@ -402,6 +399,6 @@ export function BudgetDefaultsClient() {
                     </p>
                 </div>
             </div>
-        </AppShell>
+        </>
     );
 }

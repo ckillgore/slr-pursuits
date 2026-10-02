@@ -11,10 +11,11 @@ import { useMapboxMap, useIsDarkTheme } from '@/components/map/useMapboxMap';
 import { MapStatusOverlay } from '@/components/map/MapStatusOverlay';
 import { addLayerOnce } from '@/components/map/mapHelpers';
 import type { Basemap } from '@/components/map/mapStyle';
+import { FindSitesPanel, FIND_SITES_FILL, type FoundSite } from '@/components/explore/FindSitesPanel';
 import {
     Search, MapPin, Loader2, X, Building2, User, DollarSign, Layers,
     Calendar, Ruler, Home, FileText, LandPlot, Shield,
-    Plus, Landmark, ExternalLink, ChevronRight, Eye,
+    Plus, Landmark, ExternalLink, ChevronRight, Eye, ScanSearch,
 } from 'lucide-react';
 
 // ======================== Types ========================
@@ -330,6 +331,9 @@ export default function ExplorePage() {
     const createComp = useCreateLandComp();
     const { data: stages = [] } = useStages();
 
+    // Find sites panel
+    const [findOpen, setFindOpen] = useState(false);
+
     // Track zoom for parcel visibility message
     const [showZoomMsg, setShowZoomMsg] = useState(true);
 
@@ -395,6 +399,20 @@ export default function ExplorePage() {
             .finally(() => {
                 if (seq === parcelReqSeqRef.current) setPanelLoading(false);
             });
+    }, []);
+
+    /** Opens a Find Sites result in the detail panel — its record is already loaded, so no new Regrid call */
+    const showFoundSite = useCallback((site: FoundSite) => {
+        parcelReqSeqRef.current++;
+        const parcel = site.parcel as unknown as ParcelData;
+        setMobilePopup(null);
+        setTooltip(null);
+        setClickedLngLat(site.center);
+        setPanelOpen(true);
+        setPanelLoading(false);
+        setPanelError(null);
+        setPanelParcel(parcel);
+        setPanelLookup({ parcel, associatedRecords: [], taxSummary: null, buildings: [] });
     }, []);
 
     const isDark = useIsDarkTheme();
@@ -475,6 +493,8 @@ export default function ExplorePage() {
         const onClick = (e: MapMouseEvent) => {
             const feature = mainParcelFeature(e.features);
             if (!feature) return;
+            // A Find Sites result under the click opens from its own (already paid-for) record
+            if (map.getLayer(FIND_SITES_FILL) && map.queryRenderedFeatures(e.point, { layers: [FIND_SITES_FILL] }).length) return;
             const lngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat];
             const props = (feature.properties || {}) as ParcelTileProps;
 
@@ -660,7 +680,7 @@ export default function ExplorePage() {
                 ` }} />
 
                 {/* Search Bar — floating overlay (full width on phones, the basemap toggle drops below it) */}
-                <div className="absolute top-4 left-4 right-4 sm:right-auto sm:w-full sm:max-w-md z-20" onClick={(e) => e.stopPropagation()}>
+                <div className="absolute top-4 left-4 right-4 sm:right-auto sm:w-full sm:max-w-md z-[25]" onClick={(e) => e.stopPropagation()}>
                     <div className="relative">
                         <div className="flex items-center gap-2 bg-[var(--bg-card)]/95 backdrop-blur-sm border border-[var(--border)] rounded-xl shadow-lg px-4 py-2.5">
                             <Search className="w-4 h-4 text-[var(--text-faint)] flex-shrink-0" />
@@ -716,6 +736,20 @@ export default function ExplorePage() {
                         </button>
                     ))}
                 </div>
+
+                {/* Find sites — button, or the panel below the search bar */}
+                {findOpen ? (
+                    <div className="absolute z-20 left-4 right-4 sm:right-auto sm:w-[22rem] top-28 h-[60vh] sm:h-auto sm:top-[4.5rem] sm:bottom-4">
+                        <FindSitesPanel map={map} ready={ready} onClose={() => setFindOpen(false)} onOpenSite={showFoundSite} />
+                    </div>
+                ) : (
+                    <button
+                        onClick={() => setFindOpen(true)}
+                        className="absolute z-20 left-4 top-16 sm:top-[4.5rem] flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-card)]/95 backdrop-blur-sm border border-[var(--border)] shadow-lg text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    >
+                        <ScanSearch className="w-3.5 h-3.5 text-[var(--accent)]" /> Find sites
+                    </button>
+                )}
 
                 {/* Zoom message */}
                 {showZoomMsg && (

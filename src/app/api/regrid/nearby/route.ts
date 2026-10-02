@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/app/api/_lib/auth';
 import { upstreamErrorResponse } from '@/app/api/_lib/upstream';
+import { checkRecordBudget, logRegridUsage } from '@/app/api/_lib/regridUsage';
 import { z } from 'zod';
 
 const BodySchema = z.object({
@@ -97,7 +98,7 @@ function parseNearbyParcel(feature: any): NearbyParcel {
 }
 
 export async function POST(request: Request) {
-    const { response: authError } = await requireAuth();
+    const { user, response: authError } = await requireAuth();
     if (authError) return authError;
 
     try {
@@ -114,6 +115,9 @@ export async function POST(request: Request) {
                 { status: 500 }
             );
         }
+
+        const budget = await checkRecordBudget(user.id, NEARBY_RECORD_LIMIT);
+        if (budget.response) return budget.response;
 
         // Use Regrid point+radius search
         const url = new URL(`${REGRID_BASE}/parcels/point`);
@@ -145,6 +149,7 @@ export async function POST(request: Request) {
 
         const data = await res.json();
         const features = data.parcels?.features || data.features || [];
+        logRegridUsage('nearby', features.length, { latitude, longitude, radiusMeters });
 
         // Parse and exclude the primary parcel
         const excludeSet = new Set(excludeRegridIds.map((id: string) => id?.toLowerCase()));

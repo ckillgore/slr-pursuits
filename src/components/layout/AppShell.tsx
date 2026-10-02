@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Building2, Settings, Plus, LayoutDashboard, BarChart3, FileSpreadsheet, TrendingUp, Menu, X, LogOut, ChevronDown, Landmark, Compass, Bell, Moon, Sun, CheckSquare, UserCog, type LucideIcon } from 'lucide-react';
 import { useState, useRef, useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/components/AuthProvider';
 import { 
     useMyMentionCount, 
@@ -54,6 +55,14 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
 
     const menuButtonRef = useRef<HTMLButtonElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
+    // The menu is portaled to <body> and placed under the avatar. Rendered inside the
+    // header, iOS Safari clipped it to the header's 56px once its fade-in finished
+    // (WebKit clips descendants of a backdrop-filter element) — it flashed and vanished.
+    const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+    const placeMenu = () => {
+        const r = menuButtonRef.current?.getBoundingClientRect();
+        if (r) setMenuPos({ top: r.bottom + 8, right: Math.max(8, window.innerWidth - r.right) });
+    };
 
     // Any navigation closes the menus
     const [menuPath, setMenuPath] = useState(pathname);
@@ -69,8 +78,10 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
         const items = () => [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
         items()[0]?.focus();
         const onPointerDown = (e: PointerEvent) => {
-            if (!userMenuRef.current?.contains(e.target as Node)) setUserMenuOpen(false);
+            const t = e.target as Node;
+            if (!userMenuRef.current?.contains(t) && !menuRef.current?.contains(t)) setUserMenuOpen(false);
         };
+        window.addEventListener('resize', placeMenu);
         const onKey = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
                 setUserMenuOpen(false);
@@ -89,6 +100,7 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
         return () => {
             document.removeEventListener('pointerdown', onPointerDown);
             document.removeEventListener('keydown', onKey);
+            window.removeEventListener('resize', placeMenu);
         };
     }, [userMenuOpen]);
 
@@ -141,7 +153,9 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
     return (
         <div className="min-h-screen flex flex-col overflow-x-clip">
             {/* Top Bar */}
-            <header className="sticky top-0 z-50 h-14 border-b border-[var(--border)] bg-[var(--bg-nav)]/95 backdrop-blur-sm">
+            <header className="sticky top-0 z-50 h-14 border-b border-[var(--border)]">
+                {/* Frosted background as its own layer: a backdrop-filter on the header itself makes Safari clip anything that extends below it */}
+                <div aria-hidden className="absolute inset-0 -z-10 bg-[var(--bg-nav)]/95 backdrop-blur-sm" />
                 <div className="flex items-center justify-between h-full px-4 md:px-6 overflow-x-clip">
                     {/* Left: Logo + Navigation */}
                     <div className="flex items-center gap-1 md:gap-4 min-w-0">
@@ -245,7 +259,7 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                         <div className="hidden lg:block relative" ref={userMenuRef}>
                             <button
                                 ref={menuButtonRef}
-                                onClick={() => setUserMenuOpen((o) => !o)}
+                                onClick={() => { placeMenu(); setUserMenuOpen((o) => !o); }}
                                 aria-haspopup="menu"
                                 aria-expanded={userMenuOpen}
                                 aria-controls="account-menu"
@@ -258,14 +272,14 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                                 <ChevronDown className={`w-3.5 h-3.5 text-[var(--text-faint)] transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
                             </button>
 
-                            {userMenuOpen && (
+                            {userMenuOpen && menuPos && createPortal(
                                 <div
                                     id="account-menu"
                                     ref={menuRef}
                                     role="menu"
                                     aria-label="Account"
-                                    className="absolute right-0 top-full mt-2 w-64 z-[60] bg-[var(--bg-card)] border border-[var(--border)] rounded-xl py-1.5 animate-fade-in"
-                                    style={{ boxShadow: 'var(--shadow-dropdown)' }}
+                                    className="fixed w-64 z-[60] bg-[var(--bg-card)] border border-[var(--border)] rounded-xl py-1.5 animate-fade-in"
+                                    style={{ top: menuPos.top, right: menuPos.right, boxShadow: 'var(--shadow-dropdown)' }}
                                 >
                                     <div className="px-4 py-2.5 border-b border-[var(--table-row-border)] mb-1">
                                         <div className="text-sm font-semibold text-[var(--text-primary)] truncate">{profile?.full_name || 'User'}</div>
@@ -296,7 +310,8 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                                     >
                                         <LogOut className="w-4 h-4" /> Sign out
                                     </button>
-                                </div>
+                                </div>,
+                                document.body,
                             )}
                         </div>
                     </div>
@@ -304,7 +319,7 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
             </header>
 
             {/* Mobile Menu Overlay */}
-            {mobileMenuOpen && (
+            {mobileMenuOpen && createPortal(
                 <div id="mobile-nav" className="lg:hidden fixed inset-0 top-14 z-40 overflow-y-auto overscroll-contain bg-[var(--bg-card)] border-t border-[var(--border)]">
                     <nav className="flex flex-col p-4 gap-1" aria-label="Main">
                         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
@@ -359,7 +374,8 @@ export function AppShell({ children, onNewPursuit }: AppShellProps) {
                             Sign Out
                         </button>
                     </nav>
-                </div>
+                </div>,
+                document.body,
             )}
 
             {/* Session lost banner — shown when auth state is lost so user can recover */}
